@@ -72,7 +72,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. Remaining children and full embedded interactions still pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; scrolling slot summary, linked assigned slots and toolbar spacing aligned. Presets and additional profile fields remain |
-| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI-result staging, remaining General/Info and full editor/list review remain |
+| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI-result staging and full editor/list review remain. Info has confirmed missing Skills/Equipment/Stats/Inventory/Spells/Metadata panels and Setting Overrides; NPC settings_overrides are accepted but intentionally ignored by the resolver and existing test. This is a parity gap, not an exception; see NPC Info implementation sequence below |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; remaining generation edge states remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; full provider-badge consolidation remains pending |
@@ -5359,3 +5359,66 @@ raw provider debug output is not exposed. Native narrow title sizing remains
 smaller to keep the close control clear; the whole TTS section is not marked
 complete by these checks. PHP/JavaScript syntax, diff checks and all 582 existing
 server checks passed. No saved connector values or game state changed.
+
+
+## NPC Info implementation sequence: confirmed structural gap
+
+Current source and live read-only inspection supersede the vague remaining
+General/Info item. Herika's Info panel exposes Emote Moods, Skills, Current
+Equipment, Character Stats, Inventory, Spells, Metadata (JSON), and Setting
+Overrides (current rows, Add, Edit, Remove and advanced JSON). Native exposes
+Emote Moods, Effective NPC settings and sources, Notes and Change Reason.
+The native effective-settings disclosure is not a replacement for an editor.
+
+Private Temp/npc-info-review.cjs captured both actual Info panels. The reference
+was opened through its observed card data-id and existing edit/partial route;
+native was opened in its actual modal. These captures prove missing content,
+not a matching-viewport geometry comparison: the reference partial was loaded
+standalone. Earlier card-to-iframe attempts timed out and are not evidence.
+No settings, favorites, locks, generation or game commands were submitted.
+
+The next implementation must address the contract before adding controls:
+
+1. Replace the old inert-NPC-override contract deliberately. ProductService's
+   validateProfile accepts settings_overrides, but EffectiveSettingsResolver's
+   NPC layer does not merge them. tests/run.php currently explicitly asserts
+   that NPC behavior and routing overrides stay inert. The existing green test
+   suite therefore proves the old policy, not Herika parity.
+2. Derive an explicit NPC override catalogue from reference supported controls,
+   mapping each to native typed leaves and its actual consumer. Start with
+   response limits, conversation memory and Rechat, whose effective-setting
+   paths already exist; do not mark the full catalogue complete at that subset.
+   Trace installation-wide scheduling separately before exposing its leaves.
+3. Apply explicit NPC values after global/Core settings, preserving false,
+   zero and empty values. Removal restores inheritance. Keep dedicated diary
+   and voice controls consistent, preserve unrelated document fields and do
+   not let the generic editor overwrite actor identity or system routing.
+4. Adapt the reference override component into the actual NPC Info template:
+   current rows and Add/Edit/Remove, typed choices/search, advanced JSON and
+   source/help text. Stage changes in the existing NPC revisioned Save form.
+   The copied ui/core/tmpl/override_editor.php currently is not included by
+   the active NPC renderer and contains inline code and a remote JSON-editor
+   import; it cannot simply be enabled under the existing CSP.
+5. Add observed-data disclosures from installation/profile-scoped immutable
+   actor snapshots. Do not present authored biography Skills as in-game skill
+   values or fabricate Skyrim slots, actor stats or spells. Confirm native
+   snapshot fields and ownership before rendering. Match reference empty
+   messages when no observation exists. Keep raw private payloads out of HTML.
+6. Extend existing resolver and management HTTP tests: precedence and source,
+   false/zero, deletion to inherit, invalid value, stale revision, cross-owner
+   refusal and atomic failure preserving the NPC content. Verify actual
+   downstream prompt/Rechat behavior, not only stored JSON.
+7. Compare populated, empty, add/edit/remove, rejected-save and restored-inherit
+   states visually at desktop/narrow and in the real modal. Then publish and
+   deploy with the normal preservation checks. No game launch is required for
+   source, disposable database and browser evidence; client-specific claims
+   remain unproven until separately authorized and tested.
+
+Primary native code: ui/tmpl/resource_page.php (NPC Info and Save composition),
+lib/Http/ManagementRouter.php (profile form merge), processor/ProductService.php
+(profile validation), lib/Application/EffectiveSettingsResolver.php (precedence),
+lib/Infrastructure/ProductRepository.php (effectiveSettingsForProfile), and
+processor/RechatCoordinator.php (selected actor behavior). The reference is
+pinned core/npc_master.php and core/tmpl/override_editor.php. This checkpoint
+records an implementation-ready gap; it does not claim those missing controls
+or backend semantics have been implemented.
