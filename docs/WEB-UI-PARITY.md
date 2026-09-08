@@ -6469,3 +6469,25 @@ pass at 1280/390, without real saves or provider requests. 603 server checks pas
 799 runtime files match, private/auth/health checks pass, configuration/credential/voice
 contents preserved. Rollback: /var/backups/lorkhanserver-code.BUOh7w. No game activity.
 Whole Diary reader/editor/table acceptance and the heading paint investigation remain open.
+
+## Books table structure and narrow content flow
+
+Live reference inventory confirms Books uses table/table-striped/table-bordered/table-sm,
+an in-body primary header, separate borders with zero spacing, and a UESP calendar
+help link. Ported that structure specifically for Books; AI Responses and Journal keep
+their existing header structures. Removed forced percentage column widths for Books,
+restored normal wrapping and reference 12.8px/1.5 typography with 9px 10px cell padding.
+Matched visible cell stripes (#212529/#202020), not only the underlying row colors.
+Native gold calendar link, safe text reader and scoped filters/export remain available.
+
+Temp/books-structure-proof.cjs passes at 1280/390: source-rendered native fixture in
+actual live stylesheets, reader opens with literal markup retained, Escape closes,
+calendar help URL matches. Both tables receive the same synthetic two-row text for
+comparison; separate-border/zero-spacing and underlying row colors match. Paired narrow
+screenshots were inspected and corrected when they exposed non-wrapping timestamps and
+incorrect visible cell colors. The final table is readable at 390 without the former
+forced columns; exact whole-table geometry and the native reader extension remain open.
+These component checks are not full page acceptance. No POSTs or live record edits.
+603 checks pass; 799 deployed files match and private/auth/health checks pass.
+Config/credentials/voice contents preserved. Rollback: /var/backups/lorkhanserver-code.0NWcFK.
+No game activity; full counterpart matrix remains active.

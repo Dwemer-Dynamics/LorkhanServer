@@ -6,13 +6,14 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
 {
     $responses = $tab === 'responselog';
     $journal = $tab === 'journal';
+    $books = $tab === 'books';
     $recordLabel = $responses ? 'Response' : ($journal ? 'Journal' : 'Book');
     $link = static fn(array $changes): string => $webRoot.'/ui/events-memories.php?'.http_build_query(array_merge([
         'tab'=>$tab,'installation_id'=>$state['installation'],'playthrough_id'=>$state['playthrough'],
         'reader_page'=>$state['page'],'q'=>$state['query'],'person'=>$state['person'],'date'=>$state['date'],
     ], $changes));
     ?>
-    <div class="roleplay-log-page<?= $responses?'':' book-log-page' ?>" data-log-page>
+    <div class="roleplay-log-page<?= $responses?'':' book-log-page' ?><?= $books?' observed-books-page':'' ?>" data-log-page>
         <?php if($responses): ?><div class="roleplay-description"><strong>AI Responses:</strong>
             Complete log of AI-generated responses including the full context payload sent to the LLM. Use this to debug model behavior, prompt composition, Oghma topics, and timing.
         </div><?php else: ?><p class="book-log-intro"><?= $journal?'<strong>Morrowind Journal:</strong> Entries captured from your in-game journal.':'Books observed during your Morrowind playthrough.' ?></p><?php endif; ?>
@@ -34,9 +35,9 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
             <?php if(!$responses&&!$journal&&$state['rows']===[]): ?>
                 <p class="books-empty"><?= $state['query']!==''?'No books match this filter.':'No books found. Read some books in-game to see them here!' ?></p>
             <?php else: ?>
-            <table class="<?= $responses?'ai-response-table':'books-table' ?>" data-log-table>
-                <thead><tr><?php foreach($responses?['Time (UTC)','AI Response','Oghma Topic','Prompt','HTTP Request','rowid']:[$journal?'Journal ID':'Title','Content','Tamrielic Time','Time (UTC)','TS'] as $column): ?><th scope="col"><?= lorkhan_ui_h($column) ?></th><?php endforeach; ?></tr></thead>
-                <tbody><?php foreach($state['rows'] as $row): $id='log-entry-'.(int)$row['narrative_id']; ?>
+            <table class="<?= $responses?'ai-response-table':'books-table' ?><?= $books?' table table-striped table-bordered table-sm':'' ?>" data-log-table>
+                <?= $books?'<tbody>':'<thead>' ?><tr<?php if($books): ?> class="primary"<?php endif; ?>><?php foreach($responses?['Time (UTC)','AI Response','Oghma Topic','Prompt','HTTP Request','rowid']:[$journal?'Journal ID':'Title','Content','Tamrielic Time','Time (UTC)','TS'] as $column): ?><th scope="col"><?php if($books&&$column==='Tamrielic Time'): ?><a href="https://en.uesp.net/wiki/Lore:Calendar" target="_blank" rel="noopener noreferrer"><?= lorkhan_ui_h($column) ?></a><?php else: ?><?= lorkhan_ui_h($column) ?><?php endif; ?></th><?php endforeach; ?></tr><?= $books?'':'</thead><tbody>' ?>
+                <?php foreach($state['rows'] as $row): $id='log-entry-'.(int)$row['narrative_id']; ?>
                     <tr><?php if($responses): ?>
                         <td><?= lorkhan_ui_h(gmdate('d-m-Y H:i:s', strtotime($row['created_at']))) ?></td>
                         <td class="log-response-text"><?= lorkhan_ui_h($row['content']) ?></td>

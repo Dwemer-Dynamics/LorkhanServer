@@ -103,6 +103,14 @@ body .book-log-page .books-table tbody td{background:transparent!important}
 body .book-log-page .log-content-link{color:#e6e6e6!important;font:inherit;white-space:normal;text-align:left}
 .book-log-page .log-content-link:hover{text-decoration:underline}
 body .book-log-page .books-table th:nth-child(3){color:#bc9d5a!important}
+/* Books uses the reference table's in-body header and separate, touching borders. */
+.observed-books-page .books-table{border-collapse:separate;border-spacing:0}
+body .observed-books-page .books-table tbody tr:nth-child(odd){background:#232323!important}
+body .observed-books-page .books-table tbody tr:nth-child(even){background:#202020!important}
+.observed-books-page .books-table th a{color:#bc9d5a}
+body .observed-books-page .books-table :is(th,td){width:auto!important;font-size:12.8px;line-height:1.5;padding:9px 10px;white-space:normal;word-break:normal;overflow-wrap:break-word}
+body .observed-books-page .books-table tbody tr:nth-child(even) td{background:#212529!important}
+body .observed-books-page .books-table tbody tr:nth-child(odd) td{background:#202020!important}
 
 @media(max-width:480px){.calendar-log-page .reader-heading h1{font-size:24px}}
 
