@@ -25,7 +25,7 @@
     root.querySelectorAll('[data-log-close]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
     root.querySelectorAll('[data-log-copy]').forEach(button => {
         const dialog = button.closest('dialog');
-        const prompt = dialog.classList.contains('response-prompt-viewer');
+        const referenceCopy = dialog.matches('.response-prompt-viewer,.book-content-viewer');
         const label = button.textContent;
         let resetTimer;
         let generation = 0;
@@ -35,7 +35,7 @@
             clearTimeout(resetTimer);
             button.textContent = label;
             button.style.background = '';
-            if (prompt) dialog.querySelector('[data-log-status]').textContent = '';
+            if (referenceCopy) dialog.querySelector('[data-log-status]').textContent = '';
         };
         dialog.addEventListener('close', resetCopy);
         button.addEventListener('click', async () => {
@@ -44,7 +44,7 @@
             try {
                 if (navigator.clipboard && window.isSecureContext) {
                     await navigator.clipboard.writeText(text);
-                } else if (prompt) {
+                } else if (referenceCopy) {
                     // A native modal makes the page inert: keep the temporary selection inside it.
                     const selection = document.createElement('textarea');
                     selection.value = text;
@@ -60,7 +60,7 @@
                 } else throw new Error('Clipboard unavailable');
                 if (current !== generation || !dialog.open) return;
                 dialog.querySelector('[data-log-status]').textContent = 'Copied.';
-                if (prompt) {
+                if (referenceCopy) {
                     clearTimeout(resetTimer);
                     button.textContent = '✅ Copied!';
                     button.style.background = '#28a745';
@@ -68,7 +68,7 @@
                 }
             } catch {
                 if (current !== generation || !dialog.open) return;
-                if (prompt) window.alert('Failed to copy to clipboard');
+                if (referenceCopy) window.alert('Failed to copy to clipboard');
                 else dialog.querySelector('[data-log-status]').textContent = 'Clipboard unavailable. Select the text to copy it manually.';
             }
         });

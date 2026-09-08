@@ -160,7 +160,7 @@ body .ai-response-table [data-log-open]{white-space:nowrap}
 .log-content-modal [data-log-status]{font-size:12px;align-self:center;overflow-wrap:anywhere}
 .log-content-modal [data-log-status]:empty{display:none}
 
-@media(max-width:700px){.response-prompt-viewer>header:has([data-log-status]:not(:empty)){flex-wrap:wrap}.response-prompt-viewer>header:has([data-log-status]:not(:empty))>div{flex-basis:100%;align-items:center}.response-prompt-viewer [data-log-status]{flex:1}.response-prompt-viewer [data-log-copy]{white-space:nowrap}}
+@media(max-width:700px){:is(.response-prompt-viewer,.book-content-viewer)>header:has([data-log-status]:not(:empty)){flex-wrap:wrap}:is(.response-prompt-viewer,.book-content-viewer)>header:has([data-log-status]:not(:empty))>div{flex-basis:100%;align-items:center}:is(.response-prompt-viewer,.book-content-viewer) [data-log-status]{flex:1}:is(.response-prompt-viewer,.book-content-viewer) [data-log-copy]{white-space:nowrap}}
 
 .response-prompt-viewer .prompt-meta-label{background:#1f2937;color:#e5e7eb}
 
@@ -239,16 +239,18 @@ body .roleplay-log-page:not(.book-log-page) .log-pagination nav .roleplay-button
 body .roleplay-log-page:not(.book-log-page) .log-bottom-pagination .roleplay-button{line-height:1.5}
 
 /* Prompt Viewer header and metadata follow the reference, retaining semantic close/copy buttons. */
-.roleplay-log-page .response-prompt-viewer>header{gap:normal}
-.roleplay-log-page .response-prompt-viewer h2{font:26px/1.2 MagicCards,sans-serif}
-.roleplay-log-page .response-prompt-viewer>header>div{display:block}
-body .roleplay-log-page .response-prompt-viewer [data-log-copy]{display:inline-flex;font-weight:500}
-body .roleplay-log-page .response-prompt-viewer [data-log-close]{float:right;display:block;margin:0!important;padding:0!important;min-height:0;font:700 28px/1.5 "Futura CondensedLight",Arial,sans-serif!important;letter-spacing:normal}
+.roleplay-log-page :is(.response-prompt-viewer,.book-content-viewer)>header{gap:normal}
+.roleplay-log-page :is(.response-prompt-viewer,.book-content-viewer) h2{font:26px/1.2 MagicCards,sans-serif}
+.roleplay-log-page :is(.response-prompt-viewer,.book-content-viewer)>header>div{display:block}
+body .roleplay-log-page :is(.response-prompt-viewer,.book-content-viewer) [data-log-copy]{display:inline-flex;font-weight:500}
+body .roleplay-log-page :is(.response-prompt-viewer,.book-content-viewer) [data-log-close]{float:right;display:block;margin:0!important;padding:0!important;min-height:0;font:700 28px/1.5 "Futura CondensedLight",Arial,sans-serif!important;letter-spacing:normal}
 .response-prompt-viewer .prompt-meta{padding:3px 8px;border-radius:999px;font-size:13px}
 .response-prompt-viewer .prompt-meta-driver{background:#111827;color:#93c5fd}
 .response-prompt-viewer .prompt-meta-model{background:#0f172a;color:#cbd5e1}
-body .roleplay-log-page .response-prompt-viewer [data-log-copy]{letter-spacing:.3px}
+body .roleplay-log-page :is(.response-prompt-viewer,.book-content-viewer) [data-log-copy]{letter-spacing:.3px}
 /* Keep copy announcements accessible without adding a second visible feedback row. */
-.response-prompt-viewer [data-log-status]{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-.roleplay-log-page .response-prompt-viewer>header:has([data-log-status]:not(:empty)){flex-wrap:nowrap}
-.roleplay-log-page .response-prompt-viewer>header:has([data-log-status]:not(:empty))>div{flex-basis:auto}
+:is(.response-prompt-viewer,.book-content-viewer) [data-log-status]{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.roleplay-log-page :is(.response-prompt-viewer,.book-content-viewer)>header:has([data-log-status]:not(:empty)){flex-wrap:nowrap}
+.roleplay-log-page :is(.response-prompt-viewer,.book-content-viewer)>header:has([data-log-status]:not(:empty))>div{flex-basis:auto}
+
+.roleplay-log-page .book-content-viewer>header{flex-wrap:nowrap}

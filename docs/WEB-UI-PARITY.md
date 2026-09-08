@@ -7028,3 +7028,23 @@ prove the remaining page matrix complete.
 
 All six deployed fixture comparisons pass. All 799 runtime files match source,
 and deployment preserved configuration, credentials and voice files.
+
+### Books shared viewer controls (2026-09-08)
+
+Pinned Herika events-memories.php Books uses the shared '📜 Prompt Viewer' header,
+'📋 Copy' control, multiplication-sign close and the same temporary copy feedback as
+AI Responses. Applied that reference header and copy behavior to native Books instead
+of leaving its older generic buttons/status flow. Book titles remain in the table;
+book text remains escaped in the existing monospace reading surface. Journal remains
+outside these shared reference-reader changes.
+
+Temp/books-copy-parity.cjs exercises actual reference handlers and the rendered native
+book fixture at 1280/390. Clipboard API success/reset, rejection alert and legacy
+execCommand fallback pass under mocks; the fallback removes only its own temporary
+textarea (Herika has unrelated hidden textareas). Native close/reopen and late copy
+completion checks pass. Narrow copied-state screenshot reviewed. No system clipboard,
+provider, data write or game operation occurred. PHP/JS syntax, diff checks and all
+608 server checks pass. Existing background reference source is read-only.
+
+Deployed book copy comparisons pass at both widths. All 799 runtime files match
+source; deployment preserved configuration, credentials and voice files.
