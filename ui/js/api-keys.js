@@ -2,7 +2,7 @@
 (() => {
     const form=document.getElementById('api-keys-form');
     if(!form)return;
-    const customKeys=document.getElementById('custom-keys'),dialog=document.getElementById('apikey-test-dialog');
+    const customKeys=document.getElementById('custom-keys'),dialog=document.getElementById('apikey-test-dialog'),testLoading=document.getElementById('apikey-test-loading');
     let queue=Promise.resolve(),draftId=0,testRequest=null,testOpener=null;
     form.noValidate=true;
     const keyInput=card=>card.querySelector('.provider-body input');
@@ -121,7 +121,7 @@
         const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
         testRequest=controller;testOpener=button;
         document.getElementById('apikey-test-provider').textContent=card.querySelector('.provider-title').lastElementChild.textContent.trim();
-        status.textContent='Testing API key…';status.className='is-loading';
+        status.textContent='Testing API key…';status.className='is-loading';testLoading.hidden=false;
         dialog.showModal();button.disabled=true;
         try{
             const result=await post({test_key:button.value,['credentials['+button.value+']']:input.value},controller.signal);
@@ -132,10 +132,10 @@
             status.textContent=error.name==='AbortError'?'The test timed out. No key was saved.':
                 error instanceof TypeError?'Could not reach the server. No key was saved.':error.message;
             status.className='is-error';
-        }finally{clearTimeout(timer);if(testRequest===controller){testRequest=null;button.disabled=false;}}
+        }finally{clearTimeout(timer);if(testRequest===controller){testRequest=null;testLoading.hidden=true;button.disabled=false;}}
     }
     document.getElementById('apikey-test-close').addEventListener('click',()=>dialog.close());
-    dialog.addEventListener('close',()=>{testRequest?.abort();testRequest=null;if(testOpener){testOpener.disabled=false;testOpener.focus();}});
+    dialog.addEventListener('close',()=>{testRequest?.abort();testRequest=null;testLoading.hidden=true;if(testOpener){testOpener.disabled=false;testOpener.focus();}});
     dialog.addEventListener('click',event=>{if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)dialog.close();}});
     window.addEventListener('pagehide',()=>testRequest?.abort());
 })();

@@ -7139,3 +7139,27 @@ were preserved. No game or provider was used.
   grouping and complete custom/test states still need reconciliation. Do not
   treat differing key inventories or native credential security as proof of full
   page parity. The broader page-by-page goal remains active.
+
+### API key test loading reader (2026-09-08)
+
+- Compared pinned `core/api_badge.php` test-modal markup and its live isolated
+  loading state against Lorkhan at 1280px and 390px. Replaced the small inline
+  spinner with the reference full-reader dark overlay and centered 48px spinner,
+  4px border and one-second rotation. The Close control remains above the overlay
+  and now matches the reference's rendered neutral background. Gold replaces
+  only the reference spinner accent.
+- The panel is visually suppressed while pending, matching the empty reference
+  iframe, but the live loading announcement remains in the accessibility tree.
+  Reduced-motion preferences disable rotation. Results reveal the existing panel;
+  completion and close hide the overlay. Existing abort, opener restoration and
+  stale-request guards remain in place; no credential or provider request change.
+- Inspected deployed/reference screenshots and measured the same spinner size,
+  border width and box sizing. Mocked success and HTTP-error replies both dismiss
+  loading; Close cancels a pending test, restores its enabled opener and ignores
+  the late response. Escape restores focus after results. Both widths passed.
+  All test POSTs were intercepted; reference inputs were cleared in browser memory
+  before screenshots. No real provider calls or credential writes were made.
+- PHP syntax, JavaScript syntax and existing 608 checks passed. Server-only deploy
+  preserved configuration, credentials and voices. All 799 deployed files match
+  source and private/authentication checks pass. This completes the loading-state
+  correction, not API Keys result-detail, custom-editor or provider-group parity.

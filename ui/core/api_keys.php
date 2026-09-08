@@ -199,6 +199,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 </main>
 <dialog id="apikey-test-dialog" class="apikey-test-dialog" aria-labelledby="apikey-test-title">
     <button type="button" class="button apikey-test-close" id="apikey-test-close" autofocus>Close</button>
+    <div id="apikey-test-loading" class="apikey-test-loading" hidden aria-hidden="true"><span class="apikey-test-spinner"></span></div>
     <div class="apikey-test-content"><div class="apikey-test-panel"><div class="apikey-test-heading"><h1 id="apikey-test-title">API Key Test</h1><span id="apikey-test-provider"></span></div><div id="apikey-test-status" role="status" aria-live="polite"></div><p class="keys-help">Testing checks provider authentication. It does not save the entered key.</p></div></div>
 </dialog>
 <script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/api-keys.js?v=<?php echo lorkhan_ui_h((string) filemtime(dirname(__DIR__) . '/js/api-keys.js')); ?>"></script>

@@ -82,7 +82,7 @@ body.api-keys-page-shell > main.api-keys-page {
 /* Reference's 900px / 70vh test reader, with native focus and Escape handling. */
 .apikey-test-dialog { width: 90%; max-width: 900px; height: 70vh; max-height: 90vh; padding: 0; color: #ddd; background: #0e1624; border: 1px solid rgba(138,155,182,.4); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.6); }
 .apikey-test-dialog::backdrop { background: rgba(0,0,0,.65); }
-.apikey-test-dialog .apikey-test-close { position: absolute; top: 8px; right: 10px; padding: 4px 10px; background: #300 !important; color: #fff; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; }
+.apikey-test-dialog .apikey-test-close { position: absolute; z-index: 3; top: 8px; right: 10px; padding: 4px 10px; background: #3a3a3a !important; color: #fff; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; }
 .apikey-test-content { height: 100%; overflow: auto; padding: 12px; background: #2a2a2a; color: #e9efff; font-family: system-ui, sans-serif; }
 .apikey-test-panel { border: 1px solid #4a4a4a; border-radius: 10px; padding: 12px; margin: 10px 0; }
 .apikey-test-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding-right: 50px; margin-bottom: 6px; }
@@ -93,9 +93,13 @@ body.api-keys-page-shell > main.api-keys-page {
 #apikey-test-status { white-space: pre-wrap; overflow-wrap: anywhere; }
 #apikey-test-status.is-success { color: #6dd19c; }
 #apikey-test-status.is-error { color: #ff6b6b; }
-#apikey-test-status.is-loading::before { content: ''; display: inline-block; width: 18px; height: 18px; margin-right: 10px; vertical-align: middle; border: 2px solid #777; border-top-color: #bc9d5a; border-radius: 50%; animation: key-test-spin 1s linear infinite; }
+.apikey-test-loading:not([hidden]) { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.4); border-radius: inherit; }
+.apikey-test-dialog:has(.apikey-test-loading:not([hidden])) .apikey-test-content { background: #0e1624; }
+.apikey-test-dialog:has(.apikey-test-loading:not([hidden])) .apikey-test-panel { opacity: 0; }
+.apikey-test-spinner { width: 48px; height: 48px; box-sizing: border-box; border: 4px solid rgba(255,255,255,.25); border-top-color: #bc9d5a; border-radius: 50%; animation: key-test-spin 1s linear infinite; }
+#apikey-test-status.is-loading { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @keyframes key-test-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { #apikey-test-status.is-loading::before { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .apikey-test-spinner { animation: none; } }
 
 @media (max-width: 900px) {
     .api-keys-page .content-grid,
