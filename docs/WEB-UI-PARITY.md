@@ -7733,3 +7733,17 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
   and remains open. Do not treat earlier broad narrow-review notes as exact parity.
 - 615 server checks pass; all 800 deployed hashes/private/auth probes verified.
   Configuration, credentials and voices preserved. Rollback: lorkhanserver-code.EoCZwB.
+
+### Adventure hub comparison correction
+
+- Compared the native Adventure tab to Herika's actual embed=1 Adventure iframe,
+  not its standalone page. Both hub content widths are already identical: 1236px
+  at 1280 and 346px at 390. The previously recorded 22px frame issue was a comparison
+  mismatch and is superseded; no frame padding was changed.
+- Computed styles isolated the remaining narrow wrapping difference to inherited
+  overflow-wrap:anywhere. Applied reference break-word to Adventure cells only.
+  With identical browser fixture rows, all four column widths and row heights now
+  match exactly in both hubs: 58.375px desktop, 96.75px narrow. Inspected capture.
+- 615 server checks, deployment syntax and 800 runtime hashes/private/auth probes
+  pass. No provider calls or game control; configuration, credentials and voices
+  preserved. Rollback: lorkhanserver-code.XOh3Q9. Full matrix remains active.
