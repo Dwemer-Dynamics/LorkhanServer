@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `2709506` (Core RPG policy foundation; latest visual changes remain `f316e5b`).
+Current deployed product checkpoint: `4230cc5` (RPG Comments card, responder wiring and built-in probabilities); client `1560dbe` is deployed as Lua-only changes.
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -28,6 +28,11 @@ only the listed states, not completion of every page or feature.
 | Diaries | Actual hub populated columns match; empty-date row padding corrected; reader whitespace and editor geometry compared at both widths | Complete day/author sets and corresponding ascending/descending order verified; paired reader/editor refreshed; provider audio acceptance and remaining cache cases |
 | Books | Populated typography and columns compared; missing empty-result panel restored and checked at both widths | Game-time/numeric ordering, 150/1 pagination, filtered/empty results and full export checked with 151 isolated rows; observed-book runtime capture remains unverified |
 | API Keys | Standalone and actual hub preset geometry compared at 1280/390; Custom Keys empty/live and matched draft states inspected; failed-save and pending-save draft retention rechecked with mocks | Content-only shell corrected and deployed; live-provider acceptance remains untested |
+
+Core Profiles now includes the RPG Comments card with supported event choices and
+probability, bound-responder policy, portable/named presets and built-in probabilities.
+Its actual hub desktop card and native 860/390 controls were compared; the complete
+Core editor, Short Term Memory card and remaining profile features are still open.
 
 The reference's extra excluded navigation entries change wrapping and page origins.
 Do not add blank tabs or reintroduce excluded features to force absolute offsets.
@@ -9039,3 +9044,73 @@ copies and validators, freeze/bound/correlate the same eligible actor in Lua acr
 session/generation changes, and have ingress resolve its Core Profile before the
 single existing probability roll. Then expose the working reference-style card.
 No game launched or controlled. Workflow remains disabled. Full parity goal active.
+
+## 2026-09-08 - RPG Comments card and responder path implemented
+
+Server `f6118e6` adds the reference-style card and responder-aware ingress; `4230cc5`
+adds reference built-in probabilities. Client `1560dbe` adds the typed optional
+responder, bounded acknowledgement correlation, global handoff fences and cooldown.
+Both repositories are pushed directly to main from `codex/web-ui-parity` and
+`codex/rpg-profile-responder`, respectively. This supersedes the prior RPG
+foundation-only checkpoint, not the remaining whole-editor/page matrix.
+
+### Behavior and presentation
+
+- Core Profile saves, portable export/import and named presets retain RPG event and
+  probability choices. Empty events and zero probability remain explicit off.
+  Existing profiles without overrides inherit global policy. Saving the displayed
+  card makes its current choices explicit on that profile, like the other controls.
+- The authenticated gamedata path resolves the frozen responder's actual Core
+  Profile before its single deterministic roll. Idempotent retries retain the
+  original decision even if settings change. Legacy player-only observations use
+  the global policy. No schema migration or native C++ change was required.
+- Lua tracks at most32 recent request identities for30 seconds. Acknowledgements
+  are consumed once and must retain session/generation, target and nearby eligibility.
+  The global handoff rechecks the target and idle speech/combat/input state. RPG
+  turns start a60-second game-owned real-time cooldown, cleared on lifecycle changes.
+- The card uses Herika's heading, two setting rows, checkbox chips, probability
+  labels/help and range/number layout. Gold branding remains. Eight reference events
+  become the four currently supported OpenMW events: levelup, combat_end, sleep,
+  wait. Skyrim shout/word/Dragonborn-soul and bleedout behavior is not fabricated;
+  lockpick remains pending a provenance-correct observer, not an accepted generic
+  Unlock event. These differences explain card height; no forced blank space added.
+- Built-in Default/Local LLM/Follower/Passive probabilities now match50/0/75/20.
+  They retain selected event types. Other incomplete built-in effects remain pending.
+  Reference RPG controls have no per-field Copy to all button, so none was invented.
+
+### Evidence and deployment
+
+-748 PHP checks and69 Lua tests pass. Existing tests cover explicit off, named and
+  built-in presets, responder types, bounded/duplicate/expired/stale acknowledgement,
+  changed global target, combat/busy fences and cooldown lifecycle.
+- `rpg-responder-integration.txt`: full integration/migration/durable-job suite and
+ 173-relation inventory passed. Opposing global0/Core100 and global100/Core0 cases,
+  changed-policy replay and legacy fallback exercise the actual ingress/repository.
+- `rpg-comments-management-http-final.txt`: full browser-like HTTP suite passed,
+  including save/reload, selected-event export and all-off import. A stale diary
+  rows3 assertion was corrected to the previously implemented reference rows4.
+-38 schemas/62 fixtures pass the repository validator; installed Python lacked
+  jsonschema, so official meta-schema validation is not claimed. All100 shared
+  schema/fixture files and both manifests are byte-identical between repositories.
+- `rpg-comments-ui.cjs` / `rpg-comments-ui-final.txt`: actual hub1280 reference and
+  native comparison, native860/390, both slider directions, keyboard and all-off
+  states passed without writes/browser errors/overflow. Paired desktop screenshots
+  and native390 all-off were viewed. After whitespace/font corrections, sampled
+  chip width/height82.703125/32 and range height43 match reference. Card padding,
+  header, body gap, row gap and fonts match. Heights differ with supported events.
+  Broken reference narrow iframe remains separately documented, not reproduced.
+- Final server rollback `/var/backups/lorkhanserver-code.bVhDHV`;807 deployed files
+  match source with no extras/legacy paths. Private403, unauthenticated401, health
+  and NPC200/404 probes pass; configuration, credential and voice hashes preserved.
+- Client baseline was verified against deployed Lua/data before copying only
+  player.lua, player_state.lua, orchestrator.lua and protocol.lua. All28 runtime
+  Lua/data files now match client1560dbe (line-ending normalized). Engine/private
+  config hashes are unchanged. Rollback:
+  `C:/Users/reece/AppData/Local/Temp/lorkhan-rpg-lua-rollback-8995_a6j`.
+  No game started/restarted/controlled; Lua changes require the scripts to be loaded
+  by the user's next game session. In-game trigger/audio behavior is not claimed.
+
+Next priority: the missing Short Term Memory card and its real scene-summary boundary
+semantics, then remaining Core Profile sections and the full counterpart matrix.
+Do not present the existing general memory cap as the reference Max Summaries.
+Full parity goal remains active. GitHub server workflow remains disabled_manually.
