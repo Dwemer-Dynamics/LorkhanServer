@@ -150,7 +150,10 @@ function lorkhan_roleplay_reader_state(PDO $database, array $installationOptions
                 $values = [$entry['context'], $entry['people'], ($entry['location'] !== '' ? $entry['location'] : 'Not recorded').' - '.$entry['game_time'], $entry['time_utc']];
             }
             foreach ($values as &$value) { $value = (string) $value; if (preg_match('/^[\s]*[=+@-]/u', $value) === 1) $value = "'".$value; }
-            unset($value); fputcsv($output, $values);
+            unset($value);
+            // JSON prompt quotes must use standard CSV doubling, not PHP's backslash escape.
+            if ($tab === 'responselog') fputcsv($output, $values, ',', '"', '');
+            else fputcsv($output, $values);
         }
         fclose($output); exit;
     }
