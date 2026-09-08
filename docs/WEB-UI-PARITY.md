@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `290f040` (calendar empty-day and boundary parity).
+Current deployed product checkpoint: `deb775f` (Quickstart local credential foundation).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -8735,3 +8735,9 @@ unsaved key; this new persistence endpoint alone does not establish that behavio
 Final PHP lint and 692 server checks pass. Full management HTTP passes with the
 corrected fixture (quickstart-local-key-http-2.txt), including the new authenticated
 local-provider path and the existing no-routing-mutation assertion.
+
+Deployed deb775f; rollback /var/backups/lorkhanserver-code.Sw8UzL. All 803 runtime
+files match with no extras/legacy paths; health/private/auth checks pass. Existing
+configuration, credentials and voices are hash-preserved. No local key was created
+in the deployed store and no provider/game was used. GitHub server workflow remains
+disabled_manually. This is backend preparation only; no new visual parity claim.
