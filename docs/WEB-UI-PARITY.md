@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `4230cc5` (RPG Comments card, responder wiring and built-in probabilities); client `1560dbe` is deployed as Lua-only changes.
+Current deployed product checkpoint: `3d5a56e` (memory source game-time provenance). Latest UI/RPG checkpoints remain `f6118e6`/`4230cc5`; client `1560dbe` remains deployed.
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -9114,3 +9114,53 @@ Next priority: the missing Short Term Memory card and its real scene-summary bou
 semantics, then remaining Core Profile sections and the full counterpart matrix.
 Do not present the existing general memory cap as the reference Max Summaries.
 Full parity goal remains active. GitHub server workflow remains disabled_manually.
+
+## 2026-09-08 - Short Term Memory source-boundary foundation
+
+Server product `3d5a56e`, branch `codex/web-ui-parity`, pushed to main and deployed.
+No UI control or history cropping is enabled by this foundation.
+
+Current reference evidence: `lib/data_functions.php:4945-5078` defines STM as scene
+summaries newer than the actor's middle-term digest high-water mark, through the
+oldest summary that straddles the live window floor. It limits the newest candidates
+by SHORT_TERM_MEMORY_MAX, reverses to chronological order and crops covered live
+history only when a returned summary reaches that floor. The Core card exposes a
+1-50 Max Summaries control, default10. This is not the native generic ten-item memory
+cap or its recent/mid/long switch mapping.
+
+Native consolidation now retains `provenance.source_game_time_range={from,to}`
+only when every source has a finite bounded authoritative game timestamp. Recent
+records obtain it from their source turn; higher tiers aggregate complete child
+ranges. Fractional values are preserved. Missing/legacy/invalid timestamps leave
+the metadata absent. Existing UTC source_range and exact-content coverage proofs
+remain independent: game bounds describe the inputs, NOT proof that a capped or
+model-generated summary retained every input. Nothing starts trimming prompt history,
+backfills old rows, changes retention or launches extra provider work in this patch.
+
+Existing migration/job fixtures now exercise four scene ranges, propagation to the
+next tier, and an intentionally missing source timestamp. The initial assertion used
+PHP strict array comparison against PostgreSQL jsonb key order; it was corrected to
+compare the actual boundary fields. `stm-source-time-integration-2.txt` passes the
+full vertical slice,173-relation inventory and migration/durable-job suite. Existing
+truncation/coverage and idempotency tests remain in that suite.748 server checks and
+PHP lint pass. No new test file or test harness was added.
+
+Deployment rollback `/var/backups/lorkhanserver-code.AbDocS`; all807 runtime files
+match, no extras/legacy paths, private403/unauthenticated401, health and NPC200/404
+probes pass. Existing configuration, credential and voice hashes are preserved.
+No game or client change in this checkpoint; GitHub workflow remains disabled.
+
+Next implementation constraints from current source:
+- Reuse actor-witnessed eligibility in ProductRepository::promptMemoryCandidates
+  (source-event projection, suppression, played delivery, actor/audience checks).
+  Do not broaden the consolidation session-profile fence or bypass privacy merely
+  to find more summaries. Manual memories remain owned by their NPC profile.
+- Add scene-summary selection independently from generic ranked memory selection:
+  determine digest high-water, live history floor, straddling bucket and ordered
+  bounded candidates before applying the profile Max Summaries setting.
+- Carry source references and boundaries into prompt assembly. Only retained,
+  authoritative summary coverage may remove overlapping live events; truncated,
+  hidden, expired, unknown-time or excluded summaries cannot justify cropping.
+- Wire real1-50/default10 Core controls, portable/named presets and actual reference
+  card layout only with the selector. Compare populated/empty/disabled states and
+  interaction in the actual hub. The full Core editor and overall goal remain open.
