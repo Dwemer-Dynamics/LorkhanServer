@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `83910a9` (Adventure Log complete-day tables).
+Current deployed product checkpoint: `1ce6363` (complete Diary views and calendar audio dock).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -25,7 +25,7 @@ only the listed states, not completion of every page or feature.
 | Events | Initial/live Record controls match; duplicate bottom pager removed to match the reference; empty-to-live reconstruction, page change and stopped refresh checked | Remaining whole-table/filter/editor acceptance |
 | AI Responses | Populated and empty table geometry compared at 1280/390; refreshed empty cells match 38.6875px height and 9px/10px padding | Multirole and empty reader geometry, copy/failure/close and escaped-text wrapping verified; cleanup cancel/failure/reload and populated/empty CSV verified; 61-row multi-page export and exact escaped-prompt round trip verified |
 | Adventure Log | Actual hub populated columns match; empty-date cells now use reference padding and 39.1875px height | Complete-day table and stale-page links now match; selected/latest/all downloads, calendar switching and empty dates rechecked; remaining month-boundary combinations |
-| Diaries | Actual hub populated columns match; empty-date row padding corrected; reader whitespace and editor geometry compared at both widths | Provider audio acceptance and remaining reader/cache cases |
+| Diaries | Actual hub populated columns match; empty-date row padding corrected; reader whitespace and editor geometry compared at both widths | Complete day/author sets and corresponding ascending/descending order verified; paired reader/editor refreshed; provider audio acceptance and remaining cache cases |
 | Books | Populated typography and columns compared; missing empty-result panel restored and checked at both widths | Game-time/numeric ordering, 150/1 pagination, filtered/empty results and full export checked with 151 isolated rows; observed-book runtime capture remains unverified |
 | API Keys | Standalone and actual hub preset geometry compared at 1280/390; Custom Keys empty/live and matched draft states inspected; failed-save and pending-save draft retention rechecked with mocks | Content-only shell corrected and deployed; live-provider acceptance remains untested |
 
@@ -8523,3 +8523,9 @@ mocked provider failure restores Play, hides Stop, closes the modal and returns 
 Stop control to its dock with no JS errors at both widths. Its initial stale error
 text and immediate pre-close assertion were corrected to the actual message and
 completed close event before acceptance. No live diary writes or provider calls.
+
+Deployed 1ce6363; rollback /var/backups/lorkhanserver-code.GgiruP. All 803 runtime
+files match source with no extra/legacy paths; health/private/auth checks pass.
+Configuration, credentials and voice contents preserved. Fresh deployed Adventure
+and Diaries pages each have exactly one hidden Stop control, no generic reader
+toolbar/pager, and no JavaScript page errors. No game launched. Full goal active.
