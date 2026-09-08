@@ -6294,3 +6294,23 @@ Deployment: 799 files match, no extras or old paths, health/private/auth checks 
 configuration/credential/voice hashes preserved. Rollback:
 /var/backups/lorkhanserver-code.zIn1vj. No live NPC saves, provider calls or game activity.
 Remaining full counterpart and NPC-editor gaps remain open.
+
+## NPC General header toggles and formatter-summary distinction
+
+Matched General's primary checkbox geometry to pinned Herika .label-with-toggle:
+13px boxes scaled 1.8, reference margins and 10px label gap. This corrects native
+unscaled lock/dynamic switches and oversized diary controls. Detailed evolution-field
+checkboxes are excluded. No values or handlers changed.
+
+Temp/npc-toggle-proof.cjs compares lock width/height/minimum height/margins/transform/
+origin/accent against Herika at 1280/390px, then keyboard Space toggle, tab retention and
+restoration; zero POSTs. General disclosure/FormData/Close regression passes at both
+widths. Inspected deployed desktop screenshot. 603 existing checks pass; 799 deployed
+files match, private/auth/health checks pass and secret/configuration/voice hashes
+remain unchanged. Rollback /var/backups/lorkhanserver-code.qEHA4H. No game activity.
+
+The sixth reference Profile LLMs entry is llm_formatter_id (npc_master.php lines
+1998/2017), not memory summarization. Do not infer a missing dialogue-model selector
+from that count. The existing Markdown-route formatter exception recorded above still
+applies; no inert sixth slot added. Profile-summary composition and other remaining
+counterpart states are not marked complete by this check.

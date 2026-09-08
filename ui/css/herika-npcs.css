@@ -899,3 +899,10 @@ body.view-characters .npc-editor-modal > .npc-modal-body {padding:0;flex:1 1 aut
 .npc-editor-viewport {display:inline-block;vertical-align:baseline;width:100%;height:70vh;overflow:auto;background:#282828;}
 .npc-editor-content {margin:0 5px 50px 0;font:18px "Futura CondensedLight",Arial,sans-serif;}
 body.view-characters .npc-editor-modal .npc-modal-actions :is(.btn-save,.btn-cancel) {margin:2px;letter-spacing:.3px;}
+
+/* General header toggles use the reference checkbox size and label spacing. */
+body.view-characters [data-npc-editor-panel="general"] .npc-editor-check:not(details) > label {gap:10px;min-height:0;}
+body.view-characters [data-npc-editor-panel="general"] .npc-editor-check:not(details) > label > input[type="checkbox"] {
+    width:13px;height:13px;min-width:0;min-height:auto;margin:3px 5px 3px 4px;
+    transform:scale(1.8);transform-origin:center;cursor:pointer;
+}
