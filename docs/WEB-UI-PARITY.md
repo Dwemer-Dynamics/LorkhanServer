@@ -72,7 +72,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. Remaining children and full embedded interactions still pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; scrolling slot summary, linked assigned slots and toolbar spacing aligned. Presets and additional profile fields remain |
-| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI-result staging and full editor/list review remain. Info has confirmed missing Skills/Equipment/Stats/Inventory/Spells/Metadata panels and Setting Overrides; Nine per-actor override leaves now resolve and reach prompt selection, with revisioned form round trips; the nine-leaf visual override editor now stages Add/Edit/Remove and JSON with save/reload and failure proof. Remaining catalogue and observed-data panels are still missing. See NPC override runtime checkpoint below |
+| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI-result staging and full editor/list review remain. Info has confirmed missing Skills/Equipment/Stats/Inventory/Spells/Metadata panels and Setting Overrides; Nine per-actor override leaves now resolve and reach prompt selection, with revisioned form round trips; the nine-leaf visual override editor now stages Add/Edit/Remove and JSON with save/reload and failure proof. Observed Skills/Equipment/Stats/Inventory/Spells/Metadata disclosures now render exact-target recorded state with populated/empty fixture proof. Remaining: target inventory capture, editable metadata semantics, full override catalogue and full modal composition. See NPC observed-state checkpoint below |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; remaining generation edge states remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; full provider-badge consolidation remains pending |
@@ -5512,3 +5512,39 @@ interaction occurred. Remaining: all reference override controls after consumer
 mapping, raw editor interaction parity, combined relationship/override browser
 save coverage, and the missing observed-data Info panels. The full page matrix
 and goal remain open.
+
+## NPC observed-state checkpoint
+
+Added ui/tmpl/npc_observed_state.php, deriving the disclosure order and compact
+value presentation from Herika ui/core/npc_master.php at the pinned reference.
+Skills, Current Equipment, Character Stats, Inventory, Spells and Metadata (JSON)
+now appear in NPC Info before Setting Overrides. Live reference modal inspection
+confirmed 18px Futura CondensedLight headings, weight 700, 8px panel padding and
+#262626 background; the native disclosure headings were corrected accordingly.
+Gold branding remains. The entire surrounding modal is not yet visually equal.
+
+ProductRepository::npcObservedState queries the latest nonempty target state for
+the installation and exact actor kind, record, content file and RefNum. It returns
+an allowlisted projection and observation timestamp/playthrough, not raw context.
+Private fields and player inventory are excluded. Numeric zero remains visible.
+The display explicitly describes recorded state rather than claiming live values.
+OpenMW Fatigue and recorded current/base values replace inappropriate Skyrim
+labels. No schema migration or client changes were made.
+
+Evidence: the existing integration suite now verifies installation/reference
+boundaries, private-field exclusion and zero preservation in a rolled-back test.
+Temp/npc-observation-proof.cjs passed against the disposable database on 55679 and
+HTTP server on 58679. A newer observation for a different RefNum was excluded;
+populated and empty profiles, escaped labels, six disclosures and readonly JSON
+were exercised. Desktop 1280px and narrow 390px screenshots were inspected after
+the typography correction. Temp/herika-info-measure.cjs opened the actual reference
+NPC modal read-only and measured its Skills heading. No reference save, paid
+provider request or game interaction was performed. 588 server checks and the
+management HTTP suite passed.
+
+Remaining work is explicit: the OpenMW actorState producer does not currently
+capture NPC inventory; context.inventory is the player's and cannot substitute.
+The Inventory disclosure is ready to render recorded items but current capture
+is incomplete. Metadata editing needs a revisioned ownership design rather than
+rewriting immutable observations. Full catalogue, combined override/relationship
+save proof, whole modal layout and all other page-matrix gaps remain open.

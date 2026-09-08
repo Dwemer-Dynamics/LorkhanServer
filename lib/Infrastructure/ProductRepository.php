@@ -1292,6 +1292,53 @@ final class ProductRepository
         return$this->effectiveSettingsForProfile($installationId,is_string($profileId)?$profileId:null);
     }
 
+    /** Read the latest exact-actor observation; never substitute player inventory or raw context. */
+    public function npcObservedState(string $installationId, string $profileId): array
+    {
+        $statement=$this->db->prepare(<<<SQL
+SELECT t.context->'targetState' AS state,t.accepted_at,pt.name AS playthrough_name
+FROM profiles p JOIN sessions s ON s.installation_id=p.installation_id
+JOIN turns t ON t.session_id=s.session_id
+JOIN playthroughs pt ON pt.playthrough_id=s.playthrough_id AND pt.installation_id=s.installation_id
+WHERE p.installation_id=:installation AND p.profile_id=:profile AND p.deleted_at IS NULL
+  AND p.actor_identity->>'kind' IN ('npc','creature')
+  AND t.target->>'kind'=p.actor_identity->>'kind'
+  AND t.target->>'record_id'=p.actor_identity->>'record_id'
+  AND t.target->>'content_file'=p.actor_identity->>'content_file'
+  AND t.target->'refnum' IS NOT DISTINCT FROM p.actor_identity->'refnum'
+  AND jsonb_typeof(t.context->'targetState')='object' AND t.context->'targetState'<>'{}'::jsonb
+ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT 1
+SQL);
+        $statement->execute(['installation'=>$installationId,'profile'=>$profileId]);$row=$statement->fetch();
+        if(!$row)return [];
+        $state=$this->json($row['state']);$safe=[];
+        $number=static fn(mixed $value):bool=>(is_int($value)||is_float($value))&&is_finite((float)$value);
+        foreach(['skills'=>['block','armorer','mediumarmor','heavyarmor','bluntweapon','longblade','axe','spear','athletics','enchant',
+            'destruction','alteration','illusion','conjuration','mysticism','restoration','alchemy','unarmored','security','sneak','acrobatics',
+            'lightarmor','shortblade','marksman','mercantile','speechcraft','handtohand'],
+            'attributes'=>['strength','intelligence','willpower','agility','speed','endurance','personality','luck']] as $section=>$keys){
+            foreach($keys as$key){$values=$state[$section][$key]??null;if(!is_array($values))continue;
+                foreach(['base','modified','damage','modifier']as$field)if($number($values[$field]??null))$safe[$section][$key][$field]=$values[$field];}
+        }
+        foreach(['level','encumbrance','capacity']as$key)if($number($state['stats'][$key]??null))$safe['stats'][$key]=$state['stats'][$key];
+        if(is_bool($state['stats']['dead']??null))$safe['stats']['dead']=$state['stats']['dead'];
+        foreach(['health','magicka','fatigue']as$key)foreach(['current','base','modifier']as$field)
+            if($number($state['stats'][$key][$field]??null))$safe['stats'][$key][$field]=$state['stats'][$key][$field];
+        foreach(['race','class','gender','primary_faction']as$key)if(is_string($state['identity'][$key]??null))
+            $safe['identity'][$key]=mb_substr($state['identity'][$key],0,256);
+        foreach(['equipment','inventory','spells']as$section){
+            $items=$state[$section]['items']??$state[$section]??[];if(!is_array($items)||!array_is_list($items))continue;
+            if(array_key_exists($section,$state))$safe[$section]=[];
+            foreach(array_slice($items,0,128)as$item){if(!is_array($item))continue;$entry=[];
+                foreach($section==='spells'?['id','name','record_id','display_name']:['slot','record_id','display_name']as$key)
+                    if(is_string($item[$key]??null)&&$item[$key]!=='')$entry[$key]=mb_substr($item[$key],0,512);
+                if($section!=='spells'&&$number($item['count']??null))$entry['count']=$item['count'];
+                if($entry!==[])$safe[$section][]=$entry;
+            }
+        }
+        return ['observed_at'=>$row['accepted_at'],'playthrough_name'=>$row['playthrough_name'],'state'=>$safe];
+    }
+
     /** Resolve a profile's assigned Core Profile while retaining source revisions for prompt traces. */
     public function effectiveSettingsForProfile(string $installationId,?string $profileId):array
     {

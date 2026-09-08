@@ -810,3 +810,21 @@ body .npc-relationships .npc-rel-detail-dialog input{height:40px;min-height:40px
 .npc-setting-overrides .npc-ovr-dialog button.npc-ovr-add {background:#bc9d5a!important;color:#111!important;}
 .npc-setting-overrides .npc-ovr-actions button.danger {background:#5a2a2a!important;border-color:#7a3a3a!important;}
 .npc-setting-overrides .npc-ovr-info .npc-ovr-value {background:transparent;padding:0;}
+
+/* Herika Info disclosures backed by exact OpenMW target observations. */
+.npc-observed-state > details {border:1px solid #4a4a4a;border-radius:8px;padding:8px;background:#262626;}
+.npc-observed-state summary {cursor:pointer;font:700 18px "Futura CondensedLight",Arial,sans-serif;color:#bc9d5a;}
+.npc-observed-body {margin-top:8px;color:#cfd9ea;}
+.npc-observed-body p {color:#9fb1c9;font-size:18px;line-height:normal;}
+.npc-observed-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px;}
+.npc-observed-value {display:flex;gap:8px;align-items:center;min-width:0;}
+.npc-observed-value > span {color:#bc9d5a;min-width:140px;}
+.npc-observed-value > strong {border:1px solid #4a4a4a;border-radius:6px;padding:4px 8px;min-width:40px;font-weight:400;overflow-wrap:anywhere;}
+.npc-observed-value small {color:#999;}
+.npc-observed-table {overflow-x:auto;}
+.npc-observed-table table {width:100%;border-collapse:collapse;}
+.npc-observed-table :is(th,td) {padding:6px 8px;text-align:left;border-bottom:1px solid #3a3a3a;overflow-wrap:anywhere;}
+.npc-observed-table th {color:#bc9d5a;}
+.npc-observed-state pre {white-space:pre-wrap;overflow-wrap:anywhere;background:#1a1a1a;padding:12px;border:1px solid #4a4a4a;border-radius:6px;max-height:400px;overflow:auto;}
+.npc-observed-state summary:focus-visible {outline:2px solid #bc9d5a;outline-offset:3px;}
+@media(max-width:700px){.npc-observed-grid{grid-template-columns:minmax(0,1fr);}.npc-observed-value>span{min-width:110px;}.npc-observed-value{flex-wrap:wrap;}}

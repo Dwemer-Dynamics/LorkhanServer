@@ -737,6 +737,7 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="info" hidden>';
     $field('emote_moods','Emote Moods Override','textarea',(string)($content['emote_moods']??''),[],'span-2','Allowed mood/emote cues. Leave empty to use the inherited defaults.');
+    include __DIR__.'/npc_observed_state.php';
     include __DIR__.'/npc_setting_overrides.php';
     if(!$creating&&$effectiveSettings!==[]){echo'<div class="span-2">';lorkhan_ui_effective_settings_summary($effectiveSettings,'Effective NPC settings and sources');echo'</div>';}
     $field('notes','Notes','textarea',(string)($content['notes']??''),[],'span-2');if(!$creating)$field('change_reason','Change Reason','text','management edit',[],'span-2');echo'</section>';
@@ -862,9 +863,10 @@ function lorkhan_ui_character_manager(array $rows,array $observedNpcs,array $pro
     $filtered=lorkhan_ui_filter_profiles($rows);$totalRows=count($filtered);$perPage=12;$totalPages=max(1,(int)ceil($totalRows/$perPage));
     $page=max(1,min($totalPages,(int)($_GET['page']??1)));$pageRows=array_slice($filtered,($page-1)*$perPage,$perPage);
     $effectiveProfileSettings=[];
-    foreach($pageRows as$profileRow){
+    foreach($pageRows as$profileIndex=>$profileRow){
         $profileId=(string)($profileRow['profile_id']??'');$installationId=(string)($profileRow['installation_id']??'');
         if($profileId!==''&&$installationId!=='')$effectiveProfileSettings[$profileId]=$productRepository->effectiveSettingsForProfile($installationId,$profileId);
+        if($profileId!==''&&$installationId!=='')$pageRows[$profileIndex]['observed_state']=$productRepository->npcObservedState($installationId,$profileId);
     }
     $pageWindow=min(10,$totalPages);$pageStart=max(1,min($page-4,$totalPages-$pageWindow+1));$pageEnd=min($totalPages,$pageStart+$pageWindow-1);
     $query=(string)($_GET['q']??'');$profileFilter=(string)($_GET['profile']??'');$state=(string)($_GET['state']??'all');$initial=(string)($_GET['initial']??'');

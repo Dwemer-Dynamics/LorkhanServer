@@ -3000,4 +3000,32 @@ $products->copyCoreProfileSetting($copyRequest);
 $assert($products->getRevisioned('core_profile',$copyTarget['core_profile_id'])['content']['settings_overrides']['diary']['prompt']==='Only write witnessed events.','text setting copy failed');
 $db->rollBack();
 
+// NPC Info observations are exact-actor and installation-scoped, with a narrow public projection.
+$db->beginTransaction();
+try {
+    $observedTurn=$db->query("SELECT t.turn_id,t.target,s.installation_id FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE t.target->>'kind'='npc' AND t.target->>'content_file' IS NOT NULL ORDER BY t.accepted_at LIMIT 1")->fetch();
+    $assert(is_array($observedTurn),'NPC observation fixture needs an accepted NPC turn');
+    $identity=json_decode($observedTurn['target'],true,32,JSON_THROW_ON_ERROR);
+    $observedProfile=$products->createRevisioned('profile',['installation_id'=>$observedTurn['installation_id'],'name'=>'Info observation regression',
+        'actor_identity'=>$identity,'content'=>[]],$now);
+    $context=['inventory'=>['items'=>[['record_id'=>'PRIVATE_PLAYER_ITEMS']]],'targetState'=>[
+        'stats'=>['level'=>5,'magicka'=>['current'=>0,'base'=>20]],
+        'skills'=>['sneak'=>['base'=>0,'modified'=>0,'private'=>'PRIVATE_SKILL']],
+        'equipment'=>[['slot'=>'carried_right','record_id'=>'dagger','display_name'=>'Dagger <safe>','private'=>'PRIVATE_ITEM']],
+        'spells'=>[['id'=>'fire_bite','name'=>'Fire <safe>']], 'private'=>'PRIVATE_STATE']];
+    $db->prepare("UPDATE turns SET context=:context,accepted_at='2099-01-01T00:00:00Z' WHERE turn_id=:id")
+        ->execute(['context'=>json_encode($context),'id'=>$observedTurn['turn_id']]);
+    $observed=$products->npcObservedState($observedTurn['installation_id'],$observedProfile['profile_id']);
+    $assert($observed['state']['stats']['magicka']['current']===0&&$observed['state']['skills']['sneak']['modified']===0
+        &&$observed['state']['equipment'][0]['display_name']==='Dagger <safe>'&&!str_contains(json_encode($observed),'PRIVATE_')
+        &&!array_key_exists('inventory',$observed['state']),'NPC observation leaked private/player data or lost zero values');
+    $otherIdentity=$identity;$otherIdentity['refnum']=['index'=>987654321,'content_file'=>0];
+    $otherReference=$products->createRevisioned('profile',['installation_id'=>$observedTurn['installation_id'],'name'=>'Other NPC reference regression',
+        'actor_identity'=>$otherIdentity,'content'=>[]],$now);
+    $assert($products->npcObservedState($observedTurn['installation_id'],$otherReference['profile_id'])===[],
+        'NPC observation crossed an exact reference boundary');
+    $assert($products->npcObservedState('99999999-0000-4000-8000-000000000001',$observedProfile['profile_id'])===[],
+        'NPC observation crossed installation ownership');
+} finally { $db->rollBack(); }
+
 fwrite(STDOUT, "integration vertical slice passed\n");
