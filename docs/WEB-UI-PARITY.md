@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `3597af6` (Books game-time ordering).
+Current deployed product checkpoint: `83910a9` (Adventure Log complete-day tables).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -24,7 +24,7 @@ only the listed states, not completion of every page or feature.
 | --- | --- | --- |
 | Events | Initial/live Record controls match; duplicate bottom pager removed to match the reference; empty-to-live reconstruction, page change and stopped refresh checked | Remaining whole-table/filter/editor acceptance |
 | AI Responses | Populated and empty table geometry compared at 1280/390; refreshed empty cells match 38.6875px height and 9px/10px padding | Multirole and empty reader geometry, copy/failure/close and escaped-text wrapping verified; cleanup cancel/failure/reload and populated/empty CSV verified; 61-row multi-page export and exact escaped-prompt round trip verified |
-| Adventure Log | Actual hub populated columns match; empty-date cells now use reference padding and 39.1875px height | Remaining calendar/filter/export combinations |
+| Adventure Log | Actual hub populated columns match; empty-date cells now use reference padding and 39.1875px height | Complete-day table and stale-page links now match; selected/latest/all downloads, calendar switching and empty dates rechecked; remaining month-boundary combinations |
 | Diaries | Actual hub populated columns match; empty-date row padding corrected; reader whitespace and editor geometry compared at both widths | Provider audio acceptance and remaining reader/cache cases |
 | Books | Populated typography and columns compared; missing empty-result panel restored and checked at both widths | Game-time/numeric ordering, 150/1 pagination, filtered/empty results and full export checked with 151 isolated rows; observed-book runtime capture remains unverified |
 | API Keys | Standalone and actual hub preset geometry compared at 1280/390; Custom Keys empty/live and matched draft states inspected; failed-save and pending-save draft retention rechecked with mocks | Content-only shell corrected and deployed; live-provider acceptance remains untested |
@@ -8485,3 +8485,10 @@ cell widths, wrapping and height. The first two speaker rows, location transitio
 continuous remaining rows and absence of native paging are separately covered.
 Hub origins differ with excluded reference tabs, not fabricated native entries.
 No game, provider or data writes during browser comparison.
+
+Deployed 83910a9; rollback /var/backups/lorkhanserver-code.63m95v. All 803 runtime
+hashes match, with no extra/legacy paths; health/private/auth probes pass. Existing
+configuration, credential and voice contents preserved. Read-only deployed browser
+refresh selected a populated date, verified current/all CSV include the displayed
+event, switched calendar modes and checked an empty day. No game or data writes.
+Full page parity goal remains active; this does not close unrelated Diary limits.
