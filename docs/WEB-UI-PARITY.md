@@ -7933,3 +7933,10 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - Full management HTTP suite passed in `inventory-filter-http-diagnostic.txt`, including checked/unchecked persistence. Earlier runs failed before the control tests at diary-audio assertions (one explicit 502). A temporary exception diagnostic was added for the third run, did not reproduce the failure, and was removed before deployment. Root cause of intermittent diary test failure remains unresolved; do not describe it as fixed.
 - Live browser toggle probes passed at 1280/390 with no saved production changes; narrow screenshot inspected. These checks do not prove full reference-page geometry parity.
 - Final server-only deployment: 800 runtime hashes match; private/auth checks pass; configuration, credentials and voice contents preserved. Rollback `/var/backups/lorkhanserver-code.YHY1Mo`. No game/client/provider calls. Remaining Context event controls and the full page matrix remain open.
+
+### AI Responses prompt-button geometry checkpoint (2026-09-08)
+
+- Fresh live counterpart inspection isolated the residual column-width difference: reference button computed `display:inline-block` and `letter-spacing:.3px`; native used inline-flex and normal tracking. Applied those exact two rules to AI Responses prompt buttons only, preserving the decorative icon's accessible markup and existing reader events.
+- Normalized populated fixtures now have identical six-column widths: desktop 136.2/359/198.1/156.8/250.2/86.7; narrow 55.8/82.2/65.1/150.7/240/55.1. Populated/empty table and row heights match. Native narrow screenshot inspected. Fixture changes were browser-only GET-backed comparisons, not production data writes.
+- Remaining measured discrepancy: native table is 1px higher relative to its content panel. Full live reader/state parity remains separate; do not count this correction as whole-page completion.
+- Server-only deployment verified all 800 hashes, no extra/legacy files, protected private routes/auth and preserved configuration/credentials/voices. Rollback `/var/backups/lorkhanserver-code.v7TKs7`. CSS-only change; no game or provider calls.
