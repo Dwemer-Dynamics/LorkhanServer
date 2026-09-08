@@ -1174,17 +1174,43 @@ r=json_request(request_clear_path,'POST',dict(request_clear_values,confirm=''),c
 r=json_request(request_clear_path,'POST',dict(request_clear_values,installation_id=str(uuid.uuid4())),csrf); assert r.status==422
 r=json_request(request_clear_path,'POST',request_clear_values,csrf); assert r.status==200 and isinstance(json.loads(r.read())['cleared'],int)
 r=json_request(request_clear_path,'POST',request_clear_values,csrf); assert r.status==200 and json.loads(r.read())['cleared']==0
-response_export_path='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'responselog','installation_id':valid['installation_id'],'playthrough_id':playthrough_id,'export':'1'})
+# Keep the export regression in the existing isolated HTTP database, never the live playthrough.
+response_session=str(uuid.uuid4()); response_turn=str(uuid.uuid4())
+response_literal='Quoted "word", literal \\uNotUnicode and trailing slash \\'+ '\nSecond line.'
+response_manifest=json.dumps({'message':{'_prompt':{'_messages':[{'role':'user','content':response_literal}]}},'api_key':'must-not-export-fixture'})
+response_sql=f"""
+INSERT INTO lorkhan_internal.sessions(session_id,installation_id,profile_id,playthrough_id,generation,content_fingerprint,openmw_version,openmw_commit,lua_api_revision,client_version,platform,state,created_at)
+VALUES ('{response_session}','{valid['installation_id']}','{profile_id}','{playthrough_id}',999000,'sha256:'||repeat('0',64),'fixture',repeat('0',40),1,'fixture','fixture','ended',now());
+INSERT INTO lorkhan_internal.turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at,completed_at)
+VALUES ('{response_turn}',gen_random_uuid(),gen_random_uuid(),'{response_session}',999000,'text','en','Export fixture input','{{}}','{{}}','[]','{{}}','complete',now(),now());
+INSERT INTO lorkhan_internal.turn_provider_snapshots(turn_id,source_manifest,input_sha256,created_at)
+VALUES ('{response_turn}',$export${response_manifest}$export$::jsonb,repeat('0',64),now());
+WITH inserted AS (
+ INSERT INTO public.log(localts,response,prompt,url)
+ SELECT 1609416000+n,'ResponseExportFixture '||lpad(n::text,3,'0'),'must-not-export-raw-prompt','must-not-export-raw-url' FROM generate_series(1,61) n RETURNING rowid
+)
+INSERT INTO lorkhan_internal.log_metadata(rowid,turn_id,request_id) SELECT rowid,'{response_turn}',gen_random_uuid() FROM inserted;
+"""
+subprocess.run(adventure_psql,input=response_sql,text=True,capture_output=True,check=True)
+response_page_path='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'responselog','installation_id':valid['installation_id'],'playthrough_id':playthrough_id,'q':'ResponseExportFixture'})
+_,response_page=parse(request(response_page_path))
+assert response_page.count('data-log-open=')==50 and '61 rows' in response_page
+_,response_last_page=parse(request(response_page_path+'&reader_page=2'))
+assert response_last_page.count('data-log-open=')==11
+response_export_path=response_page_path+'&export=1&reader_page=2'
 response_export=request(response_export_path)
 assert response_export.headers.get_content_type()=='text/csv' and 'attachment' in response_export.headers['Content-Disposition']
 response_csv=csv.DictReader(io.StringIO(response_export.read().decode()))
 assert response_csv.fieldnames==['rowid','time_utc','ai_response','oghma_topic','prompt','http_request']
-for response_row in response_csv:
+response_rows=list(response_csv)
+assert len(response_rows)==61 and response_rows[0]['ai_response']=='ResponseExportFixture 061' and response_rows[-1]['ai_response']=='ResponseExportFixture 001'
+for response_row in response_rows:
     response_prompt=json.loads(response_row['prompt'])
-    assert set(response_prompt)<= {'messages','model','response_connector'}
-    assert all(set(message)=={'role','content'} for message in response_prompt['messages'])
-empty_response_csv=list(csv.reader(io.StringIO(request(response_export_path+'&q=export-no-match-fixture-926407').read().decode())))
+    assert response_prompt=={'messages':[{'role':'user','content':response_literal}]}
+    assert response_row['oghma_topic']=='None' and response_row['http_request']=='text: Export fixture input'
+empty_response_csv=list(csv.reader(io.StringIO(request(response_export_path.replace('q=ResponseExportFixture','q=export-no-match-fixture-926407')).read().decode())))
 assert len(empty_response_csv)==1 and empty_response_csv[0]==response_csv.fieldnames
+subprocess.run(adventure_psql,input=f"DELETE FROM public.log WHERE rowid IN (SELECT rowid FROM lorkhan_internal.log_metadata WHERE turn_id='{response_turn}'); DELETE FROM lorkhan_internal.log_metadata WHERE turn_id='{response_turn}'; DELETE FROM lorkhan_internal.turns WHERE turn_id='{response_turn}'; DELETE FROM lorkhan_internal.sessions WHERE session_id='{response_session}';",text=True,capture_output=True,check=True)
 clear_path='/LorkhanServer/manage/api/v1/roleplay/clear'
 clear_values={'installation_id':valid['installation_id'],'playthrough_id':playthrough_id,'kind':'diaries','confirm':'Clear'}
 r=json_request(clear_path,'GET',None,csrf); assert r.status in (404,405)

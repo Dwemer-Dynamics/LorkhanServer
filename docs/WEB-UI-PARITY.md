@@ -23,7 +23,7 @@ only the listed states, not completion of every page or feature.
 | Surface | Current comparison evidence | Still separate |
 | --- | --- | --- |
 | Events | Initial/live Record controls match; duplicate bottom pager removed to match the reference; empty-to-live reconstruction, page change and stopped refresh checked | Remaining whole-table/filter/editor acceptance |
-| AI Responses | Populated and empty table geometry compared at 1280/390; refreshed empty cells match 38.6875px height and 9px/10px padding | Multirole and empty reader geometry, copy/failure/close and escaped-text wrapping verified; cleanup cancel/failure/reload and populated/empty CSV verified; large multi-page export fixture remains |
+| AI Responses | Populated and empty table geometry compared at 1280/390; refreshed empty cells match 38.6875px height and 9px/10px padding | Multirole and empty reader geometry, copy/failure/close and escaped-text wrapping verified; cleanup cancel/failure/reload and populated/empty CSV verified; 61-row multi-page export and exact escaped-prompt round trip verified |
 | Adventure Log | Actual hub populated columns match; empty-date cells now use reference padding and 39.1875px height | Remaining calendar/filter/export combinations |
 | Diaries | Actual hub populated columns match; empty-date row padding corrected; reader whitespace and editor geometry compared at both widths | Provider audio acceptance and remaining reader/cache cases |
 | Books | Populated typography and columns compared; missing empty-result panel restored and checked at both widths | Full reader/filter combinations and observed-book runtime capture |
@@ -119,7 +119,7 @@ do not use an exception to excuse a generic substitute layout.
 | `oghma_knowledge.php` | `npc_upload.php` Oghma knowledge reader | Replaced article cards with the reference Topic/Knowledge Level/Description table, metadata chips and filter controls. Populated/empty and narrow states compared; permitted-description search, paging, scope rejection and hidden-text exclusion tested. Existing standalone navigation and access diagnostics retained. |
 | `events-memories.php` | Same path | Events note, striped table, record heading, pagination/filter layout and recorded calendar dates corrected; populated live view and AJAX pagination verified |
 | Roleplay `memory` tab | Herika Memories | Summary-only table, status/settings strip, scoped sync/delete, Tamrielic dates and compact editor implemented; 67 populated live summaries, empty fixture, Cancel/focus and narrow advanced tools checked |
-| Roleplay `responselog` tab | Herika AI Responses | Whole-turn log, prompt dialog, topics, scoped export and protected clean-log workflow implemented; populated live table, multirole/empty prompt reader, clipboard success/refusal, Escape/focus and actual-template escaped-text wrapping checked; cleanup cancel/failure/reload and 49-row/empty CSV verified; large multi-page export fixture remains |
+| Roleplay `responselog` tab | Herika AI Responses | Whole-turn log, prompt dialog, topics, scoped export and protected clean-log workflow implemented; populated live table, multirole/empty prompt reader, clipboard success/refusal, Escape/focus and actual-template escaped-text wrapping checked; cleanup cancel/failure/reload and 49-row/empty CSV verified; 61-row multi-page export and exact escaped-prompt round trip verified |
 | Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, export and bulk delete retained. Full-content rows now use separate Play/Edit/Delete actions; dedicated content editor and paper reader replace combined Read/Edit. Desktop/narrow populated/empty and reader controls compared. Author-voice playback and private entry caching are implemented and mock-tested; live-provider and remaining cache invalidation acceptance remain open. |
 | Roleplay `books` tab | Herika Books | Full-content striped table, game/UTC/TS columns and content dialog implemented; populated long/short fixtures, escaped content reader, filtered empty panel, desktop/narrow and computed neutral header typography compared; shared-theme overrides and forced minimum width removed |
 | `diary_book.php` | Same path | Printable chronological parchment book and author-list link implemented; scoped IDs, escaped text, desktop/narrow populated comparisons and print/PDF checks passed (see Diary authors and printable book checkpoint) |
@@ -8276,3 +8276,30 @@ unauthenticated401 and health checks pass. Existing config, credentials and voic
 content hashes preserved. No actual cleanup was performed. Large multi-page CSV
 coverage remains separate; the source query intentionally omits pagination for
 export but a 49-row runtime probe does not prove a larger fixture. Goal active.
+
+### Multi-page response CSV regression and Books reader refresh (2026-09-08)
+
+Extended the existing management HTTP fixture rather than creating a new harness.
+A temporary ended session/turn in its isolated database owns 61 projected log rows
+and a frozen prompt containing quotes, commas, newlines and literal backslashes.
+The snapshot also includes a fake non-message credential marker, while the raw
+log fields have separate forbidden export markers. Fixture rows are removed after
+checks; the harness drops the isolated database on exit. No live records touched.
+
+The suite proves 50/11 page split, export from page two returns all 61 selected rows
+in order, prompt JSON round-trips the exact text, only the allowed message structure
+is exported, native input text maps to http_request, and no-match CSV has headers
+only. Full suite passed: `response-export-multipage-http.txt`. This also supplies
+the previously missing full-suite pass after the CSV quoting fix. The older
+49-row-only limitation is superseded by this fixture evidence.
+
+Regenerated `books-current-fixture.html` from the current PHP template and reran
+`books-reader-refresh.cjs`. At 1280/390 it verifies mocked clipboard success/refusal,
+status reset, opener focus, body scroll restoration, long-content scrolling bounded
+to 90vh and Escape. Inspected the narrow copy-failure-state screenshot: literal
+markup stays visible text with the expected monospace reader. This refresh is not
+a new full reference comparison; earlier counterpart evidence remains separately
+recorded. No provider or actual clipboard writes.
+
+Only tests and this matrix changed; deployed product remains `6d974fb`, so no
+runtime redeploy is necessary. Full all-page parity goal remains active.
