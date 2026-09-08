@@ -5729,3 +5729,13 @@ letter spacing. Desktop/narrow screenshots were inspected; both bodies fit their
 viewports. There were no create/save/delete/provider requests. 590 server checks
 passed. This proves the compared shell/toolbar state, not all provider workflows
 or the full page matrix. The full goal remains active.
+
+### NPC combined Save verification (2026-09-07)
+
+- Tested current `0a6ee03` UI in a disposable PostgreSQL/PHP runtime, not against live NPC data.
+- Staged Maximum Response Words = 23 in Info and a new Professional relationship with affinity 36 in Relationships. Header Save issued exactly one POST.
+- Intercepted the first POST with HTTP 409: relationship and override drafts remained available, with a conflict notice. Retrying issued one further POST and redirected with `npc_relationships_saved`.
+- Reloaded the page and reopened both tabs: the override and relationship values persisted. Independent SQL confirmed the saved override, relationship revision 1, and unchanged biography (`Preserve this biography.`).
+- Inspected the populated saved-state screenshot. Private local evidence: `Temp/npc-combined-save.cjs`, `npc-combined-rejected.png`, `npc-combined-saved.png`.
+- Early fixture failures were not product defects: the seed lacked a playthrough revision and the target identity lacked `display_name`. Corrected only disposable data. Temporary trace instrumentation was removed byte-for-byte; no runtime code change was needed.
+- This closes combined override/add-relationship submission and conflict draft-retention evidence only. It does not close the full NPC counterpart matrix, AI relationship result staging, broader override catalogue, or missing NPC inventory capture.
