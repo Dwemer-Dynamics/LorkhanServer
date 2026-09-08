@@ -17,6 +17,14 @@
     row.addEventListener('input', event => event.stopPropagation());
     row.addEventListener('change', event => event.stopPropagation());
 
+    // Match the reference feedback tones and expose long messages through the tooltip.
+    const setStatus = (message, tone = '') => {
+        status.textContent = message;
+        status.classList.toggle('is-error', tone === 'error');
+        status.classList.toggle('is-success', tone === 'success');
+        status.title = message;
+    };
+
     const updateButtons = () => {
         row.setAttribute('aria-busy', String(busy));
         dialog.setAttribute('aria-busy', String(busy));
@@ -61,21 +69,21 @@
         (naming ? name : cancel).focus();
         if (naming) name.select();
     };
-    select.addEventListener('change', () => { updateButtons(); status.textContent = select.value ? 'Saved profile settings. Nothing changes until Apply.' : ''; });
+    select.addEventListener('change', () => { updateButtons(); setStatus(select.value ? 'Saved profile settings. Nothing changes until Apply.' : ''); });
     buttons.forEach(button => button.addEventListener('click', async () => {
         opener = button;
         const action = button.dataset.corePresetAction;
         if (['save_new','overwrite'].includes(action) && !form.reportValidity()) return;
         if (action === 'import') { file.value = ''; file.click(); return; }
         if (action !== 'export') { showDialog(action); return; }
-        busy = true; updateButtons(); status.textContent = 'Exporting preset…';
+        busy = true; updateButtons(); setStatus('Exporting preset…');
         try {
             const result = await request('export');
             const url = URL.createObjectURL(new Blob([JSON.stringify(result,null,2)], {type:'application/json'}));
             const link = document.createElement('a'); link.href = url; link.download = 'lorkhan-profile-preset.json';
             document.body.append(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-            status.textContent = 'Preset exported.';
-        } catch (failure) { status.textContent = `Export failed: ${failure.message.replaceAll('_',' ')}.`; }
+            setStatus('Preset exported.', 'success');
+        } catch (failure) { setStatus(`Export failed: ${failure.message.replaceAll('_',' ')}.`, 'error'); }
         finally { busy = false; updateButtons(); }
     }));
     file.addEventListener('change', async () => {
@@ -85,7 +93,7 @@
             imported = JSON.parse(await selected.text());
             if (imported?.schema !== 'lorkhan.named-core-preset-file.v1' || typeof imported.name !== 'string') throw new Error('Choose an exported named Core Profile preset');
             showDialog('import');
-        } catch (failure) { status.textContent = `Import failed: ${failure.message}.`; opener?.focus(); }
+        } catch (failure) { setStatus(`Import failed: ${failure.message}.`, 'error'); opener?.focus(); }
     });
     cancel.addEventListener('click', () => { if (!busy) dialog.close(); });
     dialog.addEventListener('cancel', event => { if (busy) event.preventDefault(); });
@@ -94,7 +102,7 @@
     confirm.addEventListener('click', async () => {
         if (busy || !name.reportValidity()) return;
         busy = true; updateButtons(); error.textContent = ''; error.hidden = !['save_new','import'].includes(operation);
-        status.textContent = operation === 'apply' ? 'Applying preset…' : 'Saving preset…';
+        setStatus(operation === 'apply' ? 'Applying preset…' : 'Saving preset…');
         try {
             const result = await request(operation);
             if (result.applied) {
@@ -107,14 +115,14 @@
                 const option = new Option(preset.name,preset.preset_id); option.dataset.revision = preset.revision; return option;
             }));
             select.value = result.preset_id;
-            status.textContent = 'Preset saved. Active profile unchanged.';
+            setStatus('Preset saved. Active profile unchanged.', 'success');
             dialog.close();
         } catch (failure) {
             const messages = {revision_conflict:'The preset or profile changed in another tab. Reload before applying or overwriting.',
                 preset_name_exists:'A preset with that name already exists.', invalid_preset_name:'Use a unique name of up to 128 bytes. Built-in names are reserved.'};
             error.textContent = messages[failure.message] || `Preset action failed: ${failure.message.replaceAll('_',' ')}.`;
             error.hidden = false;
-            status.textContent = 'Preset action failed. Your draft is unchanged.';
+            setStatus('Preset action failed. Your draft is unchanged.', 'error');
         } finally { busy = false; updateButtons(); if (!dialog.open) opener?.focus(); }
     });
     updateButtons();

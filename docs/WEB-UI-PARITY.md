@@ -7895,3 +7895,18 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - 618 server checks, JS syntax and 800 deployed hashes/private/auth/health checks
   pass. Configuration, credentials and voices preserved; rollback yNgBko. Full
   preset catalogue and whole-page acceptance remain open.
+
+### Core preset feedback states
+
+- Ported pinned core_profiles.php setStatus semantics and matching success/error
+  colour rules into the existing native preset row. All selection, pending, import,
+  export, save and failure updates now reset both tone classes and the tooltip.
+  Status remains an aria-live region and error wording remains visible text.
+- Deployed browser probes at 1280/390 cover invalid import, saved/imported success,
+  export failure, overwrite/apply revision conflicts, and neutral selection reset.
+  Verified reference colours (#ff9b9b error, #8fe0b0 success), exact tooltip text and
+  inspected narrow captures. Five intercepted fixture POSTs per viewport; no real
+  profile, preset, provider or game writes. This checks feedback, not full built-ins.
+- JS syntax, 618 server checks and all 800 runtime hashes/private/auth/health probes
+  pass. Config, credentials and voice files preserved. Rollback: 6VdbaX. Full matrix
+  and built-in preset/runtime mapping remain open.
