@@ -42,6 +42,10 @@ final class GlobalSettingsPreset
         if (($preset['schema'] ?? null) !== 'lorkhan.named-global-preset.v1'
             || !is_array($preset['settings'] ?? null) || !is_array($preset['summary'] ?? null)
             || !is_array($preset['embedding'] ?? null)) throw new InvalidArgumentException('invalid_named_global_preset');
+        // Presets saved before temporal context headings retain the original disabled behavior.
+        if (is_array($preset['settings']['context'] ?? null)) {
+            $preset['settings']['context'] += ['prompt_timestamp' => false];
+        }
         $candidate = array_replace($settings, array_intersect_key($preset['settings'], array_flip(self::SECTIONS)));
         $candidate['client']['behavior'] = array_replace($settings['client']['behavior'], $preset['settings']['client']['behavior'] ?? []);
         $candidate['translation'] = array_replace($settings['translation'], $preset['settings']['translation'] ?? []);

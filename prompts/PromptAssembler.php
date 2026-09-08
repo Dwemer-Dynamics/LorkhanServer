@@ -129,7 +129,7 @@ final class PromptAssembler
                 $final .= "\n".strtr($instruction, $replacements);
             }
         }
-        $historyMessages = $this->historyMessages($history, $turn, $actorName, $playerName, $moodTemplates);
+        $historyMessages = $this->historyMessages($history, $turn, $actorName, $playerName, $moodTemplates, $contextPolicy['prompt_timestamp'] ?? false);
         $knowledgeStatus = (string)($selection['knowledge_retrieval']['status'] ?? 'grounded');
         $systemBudget = max(192, $this->maxInputBytes - strlen($final) - 256);
         $speechStyle = is_array($selection['speech_style'] ?? null) ? $selection['speech_style'] : [];
@@ -372,7 +372,7 @@ final class PromptAssembler
             $line = $message['role'] === 'assistant'
                 ? $actorName . ': ' . $message['content']
                 : $message['content'];
-            $conversation .= $this->xmlTag('message', $line);
+            $conversation .= $this->xmlTag('message', ($message['_time_heading'] ?? '') . $line);
             if ($message['_complete']) $historyText[] = $line;
         }
         $relationshipXml = $this->sourceItemsXml($relationships, 'relationship');
@@ -812,7 +812,7 @@ final class PromptAssembler
     }
 
     /** @param list<array<string,mixed>> $rows @return list<array{role:string,content:string,_source_id:string,_complete:bool}> */
-    private function historyMessages(array $rows, array $turn, string $actorName, string $playerName, mixed $moodTemplates): array
+    private function historyMessages(array $rows, array $turn, string $actorName, string $playerName, mixed $moodTemplates, bool $timestamp): array
     {
         if (($turn['payload']['ui_source'] ?? null) === 'lorkhan_rechat') {
             $latestPlayerInput = null;
@@ -843,15 +843,44 @@ final class PromptAssembler
             $normalized = mb_strtolower(preg_replace('/\s+/u', ' ', trim($message['content'])) ?? $message['content'], 'UTF-8');
             $messageKey = $message['role'] . '|' . $normalized;
             if (isset($messageIndexes[$messageKey])) unset($messages[$messageIndexes[$messageKey]]);
-            $messages[] = $message + ['_source_id' => $id];
+            $messages[] = $message + ['_source_id' => $id,
+                '_game_time' => is_array($content) ? ($content['game_time'] ?? null) : null,
+                '_time_forward' => is_array($content) && ($content['type'] ?? '') === 'info_timeforward'];
             $messageIndexes[$messageKey] = array_key_last($messages);
+        }
+        // Herika's temporal categories use game hours. OpenMW supplies elapsed game seconds.
+        // Attach dividers to retained messages so budgeting cannot leave an orphan heading.
+        $currentTime = $turn['payload']['context']['world']['game_time'] ?? null;
+        $lastCategory = null;
+        if ($timestamp && is_numeric($currentTime) && $currentTime > 0) {
+            foreach ($messages as &$message) {
+                $gameTime = $message['_game_time'];
+                if ($message['_time_forward'] || !is_numeric($gameTime) || $gameTime <= 0) continue;
+                $hoursAgo = max(0, ($currentTime - $gameTime) / 3600);
+                $category = match (true) {
+                    $hoursAgo < 0.02 => 'Happened Recently',
+                    $hoursAgo < 0.1 => 'Moments Ago',
+                    $hoursAgo < 0.25 => 'A few minutes ago',
+                    $hoursAgo < 0.5 => 'A while ago',
+                    $hoursAgo < 1.5 => 'About an hour ago',
+                    $hoursAgo < 4 => 'A couple of hours ago',
+                    $hoursAgo < 12 => 'Earlier in the day',
+                    $hoursAgo < 36 => 'A day ago',
+                    default => 'Days ago',
+                };
+                if ($lastCategory !== null && $lastCategory !== $category) {
+                    $message['_time_heading'] = "--- {$category} ---\n";
+                }
+                $lastCategory = $category;
+            }
+            unset($message);
         }
         // The repository already applies the profile's turn limit. Retain its newest messages
         // within the existing byte budget instead of silently applying another fixed row cap.
         $bounded=[];$bytes=0;
         foreach(array_reverse(array_values($messages))as$message){
             $line=$message['role']==='assistant'?$actorName.': '.$message['content']:$message['content'];
-            $size=strlen($this->xmlTag('message',$line));
+            $size=strlen($this->xmlTag('message',($message['_time_heading']??'').$line));
             if($bytes+$size>self::SECTIONS['history']['bytes'])break;
             $bounded[]=$message;$bytes+=$size;
         }

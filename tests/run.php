@@ -1154,6 +1154,24 @@ $check(array_column($roleMessages,'role')===['system','user']
     &&!str_contains(json_encode($roleMessages,JSON_THROW_ON_ERROR),'smoke test'),
     'compact chat history is included once with explicit speakers and control noise filtered');
 $semanticHistory=$promptSelection;$semanticHistory['memory']=[];$semanticHistory['recent_action_results']=[];
+$timedHistory = $roleHistory;
+$timedHistory['effective_settings']['context'] = \LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
+$timedTurn = $promptTurn;
+$timedTurn['payload']['context']['world']['game_time'] = 200000;
+$timedHistory['history'][0]['content']['game_time'] = 200000 - 7200;
+$timedHistory['history'][1]['content']['game_time'] = 200000 - 180;
+$timedHistory['history'][2]['content']['game_time'] = 200000 - 30;
+$untimedPrompt = (new PromptAssembler(8192,1024))->assemble($timedTurn,$timedHistory)['provider_input']['_assembled_prompt'];
+$timedHistory['effective_settings']['context']['prompt_timestamp'] = true;
+$timedPrompt = (new PromptAssembler(8192,1024))->assemble($timedTurn,$timedHistory)['provider_input']['_assembled_prompt'];
+$check(!str_contains($untimedPrompt, '--- Moments Ago ---')
+    && str_contains($timedPrompt, "--- Moments Ago ---\n  Fargoth: I have not seen it.")
+    && str_contains($timedPrompt, "--- Happened Recently ---\n  Guard: Move along.")
+    && !str_contains($timedPrompt, '--- A couple of hours ago ---'),
+    'optional temporal dividers match Herika categories using OpenMW seconds and preserve speakers');
+unset($timedTurn['payload']['context']['world']['game_time']);
+$missingTimePrompt = (new PromptAssembler(8192,1024))->assemble($timedTurn,$timedHistory)['provider_input']['_assembled_prompt'];
+$check(!str_contains($missingTimePrompt, '--- Moments Ago ---'), 'missing game time does not invent temporal context');
 $coveredHistory=$roleHistory;
 $coveredHistory['memory']=[['memory_id'=>'heard-line','content'=>'Fargoth: I have not seen it.']];
 $coveredHistory['memory_retrieval']=['result_ids'=>['heard-line'],'scores'=>['heard-line'=>1]];
@@ -2085,6 +2103,19 @@ $presetSummary = ['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provide
 $presetEmbedding = \LorkhanServer\Application\MemoryEmbeddingPolicy::defaults();
 $presetEmbedding['endpoint'] = 'http://127.0.0.1:8181';
 $namedDefault = \LorkhanServer\Application\GlobalSettingsPreset::defaults();
+$legacyPreset = $namedDefault;
+unset($legacyPreset['settings']['context']['prompt_timestamp']);
+$legacyApplied = \LorkhanServer\Application\GlobalSettingsPreset::apply($legacyPreset, $presetCurrent, $presetSummary, $presetEmbedding);
+$check($legacyApplied['settings']['context']['prompt_timestamp'] === false, 'older named presets normalize temporal headings to disabled');
+$legacyGlobal = $presetCurrent;
+unset($legacyGlobal['context']['prompt_timestamp']);
+$check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($legacyGlobal)['context']['prompt_timestamp'] === false,
+    'older global documents retain disabled temporal headings');
+$legacyGlobal['context']['prompt_timestamp'] = 'true';
+try {
+    \LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($legacyGlobal);
+    $check(false, 'temporal heading setting rejects string booleans');
+} catch (InvalidArgumentException) { $check(true, 'temporal heading setting rejects string booleans'); }
 $presetApplied = \LorkhanServer\Application\GlobalSettingsPreset::apply($namedDefault, $presetCurrent, $presetSummary, $presetEmbedding);
 $check($presetApplied['settings']['context']['location_blacklist'] === []
     && $presetApplied['settings']['system_routing'] === $presetCurrent['system_routing']

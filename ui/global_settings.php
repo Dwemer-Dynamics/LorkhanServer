@@ -183,6 +183,9 @@ $sections = [
             ['oghma_result_limit', 'Knowledge Results', '&#x1F4D1;', 'integer', $oghmaSettings['result_limit'], 'Maximum authorized or structured-denial Oghma articles injected for each request.', ['min' => 1, 'max' => 5, 'advanced'=>true]],
             ['oghma_extractor_timeout_ms', 'Extractor Timeout', '&#x23F1;&#xFE0F;', 'integer', $oghmaSettings['extractor_timeout_ms'], 'Maximum connector-fallback time in milliseconds. Local deterministic retrieval does not use this budget.', ['min' => 250, 'max' => 3000, 'advanced'=>true]],
         ],
+        'Context' => [
+            ['context_prompt_timestamp', 'Prompt Timestamp', '&#x1F552;', 'boolean', $contextPolicy['prompt_timestamp'] ?? false, 'Adds relative time dividers between conversation history groups, such as Moments Ago and Earlier in the day. Uses elapsed game time, not real-world time.', []],
+        ],
         'Context Selections' => [
             ['context_event_types', 'Event Type Filter', '&#x1F4CB;', 'multiselect', $contextPolicy['event_types'], 'Only selected event types enter conversation history.', ['values' => array_combine(SettingsCatalog::eventTypes(), array_map(static fn(string $type): string => ucwords(str_replace('_', ' ', $type)), SettingsCatalog::eventTypes()))]],
             ['context_location_blacklist', 'Location Blacklist', '&#x1F5FA;&#xFE0F;', 'textarea', implode("\n", $contextPolicy['location_blacklist']), 'One exact location or cell name per line. Matching history and world context are excluded.', ['maxlength' => 32768]],
@@ -365,7 +368,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                             <?php elseif ($type === 'text' || $type === 'url'): ?><input type="<?php echo $type; ?>" name="<?php echo lorkhan_ui_h($name); ?>"<?php echo $controlAttr; ?> value="<?php echo lorkhan_ui_h($value); ?>" maxlength="<?php echo (int) ($options['maxlength'] ?? 512); ?>"<?php if (isset($options['pattern'])): ?> pattern="<?php echo lorkhan_ui_h($options['pattern']); ?>"<?php endif; ?> aria-label="<?php echo lorkhan_ui_h($label); ?>"<?php echo $describeAttr; ?>>
                             <?php endif; ?>
                         </div>
-                        <div class="provider-help"<?php if ($controlAttr !== ''): ?> id="gs-help-<?php echo lorkhan_ui_h($name); ?>"<?php endif; ?>><?php echo lorkhan_ui_h($help); ?></div>
+                        <div class="provider-help" id="gs-help-<?php echo lorkhan_ui_h($name); ?>"><?php echo lorkhan_ui_h($help); ?></div>
                     </div>
                     <?php endforeach; ?>
                     <?php if ($advancedOpen): ?></div></details><?php endif; ?>

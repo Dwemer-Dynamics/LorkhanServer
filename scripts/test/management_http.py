@@ -1010,6 +1010,9 @@ _,narrative_filtered=parse(request('/LorkhanServer/ui/narrative_manager.php?q='+
 assert narrative_title in narrative_filtered and '1 entries · Page 1 of 1' in narrative_filtered
 # A real diary must appear in the calendar and escaped modal, and stay playthrough-scoped.
 diary_url='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'diaries','installation_id':valid['installation_id'],'playthrough_id':playthrough_id})
+_,diary_unselected=parse(request(diary_url))
+assert 'Select a date to view diary entries.' in diary_unselected and 'has-event' in diary_unselected
+diary_url+='&q='+urllib.parse.quote(narrative_title)
 diary_page,diary_html=parse(request(diary_url))
 assert narrative_text in diary_html and 'id="entry-'+narrative_id+'"' in diary_html and 'has-event' in diary_html and 'data-reader-form' in diary_html
 assert 'Read / Edit' not in diary_html and 'id="edit-'+narrative_id+'"' in diary_html and 'id="delete-'+narrative_id+'"' in diary_html
@@ -1019,7 +1022,7 @@ assert diary_revise['fields']['title']==narrative_title and diary_revise['fields
 _,game_diary_html=parse(request(diary_url+'&calendar=tamrielic&game_year=427&game_month=8'))
 assert 'Last Seed, 3E 427' in game_diary_html and 'Fredas' in game_diary_html and 'Not recorded' in game_diary_html and 'game_month=9' in game_diary_html
 _,empty_diary_html=parse(request(diary_url+'&date=1900-01-01'))
-assert narrative_text not in empty_diary_html and 'No entries match this date' in empty_diary_html
+assert narrative_text not in empty_diary_html and 'No diary entries found for this date.' in empty_diary_html
 _,person_diary_html=parse(request(diary_url+'&view=people&person='+profile_id))
 assert narrative_text in person_diary_html and 'data-diary-people-search' in person_diary_html
 book_url='/LorkhanServer/ui/diary_book.php?'+urllib.parse.urlencode({'installation_id':valid['installation_id'],'playthrough_id':playthrough_id,'person':profile_id})
@@ -1791,6 +1794,18 @@ assert r.status==422 and 'invalid_npc_relationship_override' in r.read().decode(
 assert len(VoiceProvider.llm_requests)==provider_calls_before_routing_save
 
 # System connectors are installation-owned Global Settings, never NPC profile fields.
+for timestamp_enabled in [True, False]:
+    timestamp_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+    timestamp_form=next(f for f in timestamp_page.forms if f['action'].endswith('/forms/global-settings-save'))
+    timestamp_values=dict(timestamp_form['fields'],_csrf=csrf,change_reason='HTTP temporal context toggle')
+    timestamp_values.pop('context_prompt_timestamp',None)
+    if timestamp_enabled: timestamp_values['context_prompt_timestamp']='1'
+    timestamp_response=request(timestamp_form['action'],'POST',timestamp_values)
+    assert timestamp_response.status==200,(timestamp_response.status,timestamp_response.read().decode())
+    timestamp_saved,timestamp_body=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+    timestamp_fields=next(f['fields'] for f in timestamp_saved.forms if f['action'].endswith('/forms/global-settings-save'))
+    assert ('context_prompt_timestamp' in timestamp_fields)==timestamp_enabled,timestamp_enabled
+    assert '<h2>Context</h2>' in timestamp_body and '<h2>Context Selections' in timestamp_body
 global_route_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
 global_route_form=next(f for f in global_route_page.forms if f['action'].endswith('/forms/global-settings-save'))
 global_route_values=dict(global_route_form['fields'],_csrf=csrf,profile_generation_configuration_id=slot_id,

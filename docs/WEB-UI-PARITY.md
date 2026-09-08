@@ -6647,7 +6647,7 @@ Context section contains these reference controls:
 | TRANSFORMATION_DETECTION | Trace supported actor transformation signals and their context consumer. |
 | POWER_AWARENESS_ENABLED | Establish TES3 power/spell identity and observation semantics before exposing a toggle. |
 | CHIM_ITEM_PICKUP_EVENTLOG_MIN_VALUE | Map to native item value and pickup projection; preserve immutable source events. |
-| PROMPT_TIMESTAMP | Identify where prompt time is rendered and gate that presentation without deleting recorded timestamps. |
+| PROMPT_TIMESTAMP | Implemented below: saved boolean and relative history dividers; default off. |
 
 A case-insensitive search for these exact reference keys in native lib/ui/tests returns
 no matches. This proves no direct key implementation, not absence of every analogous
@@ -6664,3 +6664,37 @@ Quickstart provisioning, Core Profile presets/fields, full NPC editor compositio
 Narrator semantics, provider-specific connector controls, playthrough snapshots and
 SQL database-management operations. No product files, local settings, game state or
 reference repository were changed by this audit; deployed server remains 5dda856.
+
+### Context panel: Prompt Timestamp (2026-09-08)
+
+Added the distinct Context section before Context Selections, using the reference
+provider-card structure. Its first wired control is Prompt Timestamp. The other eight
+Context controls above remain open; one matching card does not establish panel parity.
+
+Reference semantics come from pinned HerikaServer `lib/data_functions.php` and
+`conf/conf.sample.php`: default false, nine relative time categories, and dividers only
+when the category changes after the first historical entry. Native implementation uses
+OpenMW elapsed seconds (`adapters/openmw.lua` world.game_time -> eventlog.gamets ->
+ProductRepository history content.game_time), not Herika's Skyrim timestamp multiplier.
+The server's existing EventLogRepository::formatGameTime also treats gamets as seconds.
+Recorded timestamps remain intact; missing timestamps do not produce invented headings.
+Dividers stay attached to their message inside the existing byte budget and do not
+replace speaker attribution or affect the original text used for memory coverage.
+
+The typed global document, HTML save route, effective settings and prompt assembler
+consume the setting. Older global documents and named presets normalize it to false.
+Global Settings help elements now have the IDs referenced by their input controls.
+
+Evidence: 608 existing server checks pass, including optional headings, OpenMW time
+conversion, speaker preservation, missing time, strict types and legacy settings/presets.
+The full disposable management HTTP suite passes, including enabled/disabled save and
+fresh GET verification. Its Diary assertions now explicitly select the created entry
+and check the previously implemented empty-state behavior rather than assuming all
+entries appear before a date/filter is chosen.
+
+Read-only browser comparison (`Temp/context-timestamp-proof.cjs`) at 1280 and 390 pixels:
+reference/native card widths 1186/321 respectively, padding 12px 14px, radius 10px,
+title font 15px. Captured both products and visually inspected the narrow screenshots.
+Native keyboard Space toggles and restores the checkbox; no POST or provider calls.
+Help wording explains the native clock source. Other panel controls and complete page
+composition are not accepted by this limited comparison. No game was launched or controlled.

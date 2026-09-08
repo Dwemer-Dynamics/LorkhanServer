@@ -200,6 +200,7 @@ final class SettingsCatalog
             'translation' => TranslationPolicy::defaults(),
             'oghma' => self::OGHMA_DEFAULTS + ['knowledge_tags' => '', 'extractor_enabled' => false],
             'context' => [
+                'prompt_timestamp' => false,
                 'sections' => self::CONTEXT_SECTION_DEFAULTS,
                 'details' => self::CONTEXT_DETAIL_DEFAULTS,
                 'event_types' => self::EVENT_TYPES,
