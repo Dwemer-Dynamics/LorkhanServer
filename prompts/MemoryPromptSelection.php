@@ -8,7 +8,7 @@ namespace LorkhanServer\Application;
 final class MemoryPromptSelection
 {
     /** Select witnessed scene buckets; the caller must establish the retained digest boundary and apply prompt-budget coverage separately. */
-    public static function sceneWindow(array $candidates, float $digestedThrough, ?float $historyFloor, int $limit = 10): array
+    public static function sceneWindow(array $candidates, float $digestedThrough, ?float $historyFloor, int $limit = 10, array $coveredIds = []): array
     {
         if ($limit < 1 || $limit > 50 || !is_finite($digestedThrough) || $digestedThrough < 0
             || ($historyFloor !== null && (!is_finite($historyFloor) || $historyFloor < 0))) {
@@ -33,7 +33,8 @@ final class MemoryPromptSelection
             $scenes[] = ['id'=>$id, 'end'=>$to, 'row'=>$candidate];
         }
         $scenes = array_values(array_filter($scenes, static fn(array $scene): bool =>
-            $scene['end'] > $digestedThrough && ($straddler === null || $scene['end'] <= $straddler)));
+            $scene['end'] > $digestedThrough && !isset($coveredIds[$scene['id']])
+            && ($straddler === null || $scene['end'] <= $straddler)));
         usort($scenes, static fn(array $left, array $right): int =>
             ($right['end'] <=> $left['end']) ?: strcmp($right['id'], $left['id']));
         return array_column(array_reverse(array_slice($scenes, 0, $limit)), 'row');
@@ -43,24 +44,88 @@ final class MemoryPromptSelection
     public static function selectSceneContext(array $candidates, string $history, ?float $historyFloor, int $sourceBytes, int $sceneLimit = 10, int $budget = 16384): array
     {
         $candidates = array_slice($candidates, 0, 500);
-        $scenes = self::sceneWindow($candidates, 0, $historyFloor, $sceneLimit);
-        $sceneIds = array_fill_keys(array_column($scenes, 'id'), true);
         $generic = [];
-        $outside = [];
+        $sceneCandidates = [];
         foreach ($candidates as $candidate) {
-            if (self::sceneWindow([$candidate], 0, null, 1) !== []) {
-                if (!isset($sceneIds[$candidate['id']])) $outside[$candidate['id']] = 'outside_scene_window';
-            } else $generic[] = $candidate;
+            if (self::sceneWindow([$candidate], 0, null, 1) !== []) $sceneCandidates[] = $candidate;
+            else $generic[] = $candidate;
+        }
+        $genericState = self::select($generic, $history, $sourceBytes, $budget);
+        $genericCoverage = [];
+        foreach ($generic as $candidate) {
+            if (isset($genericState['texts'][$candidate['id']])) $genericCoverage[] = self::coverage($candidate['text'], $genericState['texts'][$candidate['id']]);
+        }
+        $coveredIds = [];
+        foreach ($sceneCandidates as $candidate) {
+            foreach ($genericCoverage as $coverage) {
+                if (self::covers($coverage, $candidate['text'])) { $coveredIds[$candidate['id']] = true; break; }
+            }
+        }
+        // Apply actual retained digest coverage before the scene cap, but compute the straddler
+        // over all scenes so a covered boundary cannot pull newer live events into the window.
+        $scenes = self::sceneWindow($candidates, 0, $historyFloor, $sceneLimit, $coveredIds);
+        $sceneIds = array_fill_keys(array_column($scenes, 'id'), true);
+        $outside = [];
+        foreach ($sceneCandidates as $candidate) {
+            if (!isset($sceneIds[$candidate['id']]) && !isset($coveredIds[$candidate['id']])) $outside[$candidate['id']] = 'outside_scene_window';
         }
         foreach ($scenes as &$scene) $scene['_group'] = 'scene';
         unset($scene);
         // Exact rendered coverage, not a digest timestamp, removes scenes already present in retained memory.
         // A digest can have holes or be truncated; advancing a blanket high-water mark would lose those scenes.
         $state = self::select([...$generic, ...$scenes], $history, $sourceBytes, $budget, $sceneLimit);
-        $state['reasons'] += $outside;
+        $state['reasons'] += $outside + array_fill_keys(array_keys($coveredIds), 'covered_by_memory');
+        $state['counts']['covered_by_memory'] += count($coveredIds);
         $state['counts']['candidates'] = count($candidates);
         $state['counts']['outside_scene_window'] = count($outside);
         return $state;
+    }
+
+    /** Remove only exact, dated live lines covered by a complete retained scene; never infer coverage from its time range alone. */
+    public static function pruneHistory(array $history, array $candidates, array $state): array
+    {
+        $coverage = [];
+        foreach ($candidates as $candidate) {
+            $id = $candidate['id'];
+            if (($state['texts'][$id] ?? null) !== $candidate['text']
+                || self::sceneWindow([$candidate], 0, null, 1) === []) continue;
+            $coverage[] = ['text'=>$candidate['text'], 'range'=>$candidate['provenance']['source_game_time_range']];
+        }
+        $retained = [];
+        $removed = [];
+        $pendingHeading = '';
+        foreach ($history as $message) {
+            $time = $message['_game_time'] ?? null;
+            if (($message['_complete'] ?? false) && is_numeric($time)) {
+                foreach ($coverage as $scene) {
+                    if ($time >= $scene['range']['from'] && $time <= $scene['range']['to']
+                        && self::covers($scene['text'], $message['_line'])) {
+                        $removed[$message['_source_id']] = true;
+                        $pendingHeading = $message['_time_heading'] ?? $pendingHeading;
+                        continue 2;
+                    }
+                }
+            }
+            if ($pendingHeading !== '' && !isset($message['_time_heading'])) $message['_time_heading'] = $pendingHeading;
+            $pendingHeading = '';
+            $retained[] = $message;
+        }
+        // Omitted memories may now be covered by a mixture of surviving history and scene text.
+        // Keep their attribution honest without reranking away the summary that justified pruning.
+        $historyText = implode("\n", array_column(array_filter($retained, static fn(array $row): bool => $row['_complete']), '_line'));
+        foreach ($candidates as $candidate) {
+            $id = $candidate['id'];
+            if (($state['reasons'][$id] ?? '') !== 'covered_by_history' || self::covers($historyText, $candidate['text'])) continue;
+            $reason = 'covered_by_context';
+            foreach ($state['texts'] as $text) {
+                if (self::covers($text, $candidate['text'])) { $reason = 'covered_by_memory'; break; }
+            }
+            $state['reasons'][$id] = $reason;
+            --$state['counts']['covered_by_history'];
+            $state['counts'][$reason] = ($state['counts'][$reason] ?? 0) + 1;
+        }
+        $state['covered_history'] = $removed;
+        return ['history'=>$retained, 'memory'=>$state];
     }
 
     /** Match whole text at line boundaries; partial summaries and changed facts are not duplicates. */

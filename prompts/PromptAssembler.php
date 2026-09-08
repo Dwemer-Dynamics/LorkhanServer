@@ -184,7 +184,7 @@ final class PromptAssembler
 
         $includedHistory = [];
         if (preg_match('#<conversation_context>(.+)</conversation_context>#s', $traceSystem) === 1) {
-            foreach ($historyMessages as $message) $includedHistory[$message['_source_id']] = true;
+            foreach ($built['history_ids'] as $id) $includedHistory[$id] = true;
         }
 
         $assembled = $this->readableMessages($messages);
@@ -221,6 +221,7 @@ final class PromptAssembler
             $memoryRetrieval['coverage']['selected'] = count($memoryRetrieval['result_ids']);
             if (!$memoryIncluded) $memoryRetrieval['coverage']['covered_by_memory'] = 0;
             if ($includedHistory === []) $memoryRetrieval['coverage']['covered_by_history'] = 0;
+            if (!$memoryIncluded) $memoryRetrieval['coverage']['covered_by_context'] = 0;
             // Retrieval traces persist the reasons object, not arbitrary top-level metadata.
             $memoryRetrieval['reasons']['_context'] = ['selection' => $memoryRetrieval['selection'],
                 'coverage' => $memoryRetrieval['coverage']];
@@ -234,7 +235,7 @@ final class PromptAssembler
         foreach (['history', 'memory', 'relationship', 'knowledge', 'narrative', 'latest_diary'] as $kind) {
             $truncated = $truncated || count($rows[$kind]) < count($this->selectedList($selection, $kind));
         }
-        foreach ($sources as $source) $truncated = $truncated || !in_array($source['reason'], ['included', 'covered_by_history', 'covered_by_memory'], true);
+        foreach ($sources as $source) $truncated = $truncated || !in_array($source['reason'], ['included', 'covered_by_history', 'covered_by_memory', 'covered_by_context', 'outside_scene_window'], true);
 
         $providerInput = $this->providerInput($turn, $assembled, $messages);
         if ($llmSpeechLanguage) $providerInput['_llm_tts_language'] = true;
@@ -394,13 +395,11 @@ final class PromptAssembler
         $narrativeXml = $this->sourceItemsXml($narrative, 'narrative');
         if ($narrativeXml !== '') $morrowind .= '<narrative_context>' . $narrativeXml . '</narrative_context>';
 
-        $conversation = '';
         $historyText = [];
         foreach ($historyMessages as $message) {
             $line = $message['role'] === 'assistant'
                 ? $actorName . ': ' . $message['content']
                 : $message['content'];
-            $conversation .= $this->xmlTag('message', ($message['_time_heading'] ?? '') . $line);
             if ($message['_complete']) $historyText[] = $line;
         }
         $relationshipXml = $this->sourceItemsXml($relationships, 'relationship');
@@ -411,6 +410,14 @@ final class PromptAssembler
             is_numeric($time) && is_finite((float)$time) && $time >= 0)) === count($historyTimes)
             ? (float)min($historyTimes) : null;
         $memoryState = MemoryPromptSelection::selectSceneContext($memoryCandidates, implode("\n", $historyText), $historyFloor, $this->maxSourceBytes, $sceneLimit);
+        foreach ($historyMessages as &$message) $message['_line'] = $message['role'] === 'assistant'
+            ? $actorName . ': ' . $message['content'] : $message['content'];
+        unset($message);
+        $pruned = MemoryPromptSelection::pruneHistory($historyMessages, $memoryCandidates, $memoryState);
+        $historyMessages = $pruned['history'];
+        $memoryState = $pruned['memory'];
+        $conversation = '';
+        foreach ($historyMessages as $message) $conversation .= $this->xmlTag('message', ($message['_time_heading'] ?? '') . $message['_line']);
         $memoryXml = $memoryState['xml'];
         $actionResults = $this->sourceItemsXml($actions, 'action_result');
         $capabilities = $turn['_negotiated_capabilities'] ?? [];
@@ -459,7 +466,8 @@ final class PromptAssembler
             $system = $this->markdownSystemPrompt($presentationSections);
         }
         if (strlen($system) > $budget) $system = $traceSystem = $this->minimalSystemPrompt($actorName, $playerName);
-        return ['system' => $system, 'trace_system' => $traceSystem, 'memory' => $memoryState];
+        return ['system' => $system, 'trace_system' => $traceSystem, 'memory' => $memoryState,
+            'history_ids' => array_column($historyMessages, '_source_id')];
     }
 
     /** Present every model-facing prompt section as compact Markdown. */
@@ -1274,6 +1282,8 @@ final class PromptAssembler
                     $included = $includedContent !== '' && str_contains($sectionBodies[$section] ?? '', $this->xmlTag('latest_diary_entry', $includedContent));
                     if (!$included) {$includedBytes=0;$includedContent='';$reason='byte_limit';}
                 }
+                if ($kind === 'history' && !$included && ($sectionBodies['memory_context'] ?? '') !== ''
+                    && isset($memoryState['covered_history'][$id])) $reason = 'covered_by_memory';
                 if ($kind === 'memory') {
                     $included = ($sectionBodies[$section] ?? '') !== '' && isset($memoryState['texts'][$id]);
                     $includedContent = $included ? $memoryState['texts'][$id] : '';

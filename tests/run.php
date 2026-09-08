@@ -2106,8 +2106,13 @@ $check(($sceneContext['reasons']['scene-08']??'')==='outside_scene_window',
     'scene window exclusions are recorded in retrieval reasons');
 $sceneDigest=['id'=>'digest','text'=>"Scene 5\nScene 6",'tier'=>'long'];
 $sceneContext=MemoryPromptSelection::selectSceneContext([$sceneDigest,...$sceneCandidates],'',650.5,1024,3);
-$check(array_keys($sceneContext['texts'])===['digest','scene-07'],
-    'retained digest removes only scenes whose actual text is covered');
+$check(array_keys($sceneContext['texts'])===['digest','scene-03','scene-04','scene-07'],
+    'retained digest removes covered scenes before the cap and fills remaining slots with uncovered history');
+$coveredBoundary=MemoryPromptSelection::selectSceneContext([['id'=>'boundary-digest','text'=>'Scene 7'],...$sceneCandidates],'',650.5,1024,3);
+$check(array_keys($coveredBoundary['texts'])===['boundary-digest','scene-04','scene-05','scene-06']
+    &&$coveredBoundary['reasons']['scene-07']==='covered_by_memory'
+    &&$coveredBoundary['reasons']['scene-08']==='outside_scene_window',
+    'a digest-covered straddler does not move the upper scene boundary into newer live history');
 $sceneContext=MemoryPromptSelection::selectSceneContext([$sceneDigest,...$sceneCandidates],'',650.5,8,3);
 $check(isset($sceneContext['texts']['scene-05'],$sceneContext['texts']['scene-06'],$sceneContext['texts']['scene-07']),
     'truncated digest cannot hide scene summaries behind a timestamp');
@@ -2153,6 +2158,48 @@ foreach([0,51,1.5,'10',true]as$invalidLimit){
     try{EffectiveSettingsResolver::validateSettingsOverrides(['memory'=>['short_term_max_summaries'=>$invalidLimit]]);$check(false,'invalid Core STM limit rejected');}
     catch(InvalidArgumentException){$check(true,'invalid Core STM limit rejected');}
 }
+
+$overlapSelection=$sceneSelection;
+$overlapSelection['memory'][6]['content']="Guard: Unrelated live dialogue.\nEarlier quest discovered.";
+array_unshift($overlapSelection['memory'],['id'=>'overlap-child','content'=>'Guard: Unrelated live dialogue.']);
+$overlapPrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$overlapSelection);
+$overlapSources=array_column($overlapPrompt['trace']['sources'],null,'source_id');
+$check(substr_count($overlapPrompt['provider_input']['_assembled_prompt'],'Guard: Unrelated live dialogue.')===1
+    &&!$overlapSources['scene-live']['included']&&$overlapSources['scene-live']['reason']==='covered_by_memory'
+    &&$overlapSources['overlap-child']['reason']==='covered_by_memory',
+    'retained complete scene replaces its exact dated history line and both source traces name the surviving memory');
+$overlapSelection['history'][0]['content']['game_time']=750.5;
+$outsideTimePrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$overlapSelection);
+$outsideTimeSources=array_column($outsideTimePrompt['trace']['sources'],null,'source_id');
+$check($outsideTimeSources['scene-live']['included'],
+    'repeated words after a summary time range remain live history');
+$overlapSelection['history'][0]['content']['game_time']=650.5;
+$overlapSelection['memory'][7]['content']='Earlier material '.str_repeat('x',1100)."\nGuard: Unrelated live dialogue.";
+$cutScenePrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$overlapSelection);
+$cutSceneSources=array_column($cutScenePrompt['trace']['sources'],null,'source_id');
+$check($cutSceneSources['scene-live']['included']&&str_contains($cutScenePrompt['provider_input']['_assembled_prompt'],'Guard: Unrelated live dialogue.'),
+    'a source-byte-truncated scene cannot remove its live source line');
+$overlapSelection['memory'][7]['content']="Guard: Unrelated live dialogue.\nEarlier quest discovered.";
+$overlapSelection['effective_settings']['settings']['memory']['short_term_enabled']=false;
+$offScenePrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$overlapSelection);
+$check(array_column($offScenePrompt['trace']['sources'],null,'source_id')['scene-live']['included'],
+    'disabling STM restores live history rather than leaving the summary overlap hidden');
+$overlapSelection['effective_settings']['settings']['memory']['short_term_enabled']=true;
+$minimalOverlap=(new PromptAssembler(512,256))->assemble($promptTurn,$overlapSelection);
+$check(!in_array('covered_by_memory',array_column($minimalOverlap['trace']['sources'],'reason'),true)
+    &&$minimalOverlap['trace']['memory_retrieval']['result_ids']===[],
+    'minimal budget fallback cannot claim history was replaced by a summary that was removed');
+$pruneScene=$sceneCandidates[6];$pruneScene['content']=$pruneScene['text']="Guard: Heard line.\nOther past fact.";
+$pruneHistory=[['_source_id'=>'heard','_line'=>'Guard: Heard line.','_complete'=>true,'_game_time'=>650.5,'_time_heading'=>"--- Moments Ago ---\n"],
+    ['_source_id'=>'other','_line'=>'Guard: Keep this line.','_complete'=>true,'_game_time'=>650.6]];
+$pruneCandidate=['id'=>'mixed','text'=>"Guard: Heard line.\nGuard: Keep this line."];
+$pruneState=MemoryPromptSelection::selectSceneContext([$pruneCandidate,$pruneScene],$pruneCandidate['text'],650.5,1024);
+$pruned=MemoryPromptSelection::pruneHistory($pruneHistory,[$pruneCandidate,$pruneScene],$pruneState);
+$check(array_column($pruned['history'],'_source_id')===['other']
+    &&$pruned['history'][0]['_time_heading']==="--- Moments Ago ---\n"
+    &&$pruned['memory']['reasons']['mixed']==='covered_by_context'
+    &&$pruned['memory']['counts']['covered_by_history']===0,
+    'pruning preserves the next temporal heading and traces combined memory/history coverage accurately');
 
 $globalSettings=SettingsCatalog::globalDefaults();
 $check($globalSettings['profile_management']===['auto_lock_profile'=>true,
