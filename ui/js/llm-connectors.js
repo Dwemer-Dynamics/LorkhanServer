@@ -298,14 +298,15 @@
         nanogpt: 'https://nano-gpt.com/',
     };
     const serviceInput = document.getElementById('llm_service');
-    let customServiceSelected = serviceInput?.value === 'custom';
+    let localServiceSelected = serviceInput?.value === 'local';
+    let customServiceSelected = localServiceSelected || serviceInput?.value === 'custom';
     const updateService = () => {
         const service = driver.value === 'openai-compatible'
             ? (customServiceSelected ? 'custom' : Object.keys(services).find((key) => key !== 'custom' && services[key][0] === endpoint?.value) || 'custom')
             : (driver.value === 'configured' ? document.getElementById('llm_model')?.dataset.runtimeService || '' : '');
         if (serviceInput) {
             serviceInput.disabled = driver.value !== 'openai-compatible';
-            serviceInput.value = serviceInput.disabled ? '' : service;
+            serviceInput.value = serviceInput.disabled ? '' : (localServiceSelected && service === 'custom' ? 'local' : service);
         }
         serviceButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.llmService === service)));
         const label = document.getElementById('llm-service-label');
@@ -327,7 +328,7 @@
         const custom = document.getElementById('llm-service-custom');
         if (custom) custom.hidden = service !== 'custom';
     };
-    driver.addEventListener('change', () => { customServiceSelected = false; apply(); updateService(); });
+    driver.addEventListener('change', () => { localServiceSelected = false; customServiceSelected = false; apply(); updateService(); });
     endpoint?.addEventListener('input', updateService);
     apply();
     updateService();
@@ -348,6 +349,7 @@
             const preset = services[button.dataset.llmService];
             if (!preset) return;
             customServiceSelected = button.dataset.llmService === 'custom';
+            if (!customServiceSelected) localServiceSelected = false;
             driver.value = 'openai-compatible';
             apply();
             const endpoint = document.getElementById('llm_endpoint');

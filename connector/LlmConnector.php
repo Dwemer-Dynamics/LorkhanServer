@@ -76,7 +76,7 @@ final class LlmConnector
         if ($driver === 'openai-compatible') {
             // Service is editor identity, separate from transport options and endpoint validation.
             if (array_key_exists('service', $content)) {
-                if (!in_array($content['service'], ['openrouter', 'openai', 'google', 'groq', 'nanogpt', 'player2', 'custom'], true)) {
+                if (!in_array($content['service'], ['openrouter', 'openai', 'google', 'groq', 'nanogpt', 'player2', 'custom', 'local'], true)) {
                     throw new InvalidArgumentException('invalid_provider_service');
                 }
                 $result['service'] = $content['service'];
@@ -93,7 +93,9 @@ final class LlmConnector
             }
             $host = strtolower(rtrim($parts['host'], '.'));
             $loopback = $host === 'localhost' || (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false && str_starts_with($host, '127.'));
-            if ($parts['scheme'] === 'http' && !$loopback) throw new InvalidArgumentException('invalid_provider_endpoint');
+            if (($content['service']??'')==='local') {
+                if (!\LorkhanServer\Security\OutboundUrlPolicy::isLocalLlmHost($host)) throw new InvalidArgumentException('invalid_local_llm_endpoint');
+            } elseif ($parts['scheme'] === 'http' && !$loopback) throw new InvalidArgumentException('invalid_provider_endpoint');
             $credential = $content['credential'] ?? 'none';
             if (!is_string($credential) || self::credentialVariable($credential) === null) {
                 throw new InvalidArgumentException('invalid_provider_credential');

@@ -365,3 +365,5 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 Quickstart MiniMe card hierarchy, status styling and reachability-result wording derive from the pinned HerikaServer `ui/quickstart.php` above. Native probing uses the saved endpoint, CSRF protection, bounded output and no redirects.
+
+Local LLM address classification derives from HerikaServer `lib/core/local_llm_setup.php` at the pinned reference revision. Native transport makes this an explicit saved connector service, rejects metadata/link-local/public destinations, pins localhost, disables proxy resolution and preserves TLS verification and existing public-provider policy.

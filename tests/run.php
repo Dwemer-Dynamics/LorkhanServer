@@ -394,6 +394,23 @@ try {
         });
     $check(false,'diagnostic observer did not run');
 }catch(RuntimeException $error){if($error->getMessage()!=='diagnostic-observed')throw$error;}
+// Explicit Local LLM transport must never widen legacy/public connector access.
+foreach(['localhost','127.0.0.1','10.0.0.2','172.16.1.2','172.31.255.254','192.168.1.4','[::1]','[fd12::1]','[fc00::2]'] as $localHost){
+    $localContent=LlmConnector::validate(['driver'=>'openai-compatible','service'=>'local','model'=>'fixture','endpoint'=>'http://'.$localHost.':1234/v1/chat/completions','credential'=>'none']);
+    $network=\LorkhanServer\Security\OutboundUrlPolicy::curlOptions($localContent['endpoint'],[$localHost],false,false,true);
+    $check($network[CURLOPT_PROXY]==='', 'local LLM literal/localhost transport bypasses proxy resolution');
+    $slot=['configuration_id'=>'00000000-0000-4000-8000-000000000001','revision'=>1,'content'=>$localContent];
+    $check(ProviderFactory::dialogueForSlot([], $slot) instanceof OpenAiCompatibleProvider
+        && ProviderFactory::profileGenerationForSlot([], $slot) instanceof \LorkhanServer\Application\OpenAiCompatibleProfileGenerationProvider
+        && ProviderFactory::oghmaTopicExtractorForSlot([], $slot) instanceof \LorkhanServer\Application\OpenAiCompatibleOghmaTopicExtractor,
+        'dialogue, profile and topic adapters retain explicit local connector policy');
+}
+foreach(['8.8.8.8','169.254.169.254','100.100.100.200','0.0.0.0','224.0.0.1','172.32.0.1','example.com','[fe80::1]','[fd00:ec2::254]','[::ffff:192.168.1.1]'] as $unsafeHost){
+    try{LlmConnector::validate(['driver'=>'openai-compatible','service'=>'local','model'=>'fixture','endpoint'=>'http://'.$unsafeHost.'/v1/chat/completions']);$check(false,'local connector rejects non-local/metadata hosts');}
+    catch(InvalidArgumentException){$check(true,'local connector rejects non-local/metadata hosts');}
+    try{\LorkhanServer\Security\OutboundUrlPolicy::curlOptions('https://'.$unsafeHost.'/v1/chat/completions',[$unsafeHost],false,true,true);$check(false,'local transport rejects non-local/metadata hosts');}
+    catch(InvalidArgumentException){$check(true,'local transport rejects non-local/metadata hosts');}
+}
 $pinned=\LorkhanServer\Security\OutboundUrlPolicy::curlOptions('http://localhost:1234/v1/chat/completions',['localhost'],true,true);
 $check($pinned[CURLOPT_RESOLVE]===['localhost:1234:127.0.0.1']&&$pinned[CURLOPT_PROXY]==='',
     'explicit connector requests pin validated addresses and bypass unchecked proxy resolution');

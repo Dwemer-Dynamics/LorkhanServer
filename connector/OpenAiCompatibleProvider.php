@@ -25,8 +25,10 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         private readonly array $options = [],
         private readonly bool $allowLoopbackHttp = false,
         private readonly bool $directConnection = false,
+        private readonly bool $localNetwork = false,
     ) {
-        OutboundUrlPolicy::validate($endpoint, $allowedHosts, $allowLoopbackHttp);
+        $addresses=null;
+        OutboundUrlPolicy::validate($endpoint, $allowedHosts, $allowLoopbackHttp, $addresses, $localNetwork);
         LlmConnector::validateOptions($options);
         if ($model === '' || strlen($model) > 256 || $timeoutMs < 1000 || $timeoutMs > 120_000) {
             throw new \InvalidArgumentException('invalid_openai_compatible_configuration');
@@ -56,7 +58,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             $body=json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
         }
         $this->emitDiagnostic($diagnosticObserver, 'request', $request);
-        $networkOptions = OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection);
+        $networkOptions = OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection,$this->localNetwork);
         $handle = curl_init($this->endpoint);
         if ($handle === false) throw new RuntimeException('provider_unavailable');
         $headers = ['Content-Type: application/json', 'Accept: text/event-stream, application/json'];

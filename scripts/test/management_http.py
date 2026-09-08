@@ -1073,15 +1073,18 @@ try:
     try:
         diary_sql(f"UPDATE lorkhan_internal.narrative_records SET content='Changed diary fixture.' WHERE narrative_id='{narrative_id}';")
         changed=json_request('/LorkhanServer/manage/api/v1/diary-audio','POST',diary_payload,csrf)
-        assert changed.status==200 and changed.headers.get('X-Diary-Audio-Cache')=='miss' and changed.read().startswith(b'RIFF')
+        changed_audio=changed.read()
+        assert changed.status==200 and changed.headers.get('X-Diary-Audio-Cache')=='miss' and changed_audio.startswith(b'RIFF'), (changed.status,changed.headers.get('X-Diary-Audio-Cache'),len(changed_audio),changed_audio[:4])
         assert len(VoiceProvider.speech_requests)==before_diary_audio+2 and VoiceProvider.speech_requests[-1]['text']=='Changed diary fixture.'
         diary_sql(f"INSERT INTO lorkhan_internal.profiles(profile_id,installation_id,name,actor_identity,core_profile_id,created_at) VALUES('{alternate_author}','{valid['installation_id']}','Second diary author','{{}}','{diary_core}',clock_timestamp()); INSERT INTO lorkhan_internal.profile_revisions(profile_id,revision,content,change_reason,created_at) SELECT '{alternate_author}',1,content,'diary author fixture',clock_timestamp() FROM lorkhan_internal.profile_revisions WHERE profile_id='{profile_id}' AND revision={diary_profile['current_revision']}; UPDATE lorkhan_internal.narrative_records SET profile_id='{alternate_author}' WHERE narrative_id='{narrative_id}';")
         changed=json_request('/LorkhanServer/manage/api/v1/diary-audio','POST',diary_payload,csrf)
-        assert changed.status==200 and changed.headers.get('X-Diary-Audio-Cache')=='miss' and changed.read().startswith(b'RIFF')
+        changed_audio=changed.read()
+        assert changed.status==200 and changed.headers.get('X-Diary-Audio-Cache')=='miss' and changed_audio.startswith(b'RIFF'), (changed.status,changed.headers.get('X-Diary-Audio-Cache'),len(changed_audio),changed_audio[:4])
         assert len(VoiceProvider.speech_requests)==before_diary_audio+3
         diary_sql(f"UPDATE lorkhan_internal.configuration_revisions SET content=jsonb_set(content,'{{language}}','\"fr\"'::jsonb) WHERE configuration_id='{diary_tts_id}' AND revision=1;")
         changed=json_request('/LorkhanServer/manage/api/v1/diary-audio','POST',diary_payload,csrf)
-        assert changed.status==200 and changed.headers.get('X-Diary-Audio-Cache')=='miss' and changed.read().startswith(b'RIFF')
+        changed_audio=changed.read()
+        assert changed.status==200 and changed.headers.get('X-Diary-Audio-Cache')=='miss' and changed_audio.startswith(b'RIFF'), (changed.status,changed.headers.get('X-Diary-Audio-Cache'),len(changed_audio),changed_audio[:4])
         assert len(VoiceProvider.speech_requests)==before_diary_audio+4 and VoiceProvider.speech_requests[-1]['language']=='fr'
         diary_sql(f"UPDATE lorkhan_internal.narrative_records SET deleted_at=clock_timestamp() WHERE narrative_id='{narrative_id}';")
         removed=json_request('/LorkhanServer/manage/api/v1/diary-audio','POST',diary_payload,csrf)
@@ -2069,6 +2072,20 @@ direct_values.update(option_provider_order='',change_reason='Restore default rou
 r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); assert r.status==200,(r.status,r.read().decode())
 r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); assert r.status==200 and 'status=tested' in r.geturl()
 assert 'provider' not in VoiceProvider.llm_requests[-1][1],VoiceProvider.llm_requests[-1][1]
+# Saved explicit local connectors use the LAN transport, while normal Custom retains its stricter guard.
+local_addresses=subprocess.run(['hostname','-I'],capture_output=True,text=True).stdout.split()
+local_host=next((host for host in local_addresses if host.startswith(('10.','192.168.')) or (host.startswith('172.') and 16<=int(host.split('.')[1])<=31)),'127.0.0.1')
+local_values=dict(direct_values,name='Local transport '+uuid.uuid4().hex,service='local',credential='none',endpoint='http://'+local_host+':'+str(voice_provider.server_port)+'/llm/chat/completions')
+local_values.pop('configuration_id',None)
+r=request('/LorkhanServer/manage/forms/providers','POST',local_values); body=r.read().decode(); assert r.status==200,(r.status,body)
+local_id=connector_editor_id(body,local_values['name'])
+local_editor=request('/LorkhanServer/ui/core/llm_connectors.php?edit='+local_id).read().decode()
+assert 'id="llm_service" name="service" value="local"' in local_editor and local_values['endpoint'] in local_editor
+r=request('/LorkhanServer/manage/forms/provider-test','POST',dict(direct_test,configuration_id=local_id)); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,r.read().decode())
+assert 'Authorization' not in VoiceProvider.llm_requests[-1][0]
+local_export=json.load(request('/LorkhanServer/manage/exports/providers/'+local_id+'.json'))
+assert local_export['content']['service']=='local' and local_export['content']['endpoint']==local_values['endpoint']
+r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':local_id}); assert r.status==200
 # Exercise the other real adapters with the same local provider, including operation-specific schemas.
 generation_cases=[
     ({'generation_mode':'diary_generation'},{'title':'Fixture title','content':'A witnessed exchange.'}),

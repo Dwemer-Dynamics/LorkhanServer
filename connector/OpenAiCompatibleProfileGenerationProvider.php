@@ -16,9 +16,10 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
     public function __construct(private readonly string $endpoint,private readonly array $allowedHosts,
         private readonly string $model,private readonly string $apiKey,private readonly int $timeoutMs=30_000,
         private readonly bool $disableReasoning=false,private readonly array $options=[],
-        private readonly bool $allowLoopbackHttp=false,private readonly bool $directConnection=false)
+        private readonly bool $allowLoopbackHttp=false,private readonly bool $directConnection=false,private readonly bool $localNetwork=false)
     {
-        OutboundUrlPolicy::validate($endpoint,$allowedHosts,$allowLoopbackHttp);
+        $addresses=null;
+        OutboundUrlPolicy::validate($endpoint,$allowedHosts,$allowLoopbackHttp,$addresses,$localNetwork);
         LlmConnector::validateOptions($options);
         if($model===''||strlen($model)>256||$timeoutMs<1000||$timeoutMs>120_000)
             throw new \InvalidArgumentException('invalid_profile_provider_configuration');
@@ -80,7 +81,7 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
         // Optional audit observers receive the exact messages, never transport options or credentials.
         if($observeMessages!==null)$observeMessages($request['messages']);
         $body=json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
-        $networkOptions=OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection);
+        $networkOptions=OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection,$this->localNetwork);
         $handle=curl_init($this->endpoint);if($handle===false)throw new RuntimeException('provider_unavailable');
         $headers=['Content-Type: application/json','Accept: application/json'];if($this->apiKey!=='')$headers[]='Authorization: Bearer '.$this->apiKey;
         curl_setopt_array($handle,$networkOptions+[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$body,CURLOPT_RETURNTRANSFER=>true,CURLOPT_FOLLOWLOCATION=>false,
