@@ -7545,3 +7545,18 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - JavaScript syntax, diff checks and 613 server checks passed. Deployed and verified
   all 800 runtime hashes/private probes; secrets and voices preserved. Rollback:
   lorkhanserver-code.odcg0C. Remaining LLM field/provider review is still open.
+
+### LLM advanced override controls
+
+- Matched Herika's URL label and removed the extra paragraph between the advanced
+  heading and its fields. Clear now blanks all seven numeric overrides and moves
+  their range thumbs to their minimum, matching the reference Clear handler.
+- Compared native and reference at 1280/390 with browser-only drafts and all writes
+  blocked. Range-to-number updates, seven-field Clear, retained temperature and
+  retained disabled YAML draft pass. Native also synchronizes typed numbers back
+  to ranges; the reference does not, even after blur. Kept native synchronization
+  rather than copying that stale-display behavior. Provider limits are unchanged.
+- Inspected the deployed advanced panel screenshot. Passed JavaScript syntax,
+  diff checks and 613 server checks. Verified 800 deployed runtime hashes and
+  private/authentication probes; configuration, credentials and voices unchanged.
+  Rollback: lorkhanserver-code.kCEIBW. Full provider/editor acceptance remains open.

@@ -364,7 +364,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <?php lorkhan_llm_service_picker($webRoot); ?>
 
                             <div class="llm-mode-panel llm-connection-field" id="llm_endpoint_row" data-llm-modes="openai-compatible"<?php echo $isDirect ? '' : ' hidden'; ?>>
-                                <label for="llm_endpoint">Endpoint URL</label>
+                                <label for="llm_endpoint">URL</label>
                                 <input id="llm_endpoint" type="url" name="endpoint" required maxlength="2048" inputmode="url" spellcheck="false"
                                        value="<?php echo lorkhan_ui_h($content['endpoint'] ?? ''); ?>" placeholder="http://127.0.0.1:1234/v1/chat/completions"
                                        aria-describedby="llm_endpoint-help"<?php echo $unless($isDirect); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
@@ -463,7 +463,6 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
                                 <section class="llm-advanced-panel">
                                     <div class="llm-group-heading"><span>Advanced LLM Settings Override</span><?php echo lorkhan_ui_feature_badge('config.llm.advanced', true); ?></div>
-                                    <p class="llm-help">Leave a field empty to keep the provider or runtime default. Not every provider honours every value.</p>
                                     <div class="llm-option-grid">
                                         <?php foreach (LORKHAN_LLM_SAMPLING_FIELDS as $field) lorkhan_llm_number_field($field, $options, $formId, !$isMock); ?>
                                     </div>
