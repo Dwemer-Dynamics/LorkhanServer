@@ -9385,3 +9385,40 @@ Desktop deployed Combat screenshot inspected against the preceding reference;
 again (`combat-slider-ui.txt`). Server verification again matched all 807 files
 and private access checks. This closes the slider track difference above; the
 surrounding grid/card-height gap remains open. No game was launched.
+
+
+### Bored Event implementation boundary audit (2026-09-08)
+
+Current-source trace establishes that this missing card is a behavioral gap, not
+a label for the idle interval or narrator chance:
+- Reference `ui/core/tmpl/metadata_json_editor.php` declares Bored Event Chance
+  as 0-100 under Bored Event, paired with Context in the grouped layout.
+- Reference `main.php:1008` applies BORED_EVENT using a 0-99 roll before choosing
+  the narrator flow versus the rolemaster/director instruction. Thus the overall
+  chance is separate from narrator routing and also gates narrator bored flow.
+- Native `orchestrator.lua:514` currently waits for the idle delay, rotates to an
+  eligible NPC, then tries narrator probability or unconditionally requests NPC
+  boredom. There is no overall Bored Event Chance.
+- `nextBoredActor` rotates across eligible registered actors, not necessarily the
+  currently selected actor. Reusing the selected target's effective controls
+  would incorrectly apply another NPC's Core profile.
+
+Implementation requirements for this pending row:
+1. Add overall 0-100 probability with explicit zero preserved, Core/NPC ownership
+   and save, Copy to all, named/portable preset handling. Confirm reference preset
+   values independently; do not substitute narrator's default25.
+2. Resolve the actual chosen actor's policy before rolling, then perform narrator
+   routing. Use existing bound-responder controls machinery where appropriate;
+   keep generation/session/actor identity checks and do not start a provider turn
+   when the roll fails. Reset the idle opportunity after a failed roll so it does
+   not retry every frame until success.
+3. Keep the idle interval and existing global enable switch separate. Add strict
+   optional protocol support if client projection is needed; update both repos.
+4. Port the card and grouped position, compare zero/intermediate/100 and saved
+   states. Test differing selected/chosen actor profiles, miss cooldown, zero,
+   100, narrator routing, presets and stale responses.
+5. Separately map the reference rolemaster/director topic generation: a probability
+   card alone cannot close full Bored Event runtime parity.
+
+No product behavior changed by this audit. This supersedes any suggestion that
+adding a generic probability to the existing selected-target timer is sufficient.
