@@ -45,7 +45,8 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         $cancellation->throwIfCancellationRequested();
         $this->reportedUsage=[];
         $messages = $this->promptMessages($turn);
-        $prefix = LlmConnector::prefillMessages($messages, $this->options, 'utterances');
+        $languageEnabled=($turn['_prompt']['_llm_tts_language']??false)===true;
+        $prefix = LlmConnector::prefillMessages($messages, $this->options, $languageEnabled?'language':'utterances');
         $request = LlmConnector::requestOptions($this->options,$this->directConnection?null:0.7,$this->disableReasoning,
             ($this->options['json_schema'] ?? false) ? $this->responseSchema($turn) : null) + [
             'model' => $this->model,
@@ -97,7 +98,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         ]);
         // Run dialogue callbacks only after libcurl yields so they may start first-sentence TTS safely.
         $drainStream = static function () use (
-            &$networkBuffer, &$content, &$streamed, &$usage, $visible, $onDialogueDelta, $cancellation
+            &$networkBuffer, &$content, &$streamed, &$usage, $visible, $onDialogueDelta, $cancellation, $languageEnabled, $prefix
         ): void {
             while (($newline = strpos($networkBuffer, "\n")) !== false) {
                 if ($cancellation->isCancellationRequested()) throw new OperationCancelled('operation_cancelled');
@@ -116,7 +117,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
                 if(is_array($event['usage']??null))$usage=$event['usage'];
                 if (!is_string($delta)) throw new RuntimeException('provider_unavailable');
                 $content .= $delta;
-                foreach ($visible->push($delta) as $text) $onDialogueDelta($text);
+                foreach ($visible->push($delta) as $text) $onDialogueDelta($text, $languageEnabled?SpeechLanguage::fromJsonPrefix(str_starts_with(ltrim($content),'{')?$content:$prefix.$content):null);
             }
         };
         $multi = curl_multi_init();
@@ -172,9 +173,13 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             $this->reportedUsage['cost_usd']=(float)$usage['cost'];
         }
         if (!is_string($content) || $content === '') throw new RuntimeException('provider_invalid_output');
-        foreach ($visible->push('', true) as $text) $onDialogueDelta($text);
+        foreach ($visible->push('', true) as $text) $onDialogueDelta($text, $languageEnabled?SpeechLanguage::fromJsonPrefix(str_starts_with(ltrim($content),'{')?$content:$prefix.$content):null);
         $result = $this->decodeStructuredContent($content, $prefix);
+        $language=$languageEnabled?SpeechLanguage::normalize($result['language']??null):null;
+        if($languageEnabled)unset($result['language']);
         $this->validateResultShape($result);
+        if($language!==null)foreach($result['utterances'] as &$utterance)$utterance+=SpeechLanguage::payload($language);
+        unset($utterance);
         $result = $this->normalizeAction($result, $turn);
         $this->emitDiagnostic($diagnosticObserver, 'response', $result);
         return $result;
@@ -229,7 +234,8 @@ final class OpenAiCompatibleProvider implements StreamingProvider
                 'parameters'=>$parameters,
             ]);
         }
-        return LlmConnector::objectSchema([
+        $properties = ($turn['_prompt']['_llm_tts_language']??false)===true ? ['language'=>['type'=>'string','enum'=>SpeechLanguage::CODES]] : [];
+        return LlmConnector::objectSchema($properties + [
             'utterances'=>['type'=>'array', 'minItems'=>1, 'maxItems'=>4,
                 'items'=>LlmConnector::objectSchema(['text'=>['type'=>'string', 'minLength'=>1, 'maxLength'=>4096]])],
             'action'=>count($actions) === 1 ? $actions[0] : ['anyOf'=>$actions],

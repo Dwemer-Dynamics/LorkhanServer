@@ -65,6 +65,7 @@ final class SpeechSynthesizeJobHandler implements JobHandler
             $provider instanceof OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
         $context=$this->products?->speechContext((string)$dialogue['installation_id'],
             (string)$dialogue['playthrough_id'],(array)$dialogue['speaker'],$preset)??[];
+        $context=SpeechLanguage::context($context,$preset,$payload['tts_language']??null);
         $pronunciationContext=$this->products?->ttsPronunciationContext((string)$dialogue['installation_id'],
             (string)$dialogue['playthrough_id'],(array)$dialogue['speaker'])??[];
         $ttsText=$this->products?->applyTtsPronunciation($ttsText,$pronunciationContext)??$ttsText;

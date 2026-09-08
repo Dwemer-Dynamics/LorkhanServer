@@ -6,6 +6,6 @@ namespace LorkhanServer\Application;
 
 interface StreamingProvider extends Provider
 {
-    /** @param callable(string):void $onDialogueDelta */
+    /** @param callable $onDialogueDelta Receives text and, when available, an optional normalized speech language. */
     public function completeStreaming(array $turn, CancellationToken $cancellation, callable $onDialogueDelta): array;
 }

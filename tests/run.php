@@ -796,6 +796,14 @@ foreach ([null, 'pl', '../de', [], 'DE'] as $invalidLanguage) {
     catch (InvalidArgumentException) { $check(true,'invalid Core language rejected'); }
 }
 $check(\LorkhanServer\Application\CoreProfilePreset::capture($languageSelection['core_profile']['content'])['settings_overrides']['response']['core_lang']==='jp','Core language survives named preset capture');
+$speechLanguageSelection=$wordSelection;
+$speechLanguageSelection['core_profile']['content']['settings_overrides']['response']['lang_llm_xtts']=true;
+$speechLanguagePrompt=$assembler->assemble($promptTurn,$speechLanguageSelection)['provider_input'];
+$check(($speechLanguagePrompt['_llm_tts_language']??false)===true&&str_contains($speechLanguagePrompt['_assembled_prompt'],'exactly three keys: "language"'),'speech language opt-in freezes flag and language-first output contract');
+$check(!isset($assembler->assemble($promptTurn,$wordSelection)['provider_input']['_llm_tts_language']),'legacy profiles do not request language metadata');
+$check(\LorkhanServer\Application\SpeechLanguage::fromJsonPrefix('{"language":"fr","utterances":[')==='fr'
+    &&\LorkhanServer\Application\SpeechLanguage::fromJsonPrefix('{"utterances":[{"text":"language: fr"}]}')===null
+    &&\LorkhanServer\Application\SpeechLanguage::fromJsonPrefix('{"language":"fr')===null,'stream metadata parser waits for complete leading field and ignores dialogue content');
 $npcMemorySelection=$promptSelection;
 $npcMemorySelection['memory']=[['memory_id'=>'npc-memory','tier'=>'mid','content'=>'NPC_MEMORY_SENTINEL']];
 $npcMemorySelection['effective_settings']=(new EffectiveSettingsResolver())->resolve([], [],
@@ -1403,6 +1411,21 @@ $canonicalTurn=['installation_id'=>'10000000-0000-4000-8000-000000000001',
     'payload'=>['speaker'=>$identity('player','player',0,'Nerevarine'),
         'target'=>$identity('npc','fargoth',112,'Fargoth'),'audience'=>[],
         'context'=>['rechat'=>['rechat_depth'=>2]]]];
+$languageContext=['voice'=>'existing-voice','language'=>'de'];
+foreach (['xtts','xtts-fastapi','chatterbox'] as $driver) {
+    $check(\LorkhanServer\Application\SpeechLanguage::context($languageContext,['content'=>['driver'=>$driver]],' FR ')
+        ===['voice'=>'existing-voice','language'=>'fr'],'supported speech drivers receive normalized language without changing voice');
+}
+foreach ([null, [], 'xx', 'fr/text', str_repeat('a',17)] as $invalidLanguage) {
+    $check(\LorkhanServer\Application\SpeechLanguage::context($languageContext,['content'=>['driver'=>'xtts']],$invalidLanguage)===$languageContext
+        &&\LorkhanServer\Application\SpeechLanguage::payload($invalidLanguage)===[],'missing or invalid speech language preserves configured fallback and legacy job shape');
+}
+foreach (['inworld','openai','pockettts','omnivoice'] as $driver) {
+    $check(\LorkhanServer\Application\SpeechLanguage::context($languageContext,['content'=>['driver'=>$driver]],'fr')===$languageContext,'model language does not alter other connectors');
+}
+$languagePlanned=(new DialoguePlanner())->plan($canonicalTurn,['utterances'=>[['text'=>'Bonjour.','tts_language'=>'FR']]]);
+$check($languagePlanned[0]['tts_language']==='fr'&&$languagePlanned[0]['_subtitle']==='Bonjour.'&&$languagePlanned[0]['_tts_text']==='Bonjour.','speech language survives planning without becoming visible text');
+$check(\LorkhanServer\Application\SpeechLanguage::payload('jp')===['tts_language'=>'ja']&&\LorkhanServer\Application\SpeechLanguage::payload('zh')===['tts_language'=>'zh-cn'],'profile language aliases map to supported speech codes');
 $canonicalResult=(new CanonicalResponseNormalizer())->normalize($canonicalTurn,
     ['utterances'=>[['text'=>'You found my engraved ring—thank you!']],
         'action'=>['name'=>'ai.follow','tier'=>1,'actor'=>$canonicalTurn['payload']['target'],

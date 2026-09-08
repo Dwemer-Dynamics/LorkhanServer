@@ -134,6 +134,7 @@ final class PromptAssembler
         $systemBudget = max(192, $this->maxInputBytes - strlen($final) - 256);
         $speechStyle = is_array($selection['speech_style'] ?? null) ? $selection['speech_style'] : [];
         $this->assertSourceScope($speechStyle, $turn, 'speech_style');
+        $llmSpeechLanguage=($selection['effective_settings']['settings']['response']['lang_llm_xtts'] ?? $coreProfile['content']['settings_overrides']['response']['lang_llm_xtts'] ?? false)===true;
         $built = $this->systemPrompt(
             $turn,
             $profile,
@@ -155,6 +156,7 @@ final class PromptAssembler
             ParalinguisticSpeech::prompt($speechStyle),
             $responseMaxWords,
             (string)($selection['effective_settings']['settings']['response']['core_lang'] ?? $coreProfile['content']['settings_overrides']['response']['core_lang'] ?? ''),
+            $llmSpeechLanguage,
         );
 
         $system = $built['system'];
@@ -232,6 +234,7 @@ final class PromptAssembler
         foreach ($sources as $source) $truncated = $truncated || !in_array($source['reason'], ['included', 'covered_by_history', 'covered_by_memory'], true);
 
         $providerInput = $this->providerInput($turn, $assembled, $messages);
+        if ($llmSpeechLanguage) $providerInput['_llm_tts_language'] = true;
         $trace = [
             'algorithm' => self::ALGORITHM,
             'prompt_format' => 'markdown',
@@ -308,11 +311,16 @@ final class PromptAssembler
         string $speechStylePrompt,
         int $responseMaxWords,
         string $coreLanguage,
+        bool $llmSpeechLanguage,
     ): array {
         $outputContract = 'Return one JSON object with exactly two keys: "utterances" and "action". '
             . '"utterances" must be a JSON array of one to four objects. Each utterance object must have exactly one key named "text", '
             . 'and "text" must be a non-empty string. Never return utterances as strings. "action" is null or a supported name and parameters object. '
             . 'Do not add prose outside JSON.';
+        if ($llmSpeechLanguage) {
+            $outputContract = str_replace('exactly two keys: "utterances" and "action"', 'exactly three keys: "language", "utterances" and "action"', $outputContract);
+            $outputContract .= ' Write "language" first, before "utterances": use the spoken dialogue language code from '.implode(', ', SpeechLanguage::CODES).'. Never place the language code inside spoken text.';
+        }
         $maxWords = $responseMaxWords;
         if (is_int($maxWords) && $maxWords > 0 && $maxWords <= 10000) {
             $outputContract .= ' Keep the combined spoken dialogue across all utterances within ' . $maxWords . ' words.';

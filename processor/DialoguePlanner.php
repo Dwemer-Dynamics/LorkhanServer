@@ -81,7 +81,7 @@ final class DialoguePlanner
             $utterances[] = ['speaker' => $speaker, 'addressee' => $addressee,
                 'audience' => array_values($eligible), 'text' => $text,
                 'speech_enabled'=>($candidate['speech_enabled']??true)!==false,
-                'index' => $index + 1, 'count' => count($raw)]+$variants;
+                'index' => $index + 1, 'count' => count($raw)]+$variants+SpeechLanguage::payload($candidate['tts_language']??null);
         }
         return $utterances;
     }

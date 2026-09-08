@@ -43,7 +43,7 @@ final class InlineNarrationRouter
             if($mode==='NPC'){
                 $candidate['text']=trim($narration.' '.$spoken);$routed[]=$candidate;continue;
             }
-            $routed[]=['speaker'=>$identity,'text'=>$narration,'speech_enabled'=>$mode==='Narrator'];
+            $routed[]=['speaker'=>$identity,'text'=>$narration,'speech_enabled'=>$mode==='Narrator']+SpeechLanguage::payload($candidate['tts_language']??null);
             if($spoken!==''){$candidate['text']=$spoken;$candidate['speaker']??=$turn['payload']['target']??null;$routed[]=$candidate;}
         }
         if($routed===[]&&$filters['remove_npc_output_asterisks'])throw new \DomainException('provider_invalid_output');

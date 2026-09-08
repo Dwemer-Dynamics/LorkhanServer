@@ -324,9 +324,10 @@ final class EffectiveSettingsResolver
         // Response length is a server prompt instruction, not an OpenMW client control.
         if (array_key_exists('response', $validation)) {
             $response = $validation['response'];
-            if (!is_array($response) || $response === [] || array_diff(array_keys($response), ['max_words', 'core_lang']) !== []
+            if (!is_array($response) || $response === [] || array_diff(array_keys($response), ['max_words', 'core_lang', 'lang_llm_xtts']) !== []
                 || (array_key_exists('max_words', $response) && (!is_int($response['max_words']) || $response['max_words'] < 0 || $response['max_words'] > 10000))
-                || (array_key_exists('core_lang', $response) && (!is_string($response['core_lang']) || !array_key_exists($response['core_lang'], CoreProfileLanguage::LABELS))))
+                || (array_key_exists('core_lang', $response) && (!is_string($response['core_lang']) || !array_key_exists($response['core_lang'], CoreProfileLanguage::LABELS)))
+                || (array_key_exists('lang_llm_xtts', $response) && !is_bool($response['lang_llm_xtts'])))
                 throw new InvalidArgumentException('invalid_settings_overrides');
             unset($validation['response']);
         }
