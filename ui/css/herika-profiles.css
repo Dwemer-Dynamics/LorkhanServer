@@ -664,7 +664,7 @@ body.profiles-page-shell:not(.embedded-page) .profile-editor-toolbar { top:64px;
 .profiles-page .profile-feature-grid .setting-control { max-width:none; justify-self:stretch; margin-top:0; }
 .profiles-page .profile-setting-chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-start; }
 .profiles-page .profile-setting-chip { display:block; align-items:center; gap:6px; background:#29261f; border:1px solid #554b35; padding:6px 10px; border-radius:8px; color:#e6e0d1; font-size:12px; }
-.profiles-page .profile-setting-chip input[type="checkbox"] { transform:scale(1.4); margin:0; accent-color:#bc9d5a; }
+.profiles-page .profile-setting-chip input[type="checkbox"] { transform:scale(1.4); vertical-align:middle; margin:0; accent-color:#bc9d5a; }
 .profiles-page .rechat-calculator { margin-bottom:7px; padding:8px 10px; border:1px solid #3c3c3c; border-radius:7px; background:#1d1d1d; }
 .profiles-page .rechat-calculator-title { display:flex; align-items:center; gap:7px; margin-bottom:5px; color:#bc9d5a; font-size:12px; font-weight:700; }
 /* Keep explanatory help out of the reference calculator layout. */
