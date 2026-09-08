@@ -6916,3 +6916,24 @@ selection or the remaining page matrix.
 Deployed deletion/long/empty probes and editor rejection regression pass at both
 widths. All 799 deployed files match source; deployment preserved configuration,
 credentials and voices. No game was launched or controlled.
+
+### AI Responses whole-page follow-up (2026-09-08)
+
+Current live reference/native full-page screenshots showed the native scope disclosure
+between the introduction and primary toolbar. Moved AI Responses filters below the
+bottom pager, preserving its GET fields and native installation/playthrough selection.
+Books retains its existing below-table placement; Journal is unaffected. Empty response
+rows now use Herika's exact 'No AI response rows found.' text.
+
+Temp/response-current-review.cjs checks the populated pages and prompt readers at
+1280/390, verifies the scope disclosure follows the bottom pager and still expands,
+and checks native Escape/focus restoration without POSTs. Current empty-page checks
+show identical 104.375px table containers and 12.8px/19.2px typography. PHP syntax and
+608 server checks pass. Deployed source verification matches all 799 runtime files.
+
+The whole-page layout is not yet fully accepted: the reference has 79 pages and Next,
+while native has one page and no pager link. The resulting top-toolbar heights differ
+(44/144px reference versus 40/122.5px native at desktop/narrow). A matched pagination
+fixture must separate the content-state difference from the nested native nav layout
+before further CSS changes. Current data differs, so screenshots are not pixel-equality
+proof for table rows or prompt contents. Full goal remains open.

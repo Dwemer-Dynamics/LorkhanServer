@@ -17,7 +17,7 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
         <?php if($responses): ?><div class="roleplay-description"><strong>AI Responses:</strong>
             Complete log of AI-generated responses including the full context payload sent to the LLM. Use this to debug model behavior, prompt composition, Oghma topics, and timing.
         </div><?php else: ?><p class="book-log-intro"><?= $journal?'<strong>Morrowind Journal:</strong> Entries captured from your in-game journal.':'Books observed during your Morrowind playthrough.' ?></p><?php endif; ?>
-        <?php if($books) ob_start(); ?>
+        <?php if($books||$responses) ob_start(); ?>
         <details class="log-scope"><summary>Filters and playthrough</summary><form method="get" class="reader-filters">
             <input type="hidden" name="tab" value="<?= lorkhan_ui_h($tab) ?>">
             <label>Installation<select name="installation_id"><?php foreach($installations as $id=>$name): ?><option value="<?= lorkhan_ui_h($id) ?>"<?= $id===$state['installation']?' selected':'' ?>><?= lorkhan_ui_h($name) ?></option><?php endforeach; ?></select></label>
@@ -25,7 +25,7 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
             <label>Search<input type="search" name="q" value="<?= lorkhan_ui_h($state['query']) ?>" maxlength="200"></label>
             <button type="submit" class="roleplay-button">Filter</button><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['q'=>'','person'=>'','date'=>'','reader_page'=>1])) ?>">Reset</a>
         </form><?php if(!$responses&&!$journal): ?><a class="roleplay-button log-export" href="<?= lorkhan_ui_h($link(['export'=>'1'])) ?>">Export Book Log</a><?php endif; ?></details>
-        <?php if($books) $bookFilters=ob_get_clean(); ?>
+        <?php if($books||$responses) $logFilters=ob_get_clean(); ?>
         <?php if($responses||$journal||$state['pages']>1): ?>
         <div class="log-pagination"><nav aria-label="Log pages"><span>Page <?= $state['page'] ?> / <?= $state['pages'] ?> (<?= $state['total'] ?> rows)</span>
             <?php if($state['page']>1): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page'=>$state['page']-1])) ?>">Previous</a><?php endif; ?>
@@ -51,16 +51,17 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
                         <td><?= lorkhan_ui_h($row['game_date_label']) ?></td><td><?= lorkhan_ui_h(gmdate('d-m-Y H:i:s', strtotime($row['created_at']))) ?></td>
                     <?php endif; ?><td><?= lorkhan_ui_h((string)($responses?$row['narrative_id']:$row['ts'])) ?></td></tr>
                 <?php endforeach; ?>
-                <?php if($state['rows']===[]): ?><tr><td colspan="<?= $responses?6:5 ?>" class="log-empty">No <?= $responses?'AI responses':($journal?'journal entries':'books') ?> match this playthrough and filter.</td></tr><?php endif; ?></tbody>
+                <?php if($state['rows']===[]): ?><tr><td colspan="<?= $responses?6:5 ?>" class="log-empty"><?= $responses?'No AI response rows found.':('No '.($journal?'journal entries':'books').' match this playthrough and filter.') ?></td></tr><?php endif; ?></tbody>
             </table>
             <?php endif; ?>
         </div>
-        <?php if($books) echo $bookFilters; ?>
+        <?php if($books) echo $logFilters; ?>
         <?php if($responses): ?><nav class="log-footer log-bottom-pagination" aria-label="Bottom log pages">
             <span>Page <?= $state['page'] ?> / <?= $state['pages'] ?> (<?= $state['total'] ?> rows)</span>
             <?php if($state['page']>1): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page'=>$state['page']-1])) ?>">Previous</a><?php endif; ?>
             <?php if($state['page']<$state['pages']): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page'=>$state['page']+1])) ?>">Next</a><?php endif; ?>
         </nav><?php else: ?><p class="log-footer">Page <?= $state['page'] ?> / <?= $state['pages'] ?> · <?= $state['total'] ?> rows</p><?php endif; ?>
+        <?php if($responses) echo $logFilters; ?>
         <?php foreach($state['rows'] as $row): $id='log-entry-'.(int)$row['narrative_id']; ?>
             <dialog id="<?= $id ?>" class="log-content-modal<?= $responses?' response-prompt-viewer':($books?' book-content-viewer':'') ?>" aria-labelledby="<?= $id ?>-title">
                 <header><h2 id="<?= $id ?>-title"><?= $responses?'📜 Prompt Viewer':lorkhan_ui_h($row['title']) ?></h2><div><span role="status" data-log-status></span><button type="button" class="roleplay-button" data-log-copy><?= $responses?'📋 Copy':'Copy' ?></button><button type="button" class="roleplay-button" data-log-close aria-label="Close reader">✕</button></div></header>
