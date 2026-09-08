@@ -16,13 +16,13 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `409452f` (local voice refresh controls and PocketTTS mode).
+Current deployed product checkpoint: `df54711` (Events deletion control parity).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
 | Surface | Current comparison evidence | Still separate |
 | --- | --- | --- |
-| Events | Initial/live Record controls match; duplicate bottom pager removed to match the reference; empty-to-live reconstruction, page change and stopped refresh checked | Remaining whole-table/filter/editor acceptance |
+| Events | Initial/live Record controls match; duplicate bottom pager removed to match the reference; empty-to-live reconstruction, page change and stopped refresh checked | Whole-table metrics and populated/empty views reviewed; hide/unhide/retry and deletion cancel/failure/success mocked at both widths; reference has no inline event editor |
 | AI Responses | Populated and empty table geometry compared at 1280/390; refreshed empty cells match 38.6875px height and 9px/10px padding | Multirole and empty reader geometry, copy/failure/close and escaped-text wrapping verified; cleanup cancel/failure/reload and populated/empty CSV verified; 61-row multi-page export and exact escaped-prompt round trip verified |
 | Adventure Log | Actual hub populated columns match; empty-date cells now use reference padding and 39.1875px height | Complete-day table and stale-page links now match; selected/latest/all downloads, calendar switching and empty dates rechecked; remaining month-boundary combinations |
 | Diaries | Actual hub populated columns match; empty-date row padding corrected; reader whitespace and editor geometry compared at both widths | Complete day/author sets and corresponding ascending/descending order verified; paired reader/editor refreshed; provider audio acceptance and remaining cache cases |
@@ -8659,3 +8659,12 @@ around the count span. Scoped the visible selected button to inline-block; retai
 its hidden attribute behavior. The corrected source-CSS comparison now matches
 166.296875 x 36px at both widths, including font, padding, margin and full icon/text.
 Paired narrow button images inspected after centering to avoid sticky-header clipping.
+
+Final deployed checkpoint df54711; rollback /var/backups/lorkhanserver-code.X6hNzu.
+All 803 runtime files match with no extras/legacy paths; health/private/auth checks
+pass and configuration/credentials/voice hashes remain unchanged. Without source
+CSS interception the selected button now matches the reference dimensions at both
+widths. Mocked deletion acceptance passes again against the deployed page with the
+current identical source script. No actual event deletion, provider call or game
+control occurred. The matrix records this acceptance without claiming the full
+multi-page goal complete.
