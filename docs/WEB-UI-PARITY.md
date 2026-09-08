@@ -70,7 +70,7 @@ do not use an exception to excuse a generic substitute layout.
 | `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty, desktop/narrow and whole-page review completed with OpenMW exceptions below |
 | `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; Setup/Local LLM, MiniMe probe, service provisioning and Player2 still pending |
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. Remaining children and full embedded interactions still pending |
-| `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
+| `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins and the distinct Context behavior panel remain missing; see Global Settings Context panel re-audit |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; scrolling slot summary, linked assigned slots and toolbar spacing aligned. Presets and additional profile fields remain |
 | `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI builds now stage reviewed results with the NPC Save; the unloaded-existing-target review edge is fixed; the full editor/list review remains. Info has confirmed missing Skills/Equipment/Stats/Inventory/Spells/Metadata panels and Setting Overrides; Nine per-actor override leaves now resolve and reach prompt selection, with revisioned form round trips; the nine-leaf visual override editor now stages Add/Edit/Remove and JSON with save/reload and failure proof. Observed Skills/Equipment/Stats/Inventory/Spells/Metadata disclosures now render exact-target recorded state with populated/empty fixture proof. Remaining: target inventory capture, editable metadata semantics, full override catalogue and full modal composition. See NPC observed-state checkpoint below |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; remaining generation edge states remain pending |
@@ -6624,3 +6624,43 @@ regression also passes. No system clipboard, real prompt or provider writes.
 603 server checks pass. 799 matching deployed files and private/auth/health checks
 pass; config/credentials/voice contents preserved. Rollback:
 /var/backups/lorkhanserver-code.PqqJbW. No game activity. Full parity matrix remains open.
+
+## Global Settings Context panel re-audit
+
+Revalidated the broader matrix against native ui/global_settings.php, its tab handler,
+and pinned Herika ui/global_settings.php plus lib/core/prisma_settings_catalog.php at
+529364c4c12b3a8bd4cc12a481f400ce19b3a344. Raw heading DOM order is NOT a reliable visual
+ordering comparison: both products group sections under the same four settings tabs.
+No tab reordering or heading-only change was made from that misleading first inventory.
+
+Confirmed gap: reference Context and Context Selections are separate sections in the
+Context & Knowledge tab. Native has Oghma and Context Selections only. The missing
+Context section contains these reference controls:
+
+| Reference control | Native parity work still required |
+| --- | --- |
+| DETECT_MAGIC_EVENT | Trace OpenMW spell/effect event production and gate only matching event capture/context. |
+| GROUND_ITEMS_DESCRIPTIONS_ONLY | Trace observed ground-item projection versus saved descriptions; keep distinct from including descriptions. |
+| INVENTORY_ITEMS_DESCRIPTIONS_ONLY | Trace player/NPC inventory projection and description joins; do not imply unavailable NPC inventory capture. |
+| HIDE_AMBIENT_COMBAT | Distinguish ambient combat from the active conversation's combat before filtering. |
+| DISABLE_REANIMATION_TRACKING | Establish whether supported OpenMW events carry a reanimation identity; no inert checkbox. |
+| TRANSFORMATION_DETECTION | Trace supported actor transformation signals and their context consumer. |
+| POWER_AWARENESS_ENABLED | Establish TES3 power/spell identity and observation semantics before exposing a toggle. |
+| CHIM_ITEM_PICKUP_EVENTLOG_MIN_VALUE | Map to native item value and pickup projection; preserve immutable source events. |
+| PROMPT_TIMESTAMP | Identify where prompt time is rendered and gate that presentation without deleting recorded timestamps. |
+
+A case-insensitive search for these exact reference keys in native lib/ui/tests returns
+no matches. This proves no direct key implementation, not absence of every analogous
+behavior. Runtime equivalence must be traced independently before implementation.
+Implementation sequence: map producer/projection/prompt consumer and existing native
+settings for each; add only supported, persisted controls in a distinct Context section;
+verify defaults/off states and unchanged unrelated context in existing tests; compare
+the full populated/empty tab and saved state. Any actual unsupported OpenMW feature
+requires an evidenced product exception, not a placeholder or inferred exclusion.
+
+The existing matrix's Global Settings row is therefore partial: grouped selections and
+blacklist UI do not prove parity for this missing panel. Other open families remain
+Quickstart provisioning, Core Profile presets/fields, full NPC editor composition,
+Narrator semantics, provider-specific connector controls, playthrough snapshots and
+SQL database-management operations. No product files, local settings, game state or
+reference repository were changed by this audit; deployed server remains 5dda856.
