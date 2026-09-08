@@ -7532,3 +7532,16 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
   pass. Final rollback: lorkhanserver-code.zXSYyu.
 - This fixes the report structure, not the full LLM editor acceptance. Remaining
   provider/advanced field interactions and real test lifecycle states stay open.
+
+### LLM test loading and repeated tests
+
+- Pending reports now use Herika's blank reader/background with centered spinner,
+  keeping Close available; status remains in the live region. Each new test resets
+  the inner report scroll, matching a newly navigated reference iframe.
+- At 1280/390, mocked save -> test -> success, repeat test, close while pending and
+  failed-save states pass. A failed save sends no test; late completion does not
+  reopen a dismissed dialog. Inspected the narrow pending screenshot. No actual
+  connector saves or LLM calls were made by these browser probes.
+- JavaScript syntax, diff checks and 613 server checks passed. Deployed and verified
+  all 800 runtime hashes/private probes; secrets and voices preserved. Rollback:
+  lorkhanserver-code.odcg0C. Remaining LLM field/provider review is still open.

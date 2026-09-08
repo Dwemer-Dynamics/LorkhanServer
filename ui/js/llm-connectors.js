@@ -29,6 +29,7 @@
             testDialog.querySelectorAll('[data-llm-diagnostic]').forEach(panel => { panel.textContent = 'Waiting for test…'; });
             loader.hidden = false;
             testDialog.showModal();
+            testDialog.querySelector('.llm-test-viewport').scrollTop = 0;
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 130000);
             try {

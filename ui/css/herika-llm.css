@@ -472,3 +472,5 @@ body.llm-page-shell main.llm-page .llm-editor-toolbar button.llm-test-button:hov
 @media (prefers-reduced-motion:reduce) { #llm-test-dialog .llm-test-spinner { animation:none; } }
 #llm-test-dialog pre { margin:1em 0; }
 #llm-test-dialog p { font:16px Arial,Helvetica,sans-serif; margin:1em 0; color:inherit; }
+#llm-test-dialog:has(.llm-test-loading:not([hidden])) { background:#0e1624; }
+#llm-test-dialog:has(.llm-test-loading:not([hidden])) .llm-test-viewport { opacity:0; }
