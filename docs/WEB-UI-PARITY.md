@@ -6358,3 +6358,28 @@ passing private/auth/health checks; config/credential/voice hashes preserved. Ro
 Still open: native filter/pagination placement, reference frame versus native page
 scrolling, narrow table layout and the complete remaining page matrix. Table geometry
 and row-state parity are not whole-page acceptance.
+
+## Calendar reader scrolling composition
+
+Adventure and Diaries now render inside a labelled, keyboard-focusable scroll region,
+matching the reference embedded calendar viewport instead of growing the outer page.
+Viewport client height follows the reference 78vh desktop / 75vh narrow frame minus
+its two border pixels; the native tab retains that border. Inline baseline composition
+and the existing content padding are retained. Date-anchor routing keeps the Adventure
+entry target inside this region and restores the hub position, matching iframe anchors;
+manual outer scrolling is not disabled. Other reader pages are unchanged.
+
+Temp/calendar-scroll-proof.cjs passes both tabs at 1280/390px: reference/native client
+heights, keyboard scrolling, date-anchor positioning and hub navigation remaining
+visible. Initial narrow checks caught a real anchor scrolling the outer page; fixed
+and reran. Keyboard focus may make a small outer adjustment, so the final assertion
+checks the actual visible navigation rather than assuming window.scrollY is always zero.
+Inspected deployed selected-date desktop/narrow screenshots. Current/full Adventure
+exports, populated/empty dates and Diary calendar/person-mode returns pass with zero
+POSTs. The priority shell/heading-width checks also passed after adding the viewport.
+603 existing checks and JS syntax pass; final runtime has 799 matching files and passing
+private/auth/health checks. Configuration, credentials and voice hashes preserved.
+Rollback /var/backups/lorkhanserver-code.oxRTFR. No provider calls or game activity.
+
+Still open: filter/pager placement and full diary entry interaction/remaining counterpart
+matrix. This checkpoint establishes scrolling composition, not whole-site completion.

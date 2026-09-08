@@ -257,7 +257,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                 <?php if(in_array($tabId,['adventure','diaries','books','journal','responselog'],true)){
                     if($tabId===$activeTab && $readerState!==null){
                         if(in_array($tabId,['responselog','books','journal'],true))lorkhan_roleplay_log_table($readerState,$installationOptions,$tabId,$webRoot,$managementBasePath,$csrf);
-                        else lorkhan_roleplay_reader($readerState,$installationOptions,$tabId,$webRoot,$managementBasePath,$csrf,$readerPreview);
+                        else {echo '<div class="calendar-reader-viewport" tabindex="0" role="region" aria-label="'.lorkhan_ui_h($heading).'">';lorkhan_roleplay_reader($readerState,$installationOptions,$tabId,$webRoot,$managementBasePath,$csrf,$readerPreview);echo '</div>';}
                     }
                 }elseif($tabId==='memory'){
                     if($tabId===$activeTab){echo '<div class="tab-panel-inner roleplay-panel"><h2 class="visually-hidden">Memories</h2>';

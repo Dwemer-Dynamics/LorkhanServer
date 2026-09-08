@@ -2,6 +2,20 @@
 (() => {
     const root = document.querySelector('[data-reader]');
     if (!root) return;
+    const calendarViewport = root.closest('.calendar-reader-viewport');
+    // Keep date anchors inside the reader, as they are in the reference iframe.
+    const alignCalendarAnchor = () => {
+        if (!calendarViewport || window.location.hash !== '#adventure-events') return;
+        const target = root.querySelector('#adventure-events');
+        if (!target) return;
+        requestAnimationFrame(() => {
+            calendarViewport.scrollTop += target.getBoundingClientRect().top - calendarViewport.getBoundingClientRect().top - 200;
+            window.scrollTo(0, 0);
+        });
+    };
+    if (document.readyState === 'complete') alignCalendarAnchor();
+    else window.addEventListener('load', alignCalendarAnchor, { once: true });
+    window.addEventListener('hashchange', alignCalendarAnchor);
     const people = root.querySelector('[data-diary-people]');
     people?.querySelector('[data-diary-people-search]')?.addEventListener('input', (event) => {
         const query = event.target.value.toLocaleLowerCase();
