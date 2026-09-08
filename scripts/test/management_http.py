@@ -1335,6 +1335,13 @@ except urllib.error.HTTPError as error:
 npc_relationship_url='/LorkhanServer/ui/core/npc_master.php?'+urllib.parse.urlencode({'rel_profile':relationship_values['profile_id'],'rel_playthrough':playthrough_id})
 npc_relationship_page,npc_relationship_body=parse(request(npc_relationship_url))
 assert 'npc-rel-table' in npc_relationship_body and 'Recent Relationship Changes' in npc_relationship_body
+assert 'class="npc-rel-scope" action="/LorkhanServer/ui/core/npc_master.php"' in npc_relationship_body
+assert 'href="/LorkhanServer/ui/relationship_logs.php?' in npc_relationship_body
+assert 'action="/ui/' not in npc_relationship_body and 'href="/ui/' not in npc_relationship_body
+relationship_scope_form=next(f for f in npc_relationship_page.forms if f['fields'].get('rel_profile')==relationship_values['profile_id'] and f['action']=='/LorkhanServer/ui/core/npc_master.php')
+relationship_scope_response=request(relationship_scope_form['action']+'?'+urllib.parse.urlencode(relationship_scope_form['fields']))
+assert relationship_scope_response.status==200
+assert request('/LorkhanServer/ui/relationship_logs.php?installation_id='+valid['installation_id']).status==200
 assert any(f['fields'].get('relationship_id')==relationship_id and f['fields'].get('relationship_page')=='npc' for f in npc_relationship_page.forms)
 r=request(relationship_edit['action'],'POST',dict(relationship_edit['fields'],_csrf=csrf,relationship_page='npc',ui_q='HTTP',disposition='99',affinity='6'))
 assert r.status==200 and '/ui/core/npc_master.php?' in r.geturl() and 'rel_profile='+relationship_values['profile_id'] in r.geturl() and 'relationship_revision_conflict' in r.geturl()

@@ -900,6 +900,23 @@ body.view-characters .npc-editor-modal > .npc-modal-body {padding:0;flex:1 1 aut
 .npc-editor-content {margin:0 5px 50px 0;font:18px "Futura CondensedLight",Arial,sans-serif;}
 body.view-characters .npc-editor-modal .npc-modal-actions :is(.btn-save,.btn-cancel) {margin:2px;letter-spacing:.3px;}
 
+/* Relationship controls retain the reference sizes instead of generic NPC form overrides. */
+body.view-characters .npc-relationships > label {font-size:18px;}
+body.view-characters .npc-rel-lock > label {font-size:16.2px;font-weight:700;}
+body.view-characters .npc-rel-lock input[type="checkbox"] {width:13px;height:13px;min-height:0;margin:3px 5px 3px 4px;}
+body.view-characters .npc-relationships p.npc-rel-empty {font-size:18px;line-height:1.5;margin:0 0 10px;}
+body.view-characters .npc-rel-add :is(input,select) {font:13.3333px Arial,sans-serif!important;min-height:0!important;margin:0!important;}
+body.view-characters .npc-rel-add input[type="number"],body.view-characters .npc-rel-add select[name="relationship_type"] {padding:6px!important;}
+body.view-characters .npc-rel-add select[name="actor_profile_id"] {padding:6px 10px!important;}
+body.view-characters .npc-rel-add button[type="submit"],body.view-characters .npc-rel-quick-actions button {
+    background:#2a2a2a!important;border:1px solid #4a4a4a!important;border-radius:4px;
+    min-height:0!important;margin:0!important;padding:6px 12px!important;line-height:normal!important;letter-spacing:normal;
+}
+body.view-characters .npc-rel-add button[type="submit"] {font:500 13.3333px Arial,sans-serif!important;color:var(--chim-accent)!important;}
+body.view-characters .npc-rel-quick-actions button {font:400 15.3px Arial,sans-serif!important;color:#86efac!important;}
+body.view-characters .npc-rel-quick-actions button[data-rel-details$="-custom-type"] {color:#fde68a!important;}
+body.view-characters .npc-rel-quick-actions button[data-rel-details$="-clear"] {color:#ef4444!important;}
+
 /* General header toggles use the reference checkbox size and label spacing. */
 body.view-characters [data-npc-editor-panel="general"] .npc-editor-check:not(details) > label {gap:10px;min-height:0;}
 body.view-characters [data-npc-editor-panel="general"] .npc-editor-check:not(details) > label > input[type="checkbox"] {

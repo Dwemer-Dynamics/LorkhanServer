@@ -1,5 +1,6 @@
 <?php
 // NPC relationship controls share the existing revisioned handlers; opening the editor never starts AI work.
+$relUiRoot = preg_replace('#/manage$#', '', $managementBasePath) ?: '/LorkhanServer';
 $relPlaythroughs=is_array($playthroughOptions[$installationId]??null)?$playthroughOptions[$installationId]:[];
 $relPlaythrough=is_string($_GET['rel_playthrough']??null)&&isset($relPlaythroughs[$_GET['rel_playthrough']])?$_GET['rel_playthrough']:(string)(array_key_first($relPlaythroughs)??'');
 $relScope=['profile_id'=>$profileId,'playthrough_id'=>$relPlaythrough];
@@ -91,7 +92,7 @@ $relRenderRow=static function(array$rel,string$relForm)use($relTiers,$relTypeOpt
     <?php if($creating||$relPlaythrough===''): ?>
         <p class="npc-rel-empty"><?=$creating?'Save this NPC before managing relationships.':'Create a playthrough before managing relationships.'?></p>
     <?php else: ?>
-    <form method="get" class="npc-rel-scope" action="<?=lorkhan_ui_h($uiRoot.'/ui/core/npc_master.php')?>">
+    <form method="get" class="npc-rel-scope" action="<?=lorkhan_ui_h($relUiRoot.'/ui/core/npc_master.php')?>">
         <?php foreach($listState as$key=>$value)if(str_starts_with($key,'ui_'))$relHiddenFields([substr($key,3)=>$value]); ?>
         <?php $relHiddenFields(['rel_profile'=>$profileId]); ?>
         <label for="<?=$relKey?>-playthrough">Playthrough</label><select id="<?=$relKey?>-playthrough" name="rel_playthrough"><?php foreach($relPlaythroughs as$id=>$label): ?><option value="<?=lorkhan_ui_h($id)?>"<?=$id===$relPlaythrough?' selected':''?>><?=lorkhan_ui_h($label)?></option><?php endforeach; ?></select><button type="submit">Show</button>
@@ -129,7 +130,7 @@ $relRenderRow=static function(array$rel,string$relForm)use($relTiers,$relTypeOpt
         <select name="relationship_type" aria-label="New relationship type" required><?php $relTypeOptions('neutral'); ?></select>
         <button type="submit"<?=$relActors===[]?' disabled title="No other bound actors are available"':''?>>+ Add</button>
     </form>
-    <div class="npc-rel-quick-actions"><button type="button" data-rel-details="<?=$relKey?>-build" aria-expanded="false">🤖 Build with AI</button><button type="button" data-rel-details="<?=$relKey?>-custom-type" aria-expanded="false">🏷️ Add Custom Type</button><button type="button" data-rel-details="<?=$relKey?>-clear" aria-expanded="false"<?=(int)$relData['clear_snapshot']['count']===0?' disabled':''?>>🗑️ Clear All</button><a href="<?=lorkhan_ui_h($uiRoot.'/ui/relationship_logs.php?'.http_build_query(['installation_id'=>$installationId]))?>" target="_blank" rel="noopener">Relationship LLM Logs</a></div>
+    <div class="npc-rel-quick-actions"><button type="button" data-rel-details="<?=$relKey?>-build" aria-expanded="false">🤖 Build with AI</button><button type="button" data-rel-details="<?=$relKey?>-custom-type" aria-expanded="false">🏷️ Add Custom Type</button><button type="button" data-rel-details="<?=$relKey?>-clear" aria-expanded="false"<?=(int)$relData['clear_snapshot']['count']===0?' disabled':''?>>🗑️ Clear All</button><a href="<?=lorkhan_ui_h($relUiRoot.'/ui/relationship_logs.php?'.http_build_query(['installation_id'=>$installationId]))?>" target="_blank" rel="noopener">Relationship LLM Logs</a></div>
     <dialog id="<?=$relKey?>-clear" class="npc-rel-build" aria-label="Clear All Relationships" hidden><h3>🗑️ Clear All Relationships</h3><p>Remove all <span data-rel-clear-count><?=(int)$relData['clear_snapshot']['count']?></span> relationships for <?=lorkhan_ui_h($row['name']??'this NPC')?> in <?=lorkhan_ui_h($relPlaythroughs[$relPlaythrough])?>?</p><p>Change history and private notes remain in the deleted records. If a relationship changed since this page loaded, nothing is cleared.</p><form method="post" action="<?=lorkhan_ui_h($managementBasePath.'/forms/relationship-clear')?>">
         <?php $relHiddenFields($relHidden+['snapshot_token'=>$relData['clear_snapshot']['token']]); ?>
         <label>Type Clear to confirm<input name="confirm_clear" required pattern="Clear" autocomplete="off"></label><button type="button" data-rel-details="<?=$relKey?>-clear">Cancel</button><button type="submit" class="btn-danger">Clear All</button>
@@ -156,7 +157,7 @@ $relRenderRow=static function(array$rel,string$relForm)use($relTiers,$relTypeOpt
         }; ?>
         <strong><?=lorkhan_ui_h($outcome)?></strong>
         <span><?=(int)$job['source_count']?> conversations · <time datetime="<?=lorkhan_ui_h($job['created_at'])?>"><?=lorkhan_ui_h(gmdate('j M Y, H:i',strtotime($job['created_at'])))?> UTC</time></span>
-        <a href="<?=lorkhan_ui_h($uiRoot.'/ui/core/npc_master.php?'.http_build_query($relReturnQuery))?>">Reload for status</a>
+        <a href="<?=lorkhan_ui_h($relUiRoot.'/ui/core/npc_master.php?'.http_build_query($relReturnQuery))?>">Reload for status</a>
     </div>
     <?php endif; ?>
     <small class="npc-rel-save-note" data-rel-draft-status role="status">Relationship rows save separately from the NPC profile. Use the row Save button after editing. Use Add Custom Type for another label.</small>

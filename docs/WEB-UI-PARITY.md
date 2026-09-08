@@ -6698,3 +6698,32 @@ title font 15px. Captured both products and visually inspected the narrow screen
 Native keyboard Space toggles and restores the checkbox; no POST or provider calls.
 Help wording explains the native clock source. Other panel controls and complete page
 composition are not accepted by this limited comparison. No game was launched or controlled.
+
+### NPC Relationships navigation and control sizing (2026-09-08)
+
+Fixed three paths in the Relationships partial: playthrough Show form, Relationship
+LLM Logs link and build-status Reload link. The partial runs inside the profile-card
+renderer, where `$uiRoot` was undefined, producing `/ui/...` instead of the configured
+server prefix. It now derives a local root from the passed management path. No actor,
+playthrough, relationship revision or provider routing behavior changed.
+
+The full disposable management HTTP suite passes with new checks for rooted form/link
+paths and successful GET navigation. The 608 server checks also pass. Live read-only
+browser checks at 1280/390 follow Show, retain the NPC editor route, and confirm the
+logs destination returns 200, without POSTs. Source review covers the conditional
+build-status link; no build was requested on the live installation.
+
+Compared actual Herika and Lorkhan Relationships tabs at both widths. Generic native
+form rules were overriding the copied relationship styles. Scoped corrections restore
+18px section/empty-state text, 16.2px bold lock label, 13px checkbox, 13.3333px add fields
+and 15.3px quick-action buttons. Measured reference/native affinity input and Add button
+heights now match at 29px, relationship-type select at 31px and quick actions at 35px.
+Semantic button colors match the reference; the product accent remains gold.
+
+Evidence scripts: `Temp/npc-relationship-navigation.cjs`,
+`Temp/npc-relationships-reference.cjs`, `Temp/npc-relationship-metrics.cjs`.
+Desktop screenshots were inspected before and after; narrow navigation screenshots
+were captured and inspected. This live view had no relationship rows. Populated rows,
+full history-card composition and the complete NPC modal remain open matrix work.
+Native bound-actor selection and playthrough scoping remain functional; this change
+does not declare their current placement a final visual exception.
