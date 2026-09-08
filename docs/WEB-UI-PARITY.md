@@ -8668,3 +8668,28 @@ widths. Mocked deletion acceptance passes again against the deployed page with t
 current identical source script. No actual event deletion, provider call or game
 control occurred. The matrix records this acceptance without claiming the full
 multi-page goal complete.
+
+### Adventure and Diary calendar boundary acceptance (2026-09-08)
+
+Both pinned Herika renderCalendarHTML functions render spans on days without
+entries and links only when events exist. Native linked all days. Changed the
+shared calendar template to match; positive-count links retain count tooltip,
+accessible date label, selected date and scope. The regular date filter still
+supports inspecting empty days. Calendar data queries and game dates are unchanged.
+
+Current-PHP-template browser fixtures compared against both reference calendars
+for 2024-02, 2025-02, 2026-01, 2026-12, 2026-08 and 2026-02. Exact weekday/day/blank
+cell matrices match, covering leap/non-leap February, four/five/six rows and year
+rollover. Previous/next native links retain scope and clear selected date. Populated
+fixture has exactly two links with counts 2/1 and 27 plain February days; keyboard
+focus works. An initial blanket empty-reference assertion was corrected because
+Herika has real August entries. No reference records were changed.
+
+Separate read-only live keyboard probes verify Evening Star 3E 427 -> Morning Star
+3E 428 -> Evening Star on Adventure and Diaries, with 31 January days. Morrowind's
+3E dates and its fixed-year weekday anchor remain the supported game exception to
+Skyrim, rather than copying Skyrim's anchor or 4E labels. Paired narrow direct-route
+empty-calendar images inspected for day structure; direct versus embedded shell
+widths differ, so those images do not establish shell-width parity. Actual hub
+comparison follows deployment. PHP lint, 692 checks and full management HTTP pass
+(calendar-empty-days-http.txt). No new committed test files or live data writes.
