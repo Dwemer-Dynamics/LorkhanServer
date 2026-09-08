@@ -7685,3 +7685,21 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - JavaScript/deployment syntax, diff checks and 615 server checks pass; all 800
   runtime hashes/private/auth probes verified. Configuration, credentials and voices
   unchanged. Rollback: lorkhanserver-code.fNjaH7.
+
+### Events matched data and filter recovery acceptance
+
+- Normalised event text, people, calendar, UTC and Record IDs in browser-only
+  native/reference fixtures. Desktop table/row heights match at 97.5625/56.375px;
+  narrow heights match at 249.0625/190.6875px. Remaining Record action width differs
+  by about 6.14px after equalising IDs (font icon versus native emoji/button);
+  table widths were not changed to conceal this control difference.
+- Mocked hide chat -> empty, unhide -> restored row, failed hide -> original row
+  preserved, then retry -> empty at 1280/390. Four filter requests per viewport were
+  intercepted; no saved filters, production rows or reference data were modified.
+  Inspected populated narrow and failure captures. Retry currently requires choosing
+  the placeholder before selecting the same failed type again; recorded as open.
+- Updated the existing empty Events HTTP assertion to require no table instead of
+  old empty-table headings. The full management HTTP suite passes, including its
+  real empty server-rendered page. This is a test/evidence-only checkpoint; runtime
+  code remains the previously deployed 48d681c. Reverified all 800 runtime hashes
+  and private/authentication probes. Full Events/page-matrix acceptance stays open.
