@@ -5226,3 +5226,19 @@ native filters remain; no raw transport payload is exposed.
 
 PHP lint and diff checks passed. This is presentation/link construction proof,
 not a new database pagination fixture or full priority-page completion.
+
+
+### Events navigation action states
+
+Fresh live Events screenshots at 1280/390 confirmed the table/toolbar structure
+but found neutral paging actions where Herika uses primary actions and a neutral
+current page. Scoped Events CSS now uses gold for available paging and stopped
+Auto Refresh, gray for the current page, and wraps long pagination groups.
+
+Read-only browser proof loaded page two through the production API, selected all
+16 visible rows, observed Delete Selected, and unselected them. No Delete button
+was pressed and no saved hide filter was changed. Computed current/action colors
+match the intended distinction at both widths; the selected narrow screenshot
+was visually inspected. Scope disclosure and native context-preservation wording
+remain. Saved-filter and empty-state comparisons are not claimed by this check.
+CSS diff checks passed; no backend/protocol change.

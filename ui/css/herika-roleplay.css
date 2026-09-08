@@ -69,3 +69,8 @@ body .events-memories-page .eventlog-row-delete { min-height: 24px !important; p
 
 /* Herika's inner Roleplay label spans use the main Futura face, not the button's MagicCards face. */
 .events-memories-page .config-navigation .tab-button .tab-label{font-family:'Futura CondensedLight',Arial,sans-serif;letter-spacing:inherit;word-spacing:inherit}
+
+/* Events uses primary navigation actions and a neutral current-page marker in Herika. */
+body #eventlog-app [data-eventlog-pagination] button:not(.active),body #eventlog-app [data-eventlog-live].active{background:#bc9d5a!important;color:#171717!important;border-color:#9d8045!important;font-weight:normal}
+body #eventlog-app [data-eventlog-pagination] button.active{background:#3a3a3a!important;color:#fff!important;border-color:#555!important;font-weight:normal}
+#eventlog-app [data-eventlog-pagination]{flex-wrap:wrap}
