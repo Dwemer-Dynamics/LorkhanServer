@@ -1721,3 +1721,5 @@ body.profile-rules-open {
     .profiles-page .profile-rules-footer button { flex: 1 1 140px; }
     .profiles-page .profile-rules-confirm-actions button { flex: 1 1 140px; }
 }
+
+.profiles-page #setting_response_core_lang { font-size:14px; }
