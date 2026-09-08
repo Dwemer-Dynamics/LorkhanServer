@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `7334deb` (Quickstart unsaved local model test API).
+Current deployed product checkpoint: `a93de6c` (TTS Studio upload controls and mode labels).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -8357,3 +8357,26 @@ private storage and file preservation remain unchanged. No uploads were submitte
 
 PHP lint and 691 server checks passed. The larger provider-specific editor and
 Quickstart Setup/preset gaps remain open; these label changes do not close them.
+
+### TTS Studio corrected embedded evidence and file chooser (2026-09-08)
+
+Inspected all four corrected `voice-hub-inworld-deployed-{ref,native}-{1280,390}`
+viewport images. Both use embed=1. Header and upload panel origins match on desktop;
+mobile header layout matches. Provider status and selected PocketTTS mode reflect
+actual local configuration, not forced reference values. Additional excluded hub
+entries and differing status-label widths affect wrapping. Optional voice naming
+and accurate native storage requirements remain visible product differences.
+
+Deployed a93de6c verified: 803 runtime files, no hash mismatches, extra files or
+legacy paths; private paths deny access on all three checked ports, health and
+authenticated NPC route probes pass. Rollback: /var/backups/lorkhanserver-code.QoedrZ.
+
+The comparison exposed a remaining file chooser typography mismatch. Matched the
+reference 15px field text, 14px/21px button text, 8px/12px button padding and #555
+border. Read-only browser CSS interception with visible Inworld controls measures
+55px field height and 37px button height on both products; inspected bounded images
+`voice-upload-fixed-{ref,native}.png`. The first screenshot probe selected a hidden
+reference provider field and timed out; corrected to :visible before acceptance.
+691 server checks and diff whitespace checks pass. No uploads or provider calls.
+This closes only the measured chooser difference, not the whole Voice Management
+page or the remaining global parity goal.

@@ -88,8 +88,8 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 .tts-studio-page .field-row > div { min-width: 0; }
 .tts-studio-page label { display: block; margin-bottom: 6px; color: #fff; font-weight: 700; }
 .tts-studio-page input[type="text"], .tts-studio-page input[type="file"], .tts-studio-page select { width: 100%; box-sizing: border-box; padding: 9px 10px; border: 1px solid #4a4a4a; border-radius: 5px; background: #191919; color: #f8f9fa; }
-body .tts-studio-page input[type="file"] { background:#4a4a4a!important; min-width: 0; max-width: 100%; padding: 0; overflow: hidden; color: #cfd8e3; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-body .tts-studio-page input[type="file"]::file-selector-button { min-height: 38px; margin-right: 10px; padding: 0 12px; border: 0; border-right: 1px solid #4a4a4a; border-radius:4px; background: #6c757d; color: #f8f9fa; cursor: pointer; }
+body .tts-studio-page input[type="file"] { background:#4a4a4a!important; min-width: 0; max-width: 100%; padding: 0; overflow: hidden; color: #cfd8e3; border-color: #555; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+body .tts-studio-page input[type="file"]::file-selector-button { margin-right: 10px; padding: 8px 12px; border: 0; border-radius:4px; font-size: 14px; line-height: 1.5; background: #6c757d; color: #f8f9fa; cursor: pointer; }
 .tts-studio-page input[type="file"]:focus-visible { outline: 2px solid rgba(188, 157, 90, .8); outline-offset: 2px; }
 .tts-studio-page .requirements { margin-top: 20px; padding: 15px; border: 1px solid #4a8ab6; border-radius: 6px; background: rgba(74, 138, 182, .1); }
 .tts-studio-page .requirements strong { color: #4a8ab6; }
