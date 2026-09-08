@@ -5126,3 +5126,22 @@ comparison for full reader acceptance. Control Panel responses is Response Queue
 not the Roleplay AI Responses page; these have separate counterpart rows.
 
 The full management HTTP suite passed for this Prompt Viewer checkpoint.
+
+
+### Prompt Viewer recorded badges and visible Copy feedback
+
+Added driver/model pills from the latest successful complete_turn LLM attempt
+for the recorded turn, using the actual fallback attempt when applicable. The
+query projects only provider_name and model; it never returns provider settings,
+credentials or raw attempt metadata. No join to today's connector name is used:
+that historical display label was not recorded and remains a parity gap.
+
+Copy feedback now appears beside the button rather than below the whole prompt.
+A read-only browser test substitutes only the page's clipboard API to check exact
+copied text equality and denial feedback without writing the desktop clipboard.
+Both cases passed at 1280/390; two recorded pills render. The first narrow review
+showed feedback squeezing the title, so nonempty feedback now uses a second
+header row on narrow screens. Existing 582 checks and full HTTP suite passed.
+
+The empty-prompt state and historical connector label remain open for full reader
+acceptance. No live log was edited and no game or provider action was performed.
