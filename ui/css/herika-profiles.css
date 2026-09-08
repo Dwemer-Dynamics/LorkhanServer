@@ -606,16 +606,17 @@ body.profiles-page-shell:not(.embedded-page) .profile-editor-toolbar { top:64px;
 .profiles-page .setting-key {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
+    margin-bottom: 2px;
     color: #f0f4ff;
     font-size: 12px;
     font-weight: 700;
 }
 
 .profiles-page .setting-desc {
-    margin-top: 3px;
+    margin: 0;
     color: #9fb1c9;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.35;
 }
 
@@ -660,10 +661,10 @@ body.profiles-page-shell:not(.embedded-page) .profile-editor-toolbar { top:64px;
 .profiles-page .profile-feature-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-bottom:9px; }
 .profiles-page .profile-feature-grid .provider-card { height:100%; margin:0; box-sizing:border-box; }
 .profiles-page .profile-feature-grid .setting-row { grid-template-columns:1fr; gap:7px; }
-.profiles-page .profile-feature-grid .setting-control { max-width:none; justify-self:stretch; }
+.profiles-page .profile-feature-grid .setting-control { max-width:none; justify-self:stretch; margin-top:0; }
 .profiles-page .profile-setting-chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-start; }
-.profiles-page .profile-setting-chip { display:inline-flex; align-items:center; gap:6px; background:#29261f; border:1px solid #554b35; padding:6px 10px; border-radius:8px; color:#e6e0d1; font-size:12px; }
-.profiles-page .profile-setting-chip input[type="checkbox"] { transform:scale(1); margin:0; accent-color:#bc9d5a; }
+.profiles-page .profile-setting-chip { display:block; align-items:center; gap:6px; background:#29261f; border:1px solid #554b35; padding:6px 10px; border-radius:8px; color:#e6e0d1; font-size:12px; }
+.profiles-page .profile-setting-chip input[type="checkbox"] { transform:scale(1.4); margin:0; accent-color:#bc9d5a; }
 .profiles-page .rechat-calculator { margin-bottom:7px; padding:8px 10px; border:1px solid #3c3c3c; border-radius:7px; background:#1d1d1d; }
 .profiles-page .rechat-calculator-title { display:flex; align-items:center; gap:7px; margin-bottom:5px; color:#bc9d5a; font-size:12px; font-weight:700; }
 /* Keep explanatory help out of the reference calculator layout. */
@@ -782,11 +783,12 @@ body.profiles-page-shell:has(#profile-copy-dialog[open]) { overflow:hidden; }
 .profiles-page .profile-settings-columns .setting-desc { font-size:12px; line-height:1.35; }
 .profiles-page .profile-settings-columns input[type="number"],
 .profiles-page .profile-settings-columns textarea { font-size:14px; line-height:1.5; }
-.profiles-page .range-pair { display:grid; grid-template-columns:minmax(0,1fr) 86px; align-items:center; gap:8px; }
-.profiles-page .range-pair input[type="range"] { width:100%; min-width:0; padding:0; border:0; accent-color:#bc9d5a; }
-.profiles-page .range-pair input[type="number"] { width:100%; min-width:0; text-align:right; }
+.profiles-page .range-pair { display:flex; align-items:center; gap:8px; }
+.profiles-page .range-pair input[type="range"] { flex:1; min-width:0; padding:0; border:0; accent-color:#bc9d5a; }
+.profiles-page .range-pair input[type="number"] { width:86px; min-width:86px; text-align:right; }
 
 .profiles-page .profile-settings-heading {
+    font-weight: 400;
     margin: 0 0 6px;
     font-size: 1.05em;
     line-height: 1.25;
@@ -1725,3 +1727,6 @@ body.profile-rules-open {
 .profiles-page #setting_response_core_lang { font-size:14px; }
 
 .profiles-page #setting_response_lang_llm_xtts { width:16px; height:16px; transform:scale(1.6); margin:0 6px 0 0; }
+
+.profiles-page .profile-settings-columns .setting-control textarea { min-height:88px; line-height:1.45; }
+.profiles-page .connector-option-card .setting-desc { min-height:32px; }
