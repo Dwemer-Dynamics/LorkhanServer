@@ -6983,3 +6983,26 @@ button-label feedback; this is a remaining interaction difference, not declared 
 
 Deployed fixture/clipboard checks pass at both widths. Runtime verification matches
 all 799 source files, with persistent configuration, credentials and voices preserved.
+
+### Prompt Viewer copy feedback and fallback (2026-09-08)
+
+Matched Herika's temporary '✅ Copied!' button label, two-second reset, and failure
+alert. The accessible success status is retained but visually hidden, avoiding an
+extra feedback row that shifts the reader. Both rendered themes override the attempted
+green background with their normal accent; verified reference orange/native gold.
+Added the reference legacy copy fallback when Clipboard API is absent. Its temporary
+textarea lives inside the native modal so it is not inert, is always removed, and
+returns focus to Copy. A false legacy-copy result is treated as failure. Closing
+resets the button and invalidates late asynchronous results. Non-prompt readers keep
+their existing visible copy status.
+
+Temp/prompt-copy-parity.cjs exercises actual reference and native reader handlers at
+1280/390 with mocked Clipboard API and execCommand: success/reset, rejection alert,
+legacy fallback and temporary-node cleanup pass. Native close/reopen and completion
+after close do not leave stale feedback. Narrow success screenshot reviewed: title,
+Copy feedback and close control remain on the same row. No OS clipboard or provider
+was used. JavaScript syntax, 608 checks and diff whitespace checks pass. This resolves
+the copy-feedback difference above, not every remaining page or reader state.
+
+Deployed copy tests pass at both widths. All 799 runtime files match source;
+configuration, credentials and voice files remain preserved.

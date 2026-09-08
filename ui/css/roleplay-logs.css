@@ -247,3 +247,7 @@ body .roleplay-log-page .response-prompt-viewer [data-log-close]{float:right;dis
 .response-prompt-viewer .prompt-meta-driver{background:#111827;color:#93c5fd}
 .response-prompt-viewer .prompt-meta-model{background:#0f172a;color:#cbd5e1}
 body .roleplay-log-page .response-prompt-viewer [data-log-copy]{letter-spacing:.3px}
+/* Keep copy announcements accessible without adding a second visible feedback row. */
+.response-prompt-viewer [data-log-status]{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.roleplay-log-page .response-prompt-viewer>header:has([data-log-status]:not(:empty)){flex-wrap:nowrap}
+.roleplay-log-page .response-prompt-viewer>header:has([data-log-status]:not(:empty))>div{flex-basis:auto}
