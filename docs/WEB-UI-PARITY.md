@@ -92,7 +92,7 @@ do not use an exception to excuse a generic substitute layout.
 | Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, export and bulk delete retained. Full-content rows now use separate Play/Edit/Delete actions; dedicated content editor and paper reader replace combined Read/Edit. Desktop/narrow populated/empty and interaction comparisons, existing tests and local deployment passed. |
 | Roleplay `books` tab | Herika Books | Full-content striped table, game/UTC/TS columns and content dialog implemented; populated long/short fixtures, escaped content reader, filtered empty panel, desktop/narrow and computed neutral header typography compared; shared-theme overrides and forced minimum width removed |
 | `diary_book.php` | Same path | Printable chronological parchment book and author-list link implemented; scoped IDs, escaped text, desktop/narrow populated comparisons and print/PDF checks passed (see Diary authors and printable book checkpoint) |
-| Roleplay `adventure` tab | Herika Adventure Log | Chronological context/people/game-time/UTC rows, location dividers, contiguous speaker bands and counterpart CSV formatting implemented. Desktop/narrow populated, empty and long fixtures compared; date-selection, selected/latest-day and full exports checked. Full checks and 744-file deployment passed; live populated calendar/table verified. Native dates and complete OpenMW cell names retained. Narrow month-navigation mismatch remains open; see current-state audit below. |
+| Roleplay `adventure` tab | Herika Adventure Log | Chronological context/people/game-time/UTC rows, location dividers, contiguous speaker bands and counterpart CSV formatting implemented. Desktop/narrow populated, empty and long fixtures compared; date-selection, selected/latest-day and full exports checked. Full checks and 744-file deployment passed; live populated calendar/table verified. Native dates and complete OpenMW cell names retained. Month navigation now uses measured reference rules, including its narrow-screen clipping limitation; see source-parity checkpoint below. |
 | Roleplay `journal` tab | Morrowind-only Journal using Herika's record table | Full-content striped table, Journal ID, game/UTC/TS columns and content dialog implemented; three live records, reader and focus restoration verified |
 | `control_panel.php` | Same path | Shared geometry and label typography corrected; all 12 embedded tabs load at desktop/narrow widths and retain mounted frames on switches. Request reader Escape/focus and unsaved filter retention verified. Remaining child feature/interaction comparisons are tracked in their rows; see embedded checkpoint below |
 | `request_logs.php` | Same path | Nine-column LLM-attempt table, toolbar, page sizes and separate payload readers aligned; populated/empty, keyboard and narrow fixture states compared. Safe scoped Clear preserves accounting/history/pending work; URL and unretained raw provider payloads remain explicit data limitations. See Request Logs evidence below. |
@@ -7085,3 +7085,27 @@ from reproducing clipped controls. The remaining work is a source-based month-na
 comparison, preserving access to previous/next while matching reference type hierarchy,
 followed by UTC/Tamrielic and long month-name checks. No new product changes or deploy
 were needed for this audit. The previously deployed commit remains 23fe9fb.
+
+### Calendar month-navigation source parity (2026-09-08)
+
+Traced the prior mismatch to pinned diary_adventure.css lines 121-153. Herika uses a
+10px gap, 150px minimum-width links, 22.5px month text and a 300px heading with a 200px
+minimum plus ellipsis at every width. Removed the separate native compact-navigation
+override and restored those exact heading rules; other small-screen calendar/table
+rules remain. This was a source/measurement-backed parity choice, not a responsive
+redesign. Both Adventure Log and Diaries use the matching shared rules.
+
+Temp/calendar-nav-parity.cjs compares the actual embedded reference and native calendars
+at 1280/390. Container and child dimensions, relative positions, fonts, padding, margins,
+gap and overflow/ellipsis behavior match exactly in all four comparisons. Narrow
+screenshots were inspected. The consequence is explicit: edge month labels are clipped
+at 390px just as they are in Herika. This is a shared reference limitation, not a
+Morrowind-specific exception or an assertion that mobile usability has improved.
+Temp/calendar-nav-keyboard.cjs verifies previous/next links still navigate by keyboard
+for both pages and both UTC/Tamrielic modes at 390px with no writes. Existing 608 checks
+and whitespace checks pass. A future shared responsive improvement must be considered
+separately from the requested literal presentation parity.
+
+All four deployed geometry comparisons and all four keyboard navigation paths pass.
+Runtime verification matches all 799 files; configuration, credentials and voices
+were preserved. No game or provider was used.
