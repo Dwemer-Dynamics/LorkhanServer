@@ -5642,3 +5642,20 @@ the empty table keeps all headings and its empty message in view. This did not
 write game/server data or exercise the game. 588 server checks passed. Full-range
 export completeness remains supported by prior tests, not claimed from the one
 row checked here. The complete page matrix remains open.
+
+## Books primary reading layout checkpoint
+
+Herika's empty Books markup is a centered neutral message, without a card or
+single-page toolbar. Native Books now removes the unnecessary minimum tab height
+and empty card decoration. Its export link is retained inside the existing Filters
+and playthrough disclosure. Pagination appears only when Books has multiple pages;
+AI Responses and the Morrowind Journal keep their existing controls unchanged.
+
+Temp/books-current-proof.cjs checked the live empty page, export discoverability,
+and source-rendered one/two-page fixtures. A two-page fixture retains Next with
+reader_page=2. The populated reader displays literal script markup as escaped text
+and Escape closes it. Desktop/narrow screenshots were inspected. The synthetic
+fixtures use the actual PHP template plus deployed styles/scripts via intercepted
+HTML only; they do not prove persistent book capture or database pagination.
+No live book/NPC/game data was changed. 588 existing server checks passed.
+The complete page matrix and remaining feature/interaction gaps remain open.

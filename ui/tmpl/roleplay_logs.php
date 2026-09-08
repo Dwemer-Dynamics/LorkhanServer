@@ -22,11 +22,13 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
             <label>Playthrough<select name="playthrough_id"><?php foreach($state['playthroughs'] as $id=>$name): ?><option value="<?= lorkhan_ui_h($id) ?>"<?= $id===$state['playthrough']?' selected':'' ?>><?= lorkhan_ui_h($name) ?></option><?php endforeach; ?></select></label>
             <label>Search<input type="search" name="q" value="<?= lorkhan_ui_h($state['query']) ?>" maxlength="200"></label>
             <button type="submit" class="roleplay-button">Filter</button><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['q'=>'','person'=>'','date'=>'','reader_page'=>1])) ?>">Reset</a>
-        </form></details>
+        </form><?php if(!$responses&&!$journal): ?><a class="roleplay-button log-export" href="<?= lorkhan_ui_h($link(['export'=>'1'])) ?>">Export Book Log</a><?php endif; ?></details>
+        <?php if($responses||$journal||$state['pages']>1): ?>
         <div class="log-pagination"><nav aria-label="Log pages"><span>Page <?= $state['page'] ?> / <?= $state['pages'] ?> (<?= $state['total'] ?> rows)</span>
             <?php if($state['page']>1): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page'=>$state['page']-1])) ?>">Previous</a><?php endif; ?>
             <?php if($state['page']<$state['pages']): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page'=>$state['page']+1])) ?>">Next</a><?php endif; ?>
-        </nav><div class="log-page-actions"><?php if($responses)lorkhan_roleplay_clear_button($state,'responses',$base,$csrf); ?><a class="roleplay-button log-export" href="<?= lorkhan_ui_h($link(['export'=>'1'])) ?>">Export <?= $recordLabel ?> Log</a></div></div>
+        </nav><?php if($responses||$journal): ?><div class="log-page-actions"><?php if($responses)lorkhan_roleplay_clear_button($state,'responses',$base,$csrf); ?><a class="roleplay-button log-export" href="<?= lorkhan_ui_h($link(['export'=>'1'])) ?>">Export <?= $recordLabel ?> Log</a></div><?php endif; ?></div>
+        <?php endif; ?>
         <p role="status" data-roleplay-maintenance-status></p>
         <div class="log-table-container" tabindex="0" role="region" aria-label="<?= $responses?'AI response':$recordLabel ?> log">
             <?php if(!$responses&&!$journal&&$state['rows']===[]): ?>

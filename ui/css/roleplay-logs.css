@@ -120,8 +120,10 @@ body .ai-response-table [data-log-open]{white-space:nowrap}
 .diary-log-page .calendar-mode-toggle{flex-wrap:nowrap}
 .diary-log-page .calendar-mode-toggle .roleplay-button{min-width:0;white-space:normal;text-align:center}
 
-.book-log-page .log-table-container:has(.books-empty){padding:12px;border:1px solid #444;border-radius:10px;background:#14141440}
+.book-log-page .log-table-container:has(.books-empty){padding:0;border:0;border-radius:0;background:transparent}
 .books-empty{text-align:center;color:#6c757d;padding:20px;margin:0}
+#books-tab {min-height:0;}
+.book-log-page .log-scope > .log-export {margin-top:10px;}
 
 /* Herika ai-response.php Prompt Viewer; scoped to avoid changing book/diary readers. */
 .roleplay-log-page .response-prompt-viewer{position:fixed;inset:0 0 auto;width:90%;max-width:1600px;max-height:90vh;margin:3% auto;padding:20px;background:linear-gradient(135deg,rgba(42,42,42,.98),rgba(34,34,34,.98));border:1px solid #444;border-radius:10px;color:#fff;overflow-y:auto;box-shadow:0 8px 32px #0008,inset 0 1px #ffffff08}
