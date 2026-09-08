@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `997ef0c` (TTS Studio file chooser typography).
+Current deployed product checkpoint: `a520f3a` (TTS connector action-row geometry).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -8413,3 +8413,10 @@ imitate the unsafe reference availability. Workspace help retains the actual
 native optional-workspace semantics. 691 existing server checks and diff checks
 pass. No real save, clone, delete, import, export or provider synthesis performed.
 Provider-specific lower editor states remain separately open in the matrix.
+
+Deployed a520f3a; rollback /var/backups/lorkhanserver-code.eSVA1m. All 803
+runtime files match source, with no extras/legacy paths. Health/private/auth route
+probes pass; configuration, credential and voice contents preserved. Final browser
+metrics without CSS interception reproduce matching sidebar/editor row sizes and
+all seven control font/padding/margin/radius measurements. Native safety and gold
+colours remain. No game launched; full provider/page goal remains active.
