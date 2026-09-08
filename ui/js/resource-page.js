@@ -1,6 +1,16 @@
 (() => {
     const dirtyForms = new Set();
 
+    // Return to the editor in both standalone pages and the actual settings hub iframe.
+    document.querySelectorAll('[data-profile-back-top]').forEach(button => {
+        button.addEventListener('click', () => {
+            const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
+            window.scrollTo({top: 0, behavior});
+            window.frameElement?.scrollIntoView({block: 'start', behavior});
+        });
+    });
+
+
     // Core Profile cards must describe the current checkbox state, including unsaved keyboard changes.
     document.querySelectorAll('.profiles-page .profile-toggle-control input[type="checkbox"], .profiles-page .profile-inline-toggle input[type="checkbox"]').forEach(control => {
         const label = control.parentElement.querySelector('.toggle-text');
