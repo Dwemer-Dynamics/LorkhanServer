@@ -1209,7 +1209,7 @@ INSERT INTO lorkhan_internal.turn_provider_snapshots(turn_id,source_manifest,inp
 VALUES ('{response_turn}',$export${response_manifest}$export$::jsonb,repeat('0',64),now());
 WITH inserted AS (
  INSERT INTO public.log(localts,response,prompt,url)
- SELECT 1609416000+n,'ResponseExportFixture '||lpad(n::text,3,'0'),'must-not-export-raw-prompt','must-not-export-raw-url' FROM generate_series(1,61) n RETURNING rowid
+ SELECT 1609416000+n/2,'ResponseExportFixture '||lpad(n::text,3,'0'),'must-not-export-raw-prompt','must-not-export-raw-url' FROM generate_series(1,61) n ORDER BY n RETURNING rowid
 )
 INSERT INTO lorkhan_internal.log_metadata(rowid,turn_id,request_id) SELECT rowid,'{response_turn}',gen_random_uuid() FROM inserted;
 """
@@ -1217,15 +1217,17 @@ subprocess.run(adventure_psql,input=response_sql,text=True,capture_output=True,c
 response_page_path='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'responselog','installation_id':valid['installation_id'],'playthrough_id':playthrough_id,'q':'ResponseExportFixture'})
 _,response_page=parse(request(response_page_path))
 assert response_page.count('data-log-open=')==50 and '61 rows' in response_page
+assert response_page.index('ResponseExportFixture 061')<response_page.index('ResponseExportFixture 060')<response_page.index('ResponseExportFixture 012')
 _,response_last_page=parse(request(response_page_path+'&reader_page=2'))
 assert response_last_page.count('data-log-open=')==11
+assert response_last_page.index('ResponseExportFixture 011')<response_last_page.index('ResponseExportFixture 010')<response_last_page.index('ResponseExportFixture 001')
 response_export_path=response_page_path+'&export=1&reader_page=2'
 response_export=request(response_export_path)
 assert response_export.headers.get_content_type()=='text/csv' and 'attachment' in response_export.headers['Content-Disposition']
 response_csv=csv.DictReader(io.StringIO(response_export.read().decode()))
 assert response_csv.fieldnames==['rowid','time_utc','ai_response','oghma_topic','prompt','http_request']
 response_rows=list(response_csv)
-assert len(response_rows)==61 and response_rows[0]['ai_response']=='ResponseExportFixture 061' and response_rows[-1]['ai_response']=='ResponseExportFixture 001'
+assert [row['ai_response'] for row in response_rows]==[f'ResponseExportFixture {n:03d}' for n in range(61,0,-1)]
 for response_row in response_rows:
     response_prompt=json.loads(response_row['prompt'])
     assert response_prompt=={'messages':[{'role':'user','content':response_literal}]}

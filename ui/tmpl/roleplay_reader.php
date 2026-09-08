@@ -113,6 +113,7 @@ function lorkhan_roleplay_reader_state(PDO $database, array $installationOptions
     $orderBy = match ($tab) {
         'adventure' => 'n.created_at ASC,n.narrative_id::bigint ASC',
         'books' => 'n.gamets DESC,n.narrative_id::bigint DESC',
+        'responselog' => 'n.created_at DESC,n.narrative_id::bigint DESC',
         'diaries' => ($_GET['view'] ?? '') === 'people' && $state['person'] !== ''
             ? 'n.created_at DESC,n.narrative_id' : 'n.created_at ASC,n.narrative_id',
         default => 'n.created_at DESC,n.narrative_id',

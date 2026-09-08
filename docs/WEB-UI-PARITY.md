@@ -8529,3 +8529,28 @@ files match source with no extra/legacy paths; health/private/auth checks pass.
 Configuration, credentials and voice contents preserved. Fresh deployed Adventure
 and Diaries pages each have exactly one hidden Stop control, no generic reader
 toolbar/pager, and no JavaScript page errors. No game launched. Full goal active.
+
+### AI Responses same-second ordering (2026-09-08)
+
+Pinned Herika events-memories.php:1612 orders responses by localts DESC, rowid DESC.
+Native used wall-clock descending but textual ID ascending, misordering responses
+recorded in the same second. Added an explicit numeric descending tie-break only
+for responselog. Events already uses matching game/TS/local/numeric ordering and
+was not changed. Existing scoped prompt/Oghma retrieval, 50-row pagination and
+allowlisted CSV fields remain unchanged.
+
+Strengthened the existing 61-response HTTP export fixture: timestamp pairs now tie,
+insert order is explicit, both pages check descending row order, and CSV verifies
+all 61 entries in exact sequence. Existing prompt escaping/secret exclusion and
+empty-export checks remain. PHP lint and 691 server checks pass. Two full HTTP
+runs stopped at the known diary mock-audio 502 before these assertions. A third run
+with temporary test-only exception logging completed the full suite successfully
+(response-order-http-diagnostic.txt), without reproducing the diary failure.
+The diagnostic line was removed; ManagementRouter has no diff and passes lint.
+The intermittent diary cause is still unknown and is not claimed fixed.
+
+Regenerated empty/populated current PHP prompt-reader fixtures. Both 1280/390 runs
+confirm role counts, escaped literal markup, long-token wrapping and Escape focus
+return. Inspected the populated narrow screenshot; prior paired reference evidence
+remains separate. No rendering markup or styles changed in this ordering fix.
+No production records, prompts, credentials, provider calls or game state changed.
