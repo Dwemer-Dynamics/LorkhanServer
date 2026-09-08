@@ -767,6 +767,8 @@ final class ProductRepository
             if($this->recentPlayerInputs((string)$row['installation_id'],1)===[])throw new \InvalidArgumentException('player_inputs_unavailable');
             $revision=(int)$row['current_revision'];$key='player-speech-style:'.$profileId.':revision:'.$revision;$jobId=Uuid::v4();
             $payload=$this->profileGenerationPayload((string)$row['installation_id'],$profileId,$revision,'player_speech_style');
+            $payload['speech_style_prompt']=$this->narratorEventPromptTexts((string)$row['installation_id'])['player_speech_style_prompt']
+                ??\LorkhanServer\Application\NarratorEventPrompts::definitions()['player_speech_style_prompt']['default_prompt'];
             if($guidance!==''){$payload['speech_style_guidance']=$guidance;$key.=':guidance:'.hash('sha256',$guidance);}
             if($currentStyle!==null){$payload['current_speech_style']=$currentStyle;$key.=':style:'.hash('sha256',$currentStyle);}
             if($requestId!==null)$key.=':request:'.$requestId;

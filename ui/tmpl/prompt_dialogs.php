@@ -31,7 +31,7 @@
             <?php if((int)$row['profile_usage']===0): ?><form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/configuration-delete" data-confirm="Delete this prompt document? This is separate from clearing its custom text."><input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="kind" value="prompt"><input type="hidden" name="configuration_id" value="<?= lorkhan_ui_h($id) ?>"><button type="submit" class="prompt-button danger">Delete prompt document</button></form>
             <?php else: ?><p>Assigned prompts cannot be deleted.</p><?php endif; ?>
         </details>
-        <?php else: ?><p class="prompt-format-hint">Shared with Narrator Management and Prompts Manager. Saved changes apply to future narrator events; queued turns keep their frozen instructions.</p><?php endif; ?>
+        <?php else: ?><p class="prompt-format-hint">Shared with Narrator Management and Prompts Manager. Saved changes apply to future generation requests; queued work keeps its frozen instructions.</p><?php endif; ?>
         <p data-prompt-save-status role="status" hidden></p>
     </div>
     <footer class="modal-footer"><button type="button" class="prompt-button" data-prompt-close>Cancel</button><button type="submit" class="prompt-button primary" form="<?= lorkhan_ui_h($formId) ?>"><?= !empty($narratorInlinePromptEditor)?'':'💾 ' ?>Save Custom Prompt</button></footer>

@@ -89,7 +89,7 @@ body.prompts-manager-shell.embedded-page { padding-top:0; }
 .prompts-page .row-actions { flex-wrap:nowrap; min-width:120px; justify-content:center; }
 .prompts-page .prompt-edit-button { background:linear-gradient(135deg,rgba(100,149,237,.9),rgba(80,129,217,.9)); }
 .prompts-page .prompt-clear-button { background:#745e2f; }
-.prompt-edit-modal { width:90%; max-width:1200px; max-height:90vh; margin:2% auto; padding:0; border:2px solid rgba(188,157,90,.5); border-radius:10px; background:linear-gradient(135deg,#2a2a2a,#222); color:#e0e0e0; overflow:hidden; }
+.prompt-edit-modal { position:fixed; inset:0; width:90%; max-width:1200px; max-height:90vh; margin:2% auto; padding:0; border:2px solid rgba(188,157,90,.5); border-radius:10px; background:linear-gradient(135deg,#2a2a2a,#222); color:#e0e0e0; overflow:hidden; }
 .prompt-edit-modal[open] { display:flex; flex-direction:column; }
 .prompt-edit-modal:not([open]) { display:none; }
 .prompt-edit-modal::backdrop { background:rgba(0,0,0,.8); }

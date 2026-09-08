@@ -289,15 +289,17 @@ $check(LlmConnector::validateOptions(['provider_order'=>$providerOrder])===['pro
     'provider preferences preserve order and map only to provider.order without disabling fallbacks');
 $auditProvider=new \LorkhanServer\Application\OpenAiCompatibleProfileGenerationProvider('http://127.0.0.1:9/v1/chat/completions',
     ['127.0.0.1'],'fixture-model','fixture-secret',allowLoopbackHttp:true,directConnection:true);
-foreach(['relationship_evaluation','relationship_build']as$auditMode){
+foreach(['relationship_evaluation','relationship_build','player_speech_style']as$auditMode){
 $auditMessages=[];$auditInput=['generation_mode'=>$auditMode,'input'=>'A recorded exchange.','user_direction'=>'Focus on House hierarchy.'];
+if($auditMode==='player_speech_style')$auditInput+=['speech_style_prompt'=>'Describe terse vocabulary and short sentences.','recent_player_inputs'=>['Where is the guild?']];
 try{$auditProvider->generate($auditInput,new NeverCancelledToken(),static function(array $messages)use(&$auditMessages):void{
     $auditMessages=$messages;throw new RuntimeException('audit-observed-before-network');
 });$check(false,'request observer must run before network');}
 catch(RuntimeException $error){$check($error->getMessage()==='audit-observed-before-network'
     &&array_column($auditMessages,'role')===['system','user']&&json_decode($auditMessages[1]['content'],true)===$auditInput
     &&!str_contains(json_encode($auditMessages),'fixture-secret')
-    &&($auditMode!=='relationship_build'||str_contains($auditMessages[0]['content'],'user_direction')),
+    &&($auditMode!=='relationship_build'||str_contains($auditMessages[0]['content'],'user_direction'))
+    &&($auditMode!=='player_speech_style'||(str_contains($auditMessages[0]['content'],$auditInput['speech_style_prompt'])&&str_contains($auditMessages[0]['content'],'exactly one non-empty string key: speech_style'))),
     'relationship request observer captures exact messages without credentials or network I/O');}
 }
 $schema=LlmConnector::objectSchema(['text'=>['type'=>'string']]);

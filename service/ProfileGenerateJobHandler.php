@@ -30,6 +30,8 @@ final class ProfileGenerateJobHandler implements JobHandler
         if(!in_array($mode,['npc_profile','npc_profile_backfill','profile_evolution','narrator_profile','narrator_profile_evolution','player_speech_style'],true))throw new \InvalidArgumentException('invalid_generation_mode');
         $guidance=$payload['speech_style_guidance']??'';
         if(!is_string($guidance)||strlen($guidance)>4000||!mb_check_encoding($guidance,'UTF-8')||($guidance!==''&&$mode!=='player_speech_style'))throw new \InvalidArgumentException('invalid_speech_style_guidance');
+        $stylePrompt=$payload['speech_style_prompt']??null;
+        if($stylePrompt!==null&&(!is_string($stylePrompt)||trim($stylePrompt)===''||strlen($stylePrompt)>32768||!mb_check_encoding($stylePrompt,'UTF-8')||$mode!=='player_speech_style'))throw new \InvalidArgumentException('invalid_speech_style_prompt');
         $currentStyle=$payload['current_speech_style']??null;
         if($currentStyle!==null&&(!is_string($currentStyle)||strlen($currentStyle)>8192||!mb_check_encoding($currentStyle,'UTF-8')||$mode!=='player_speech_style'))throw new \InvalidArgumentException('invalid_current_speech_style');
         if(!is_array($job)||!is_string($job['job_id']??null)||!is_int($job['attempt']??null))throw new \InvalidArgumentException('invalid_job_fence');
@@ -60,6 +62,7 @@ final class ProfileGenerateJobHandler implements JobHandler
             if($now-$lastCheck<100_000_000)return false;$lastCheck=$now;return!$heartbeat();});
         $attemptId=Uuid::v4();$providerName=$provider instanceof OpenAiCompatibleProfileGenerationProvider?'openai-compatible':'mock';
         $input=['generation_mode'=>$mode,'name'=>(string)$profile['name'],'actor_identity'=>$identity,'content'=>$profile['content']??[]];
+        if($mode==='player_speech_style'&&$stylePrompt!==null)$input['speech_style_prompt']=$stylePrompt;
         if($mode==='player_speech_style'&&$guidance!=='')$input['speech_style_guidance']=$guidance;
         if($mode==='player_speech_style'&&$currentStyle!==null)$input['current_speech_style']=$currentStyle;
         if($mode==='player_speech_style'){$sample=[];$sampleBytes=0;foreach($this->repository->recentPlayerInputs((string)$profile['installation_id'],200)as$text){$text=mb_strcut($text,0,2048,'UTF-8');$bytes=strlen($text);if($sampleBytes+$bytes>65_536)break;$sample[]=$text;$sampleBytes+=$bytes;}if($sample===[])throw new RuntimeException('player_inputs_unavailable');$input['recent_player_inputs']=$sample;}

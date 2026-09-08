@@ -4911,3 +4911,39 @@ and eligibility after a recorded 20-second interval when configured for 10.
 The schema writer again produced only the known inventory hash difference with
 172 relations; that unrelated generated difference was reverted. No schema,
 protocol or client files changed, and no game was launched or controlled.
+
+
+### Narration player speech-style template and prompt dialog positioning
+
+Added the reference player_speech_style_prompt row to Advanced Prompts, sharing
+its revisioned document with Prompts Manager. Its saved template is frozen into
+new player speech-style jobs, validated by the worker and used in the provider
+system instructions. The JSON speech_style result contract remains mandatory.
+Existing queued jobs without the field retain the previous default. Clear restores
+the factory template; existing player biography, guidance, editor draft, revision
+checks and explicit final Save behavior remain unchanged. This does not yet add
+the reference placeholder substitutions or the four inline narration templates.
+
+An actual visual defect was found while testing at a deep page scroll: shared
+prompt dialogs inherited absolute positioning and opened above the viewport
+(y=-4774.5 in the 390px fixture). They now use fixed viewport positioning. After
+the correction the same dialog occupies y=19.5 through 919.5 at a 1000px viewport.
+Native 1280/390 dialogs were visually inspected against the read-only live Herika
+player speech-style editor: title, description/default/custom order, 300px custom
+editor and footer layout agree apart from branding and native prompt text/help.
+The isolated browser passed save, reopen, Escape, Clear confirmation via Save,
+and restored Default state. No real provider call or reference save was made.
+
+569 unit checks passed, including observation of custom system instructions and
+the output contract before network I/O. Management HTTP tests verified the shared
+Narration/Prompts Manager save path. Integration and migration/durable-job tests
+verified the installation-scoped template is frozen when queueing. The known
+schema-inventory hash-only change was inspected and reverted; no migration or
+client contract changed.
+
+Quest control dependency: current orchestrator queueNarratorEvent accepts only
+Narrator quest/book routing and applies narrator.quest_chance_percent. There is
+no equivalent NPC quest-comment route to wire into Core Profile controls. Do not
+relabel Narrator probability as an NPC profile setting; the client candidate,
+policy, cooldown and generation fencing work remains required, alongside Bored
+Event, Combat and regular Context History range changes already documented.
