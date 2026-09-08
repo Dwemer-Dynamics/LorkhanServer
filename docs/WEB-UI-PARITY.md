@@ -9164,3 +9164,45 @@ Next implementation constraints from current source:
 - Wire real1-50/default10 Core controls, portable/named presets and actual reference
   card layout only with the selector. Compare populated/empty/disabled states and
   interaction in the actual hub. The full Core editor and overall goal remain open.
+
+
+## 2026-09-08 - Scene selector connected to actual prompt assembly
+
+Product `9aa6851`, server branch `codex/web-ui-parity`, pushed directly to main and
+locally deployed. This is runtime progress toward the Short Term Memory card;
+there is no new UI or visual-completion claim in this checkpoint.
+
+- Witness-filtered scene candidates now use authoritative game-time bounds to
+  select the newest ten summaries through the oldest bucket reaching the retained
+  live-history floor, then render chronologically. The ten-scene quota is separate
+  from the existing ten general-memory quota; the shared byte budget still applies.
+- Recent-source consolidated scenes belong to the Short Term Memory switch rather
+  than the Middle Term Memory switch. Unknown-time/manual records keep the existing
+  generic retrieval path. Missing history timestamps do not invent an upper bound.
+- Digest coverage is checked against retained text. A truncated digest cannot hide
+  uncovered scenes via a blanket timestamp. History removal is NOT implemented:
+  unrelated live events remain intact, even inside a selected summary time range.
+- If the prompt budget removes history, scene selection runs again without the old
+  history floor. Retrieval reasons record candidates outside the scene window.
+- No new provider jobs, retention changes, migrations, client changes or game launch.
+
+Evidence: 764 existing-suite PHP checks pass, including actual assembled prompt
+selection and toggle ownership, independent quotas, chronological order, strict
+bounds, truncated-digest safety and history-free recalculation. Full integration
+in `stm-scene-window-integration.txt` passed vertical slice, 173-relation inventory,
+and migration/durable-job checks. `git diff --check` passed.
+
+Local rollback `/var/backups/lorkhanserver-code.XhKZrV`; runtime verification found
+all 807 expected files matching, no extras or old paths, private routes returning
+403, unauthenticated sessions returning 401, and health/NPC probes passing.
+Configuration, credential and voice file hashes were preserved.
+
+Still open: expose and persist the real 1-50/default10 Max Summaries setting in the
+reference-style Core card and named/portable presets; compare actual-hub populated,
+disabled and interactive states. Complete retained-summary/source-event coverage
+and safe overlapping-history removal, including model projections and budget
+fallbacks. Exact digest coverage currently deduplicates selected scenes, but does
+not yet establish the reference digest high-water selection before the scene cap.
+These are unfinished parity work, not permanent product exceptions. The remaining
+Core sections and every other open counterpart-matrix row remain in the full goal.
+GitHub workflow remains manually disabled.
