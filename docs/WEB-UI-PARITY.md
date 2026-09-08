@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `ed83397` (Quickstart transient key testing).
+Current deployed product checkpoint: `89a01c9` (Core Profile Rechat calculator structure).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -8768,3 +8768,34 @@ files match, with no extra/legacy files. Health/private/auth checks pass; existi
 configuration, credential and voice hashes are preserved. No production key tests,
 provider calls or game control performed. Full presentation goal remains active,
 with Quickstart Setup/Local LLM UI and coordinated preset save still incomplete.
+
+
+## 2026-09-08 — Core Profile Rechat calculator structure
+
+Product commit `89a01c9` moves the calculator outside the Rechat settings card,
+matching the reference metadata editor's section/calculator/card hierarchy.
+The native continuation explanation is now hover/focus help instead of a permanent
+paragraph. Probability calculation and saved round semantics are unchanged.
+
+Evidence: `core-rechat-hub-proof.cjs` in the local temporary evidence directory
+opens the actual configuration hub and its selected Core Profile iframe on both
+servers, blocking all non-GET requests. At 1280px the reference calculator measures
+411 × 61.796875px and native 412 × 61.796875px; paired captures were visually
+inspected. This establishes calculator structure and height, not whole-editor parity.
+At 390px the reference calculator collapses to 22px width inside its editor; native
+remains readable at 300 × 82.59375px. The native narrow default/help captures were
+inspected. Do not claim matching narrow reference geometry from this broken state.
+
+Native keyboard focus/Tab blur and hover reveal/hide the explanation. Inputs at
+two continuation rounds and 50 percent show three responses ending at 25 percent;
+zero probability and invalid empty rounds were checked. No browser errors or
+writes occurred. Reference counts two responses for its stored value of two;
+Lorkhan still counts initial response plus continuation rounds. Runtime semantic
+parity requires a separate coordinator audit, not a cosmetic calculation change.
+
+PHP lint and all 692 server checks passed. Server-only local deployment completed,
+rollback `/var/backups/lorkhanserver-code.I6vy06`; 803 runtime hashes matched with
+no extras/old paths. Configuration, credentials and voice file contents were
+preserved. Private-path 403, unauthenticated 401 and health probes passed. No game
+was launched or controlled. Full Core Profile settings/presets and the broader
+page matrix remain open. GitHub's server workflow stays manually disabled.
