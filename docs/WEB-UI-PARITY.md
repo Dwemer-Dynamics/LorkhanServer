@@ -7163,3 +7163,28 @@ were preserved. No game or provider was used.
   preserved configuration, credentials and voices. All 799 deployed files match
   source and private/authentication checks pass. This completes the loading-state
   correction, not API Keys result-detail, custom-editor or provider-group parity.
+
+### Custom API key card structure and controls (2026-09-08)
+
+- Compared the reference's actual Add Custom Key card with the native rendered
+  template at 1280px and 390px. Flattened the new Label/input pair to the same
+  sibling structure as saved/reference cards, assigning unique `id`/`for` pairs
+  for both new-card inputs. Native identifier validation and editable saved labels
+  are unchanged.
+- Copied the reference button letter spacing, nonwrapping card rows and narrow
+  Show sizing. Matched card height 226.625px, 40px toolbar, 20.15625px labels,
+  42.15625px inputs and 36px buttons. Desktop/narrow card widths are 576/318px;
+  Save/Delete widths are 57.84375/67.1875px. At 390px the reference gives Show
+  250px and the key field only 26px. Native now reproduces this limitation; it
+  is not a claimed mobile usability improvement or product-specific exception.
+- Browser POST mocks exercised failed-save draft retention, retry success,
+  clearing/hiding the entered credential after save, saved-label editing without
+  changing the identifier, deletion cancellation, confirmed deletion and focus
+  return to Add Custom Key. Both labels resolve to their input. Empty-list and
+  saved-card states were captured; reference screenshots had all input values
+  cleared in browser memory. No real keys were written or exposed.
+- PHP/JavaScript syntax and existing 608 checks passed. Deployed server-only,
+  preserving configuration, credentials and voices; all 799 deployed hashes and
+  private/authentication probes passed. Provider grouping, complete result-detail
+  parity and overall API Keys page composition remain pending. The full goal
+  remains active.

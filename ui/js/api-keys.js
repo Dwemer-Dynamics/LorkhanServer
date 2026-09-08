@@ -81,7 +81,8 @@
     document.getElementById('add-custom-key').addEventListener('click',()=>{
         const fragment=document.getElementById('custom-key-template').content.cloneNode(true),card=fragment.querySelector('[data-key-card]');
         const input=keyInput(card);input.id='custom-draft-'+(++draftId);card.querySelector('[data-custom-key-label]').htmlFor=input.id;
-        customKeys.append(fragment);card.querySelector('[data-new-label]').focus();
+        const labelInput=card.querySelector('[data-new-label]');labelInput.id=input.id+'-label';card.querySelector('[data-custom-label]').htmlFor=labelInput.id;
+        customKeys.append(fragment);labelInput.focus();
     });
 
     async function deleteCard(card){

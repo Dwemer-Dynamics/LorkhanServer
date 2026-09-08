@@ -193,7 +193,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
     </form>
     <template id="custom-key-template"><article class="custom-card" data-key-card data-variable="">
         <header class="provider-head"><div class="provider-title"><span class="provider-icon" aria-hidden="true">&#x1F9E9;</span><span>Custom Key</span></div><div class="key-actions"><button type="button" class="button btn-save" data-save-custom>Save</button><button type="button" class="button btn-delete btn-danger" data-delete-draft>Delete</button></div></header>
-        <label data-custom-label>Label<input type="text" data-new-label maxlength="40" pattern="[A-Za-z][A-Za-z0-9_]{0,39}" placeholder="Provider label (e.g., MyService)"></label>
+        <label data-custom-label>Label</label><input type="text" data-new-label maxlength="40" pattern="[A-Za-z][A-Za-z0-9_]{0,39}" placeholder="Provider label (e.g., MyService)">
         <label data-custom-key-label>API Key</label><div class="provider-body"><input type="password" data-new-key autocomplete="new-password" maxlength="8192" placeholder="Paste API key"><button type="button" class="button" data-key-visibility>Show</button></div><div class="key-status" role="status" aria-live="polite" data-key-status></div>
     </article></template>
 </main>
