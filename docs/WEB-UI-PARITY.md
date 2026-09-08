@@ -7777,3 +7777,20 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
   widths. All 800 deployed runtime hashes and private/auth/health probes pass;
   configuration, credentials and voices preserved. Rollback: lorkhanserver-code.fns9L6.
   No live TTS or game control. Full page matrix remains active.
+
+### Books content sizing refresh
+
+- Fresh actual-hub comparison retained native PHP table markup and normalized one
+  reference/native row. The earlier striping-only probe missed inherited button
+  font/margins and a shared 480px cell maximum. Removed those constraints for the
+  Books table while retaining the keyboard-accessible content button and reader.
+- Identical fixture columns and row heights now match at 1280 (1232px table,
+  37.1875px row) and 390 (397.84375px table, 267.4375px row). Inspected populated
+  desktop/narrow and empty captures; reference narrow overflow is not hidden.
+- Fresh empty tools, pagination fixtures, escaped reader, mocked clipboard success
+  and failure alert, focus/scroll restoration, long content and Escape pass. The
+  older clipboard probe expected obsolete inline error text; updated the temporary
+  probe to assert the current reference-style alert. No production writes or TTS.
+- 615 server checks and all 800 deployed hashes/private/auth/health probes pass.
+  Configuration, credentials and voices preserved. Rollback: lorkhanserver-code.T5LFKs.
+  Full page matrix remains active; these comparisons do not establish completion.
