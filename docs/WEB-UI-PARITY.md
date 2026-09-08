@@ -9373,3 +9373,15 @@ not complete. Slider track treatment also differs beyond color and must be
 reviewed with the whole editor. This is not whole-Core visual parity. No game
 was launched or controlled, and in-game timing remains unverified. GitHub server
 workflow remains disabled manually.
+
+
+### Core slider presentation follow-up (2026-09-08)
+
+Replaced the browser-native outlined Core slider track with Herika's explicit
+8px solid track and 16px circular thumb, preserving gold and keyboard focus.
+The scoped range rules apply to Core range pairs, not unrelated page inputs.
+Desktop deployed Combat screenshot inspected against the preceding reference;
+1280/860/390 range, keyboard, invalid value and Copy cancellation checks passed
+again (`combat-slider-ui.txt`). Server verification again matched all 807 files
+and private access checks. This closes the slider track difference above; the
+surrounding grid/card-height gap remains open. No game was launched.

@@ -793,7 +793,10 @@ body.profiles-page-shell:has(#profile-copy-dialog[open]) { overflow:hidden; }
 .profiles-page .profile-settings-columns input[type="number"],
 .profiles-page .profile-settings-columns textarea { font-size:14px; line-height:1.5; }
 .profiles-page .range-pair { display:flex; align-items:center; gap:8px; }
-.profiles-page .range-pair input[type="range"] { flex:1; min-width:0; padding:0; border:0; accent-color:#bc9d5a; }
+/* Match Herika's custom range geometry while retaining Lorkhan's gold thumb. */
+.profiles-page .range-pair input[type="range"] { appearance:none; -webkit-appearance:none; flex:1; min-width:0; width:100%; height:8px; min-height:0; margin:2px 2px 5px; padding:0; border:0; border-radius:4px; background:#4a4a4a; accent-color:#bc9d5a; }
+.profiles-page .range-pair input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:#bc9d5a; cursor:pointer; }
+.profiles-page .range-pair input[type="range"]::-moz-range-thumb { width:16px; height:16px; border:0; border-radius:50%; background:#bc9d5a; cursor:pointer; }
 .profiles-page .range-pair input[type="number"] { width:86px; min-width:86px; text-align:right; }
 
 .profiles-page .profile-settings-heading {
