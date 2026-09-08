@@ -7346,3 +7346,24 @@ this checkpoint; deployment remains the tested `d838c87` code.
 - This is partial Quickstart parity. Setup Default/Local LLM preset effects,
   local service provisioning, MiniMe and Player2 controls remain open; the native
   saved-connector sections are not claimed equivalent to those missing features.
+
+### Quickstart service field and option grouping
+
+- Derived TTS/STT form-group structure, inline service labels and small help text
+  from pinned Herika Quickstart. Existing connector choices now use Recommended
+  and Other TTS/STT Services optgroups, with the same recommended driver sets as
+  Herika. Saved connector IDs, credential references and selected routes remain
+  unchanged; this does not provision services or silently select new defaults.
+- Compared both service cards at 1280 and 390 pixels with identical browser-only
+  help/option fixtures and the optional Deepgram key hidden on both sides.
+  Complete card and child rectangles match exactly; inspected narrow captures.
+  These fixtures establish layout equivalence, not provider setup equivalence.
+- Actual native choices have unique IDs and correct driver grouping. Selecting
+  Keep current selection preserves the current Deepgram key visibility, as the
+  existing JavaScript intends. The initial probe incorrectly expected it to hide;
+  corrected that assertion without changing product behavior. All writes blocked.
+- PHP syntax, diff checks and 609 server checks pass. Source-only deployment
+  preserved configuration, credentials and voices; all 799 runtime hashes and
+  private/authentication probes pass. Rollback: lorkhanserver-code.JCiSt5.
+- Service provisioning, Setup presets and remaining Quickstart controls are still
+  incomplete. This checkpoint does not close whole-page or whole-goal acceptance.

@@ -61,13 +61,25 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
             <p class="form-text">Updates the server-wide OpenRouter API badge. Direct connectors using a different API badge keep their own key selection.</p>
         </section>
         <?php foreach(['tts_provider'=>['TTS Service',$tts,'tts_connectors.php'],'stt_provider'=>['STT Service',$stt,'stt_connectors.php']]as$kind=>[$label,$rows,$editor]): ?>
-        <section class="qs-section qs-service-card"><h2 class="qs-section-title"><?php echo $label; ?></h2><div class="qs-service-group<?php echo $kind==='stt_provider'?' qs-service-group-stt':''; ?>">
-            <label for="qs-<?php echo $kind; ?>"><?php echo $label; ?></label><select class="form-control" id="qs-<?php echo $kind; ?>" name="<?php echo $kind; ?>"><option value="">Keep current selection</option><?php foreach($rows as$row): ?><option value="<?php echo lorkhan_ui_h($row['configuration_id']); ?>" data-driver="<?php echo lorkhan_ui_h($row['content']['driver']??''); ?>" data-credential="<?php echo lorkhan_ui_h($row['content']['credential']??'LORKHAN_TTS_DEEPGRAM_API_KEY'); ?>"<?php echo ($kind==='tts_provider'?($routing['tts_configuration_id']??$active[$kind]??''):($active[$kind]??''))===$row['configuration_id']?' selected':''; ?>><?php echo lorkhan_ui_h($row['name']); ?></option><?php endforeach; ?></select>
+        <section class="qs-section qs-service-card"><h2 class="qs-section-title"><?php echo $label; ?></h2><div class="form-group qs-service-group<?php echo $kind==='stt_provider'?' qs-service-group-stt':''; ?>">
+            <?php
+            $recommendedDrivers=$kind==='tts_provider'?['omnivoice','pockettts','chatterbox']:['parakeet','deepgram'];
+            $serviceGroups=['Recommended'=>[],$kind==='tts_provider'?'Other TTS Services':'Other STT Services'=>[]];
+            foreach($rows as$row){
+                $group=in_array($row['content']['driver']??'',$recommendedDrivers,true)?'Recommended':($kind==='tts_provider'?'Other TTS Services':'Other STT Services');
+                $serviceGroups[$group][]=$row;
+            }
+            ?>
+            <label for="qs-<?php echo $kind; ?>"><?php echo $label; ?></label><select class="form-control" id="qs-<?php echo $kind; ?>" name="<?php echo $kind; ?>"><option value="">Keep current selection</option>
+                <?php foreach($serviceGroups as$groupLabel=>$groupRows): if($groupRows===[])continue; ?><optgroup label="<?php echo lorkhan_ui_h($groupLabel); ?>">
+                <?php foreach($groupRows as$row): ?><option value="<?php echo lorkhan_ui_h($row['configuration_id']); ?>" data-driver="<?php echo lorkhan_ui_h($row['content']['driver']??''); ?>" data-credential="<?php echo lorkhan_ui_h($row['content']['credential']??'LORKHAN_TTS_DEEPGRAM_API_KEY'); ?>"<?php echo ($kind==='tts_provider'?($routing['tts_configuration_id']??$active[$kind]??''):($active[$kind]??''))===$row['configuration_id']?' selected':''; ?>><?php echo lorkhan_ui_h($row['name'].($groupLabel==='Recommended'?' (Recommended)':'')); ?></option><?php endforeach; ?>
+                </optgroup><?php endforeach; ?>
+            </select>
             <?php if($kind==='stt_provider'): ?><div data-deepgram-key hidden>
                 <?php lorkhan_quickstart_key('deepgram','Deepgram','https://console.deepgram.com/',$keyStatuses['LORKHAN_TTS_DEEPGRAM_API_KEY']??[],$keyStoreReady); ?>
                 <p class="form-text" data-key-badge-warning hidden>This connector uses a different API badge. Change that key or badge in STT Connectors.</p>
             </div><?php endif; ?>
-            <p class="form-text"><?php echo $kind==='tts_provider'?"Select a saved voice connector for the Core Profile and installation default.":"Select a saved speech-recognition connector for the installation."; ?> For provider settings and endpoint editing, use <a href="<?php echo lorkhan_ui_h($webRoot.'/ui/core/'.$editor); ?>"><?php echo $kind==='tts_provider'?'TTS Connectors':'STT Connectors'; ?></a>.</p>
+            <small class="form-text"><?php echo $kind==='tts_provider'?"Select a saved voice connector for the Core Profile and installation default.":"Select a saved speech-recognition connector for the installation."; ?> For provider settings and endpoint editing, use <a href="<?php echo lorkhan_ui_h($webRoot.'/ui/core/'.$editor); ?>"><?php echo $kind==='tts_provider'?'TTS Connectors':'STT Connectors'; ?></a>.</small>
         </div></section><?php endforeach; ?>
         <section class="qs-section"><h2 class="qs-section-title">LLM Connectors Note</h2><p class="form-text">Four hot-swappable models for Interact. Standard is the default; saving does not reset your current in-game slot.</p>
             <div class="qs-connector-grid"><?php foreach(['llm_configuration_id'=>['Standard','🕹️'],'llm_fast_configuration_id'=>['Fast','🏃'],'llm_powerful_configuration_id'=>['Powerful','💪'],'llm_experimental_configuration_id'=>['Experimental','🧪']]as$field=>[$label,$icon]): $model=''; foreach($llms as$row)if(($routing[$field]??'')===$row['configuration_id'])$model=(string)($row['content']['model']??''); ?>

@@ -44,3 +44,5 @@ body > main.quickstart-page{max-width:none;margin:0;padding:80px 10px 40px;color
 .quickstart-page .qs-field > label{display:inline-block}
 
 .quickstart-page .qs-field > small.form-text{display:inline}
+
+.quickstart-page .qs-service-group > label{display:inline-block}
