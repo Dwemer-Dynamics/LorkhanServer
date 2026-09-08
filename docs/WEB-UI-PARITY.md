@@ -6246,3 +6246,26 @@ modal width still differs (and therefore wraps text differently); full modal acc
 remains open. Existing 597 checks pass; 799 deployed files match, private/auth/health
 checks pass; configuration, credential and voice hashes preserved. Final rollback:
 /var/backups/lorkhanserver-code.9Efj1h. No provider requests, saves or game activity.
+
+## NPC modal viewport structure parity
+
+Replaced the content-sized editor body with an explicit scrolling viewport below the
+header, matching Herika's frame composition without moving typed forms into an iframe.
+The viewport stays at 70vh across tabs. Modal padding, body/header backgrounds, action
+gaps, link/button margins and letter spacing now follow the reference; removed the
+narrow padding/header-wrap override. The reference's narrow dialog extends beyond the
+viewport vertically; native now follows that layout and retains overlay scrolling.
+This is reference behavior, not a claimed product-specific exception.
+
+Temp/npc-shell-proof.cjs verifies exact modal/header/body/viewport rectangles against
+live Herika at 1280 and 390px, then stable dimensions through all six native tabs,
+scrolling to the end and Close. Zero POSTs. Inspected narrow paired screenshots and
+native desktop. General form/disclosure and Roleplay fixture checks passed after the
+structural change. Existing 597 checks pass; final deployment has 799 matching files,
+no extras/old paths and passing private/auth/health checks. Configuration, credential
+and voice hashes preserved; rollback /var/backups/lorkhanserver-code.ZmJudj.
+
+The populated contents are different records, and profile-summary composition,
+knowledge-tag placement and native secondary tools remain under review. This proves
+shell structure/geometry and navigation, not completion of every NPC-editor state or
+the whole counterpart matrix. No provider calls, data saves or game activity.
