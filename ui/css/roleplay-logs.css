@@ -1,6 +1,7 @@
 /* Log table and prompt reader geometry follows HerikaServer ui/ai-response.php. */
 .roleplay-log-page{padding:20px;min-width:0}
-.roleplay-log-page .roleplay-description{margin-bottom:16px}
+.roleplay-log-page .roleplay-description{margin:15px 0;padding:12px 15px;font-size:.9em;line-height:1.5;color:#f8f9fa}
+.roleplay-log-page .roleplay-description strong{color:#bc9d5a}
 .log-scope{margin:0 0 12px;color:#b7b7b7;font-size:13px}
 .log-scope summary{cursor:pointer}
 .log-scope .reader-filters{margin-top:10px}
@@ -30,7 +31,7 @@
 .prompt-modal-message>header{display:flex;justify-content:space-between;padding:9px 12px;background:#303030;color:#bc9d5a;font-size:12px}
 .prompt-modal-message-body{padding:14px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}
 .prompt-role-user>header{color:#8bbce8}.prompt-role-assistant>header{color:#91c89b}
-@media(max-width:700px){.roleplay-log-page{padding:12px}.log-table-container{max-height:65vh}.ai-response-table{min-width:0}.books-table{min-width:0}.log-content-modal{width:94vw}.log-modal-body{padding:12px}}
+@media(max-width:700px){.roleplay-log-page.book-log-page{padding:12px}.log-table-container{max-height:65vh}.ai-response-table{min-width:0}.books-table{min-width:0}.log-content-modal{width:94vw}.log-modal-body{padding:12px}}
 
 /* Diary and Adventure Log calendar geometry follows Herika's diary_adventure.css. */
 .calendar-log-page{padding:20px 10px;max-width:none}

@@ -13,8 +13,8 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
     ], $changes));
     ?>
     <div class="roleplay-log-page<?= $responses?'':' book-log-page' ?>" data-log-page>
-        <?php if($responses): ?><div class="roleplay-description"><span aria-hidden="true"><?= $responses ? '💬' : '📚' ?></span> <strong><?= $responses ? 'AI Responses' : 'Books' ?>:</strong>
-            <?= $responses ? 'Complete log of AI responses and the full context sent to the model. Inspect prompts, Oghma topics and request details when debugging.' : 'Books observed during your Morrowind playthrough.' ?>
+        <?php if($responses): ?><div class="roleplay-description"><strong>AI Responses:</strong>
+            Complete log of AI-generated responses including the full context payload sent to the LLM. Use this to debug model behavior, prompt composition, Oghma topics, and timing.
         </div><?php else: ?><p class="book-log-intro"><?= $journal?'<strong>Morrowind Journal:</strong> Entries captured from your in-game journal.':'Books observed during your Morrowind playthrough.' ?></p><?php endif; ?>
         <details class="log-scope"><summary>Filters and playthrough</summary><form method="get" class="reader-filters">
             <input type="hidden" name="tab" value="<?= lorkhan_ui_h($tab) ?>">

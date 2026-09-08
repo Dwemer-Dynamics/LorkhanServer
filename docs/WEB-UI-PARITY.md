@@ -5739,3 +5739,26 @@ or the full page matrix. The full goal remains active.
 - Inspected the populated saved-state screenshot. Private local evidence: `Temp/npc-combined-save.cjs`, `npc-combined-rejected.png`, `npc-combined-saved.png`.
 - Early fixture failures were not product defects: the seed lacked a playthrough revision and the target identity lacked `display_name`. Corrected only disposable data. Temporary trace instrumentation was removed byte-for-byte; no runtime code change was needed.
 - This closes combined override/add-relationship submission and conflict draft-retention evidence only. It does not close the full NPC counterpart matrix, AI relationship result staging, broader override catalogue, or missing NPC inventory capture.
+
+### AI Responses whole-page introduction comparison
+
+The populated standalone comparison found the native description was shortened,
+added an icon absent from the reference, and used denser spacing (13.2px/18.48px,
+9px 12px padding, no top margin). Copied the reference introduction and its
+13.5px/20.25px typography, 12px 15px padding, 15px vertical margins and accented
+heading. Retained Lorkhan gold and its installation/playthrough filters. The
+response page now retains 20px inner padding on narrow screens as Herika does;
+Books and Journal retain their separate existing responsive rule.
+
+Temp/response-intro-proof.cjs compares the deployed banner text and computed font,
+padding and margins against Herika, checks desktop/narrow wrapping at 1280/390,
+and opens/closes both Prompt Viewers. Herika requires its visible close control;
+Lorkhan's Escape closure is asserted. Inspected both narrow screenshots and the
+populated desktop comparison. This is populated introduction/layout evidence;
+it is not new empty-state, embedded Control Panel or whole-site acceptance.
+
+590 existing server checks passed. Local deployment verified 797 runtime files
+with no hash mismatches, extra files or old paths. Private-file protection, health
+and unauthenticated-session checks passed; configuration, credentials and voice
+files were preserved. Rollback: /var/backups/lorkhanserver-code.r25xMe.
+No game or provider requests were made.
