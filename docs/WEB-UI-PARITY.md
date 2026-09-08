@@ -5283,3 +5283,27 @@ comparison does not replace the separately recorded populated Books fixtures.
 Adventure narrow navigation remains usable with full month label, unlike the
 reference's clipped live narrow header; preserve readability rather than copy
 that clipping defect. Full matrix acceptance remains open.
+
+
+### LLM editor hub review and shared navigation labels
+
+Compared the same named DeepSeek connector editor in native/reference standalone
+embedded routes at 1280/390 and inside Configuration Hub at 1280. Waited for the
+actual selected input before final screenshots, avoiding an initial navigation
+transition capture. Inspected populated editor screenshots and enumerated fields.
+Existing native connection controls remain secondary; the previously documented
+unused reference Remove Action Prompt switch remains absent rather than inert.
+Native hub selection survived switching to TTS and back without saving.
+
+The Test dialog was opened directly as a geometry-only check, without invoking
+its Test handler, saving settings or calling any provider. It is already fixed
+and viewport-contained: 1152x720 at 1280 and 351x720 at 390, including a scrolled
+page. The narrow screenshot was inspected. This does not claim a new test-result
+round trip; those mocks are covered by earlier evidence.
+
+The hub comparison exposed the remaining shared label-span MagicCards override.
+Moved the verified Futura/inherited-spacing correction into hub-navigation.css
+for every hub and removed the now-redundant Roleplay-only override. Decorative
+headings/icons remain unchanged. Final native/reference hub screenshots were
+visually compared after the candidate CSS loaded. No live settings changed.
+Full connector edge-state and remaining page acceptance remain open.

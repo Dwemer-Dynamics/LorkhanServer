@@ -152,11 +152,11 @@ body .config-navigation .tab-button {
     text-overflow: ellipsis;
 }
 
-/* Match the reference label itself; main.css assigns a separate font to spans. */
+/* Herika's inner spans use its main Futura face and inherit the button's responsive spacing. */
 .config-navigation .tab-button .tab-label {
-    font-family: 'MagicCards', sans-serif;
-    letter-spacing: 1.5px;
-    word-spacing: 5px;
+    font-family: 'Futura CondensedLight', Arial, sans-serif;
+    letter-spacing: inherit;
+    word-spacing: inherit;
 }
 
 /* LORKHAN addition. A tab whose feature is not live stacks the name over a
