@@ -34,11 +34,14 @@ final class CoreProfilePreset
             'settings_overrides'=>[
                 'response'=>['max_words'=>$words],
                 'memory'=>['recent_turn_limit'=>$history,'mid_term_enabled'=>$automatic],
-                'behavior'=>['rechat_max_depth'=>$depth,'rechat_probability_percent'=>$probability,'rechat_allow_actions'=>$actions],
+                'behavior'=>['rechat'=>true,'rechat_max_depth'=>$depth,'rechat_probability_percent'=>$probability,'rechat_allow_actions'=>$actions],
                 'diary'=>['context_turn_limit'=>$diaryHistory,'automatic_enabled'=>$automatic,
                     'automatic_wait_enabled'=>$automatic,'latest_entry_in_context'=>$automatic],
                 'profile_evolution'=>$evolution,
             ]];
+        // The native scheduler has a separate generation gate; timer flags alone cannot enable Follower diaries.
+        // Other presets stop automatic diaries without disabling existing manual diary generation.
+        if($automatic)$preset['settings_overrides']['diary']['enabled']=true;
         return self::apply($preset,$content);
     }
 

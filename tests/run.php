@@ -841,6 +841,18 @@ foreach(['builtin:default'=>[75,100,50,0,2,50,true,false],
         &&$settings['profile_evolution']['fields']===$corePresetSource['settings_overrides']['profile_evolution']['fields']
         &&$applied['routing']['llm_randomizer_enabled']===false,$builtin.' preserves prompt, connector and evolution field ownership');
 }
+$disabledPresetSource=$corePresetSource;
+$disabledPresetSource['settings_overrides']['diary']['enabled']=false;
+$disabledPresetSource['settings_overrides']['behavior']['rechat']=false;
+$followerPreset=\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn('builtin:follower',$disabledPresetSource);
+$check($followerPreset['settings_overrides']['diary']['enabled']===true
+    &&$followerPreset['settings_overrides']['behavior']['rechat']===true,'Follower opens the native diary and Rechat gates');
+foreach(['builtin:default','builtin:local_llm','builtin:passive'] as $builtin){
+    $after=\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn($builtin,$followerPreset);
+    $check($after['settings_overrides']['diary']['enabled']===true
+        &&$after['settings_overrides']['diary']['automatic_enabled']===false
+        &&$after['settings_overrides']['behavior']['rechat']===true,$builtin.' stops automatic diaries while retaining manual generation and configured Rechat');
+}
 try{\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn('builtin:unknown',$corePresetSource);$check(false,'unknown builtin rejected');}
 catch(InvalidArgumentException){$check(true,'unknown builtin rejected');}
 $evolutionResolved=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['profile_evolution'=>$evolutionDefaults]],[]);
