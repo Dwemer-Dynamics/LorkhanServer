@@ -329,6 +329,17 @@ final class PromptAssembler
         }
         $promptHead = $this->fieldText($roleplayProfile['content'] ?? [], ['prompt_head']);
         if ($promptHead !== '') $npc .= $this->xmlTag('npc_prompt_head', $promptHead);
+        if ($contextPolicy['inventory_items_descriptions_only'] ?? false) {
+            foreach (['playerState', 'targetState'] as $stateKey) {
+                $inventory = $turn['payload']['context'][$stateKey]['inventory']
+                    ?? ($stateKey === 'playerState' ? ($turn['payload']['context']['inventory'] ?? []) : []);
+                $turn['payload']['context'][$stateKey]['inventory'] = array_values(array_filter(
+                    $this->contextItems($inventory),
+                    fn($item) => is_array($item) && (int)($item['count'] ?? 0) <= 5
+                        && $this->itemHasDescription($item, $turn['_item_descriptions'] ?? [])
+                ));
+            }
+        }
         $details = $contextPolicy['details'];
         $itemBlacklist = $this->blacklistSet($contextPolicy['item_blacklist']);
         $magicBlacklist = $this->blacklistSet($contextPolicy['magic_effects_blacklist']);
@@ -763,25 +774,28 @@ final class PromptAssembler
         return $xml;
     }
 
+    /** Match resolved description availability without relying on client-provided item prose. */
+    private function itemHasDescription(array $item, array $descriptions): bool
+    {
+        foreach ($descriptions as $record) {
+            if (!is_array($record) || !is_string($record['description'] ?? null) || trim($record['description']) === '') continue;
+            if (trim((string)($item['content_file'] ?? '')) !== '') {
+                if ($this->actorSemanticKey($item) === $this->actorSemanticKey($record)) return true;
+            } elseif (mb_strtolower(trim((string)($item['record_id'] ?? '')), 'UTF-8') === mb_strtolower(trim((string)($record['record_id'] ?? '')), 'UTF-8')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** @param list<string> $kinds */
     private function nearbyObjectsXml(mixed $context, array $kinds, string $tag, array $itemBlacklist, bool $groupDuplicates, ?array $describedItems = null): string
     {
         if (!is_array($context) || array_is_list($context)) return '';
-        $described = [];
-        // Availability comes from the frozen, installation-scoped description lookup, not client prose.
-        foreach ($describedItems ?? [] as $record) {
-            if (!is_array($record) || !is_string($record['description'] ?? null) || trim($record['description']) === '') continue;
-            $described[$this->actorSemanticKey($record)] = true;
-            $described['*|' . mb_strtolower(trim((string)($record['record_id'] ?? '')), 'UTF-8')] = true;
-        }
         $groups = [];
         foreach ($this->contextItems($context['nearbyObjects'] ?? []) as $index => $object) {
             if (!is_array($object) || array_is_list($object) || !in_array($object['kind'] ?? null, $kinds, true)) continue;
-            if ($describedItems !== null) {
-                $key = trim((string)($object['content_file'] ?? '')) === ''
-                    ? '*|' . mb_strtolower(trim((string)($object['record_id'] ?? '')), 'UTF-8') : $this->actorSemanticKey($object);
-                if (!isset($described[$key])) continue;
-            }
+            if ($describedItems !== null && !$this->itemHasDescription($object, $describedItems)) continue;
             $name = trim((string)($object['display_name'] ?? $object['record_id'] ?? ''));
             if ($name === '' || $this->blocked($itemBlacklist, $name, (string)($object['record_id'] ?? ''))) continue;
             $key = mb_strtolower((string)($object['kind'] ?? '') . '|' . $name . ($groupDuplicates ? '' : '|' . $index), 'UTF-8');

@@ -185,6 +185,7 @@ $sections = [
         ],
         'Context' => [
             ['context_ground_items_descriptions_only', 'Ground Items Descriptions Only', '&#x1FAA8;', 'boolean', $contextPolicy['ground_items_descriptions_only'] ?? false, 'Only include nearby ground items that have a saved description. Description text can remain hidden through Context Selections. Does not filter equipment or inventory.', []],
+            ['context_inventory_items_descriptions_only', 'Inventory Items Descriptions Only', '&#x1F392;', 'boolean', $contextPolicy['inventory_items_descriptions_only'] ?? false, 'Only include inventory items with a saved description and a stack of five or fewer. Description text can remain hidden through Context Selections. Does not filter equipped or nearby ground items.', []],
             ['context_prompt_timestamp', 'Prompt Timestamp', '&#x1F552;', 'boolean', $contextPolicy['prompt_timestamp'] ?? false, 'Adds relative time dividers between conversation history groups, such as Moments Ago and Earlier in the day. Uses elapsed game time, not real-world time.', []],
         ],
         'Context Selections' => [

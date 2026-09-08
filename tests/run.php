@@ -931,6 +931,22 @@ $inventoryTurn=$contextTurn;
 $inventoryTurn['payload']['context']['inventory']=['items'=>[['record_id'=>'native_inventory_ring','display_name'=>'Native Inventory Ring','count'=>3]]];
 $inventoryPrompt=(new PromptAssembler(16384,1024))->assemble($inventoryTurn,$promptSelection)['provider_input']['_assembled_prompt'];
 $check(str_contains($inventoryPrompt,'Native Inventory Ring x3'), 'player prompt consumes the actual top-level OpenMW inventory lane');
+$filteredInventorySelection=$promptSelection;
+$filteredInventorySelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
+$filteredInventorySelection['effective_settings']['context']['inventory_items_descriptions_only']=true;
+$filteredInventorySelection['effective_settings']['context']['sections']['record_descriptions']=false;
+$filteredInventoryTurn=$inventoryTurn;
+$filteredInventoryTurn['payload']['context']['playerState']['equipment']=[['record_id'=>'equipped_ring','display_name'=>'Equipped Ring']];
+$filteredInventoryPrompt=(new PromptAssembler(16384,1024))->assemble($filteredInventoryTurn,$filteredInventorySelection)['provider_input']['_assembled_prompt'];
+$check(!str_contains($filteredInventoryPrompt,'Native Inventory Ring') && str_contains($filteredInventoryPrompt,'Equipped Ring')
+    && str_contains($filteredInventoryPrompt,"Bungler's Bane"), 'inventory description filtering leaves equipment and ground items intact');
+$filteredInventoryTurn['_item_descriptions']=[['record_id'=>'native_inventory_ring','content_file'=>'Morrowind.esm','description'=>'Hidden ring description.']];
+$filteredInventoryPrompt=(new PromptAssembler(16384,1024))->assemble($filteredInventoryTurn,$filteredInventorySelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($filteredInventoryPrompt,'Native Inventory Ring x3') && !str_contains($filteredInventoryPrompt,'Hidden ring description.'),
+    'inventory availability filtering retains counts independently of description text visibility');
+$filteredInventoryTurn['payload']['context']['inventory']['items'][0]['count']=6;
+$filteredInventoryPrompt=(new PromptAssembler(16384,1024))->assemble($filteredInventoryTurn,$filteredInventorySelection)['provider_input']['_assembled_prompt'];
+$check(!str_contains($filteredInventoryPrompt,'Native Inventory Ring'), 'inventory descriptions-only matches Herika omission of stacks larger than five');
 $inventorySelection=$promptSelection;
 $inventorySelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
 $inventorySelection['effective_settings']['context']['details']['npc_equipment_inventory']=false;
@@ -2166,12 +2182,17 @@ $namedDefault = \LorkhanServer\Application\GlobalSettingsPreset::defaults();
 $legacyPreset = $namedDefault;
 unset($legacyPreset['settings']['context']['prompt_timestamp']);
 unset($legacyPreset['settings']['context']['ground_items_descriptions_only']);
+unset($legacyPreset['settings']['context']['inventory_items_descriptions_only']);
 $legacyApplied = \LorkhanServer\Application\GlobalSettingsPreset::apply($legacyPreset, $presetCurrent, $presetSummary, $presetEmbedding);
 $check($legacyApplied['settings']['context']['prompt_timestamp'] === false, 'older named presets normalize temporal headings to disabled');
 $check($legacyApplied['settings']['context']['ground_items_descriptions_only'] === false, 'older named presets leave ground description filtering disabled');
+$check($legacyApplied['settings']['context']['inventory_items_descriptions_only'] === false, 'older named presets leave inventory description filtering disabled');
 $legacyGlobal = $presetCurrent;
 unset($legacyGlobal['context']['prompt_timestamp']);
 unset($legacyGlobal['context']['ground_items_descriptions_only']);
+unset($legacyGlobal['context']['inventory_items_descriptions_only']);
+$check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($legacyGlobal)['context']['inventory_items_descriptions_only'] === false,
+    'older global documents leave inventory description filtering disabled');
 $check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($legacyGlobal)['context']['ground_items_descriptions_only'] === false,
     'older global documents leave ground description filtering disabled');
 $check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($legacyGlobal)['context']['prompt_timestamp'] === false,

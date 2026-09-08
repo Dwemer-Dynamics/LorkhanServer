@@ -2171,6 +2171,7 @@ final class ManagementRouter
         foreach(SettingsCatalog::contextDetailDefaults()as$key=>$default)$content['context']['details'][$key]=isset($values['context_detail_'.$key]);
         $content['context']['prompt_timestamp'] = isset($values['context_prompt_timestamp']);
         $content['context']['ground_items_descriptions_only'] = isset($values['context_ground_items_descriptions_only']);
+        $content['context']['inventory_items_descriptions_only'] = isset($values['context_inventory_items_descriptions_only']);
         $eventTypes=$values['context_event_types']??[];if(!is_array($eventTypes))throw new InvalidArgumentException('invalid_context_event_types');
         $content['context']['event_types']=array_values($eventTypes);
         foreach(['location_blacklist','item_blacklist','magic_effects_blacklist']as$field){

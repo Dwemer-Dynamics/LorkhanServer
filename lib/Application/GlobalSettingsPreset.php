@@ -44,7 +44,7 @@ final class GlobalSettingsPreset
             || !is_array($preset['embedding'] ?? null)) throw new InvalidArgumentException('invalid_named_global_preset');
         // Older presets retain the original disabled behavior for added Context controls.
         if (is_array($preset['settings']['context'] ?? null)) {
-            $preset['settings']['context'] += ['prompt_timestamp' => false, 'ground_items_descriptions_only' => false];
+            $preset['settings']['context'] += ['prompt_timestamp' => false, 'ground_items_descriptions_only' => false, 'inventory_items_descriptions_only' => false];
         }
         $candidate = array_replace($settings, array_intersect_key($preset['settings'], array_flip(self::SECTIONS)));
         $candidate['client']['behavior'] = array_replace($settings['client']['behavior'], $preset['settings']['client']['behavior'] ?? []);
