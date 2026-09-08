@@ -39,3 +39,8 @@ body > main.quickstart-page{max-width:none;margin:0;padding:80px 10px 40px;color
 .quickstart-page [data-deepgram-key]{margin-top:4px}
 .quickstart-page [data-quickstart-error]{color:#ffb7b7;font-size:13px}
 @media(max-width:640px){.quickstart-page .qs-connector-grid,.quickstart-page .quickstart-grid{grid-template-columns:1fr}}
+
+.quickstart-page .qs-field{margin-bottom:0}
+.quickstart-page .qs-field > label{display:inline-block}
+
+.quickstart-page .qs-field > small.form-text{display:inline}

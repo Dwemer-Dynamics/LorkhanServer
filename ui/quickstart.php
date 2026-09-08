@@ -36,36 +36,29 @@ function lorkhan_quickstart_key(string $provider,string $label,string $url,array
         .'<p class="form-text" id="'.$id.'-help">Saved when you leave the field. Leave blank to keep the existing key. <a href="'.lorkhan_ui_h($url).'" target="_blank" rel="noopener noreferrer">Create key</a></p>'
         .'<div class="qs-key-status" id="'.$id.'-status" role="status" aria-live="polite" data-key-status>'.(!$available?'Key store unavailable.':($environment?'Configured by the server environment. Change it outside Quickstart.':($configured?'Configured.':'Not configured.'))).'</div></div>';
 }
-$additionalStylesheets=['quickstart.css?v='.(string)filemtime(__DIR__.'/css/quickstart.css')];
+$additionalStylesheets=['main.css','quickstart.css?v='.(string)filemtime(__DIR__.'/css/quickstart.css')];
 include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';
 ?>
 <main class="quickstart-page"><div class="qs-shell">
-    <header class="qs-section qs-header-card"><h1 class="qs-title">Quickstart Menu</h1></header>
+    <section class="qs-section qs-header-card"><h1 class="qs-title">Quickstart Menu</h1></section>
     <?php if(($_GET['status']??'')==='saved'): ?><p role="status" class="quickstart-notice">Quickstart settings saved.</p><?php endif; ?>
-    <details class="qs-section qs-profile-scope"><summary>Profile selection: <?php echo lorkhan_ui_h($selected['label']??$selected['name']??'Not configured'); ?></summary>
-        <form method="get" class="quickstart-grid">
-            <label>Installation<select name="installation_id"><?php foreach($installations as$row): ?><option value="<?php echo lorkhan_ui_h($row['installation_id']); ?>"<?php echo $installationId===$row['installation_id']?' selected':''; ?>><?php echo lorkhan_ui_h($row['display_name']??$row['installation_id']); ?></option><?php endforeach; ?></select></label>
-            <label>Core Profile<select name="core_profile_id"><option value="">Installation default</option><?php foreach($profiles as$row): ?><option value="<?php echo lorkhan_ui_h($row['core_profile_id']); ?>"<?php echo $selectedId===$row['core_profile_id']?' selected':''; ?>><?php echo lorkhan_ui_h($row['label']??$row['name']); ?></option><?php endforeach; ?></select></label>
-            <button type="submit" class="btn-base">Load Profile</button>
-        </form>
-        <p>Only the selected Core Profile's model and TTS routes change. NPC-specific overrides stay in place.</p>
-        <a class="btn-base" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/core_profiles.php">Manage Profiles</a>
-    </details>
+
     <form class="confwizard" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/quickstart-save" data-track-dirty data-key-endpoint="<?php echo lorkhan_ui_h($managementBasePath); ?>/api/v1/quickstart-key">
         <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
         <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
         <input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($selected['core_profile_id']??''); ?>">
         <input type="hidden" name="base_revision" value="<?php echo (int)($selected['current_revision']??0); ?>">
         <section class="qs-section"><h2 class="qs-section-title">Player</h2>
+            <div class="form-group qs-field">
             <?php if($player!==null): ?><input type="hidden" name="player_revision" value="<?php echo (int)$player['revision']; ?>">
             <label for="qs-player-name">Player Name</label><input id="qs-player-name" class="form-control" name="player_name" type="text" required maxlength="256" value="<?php echo lorkhan_ui_h($player['name']); ?>" aria-describedby="qs-player-help">
-            <p class="form-text" id="qs-player-help">Your player persona's name. Saving does not rename the character in the game or rewrite recorded dialogue. Other player settings stay unchanged.</p>
-            <?php else: ?><p class="form-text">No player profile is configured. Connect OpenMW or create the player profile in Player Management.</p><?php endif; ?>
-            <p class="form-text"><a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/player_management.php?installation_id=<?php echo lorkhan_ui_h($installationId); ?>">Player Management</a></p>
+            <small class="form-text" id="qs-player-help">Your player persona's name. Saving does not rename the character in the game or rewrite recorded dialogue. Manage other player settings in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/player_management.php?installation_id=<?php echo lorkhan_ui_h($installationId); ?>">Player Management</a>.</small>
+            <?php else: ?><p class="form-text">No player profile is configured. Connect OpenMW or create the player profile in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/player_management.php?installation_id=<?php echo lorkhan_ui_h($installationId); ?>">Player Management</a>.</p><?php endif; ?>
+            </div>
         </section>
         <section class="qs-section"><h2 class="qs-section-title">OpenRouter</h2>
             <?php lorkhan_quickstart_key('openrouter','OpenRouter','https://openrouter.ai/keys',$keyStatuses['LORKHAN_LLM_API_KEY']??[],$keyStoreReady); ?>
-            <p class="form-text">Updates the server-wide Default LLM key. Direct connectors using a different API badge keep their own key selection.</p>
+            <p class="form-text">Updates the server-wide OpenRouter API badge. Direct connectors using a different API badge keep their own key selection.</p>
         </section>
         <?php foreach(['tts_provider'=>['TTS Service',$tts,'tts_connectors.php'],'stt_provider'=>['STT Service',$stt,'stt_connectors.php']]as$kind=>[$label,$rows,$editor]): ?>
         <section class="qs-section qs-service-card"><h2 class="qs-section-title"><?php echo $label; ?></h2><div class="qs-service-group<?php echo $kind==='stt_provider'?' qs-service-group-stt':''; ?>">
@@ -86,8 +79,17 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
         </section>
         <p class="form-text">MiniMe and automatic summary settings are in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/config_hub.php?tab=globals">Global Settings</a>. Quickstart makes no provider requests.</p>
         <?php if(!$ready): ?><p class="quickstart-notice">Create a Core Profile and at least one LLM connector before saving Quickstart.</p><?php endif; ?>
-        <div class="qs-actions"><span data-dirty-indicator hidden>Unsaved changes</span><span role="alert" data-quickstart-error></span><button type="submit" class="btn-primary qs-save-btn"<?php echo !$ready?' disabled':''; ?>>Save and Continue</button></div>
+        <div class="qs-actions"><span data-dirty-indicator hidden>Unsaved changes</span><span role="alert" data-quickstart-error></span><button type="submit" class="btn-primary qs-save-btn" aria-describedby="qs-profile-scope"<?php echo !$ready?' disabled':''; ?>>Save and Continue</button></div>
     </form>
+    <details class="qs-section qs-profile-scope"><summary id="qs-profile-scope">Profile selection: <?php echo lorkhan_ui_h($selected['label']??$selected['name']??'Not configured'); ?></summary>
+        <form method="get" class="quickstart-grid">
+            <label>Installation<select name="installation_id"><?php foreach($installations as$row): ?><option value="<?php echo lorkhan_ui_h($row['installation_id']); ?>"<?php echo $installationId===$row['installation_id']?' selected':''; ?>><?php echo lorkhan_ui_h($row['display_name']??$row['installation_id']); ?></option><?php endforeach; ?></select></label>
+            <label>Core Profile<select name="core_profile_id"><option value="">Installation default</option><?php foreach($profiles as$row): ?><option value="<?php echo lorkhan_ui_h($row['core_profile_id']); ?>"<?php echo $selectedId===$row['core_profile_id']?' selected':''; ?>><?php echo lorkhan_ui_h($row['label']??$row['name']); ?></option><?php endforeach; ?></select></label>
+            <button type="submit" class="btn-base">Load Profile</button>
+        </form>
+        <p>Only the selected Core Profile's model and TTS routes change. NPC-specific overrides stay in place.</p>
+        <a class="btn-base" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/core_profiles.php">Manage Profiles</a>
+    </details>
 </div></main>
 <script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo (string)filemtime(__DIR__.'/js/resource-page.js'); ?>"></script>
 <script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/quickstart.js?v=<?php echo (string)filemtime(__DIR__.'/js/quickstart.js'); ?>"></script>

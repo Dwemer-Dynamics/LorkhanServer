@@ -7326,3 +7326,23 @@ this checkpoint; deployment remains the tested `d838c87` code.
   hashes and private/authentication probes pass. No game launch or live writes.
   Full page/state acceptance remains open; this checkpoint corrects both hub
   structures rather than certifying the goal from iframe dimensions.
+
+### Quickstart heading and Player structure
+
+- Restored shared main.css, removing the navbar toast's unintended contribution
+  to normal document flow. Header and Player now follow the reference's section
+  and field grouping. Profile selection remains available after the primary form;
+  Save and Continue describes its selected-profile summary accessibly.
+- Compared live native/reference at 1280x1000 and 390x1000. Header, Player section,
+  heading, label and input rectangles and typography match exactly. Inspected
+  the narrow full-page screenshot. Product-specific player help preserves the
+  distinction between the persona name and the character's actual game name.
+- Browser checks at both widths confirm separate forms, usable profile disclosure,
+  preserved player draft after opening/closing it, and the Player Management link.
+  No POSTs or provider calls were made by those probes. Existing disposable
+  management HTTP forms passed; 609 server checks, PHP syntax and diff checks pass.
+- Server deployment verified all 799 runtime files and private/authentication
+  probes; rollback /var/backups/lorkhanserver-code.GT3XYk. No game actions.
+- This is partial Quickstart parity. Setup Default/Local LLM preset effects,
+  local service provisioning, MiniMe and Player2 controls remain open; the native
+  saved-connector sections are not claimed equivalent to those missing features.
