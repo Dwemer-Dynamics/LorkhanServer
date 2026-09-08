@@ -16,21 +16,34 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Live full-page screenshots and matched-data comparisons were refreshed against the pinned reference after `1f9161a`. These results establish the listed surfaces, not full feature completion:
+Current deployed product checkpoint: `8554e60d1f22a2b17ac7356f6b9131ad880a81af`.
+The dated evidence below supersedes older absence claims. These results establish
+only the listed states, not completion of every page or feature.
 
 | Surface | Current comparison evidence | Still separate |
 | --- | --- | --- |
-| Events | Initial/live Record controls now match; empty-to-live reconstruction and cancelled delete verified | Remaining whole-table/filter/editor acceptance |
-| AI Responses | Populated and empty table origins, heights and all columns match at 1280/390; relative table Y 155.25/308.75px | Full prompt variants, cleanup/export edge states |
-| Adventure Log | Actual hub table and all four columns match; row heights 58.375/96.75px at 1280/390 | Remaining calendar/filter/export combinations |
-| Diaries | Actual hub matched row widths and columns; row heights 60.34375/154.3125px | Provider audio acceptance and remaining reader/cache cases |
-| Books | Matched template table typography, content wrapping and columns; row heights 37.1875/267.4375px | Full reader/filter combinations and observed-book runtime capture |
+| Events | Initial/live Record controls match; duplicate bottom pager removed to match the reference; empty-to-live reconstruction, page change and stopped refresh checked | Remaining whole-table/filter/editor acceptance |
+| AI Responses | Populated and empty table geometry compared at 1280/390; refreshed empty cells match 38.6875px height and 9px/10px padding | Full prompt variants, cleanup/export edge states |
+| Adventure Log | Actual hub populated columns match; empty-date cells now use reference padding and 39.1875px height | Remaining calendar/filter/export combinations |
+| Diaries | Actual hub populated columns match; empty-date row padding corrected; reader whitespace and editor geometry compared at both widths | Provider audio acceptance and remaining reader/cache cases |
+| Books | Populated typography and columns compared; missing empty-result panel restored and checked at both widths | Full reader/filter combinations and observed-book runtime capture |
+| API Keys | Standalone and actual hub preset geometry compared at 1280/390; Custom Keys empty/live and matched draft states inspected; failed-save and pending-save draft retention rechecked with mocks | Remaining full-page scroll/header behavior and live-provider acceptance; no live credentials tested |
 
-The reference's taller top navigation is caused by its additional excluded pages consuming space and wrapping the groups. The shared max-content flex rules already match; do not add blank tabs, stretch groups, or reintroduce excluded features to force the same absolute Y offset. Lorkhan's Journal remains its actual OpenMW-specific entry.
+The reference's extra excluded navigation entries change wrapping and page origins.
+Do not add blank tabs or reintroduce excluded features to force absolute offsets.
+Lorkhan's Journal remains an OpenMW-specific entry.
 
-The current priority content-table checks show no actionable geometry difference. Next structural implementation target: **Quickstart**, where source inspection confirms missing Setup/Local LLM, MiniMe Service and Player2 sections, rather than another table-spacing pass. Native Quickstart currently substitutes a Global Settings link for MiniMe; no existing MiniMe probe handler was found in the management router. A real bounded service probe and persisted setup routing are needed before displaying working counterparts. Do not add inert cards or claim links provide those features.
+Quickstart MiniMe Service is implemented, including its bounded reachability probe.
+Managed Local LLM persistence, routing API and partial built-in profile application
+are implemented, but do not establish the missing visible Setup/Local LLM workflow.
+Complete built-in preset semantics, Setup and Player2 remain open. Do not present
+partial or unwired controls as completed counterparts.
 
-Evidence: temporary `priority-shell-audit.cjs`, `response-frame-matched.cjs`, `adventure-hub-proof.cjs`, `diary-hub-matched.cjs`, `books-refresh.cjs`; actual top-level screenshots inspected for Responses, Diaries and Books. Matched row contents are browser-only fixtures, not database edits; Books/Diaries use the existing rendered template fixture for populated native records. All non-GET traffic blocked. This checkpoint is documentation only; deployed product remains `1f9161a`.
+Evidence is recorded in the dated checkpoints below. Current API Keys review uses
+`apikey-viewport-review.cjs`, `apikey-bottom-review.cjs` and
+`apikey-custom-draft-review.cjs` under the local temporary evidence directory.
+All credential input values were cleared before screenshots; all non-GET traffic
+was blocked. Custom draft comparisons alter browser DOM only, not saved records.
 
 ## Implementation order and acceptance
 
@@ -86,14 +99,14 @@ do not use an exception to excuse a generic substitute layout.
 | Lorkhan page | Herika counterpart | Current status |
 | --- | --- | --- |
 | `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty and desktop/narrow layout reviewed. Latest-diary author audio is wired, with populated-template playback/error checks; live-provider acceptance remains open |
-| `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; Setup/Local LLM, MiniMe probe, service provisioning and Player2 still pending |
+| `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; MiniMe Service and its bounded reachability probe implemented; visible Setup/Local LLM, service provisioning and Player2 still pending |
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. Remaining children and full embedded interactions still pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Other Context event controls and profile-affecting built-ins remain open; see the dated checkpoints |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; scrolling slot summary, linked assigned slots and toolbar spacing aligned. Presets and additional profile fields remain |
 | `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI builds now stage reviewed results with the NPC Save; the unloaded-existing-target review edge is fixed; the full editor/list review remains. Info has confirmed missing Skills/Equipment/Stats/Inventory/Spells/Metadata panels and Setting Overrides; Nine per-actor override leaves now resolve and reach prompt selection, with revisioned form round trips; the nine-leaf visual override editor now stages Add/Edit/Remove and JSON with save/reload and failure proof. Observed Skills/Equipment/Stats/Inventory/Spells/Metadata disclosures now render exact-target recorded state with populated/empty fixture proof. Remaining: target inventory capture, editable metadata semantics, full override catalogue and full modal composition. See NPC observed-state checkpoint below |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; remaining generation edge states remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
-| `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; provider presets consolidated to 11 cards with all 32 built-in credential identities editable through saved/optional additional badges; final full-page and embedded acceptance remains open |
+| `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; provider presets consolidated to 11 cards with all 32 built-in credential identities editable through saved/optional additional badges; standalone and actual hub preset/custom draft geometry reviewed at 1280/390, with failed-save and concurrent-edit retention rechecked using mocks; full-page scroll/header behavior and live-provider acceptance remain open |
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key selection is now wired and browser save/reload tested; hub selection and unsaved draft retention, narrow editor bounds and failed-save Test refusal are verified; remaining provider/advanced interaction review stays open. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired; remaining provider controls listed in the latest audit below |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
@@ -8126,7 +8139,7 @@ Compared actual hub/iframe styling at 1280x900 and 390x900. Herika's selected em
 
 Both empty rows were 71.1875px high because generic `.log-empty` padding `25px!important` overrode the calendar table. Scoped `9px 10px!important` to calendar empty cells. Both now match reference height 39.1875px, table widths 1236/346px, centered text, #e0e0e0 color and 12.8px/19.2px Futura CondensedLight. Inspected narrow diary table images before/after; Adventure measurements match at both widths. No writes or audio requests were allowed. Populated rows and AI Responses selectors are unchanged.
 
-Evidence: `C:/Users/reece/AppData/Local/Temp/diary-empty-hub.cjs`, `diary-empty-hub-fixed.cjs`, `adventure-empty-compare.cjs`, `adventure-empty-compare-fixed.cjs`; screenshots `diary-empty-{hub,fixed}-{ref,native}-{1280,390}.png` and `adventure-empty[-fixed]-{ref,native}-{1280,390}.png`. Events/AI Responses empty-state refresh and the wider page matrix remain open.
+Evidence: `C:/Users/reece/AppData/Local/Temp/diary-empty-hub.cjs`, `diary-empty-hub-fixed.cjs`, `adventure-empty-compare.cjs`, `adventure-empty-compare-fixed.cjs`; screenshots `diary-empty-{hub,fixed}-{ref,native}-{1280,390}.png` and `adventure-empty-{ref,native}-{1280,390}.png` (the fixed script reused these filenames; they contain the final captures, not preserved before/after pairs). Events/AI Responses empty-state refresh and the wider page matrix remain open.
 
 ## Events and AI Responses empty-state refresh — 2026-09-08
 
@@ -8135,3 +8148,29 @@ AI Responses' real empty query branch matches the reference empty-page branch: i
 Events correctly hides its table for an empty result, matching the reference `print_array_as_table` early return. An intercepted empty API result followed by one synthetic live event restores the table, preserves literal markup as text, uses the 5000ms refresh interval and can stop live mode, with zero mutation requests at 1280/390px. Screenshot inspection and source trace found an extra native bottom pager/count. The pinned reference Events page renders only the top pager; the older native comment claiming otherwise was incorrect. Removed the duplicate footer from the PHP structure, preserving the top pager, filtering, live updates and scoped playthrough details. Added a single-pager assertion to the existing management HTTP test.
 
 Evidence: `C:/Users/reece/AppData/Local/Temp/response-empty-refresh.cjs`, `response-empty-refresh-{ref,native}-{1280,390}.png`, `events-empty-live-refresh.cjs`, `events-empty-reference-refresh.cjs`, `events-empty-reference-refresh-{1280,390}.png`, and `events-empty-{1280,390}.png`. The full matrix and remaining page controls are still incomplete; this is not a whole-goal completion claim.
+
+### API Keys standalone and actual hub refresh (2026-09-08)
+
+- Compared current deployed `8554e60` against the pinned Herika reference at
+  1280x1000 and 390x1000, standalone and through the actual Configuration hub.
+  Preset card widths match: 576 / 318px standalone, 564.609375 / 294px embedded.
+  Content grid gap is 30px and neither page overflows horizontally.
+- Inspected desktop embedded preset screenshots, narrow embedded lower-page and
+  matched new custom draft screenshots, and standalone desktop matched drafts.
+  Custom draft heights match: 226.625px except narrow embedded 231.625px.
+  Font is Futura CondensedLight 15px / 22.5px on both products.
+- Reference has 12 presets; Lorkhan has 11. The omitted Replicate card is explicitly
+  the reference Soulgaze Gallery Processor, excluded from this release. Provider
+  usage descriptions omit excluded ITT. Environment locks, replacement-only secret
+  inputs and independent extra credential slots preserve native credential safety.
+- Refreshed `apikey-label-draft-proof.cjs`: both widths pass clean save baseline,
+  label-only dirty warning, failed-save retention, newer edits during a pending save
+  and final saved baseline. All writes mocked; no real provider authentication run.
+- Evidence: temporary `apikey-viewport-{ref,native}-{1280,390}-{false,true}.png`,
+  `apikey-bottom-*` and `apikey-custom-draft-*`; false is standalone, true actual hub.
+  Full-height captures were not accepted from truncated tool output. Bounded
+  captures were used instead. Stored input values were cleared without events.
+- No product change was needed for the compared card structures. Standalone
+  scrolled captures show different top-header persistence; that behavior remains
+  for source comparison rather than being silently accepted as branding.
+  Broader parity goal stays active. GitHub server workflow remains disabled.
