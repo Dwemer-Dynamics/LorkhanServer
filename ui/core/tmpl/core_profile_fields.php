@@ -30,7 +30,7 @@ $toggleCard=static function(string$name,string$icon,string$title,string$descript
 <?php };
 $copyButton=static function(string$name,string$label)use($creatingProfile):void{
     if($creatingProfile)return;
-    $fields=['setting_response_max_words'=>'response.max_words','setting_behavior_rechat_max_depth'=>'behavior.rechat_max_depth',
+    $fields=['setting_response_core_lang'=>'response.core_lang','setting_response_max_words'=>'response.max_words','setting_behavior_rechat_max_depth'=>'behavior.rechat_max_depth',
         'setting_behavior_rechat_probability_percent'=>'behavior.rechat_probability_percent','setting_behavior_rechat_allow_actions'=>'behavior.rechat_allow_actions',
         'setting_profile_evolution_history_limit'=>'profile_evolution.history_limit','setting_memory_recent_turn_limit'=>'memory.recent_turn_limit','setting_diary_context_turn_limit'=>'diary.context_turn_limit',
         'setting_diary_automatic_interval_seconds'=>'diary.automatic_interval_seconds','setting_diary_prompt'=>'diary.prompt']; ?>
@@ -76,7 +76,8 @@ foreach (['mid_term_enabled'=>'Middle Term Memory','short_term_enabled'=>'Short 
         </div></div>
     </div></div>
 </div></div>
-<div class="profile-settings-columns"><section class="profile-settings-group"><h3 class="profile-settings-heading">LLM</h3><div class="provider-card"><?php $numberField('setting_response_max_words','Max Words Limit','Maximum words requested across the complete response. Set 0 for no additional word limit. This does not buffer or truncate streamed speech.',$values['max_words'],0,10000); ?></div></section><section class="profile-settings-group"><h3 class="profile-settings-heading">Rechat</h3>
+<div class="profile-settings-columns"><section class="profile-settings-group"><h3 class="profile-settings-heading">Language</h3><div class="provider-card">
+<div class="setting-row"><div><div class="setting-key"><span class="setting-icon" aria-hidden="true">&#x1F310;</span><label for="setting_response_core_lang">Core Lang</label> <?php $copyButton('setting_response_core_lang','Core Lang'); ?></div><div class="setting-desc">Language of the built-in roleplay instructions. Leave blank for English. Custom prompts and output translation are unchanged.</div></div><div class="setting-control"><select id="setting_response_core_lang" name="setting_response_core_lang"><?php foreach (\LorkhanServer\Application\CoreProfileLanguage::LABELS as $code=>$label): ?><option value="<?php echo lorkhan_ui_h($code); ?>"<?php echo ($overrides['response']['core_lang']??'')===$code?' selected':''; ?>><?php echo lorkhan_ui_h($label); ?></option><?php endforeach; ?></select></div></div><?php $numberField('setting_response_max_words','Max Words Limit','Maximum words requested across the complete response. Set 0 for no additional word limit. This does not buffer or truncate streamed speech.',$values['max_words'],0,10000); ?></div></section><section class="profile-settings-group"><h3 class="profile-settings-heading">Rechat</h3>
 <div class="rechat-calculator"><div class="rechat-calculator-title" tabindex="0" aria-describedby="rechat-calculator-help"><span aria-hidden="true">&#x1F501;</span><span>Rechat Response Calculator</span><span id="rechat-calculator-help" role="tooltip">Includes the initial reply and up to the configured number of NPC continuation rounds. Chances assume Rechat is enabled and a responder remains eligible.</span></div>
 <div id="rechat-calc-output" aria-live="polite" aria-atomic="true"></div>
 </div><div class="provider-card">

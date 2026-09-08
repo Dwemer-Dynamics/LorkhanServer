@@ -784,6 +784,18 @@ $check(str_contains($npcWordPrompt,'within 17 words.')&&!str_contains($npcWordPr
 $npcWordSelection['effective_settings']['settings']['response']['max_words']=0;
 $check(!str_contains($assembler->assemble($promptTurn,$npcWordSelection)['provider_input']['_assembled_prompt'],'combined spoken dialogue'),
     'Explicit zero NPC word limit removes the inherited prompt instruction');
+foreach (['de'=>'Du bist', 'es'=>'Eres', 'fr'=>'Tu es', 'jp'=>'あなたは'] as $language=>$expectedInstruction) {
+    $languageSelection=$wordSelection;
+    $languageSelection['core_profile']['content']['settings_overrides']['response']['core_lang']=$language;
+    $languageSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve([], $languageSelection['core_profile']['content'], []);
+    $languagePrompt=$assembler->assemble($promptTurn,$languageSelection)['provider_input']['_assembled_prompt'];
+    $check(str_contains($languagePrompt,$expectedInstruction)&&str_contains($languagePrompt,'within 60 words.'),'Core language reaches frozen compact prompt without changing word limit');
+}
+foreach ([null, 'pl', '../de', [], 'DE'] as $invalidLanguage) {
+    try { EffectiveSettingsResolver::validateSettingsOverrides(['response'=>['max_words'=>0,'core_lang'=>$invalidLanguage]]); $check(false,'invalid Core language rejected'); }
+    catch (InvalidArgumentException) { $check(true,'invalid Core language rejected'); }
+}
+$check(\LorkhanServer\Application\CoreProfilePreset::capture($languageSelection['core_profile']['content'])['settings_overrides']['response']['core_lang']==='jp','Core language survives named preset capture');
 $npcMemorySelection=$promptSelection;
 $npcMemorySelection['memory']=[['memory_id'=>'npc-memory','tier'=>'mid','content'=>'NPC_MEMORY_SENTINEL']];
 $npcMemorySelection['effective_settings']=(new EffectiveSettingsResolver())->resolve([], [],

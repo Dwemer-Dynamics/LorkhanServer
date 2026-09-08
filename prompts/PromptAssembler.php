@@ -154,6 +154,7 @@ final class PromptAssembler
             $selection['effective_settings']['prompt'] ?? SettingsCatalog::globalDefaults()['prompt'],
             ParalinguisticSpeech::prompt($speechStyle),
             $responseMaxWords,
+            (string)($selection['effective_settings']['settings']['response']['core_lang'] ?? $coreProfile['content']['settings_overrides']['response']['core_lang'] ?? ''),
         );
 
         $system = $built['system'];
@@ -306,6 +307,7 @@ final class PromptAssembler
         array $promptDefaults,
         string $speechStylePrompt,
         int $responseMaxWords,
+        string $coreLanguage,
     ): array {
         $outputContract = 'Return one JSON object with exactly two keys: "utterances" and "action". '
             . '"utterances" must be a JSON array of one to four objects. Each utterance object must have exactly one key named "text", '
@@ -318,6 +320,9 @@ final class PromptAssembler
         $roleplay = 'You are ' . $actorName . ', a character in the universe of Morrowind. '
             . 'This world is your reality. Remain ' . $actorName . ' and never speak, decide, or narrate dialogue for ' . $playerName . '.';
         $general = "Write {$actorName}'s next dialogue line. Address {$playerName} or the most recent speaker, review the conversation, and avoid repeating prior dialogue.";
+
+        $localized = CoreProfileLanguage::instructions($coreLanguage, $actorName, $playerName);
+        if ($localized !== null) [$roleplay, $general] = $localized;
 
         $npc = $this->xmlTag('roleplay_instructions', $roleplay);
         // Global roleplay defaults fill absent NPC fields without changing the saved profile.

@@ -1751,7 +1751,7 @@ assert 'Create a physical in-game diary that can be read.' not in core_body
 core_form=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
 core_values=dict(core_form['fields'],_csrf=csrf,tts_configuration_id=tts_id,llm_configuration_id=slot_id,llm_fast_configuration_id=slot_id,
     setting_behavior_rechat='1',setting_behavior_rechat_max_depth='5',setting_behavior_rechat_probability_percent='65',setting_behavior_rechat_allow_actions='1',
-    setting_memory_recent_turn_limit='24',setting_response_max_words='60',diary_generation_configuration_id=slot_id,
+    setting_memory_recent_turn_limit='24',setting_response_max_words='60',setting_response_core_lang='de',diary_generation_configuration_id=slot_id,
     setting_diary_enabled='1',setting_diary_automatic_enabled='1',setting_diary_automatic_wait_enabled='1',
     setting_diary_automatic_interval_seconds='10',setting_diary_context_turn_limit='150',
     setting_diary_prompt='Record only witnessed events.')
@@ -1768,6 +1768,8 @@ assert core_saved['fields']['setting_diary_automatic_interval_seconds']=='10'
 assert core_saved['fields']['setting_behavior_rechat']=='1' and core_saved['fields']['setting_behavior_rechat_max_depth']=='5' and core_saved['fields']['setting_behavior_rechat_probability_percent']=='65'
 assert core_saved['fields']['setting_memory_recent_turn_limit']=='24',core_saved
 assert core_saved['fields']['setting_response_max_words']=='60',core_saved
+assert core_saved['fields']['setting_response_core_lang']=='de'
+assert request(core_form['action'],'POST',dict(core_values,setting_response_core_lang='../de')).status==422
 assert core_saved['fields']['profile_evolution_enabled']=='1'
 assert core_saved['fields']['setting_profile_evolution_history_limit']=='20'
 assert all('value="'+field+'" checked' in core_body for field in ['occupation','skills'])
@@ -1826,7 +1828,7 @@ core_preset=json.loads(core_preset_response.read().decode())
 assert core_preset_response.status==200 and sorted(core_preset)==['exported_at','name','schema','settings_overrides']
 assert core_preset['schema']=='lorkhan.core-profile-settings.v2' and core_preset['settings_overrides']['behavior']=={'rechat':True,'rechat_max_depth':5,'rechat_probability_percent':65,'rechat_allow_actions':True}
 assert core_preset['settings_overrides']['memory']=={'recent_turn_limit':24,'short_term_enabled':True,'mid_term_enabled':True,'long_term_enabled':True}
-assert core_preset['settings_overrides']['response']=={'max_words':60}
+assert core_preset['settings_overrides']['response']=={'max_words':60,'core_lang':'de'}
 assert core_preset['settings_overrides']['profile_evolution']=={'enabled':True,'fields':['occupation','skills'],'history_limit':20}
 assert core_preset['settings_overrides']['diary']=={'enabled':True,'automatic_enabled':True,'automatic_wait_enabled':True,'automatic_interval_seconds':10,'include_in_context':False,'latest_entry_in_context':True,'context_turn_limit':150,'prompt':'Record only witnessed events.'}
 assert not any(key in core_preset for key in ['core_profile_id','installation_id','prompt','routing','slot','default_npc','revision','npc_assignments'])
@@ -1856,6 +1858,7 @@ assert imported_form['fields']['setting_diary_enabled']=='1' and 'setting_diary_
 assert imported_form['fields']['setting_diary_automatic_enabled']=='1' and imported_form['fields']['setting_diary_automatic_wait_enabled']=='1'
 assert imported_form['fields']['setting_diary_automatic_interval_seconds']=='10'
 assert imported_form['fields']['setting_response_max_words']=='60'
+assert imported_form['fields']['setting_response_core_lang']=='de'
 assert imported_form['fields']['profile_evolution_enabled']=='1'
 assert all('value="'+field+'" checked' in body for field in ['occupation','skills'])
 assert imported_form['fields']['setting_behavior_rechat_allow_actions']=='1'
@@ -2677,7 +2680,7 @@ assert r.status==422,(r.status,body)
 # Copy-to-all is a confirmed, CSRF-protected exact-field write; stale sources cannot overwrite newer work.
 copy_body=request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
 copy_revision=int(re.search(r'data-profile-copy-revision="(\d+)"',copy_body).group(1))
-assert len(re.findall(r'data-profile-copy-setting="',copy_body))==9
+assert len(re.findall(r'data-profile-copy-setting="',copy_body))==10
 copy_path='/LorkhanServer/manage/api/v1/core-profile-copy-setting'
 copy_values={'core_profile_id':core_edit.group(1),'revision':copy_revision,'setting':'response.max_words','value':37,'confirm':'Copy to all'}
 assert json_request(copy_path,'POST',copy_values).status==401
@@ -2695,6 +2698,12 @@ r=json_request(copy_path,'POST',dict(copy_values,setting='profile_evolution.hist
 assert r.status==200 and copied_history['profiles_updated']>=1,copied_history
 copy_history_body=request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
 assert re.search(r'name="setting_profile_evolution_history_limit" value="12"',copy_history_body)
+r=json_request(copy_path,'POST',dict(copy_values,revision=copied_history['revision'],setting='response.core_lang',value='fr'),csrf)
+assert r.status==200
+language_copied=json.load(r)
+copy_language_body=request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
+assert '<option value="fr" selected>' in copy_language_body
+assert json_request(copy_path,'POST',dict(copy_values,revision=language_copied['revision'],setting='response.core_lang',value='xx'),csrf).status==422
 # STT tests use the owned fixed sample, not a TTS call, and expose only bounded results.
 # Earlier TTS checks deliberately exhaust their browser's shared speech-test budget.
 jar.clear()

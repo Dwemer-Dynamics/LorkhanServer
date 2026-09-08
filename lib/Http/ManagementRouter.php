@@ -1297,7 +1297,7 @@ final class ManagementRouter
     private function portableCoreProfileOverrides(array $overrides):array
     {
         $overrides=EffectiveSettingsResolver::validateSettingsOverrides($overrides);$diary=DiaryGenerationPolicy::defaults();
-        return (isset($overrides['profile_evolution']) ? ['profile_evolution'=>$overrides['profile_evolution']] : []) + ['response'=>['max_words'=>(int)($overrides['response']['max_words']??0)],
+        return (isset($overrides['profile_evolution']) ? ['profile_evolution'=>$overrides['profile_evolution']] : []) + ['response'=>['max_words'=>(int)($overrides['response']['max_words']??0),'core_lang'=>(string)($overrides['response']['core_lang']??'')],
             'behavior'=>['rechat'=>($overrides['behavior']['rechat']??false)===true,
             'rechat_max_depth'=>(int)($overrides['behavior']['rechat_max_depth']??2),
             'rechat_probability_percent'=>(int)($overrides['behavior']['rechat_probability_percent']??50),
@@ -2177,7 +2177,7 @@ final class ManagementRouter
         $number=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);
             if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
         $overrides=[
-            'response'=>['max_words'=>$number($values,'setting_response_max_words',0)],
+            'response'=>['max_words'=>$number($values,'setting_response_max_words',0),'core_lang'=>$values['setting_response_core_lang']??''],
             'behavior'=>['rechat'=>isset($values['setting_behavior_rechat']),
                 'rechat_max_depth'=>$number($values,'setting_behavior_rechat_max_depth',2),
                 'rechat_probability_percent'=>$number($values,'setting_behavior_rechat_probability_percent',50),
