@@ -66,7 +66,8 @@ body .diary-log-page .diary-row-actions button.btn-danger{font-weight:500;line-h
 body #adventure-tab .adventure-event-table th:first-child,.roleplay-reader .adventure-event-table th:first-child{width:55%}
 .roleplay-reader .adventure-event-table th:nth-child(2){width:20%}
 .roleplay-reader .adventure-event-table .location-change-row td{background:#34495e;color:#ecf0f1;font-weight:bold;text-align:left;padding:9px 10px}
-.roleplay-reader .adventure-event-table .log-empty{text-align:center;padding:20px}
+/* Calendar empty rows retain the reference cell height despite the generic log-empty rule. */
+.roleplay-reader .calendar-event-table .log-empty{text-align:center;padding:9px 10px!important}
 .roleplay-reader .calendar-event-scroll:focus-visible{outline:2px solid #bc9d5a;outline-offset:2px}
 
 /* Author picker derived from HerikaServer diary_adventure.css. */

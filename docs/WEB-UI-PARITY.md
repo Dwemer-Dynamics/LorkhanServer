@@ -8119,3 +8119,11 @@ Compared the actual reference Books empty branch (rendered into the live hub wit
 Measured panel heights now match exactly: 88.875px desktop and 109.75px narrow. Message widths match at 1216/326px; font is 14.4px/20.88px Futura CondensedLight. Panel position relative to the tab top matches at 41.875px at both widths. Inspected reference/native screenshots before and after. Existing Lorkhan navigation exclusions, captured-book wording and scoped filters remain. Populated-table selectors are unchanged.
 
 Evidence scripts and screenshots: `C:/Users/reece/AppData/Local/Temp/books-empty-{compare,styles,fixed,ancestors}.cjs`, `books-empty-{ref,native}-{1280,390}.png`, `books-empty-fixed-{ref,native}-{1280,390}.png`. Reference fixture HTML comes from its empty branch, not a claim that its live database is empty. Other priority-page empty states remain to be checked.
+
+## Diary and Adventure empty-date rows — 2026-09-08
+
+Compared actual hub/iframe styling at 1280x900 and 390x900. Herika's selected empty date was `2000-01-01`; native Adventure used the same read-only date filter, while native Diaries used its current PHP template with zero fixture rows. Standalone native fixture font/width were not equivalent to the hub, so acceptance uses the actual hub shell only.
+
+Both empty rows were 71.1875px high because generic `.log-empty` padding `25px!important` overrode the calendar table. Scoped `9px 10px!important` to calendar empty cells. Both now match reference height 39.1875px, table widths 1236/346px, centered text, #e0e0e0 color and 12.8px/19.2px Futura CondensedLight. Inspected narrow diary table images before/after; Adventure measurements match at both widths. No writes or audio requests were allowed. Populated rows and AI Responses selectors are unchanged.
+
+Evidence: `C:/Users/reece/AppData/Local/Temp/diary-empty-hub.cjs`, `diary-empty-hub-fixed.cjs`, `adventure-empty-compare.cjs`, `adventure-empty-compare-fixed.cjs`; screenshots `diary-empty-{hub,fixed}-{ref,native}-{1280,390}.png` and `adventure-empty[-fixed]-{ref,native}-{1280,390}.png`. Events/AI Responses empty-state refresh and the wider page matrix remain open.
