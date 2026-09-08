@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `6d974fb` (AI Responses CSV columns and quoting).
+Current deployed product checkpoint: `7334deb` (Quickstart unsaved local model test API).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -8325,8 +8325,11 @@ Raw api_key remains rejected; existing credential references are supported.
 Existing HTTP suite extended with a separate preview session and disposable LAN
 provider. Checks missing CSRF/raw-key rejection, submitted draft model actually
 used, no inherited Authorization header, invalid output gives opaque 502, and
-routing fingerprint remains identical. PHP lint and 691 checks pass. Full HTTP
-and deployment evidence will follow after completion.
+routing fingerprint remains identical. PHP lint and 691 checks pass. Full HTTP suite passed (`quickstart-draft-test-http.txt`).
+Deployed `7334deb`; rollback `/var/backups/lorkhanserver-code.gOrz0L`. All 803
+runtime hashes match with no extra/legacy paths, health/auth/private-route checks
+pass, and existing config/credential/voice content hashes were preserved. No live
+model call or game test was performed. This backend checkpoint is not visual proof.
 
 Visible Setup remains open, not accepted by this backend work. Remaining dependencies:
 complete shared built-in Global/Core effects and apply them in the Quickstart save
