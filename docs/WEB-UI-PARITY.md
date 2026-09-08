@@ -6383,3 +6383,26 @@ Rollback /var/backups/lorkhanserver-code.oxRTFR. No provider calls or game activ
 
 Still open: filter/pager placement and full diary entry interaction/remaining counterpart
 matrix. This checkpoint establishes scrolling composition, not whole-site completion.
+
+## Calendar-to-entry flow and secondary controls
+
+Moved native filters/playthrough selection, refresh/count toolbar and Diary audio-help
+disclosure below the entry reader with pagination. Calendars now lead directly into the
+reference entry-table composition without those extra blocks in between. Preserved
+form fields, GET routes, control selectors, audio dock/status elements and all handlers.
+Removed the calendar bottom margin that could not collapse through the native scroll
+wrapper; both Adventure and Diaries now have the measured reference 20px table gap.
+
+Temp/calendar-controls-proof.cjs passes both pages at 1280/390px: controls follow the
+table in DOM order, explicit-date search gives empty results, Reset clears search and
+no POSTs occur. The initial test omitted the date and correctly received Select a date;
+the final test sets a date before asserting empty filtered events. Inspected deployed
+empty-control screenshots. calendar-table-gap.cjs reports 20px for all four reference/
+native desktop cases. Current/full Adventure CSV, dates, calendar modes and viewport
+navigation regression passed after moving the controls. Audio generation/save/delete
+were not exercised. 603 existing checks pass; 799 deployed files match with passing
+private/auth/health checks, preserved config/credential/voice hashes. Rollback:
+/var/backups/lorkhanserver-code.Yo0Dmq. No game activity or live data mutation.
+
+The controls remain a secondary native extension; this does not establish full Diary
+reader/editor acceptance or close the remaining page matrix.

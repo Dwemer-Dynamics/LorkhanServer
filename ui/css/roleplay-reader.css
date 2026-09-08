@@ -83,3 +83,5 @@ body .diary-people-item:hover,body .diary-people-item.active{border-color:#bc9d5
 .calendar-reader-viewport{display:inline-block;vertical-align:baseline;width:100%;height:calc(78vh - 2px);overflow:auto;overscroll-behavior:contain;}
 .calendar-reader-viewport:focus-visible{outline:2px solid #bc9d5a;outline-offset:-2px;}
 @media(max-width:768px){.calendar-reader-viewport{height:calc(75vh - 2px);}}
+/* The native scroll wrapper prevents margin collapse; keep one reference table gap. */
+.calendar-reader-viewport .calendar{margin-bottom:0;}
