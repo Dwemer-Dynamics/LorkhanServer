@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `a3ace2d` (Core Lang selector and localized core instructions).
+Current deployed product checkpoint: `6718356` (model speech language routing and toggle).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -8892,3 +8892,53 @@ Evidence:
 
 Remaining: model-returned speech language, complete localized template coverage,
 RPG profile ownership and scene-summary boundaries. Full page parity stays active.
+
+
+## 2026-09-08 - Model speech language through streaming and durable synthesis
+
+Product `c8f7fb7`, checkbox styling `6718356`, deployed server-only. Language now
+contains Core Lang, Lang Llm Xtts and Max Words Limit in reference order. The new
+boolean defaults off for absent profiles and participates in form saves, portable
+export/import, named presets and the existing protected Copy to all operation.
+
+The frozen prompt opt-in requests a leading language field. OpenAI-compatible
+structured schema and JSON prefill follow that field order. The streaming callback
+can carry its normalized value with the first sentence, without waiting for the
+completed response. Completed results put language in internal utterance metadata;
+it never becomes dialogue/subtitle text. Metadata survives planning, inline
+narration, streamed reconciliation, queued speech and retries. Successfully
+translated audio replaces supplied model language with the translation target.
+
+SpeechLanguage applies only to XTTS/XTTS-fastapi/Chatterbox. Missing, invalid or
+unsupported metadata leaves the configured language unchanged; other connectors
+are untouched. Blank legacy jobs retain their original payload shape. No migration
+or client protocol change is needed. Model output without metadata is still usable
+when the setting is enabled; disabled mode keeps the original strict envelope.
+
+Evidence:
+- PHP lint and 719 existing-suite checks passed, including opt-in/default prompts,
+  prefix parsing, invalid metadata, connector boundaries, planning and aliases.
+- Full management HTTP suite passed (`llm-speech-language-http.txt`): toggle save,
+  reload, export/import and existing profile operations with disposable data.
+- Full integration, schema inventory (173 relations), migrations and durable job
+  suite passed (`llm-speech-language-integration.txt`). These regression checks do
+  not establish every provider-specific retry/failure combination.
+- Temporary `llm-language-probe.py`/`.php` exercised the real HTTP LLM adapter and
+  XTTS adapter against a local mock. The mock withheld the final LLM chunk until
+  receiving first-sentence TTS: stream, JSON prefill, missing/invalid metadata and
+  disabled cases all synthesized early. French metadata reached mock TTS; missing,
+  invalid and disabled cases retained German configuration. Buffered results also
+  carried French. No real credentials, paid providers or game used.
+- `speech-language-ui.cjs`: actual hub at1280 and native390; on/off, keyboard,
+  Escape/focus and mocked boolean Copy to all passed. Paired desktop Language
+  sections and native narrow/on/off captures were viewed. Checkbox dimensions,
+  transform, margins, label gap and font match the reference. Full card heights
+  and all descriptive text are not declared 1:1; narrow reference remains broken.
+- Final rollback `/var/backups/lorkhanserver-code.W2h7oy`; 805 source/runtime hashes
+  match, no extras/legacy paths. Private403, unauthorized401, health/NPC probes
+  pass; configuration, credentials and voice hashes preserved.
+
+Remaining: full translated-template/minimal-budget coverage, overall Core editor
+spacing, RPG profile ownership, scene-summary boundaries and the broader matrix.
+Live-provider multilingual quality and in-game audio are untested. Goal stays active;
+GitHub workflow stays disabled and no game was launched or controlled.
