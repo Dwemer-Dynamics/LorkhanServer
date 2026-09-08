@@ -52,11 +52,11 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
         </div>
         <p class="log-footer">Page <?= $state['page'] ?> / <?= $state['pages'] ?> · <?= $state['total'] ?> rows</p>
         <?php foreach($state['rows'] as $row): $id='log-entry-'.(int)$row['narrative_id']; ?>
-            <dialog id="<?= $id ?>" class="log-content-modal" aria-labelledby="<?= $id ?>-title">
-                <header><h2 id="<?= $id ?>-title"><?= $responses?'Prompt':lorkhan_ui_h($row['title']) ?></h2><div><button type="button" class="roleplay-button" data-log-copy>Copy</button><button type="button" class="roleplay-button" data-log-close aria-label="Close reader">✕</button></div></header>
+            <dialog id="<?= $id ?>" class="log-content-modal<?= $responses?' response-prompt-viewer':'' ?>" aria-labelledby="<?= $id ?>-title">
+                <header><h2 id="<?= $id ?>-title"><?= $responses?'📜 Prompt Viewer':lorkhan_ui_h($row['title']) ?></h2><div><button type="button" class="roleplay-button" data-log-copy><?= $responses?'📋 Copy':'Copy' ?></button><button type="button" class="roleplay-button" data-log-close aria-label="Close reader">✕</button></div></header>
                 <div class="log-modal-body" data-log-copy-text>
                     <?php if($responses): ?>
-                        <?php foreach($row['prompt_messages'] as $index=>$message): ?><section class="prompt-modal-message prompt-role-<?= lorkhan_ui_h($message['role']) ?>"><header><strong><?= lorkhan_ui_h(strtoupper($message['role'])) ?></strong><span>#<?= $index ?></span></header><div class="prompt-modal-message-body"><?= lorkhan_ui_h($message['content']) ?></div></section><?php endforeach; ?>
+                        <?php foreach($row['prompt_messages'] as $index=>$message): ?><section class="prompt-modal-message prompt-role-<?= lorkhan_ui_h($message['role']) ?>"><header class="prompt-modal-message-header"><strong class="prompt-role"><?= lorkhan_ui_h(strtoupper($message['role'])) ?></strong><span class="prompt-index">#<?= $index ?></span></header><div class="prompt-modal-message-body"><?= lorkhan_ui_h($message['content']) ?></div></section><?php endforeach; ?>
                         <?php if($row['prompt_messages']===[]): ?><p>No frozen prompt messages were recorded for this response.</p><?php endif; ?>
                     <?php else: ?><div class="log-response-text"><?= lorkhan_ui_h($row['content']) ?></div><?php endif; ?>
                 </div><p role="status" data-log-status></p>

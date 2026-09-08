@@ -5100,3 +5100,29 @@ the actual file picker, confirmation, save/reload and equality of all omitted
 settings, plus preserved name/profile ID. The updated 390px screenshot was
 visually inspected; no layout changes were required. No live profile or game
 was changed for these tests.
+
+
+### Priority AI Responses Prompt Viewer structural correction
+
+A fresh read-only live comparison against Herika exposed a remaining mismatch
+that earlier open/close checks did not prove: native boxed message cards and a
+centered 1100px reader differed from the reference inset Prompt Viewer with role
+color rails. Replaced that presentation using pinned ai-response.php structure
+and styles: 90%/1600px dialog, 3% top margin, single scrolling surface, blurred
+backdrop, MagicCards title, Copy/close toolbar, 20px inset panel, adjacent role and
+index labels, semantic role colors and 13px/1.8 prompt text. Gold action branding
+is retained; stored text remains escaped and unchanged. Styles are scoped to AI
+Responses so Books and Diary readers are unaffected.
+
+Current live 1280/390 screenshots were inspected after deploying the actual PHP
+template and CSS. Open/close and Escape passed at both widths. The new desktop
+structure was compared with the live reference screenshot, not just dimensions.
+582 unit checks and PHP lint passed. Screenshot files remain private in Temp.
+No game, provider operation or reference mutation was performed.
+
+The connector/driver/model badge row remains absent and must be wired from safe
+recorded metadata. Empty-prompt and Copy success/failure states still need a fresh
+comparison for full reader acceptance. Control Panel responses is Response Queue,
+not the Roleplay AI Responses page; these have separate counterpart rows.
+
+The full management HTTP suite passed for this Prompt Viewer checkpoint.
