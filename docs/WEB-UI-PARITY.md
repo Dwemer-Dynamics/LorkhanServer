@@ -8457,3 +8457,31 @@ files match source with no extra/legacy paths. Health/auth/private-route checks
 pass, and configuration/credential/voice contents remain preserved. Post-deploy
 Books reader checks pass at both widths. Ordering proof comes from the isolated
 HTTP dataset, not fabricated live game records. Full page parity remains active.
+
+### Adventure Log complete-day table parity (2026-09-08)
+
+Pinned Herika adventurelog.php fetches the whole selected day in localts ASC order
+without LIMIT/OFFSET and renders one contiguous table. Native imposed a generic
+20-row reader page, restarting speaker bands and location headings across pages.
+That was a divergence, not an OpenMW exception. Removed the Adventure-only row
+limit/offset and generic reader toolbar/pager; stale reader_page links normalize
+to page one and render the same complete selected day. Other tabs keep their
+existing limits. Unselected dates still show no events; installation/playthrough,
+calendar and text filters remain enforced before rendering. Downloads are unchanged.
+Very busy selected days now produce larger HTML, matching the reference behavior.
+
+Updated existing HTTP fixture assertions to expect all 24 same-day events, two real
+location headers and one continuous 22-row Caius band. Former page-two requests
+must produce the identical table with no generic toolbar or pager. Existing date,
+empty, scope-isolation, selected-day/latest-day/all-log CSV checks still pass.
+PHP lint, 691 checks and the full management HTTP suite pass (adventure-day-http.txt).
+
+Rendered the current PHP reader with a 24-row isolated fixture; compared against
+24 equivalent text rows using the reference's existing table/row structure in its
+actual hub. No production records changed. Desktop top and narrow bottom images
+were inspected. Initial narrow viewport clipped the final row; separate bounded
+adventure-last-{ref,native}-390.png captures show the complete 24th row with matching
+cell widths, wrapping and height. The first two speaker rows, location transition,
+continuous remaining rows and absence of native paging are separately covered.
+Hub origins differ with excluded reference tabs, not fabricated native entries.
+No game, provider or data writes during browser comparison.

@@ -1115,7 +1115,7 @@ assert request(book_url.replace(valid['installation_id'],str(uuid.uuid4()))).sta
 assert request('/LorkhanServer/ui/diary_book.php').status==400
 diary_export=request(diary_url+'&export=1')
 assert diary_export.headers.get('Content-Type','').startswith('text/csv') and narrative_text in diary_export.read().decode()
-# Isolated projection rows exercise chronological ordering, paging and Adventure CSV formatting.
+# Isolated rows exercise the complete selected day, chronological ordering and Adventure CSV formatting.
 adventure_scope=str(uuid.uuid4())
 adventure_sql=f"""
 INSERT INTO lorkhan_internal.playthroughs(playthrough_id,installation_id,profile_id,name,created_at)
@@ -1135,12 +1135,13 @@ subprocess.run(adventure_psql,input=adventure_sql,text=True,capture_output=True,
 adventure_url='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'adventure','installation_id':valid['installation_id'],'playthrough_id':adventure_scope,'date':'2020-12-31'})
 _,adventure_page_html=parse(request(adventure_url))
 adventure_html=re.search(r'<table class="calendar-event-table adventure-event-table".*?</table>',adventure_page_html,re.S).group(0)
-assert adventure_html.count('data-adventure-row=')==20 and adventure_html.index('Adventure fixture 01')<adventure_html.index('Adventure fixture 02')<adventure_html.index('Adventure fixture 10'),(adventure_html.count('data-adventure-row='),re.findall(r'Adventure fixture \d+',adventure_html))
+assert adventure_html.count('data-adventure-row=')==24 and adventure_html.index('Adventure fixture 01')<adventure_html.index('Adventure fixture 02')<adventure_html.index('Adventure fixture 10'),(adventure_html.count('data-adventure-row='),re.findall(r'Adventure fixture \d+',adventure_html))
 assert 'Current Location: Seyda Neen' in adventure_html and 'Location Change: Balmora, South Wall Cornerclub' in adventure_html
 assert 'speaker-even' in adventure_html and 'speaker-odd' in adventure_html and '&lt;script&gt;literal&lt;/script&gt;' in adventure_html and 'Context location: duplicate' not in adventure_html
 _,adventure_last_page=parse(request(adventure_url+'&reader_page=2'))
 adventure_last=re.search(r'<table class="calendar-event-table adventure-event-table".*?</table>',adventure_last_page,re.S).group(0)
-assert adventure_last.count('data-adventure-row=')==4 and 'Adventure fixture 21' in adventure_last and 'Adventure fixture 20' not in adventure_last
+assert adventure_last==adventure_html and 'reader-pagination' not in adventure_last_page and 'class="reader-toolbar"' not in adventure_last_page
+assert adventure_html.count('location-change-row')==2 and adventure_html.count('class="speaker-even"')==22
 adventure_csv=list(csv.DictReader(io.StringIO(request(adventure_url+'&export=1').read().decode())))
 assert len(adventure_csv)==24 and list(adventure_csv[0])==['Context','Nearby People','Location & Tamrielic Time','Time(UTC)']
 assert 'fixture 01' in adventure_csv[0]['Context'] and 'fixture 24' in adventure_csv[-1]['Context'] and adventure_csv[0]['Nearby People']=='Fargoth, Caius'

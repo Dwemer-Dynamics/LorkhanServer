@@ -107,7 +107,7 @@ function lorkhan_roleplay_reader_state(PDO $database, array $installationOptions
         }
     }
     $statement = $database->prepare('SELECT count(*)'.$from.' WHERE '.$where); $statement->execute($params);
-    $state['total'] = (int) $statement->fetchColumn(); $pageSize = match($tab) { 'responselog'=>50, 'books','journal'=>150, default=>20 }; $state['pages'] = max(1, (int) ceil($state['total'] / $pageSize));
+    $state['total'] = (int) $statement->fetchColumn(); $pageSize = match($tab) { 'responselog'=>50, 'books','journal'=>150, default=>20 }; $state['pages'] = $tab === 'adventure' ? 1 : max(1, (int) ceil($state['total'] / $pageSize));
     $state['page'] = max(1, min($state['pages'], (int) ($_GET['reader_page'] ?? 1)));
     $extra = match ($tab) { 'responselog' => ',n.turn_id,n.request_id,n.prompt_messages,n.input_kind,n.input_text,n.turn_seconds,n.prompt_label,n.prompt_driver,n.prompt_model', 'adventure' => ',n.location,n.gamets,n.calendar_data', 'diaries' => ',n.calendar_data', 'books','journal' => ',n.calendar_data,n.ts', default => '' };
     $orderBy = match ($tab) {
@@ -115,9 +115,9 @@ function lorkhan_roleplay_reader_state(PDO $database, array $installationOptions
         'books' => 'n.gamets DESC,n.narrative_id::bigint DESC',
         default => 'n.created_at DESC,n.narrative_id',
     };
-    $statement = $database->prepare('SELECT n.narrative_id,n.kind,n.title,n.content,n.created_at,n.person'.$extra.$from.' WHERE '.$where.' ORDER BY '.$orderBy.($export ? '' : ' LIMIT '.$pageSize.' OFFSET :offset'));
+    $statement = $database->prepare('SELECT n.narrative_id,n.kind,n.title,n.content,n.created_at,n.person'.$extra.$from.' WHERE '.$where.' ORDER BY '.$orderBy.($export || $tab === 'adventure' ? '' : ' LIMIT '.$pageSize.' OFFSET :offset'));
     foreach ($params as $key => $value) $statement->bindValue(':'.$key, $value, PDO::PARAM_STR);
-    if (!$export) $statement->bindValue(':offset', ($state['page'] - 1) * $pageSize, PDO::PARAM_INT);
+    if (!$export && $tab !== 'adventure') $statement->bindValue(':offset', ($state['page'] - 1) * $pageSize, PDO::PARAM_INT);
     $statement->execute();
     $topics = null;
     if ($tab === 'responselog') {
@@ -235,8 +235,10 @@ function lorkhan_roleplay_reader(array $state, array $installationOptions, strin
             <button class="roleplay-button" type="submit">Filter</button><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['person' => '', 'date' => '', 'game_date'=>'', 'q' => '', 'reader_page' => 1])) ?>">Reset</a>
         </form>
         <?php if($calendar): ?></details><?php endif; ?>
+        <?php if($tab !== 'adventure'): ?>
         <div class="reader-toolbar"><span><?= $state['total'] ?> entries · Page <?= $state['page'] ?> of <?= $state['pages'] ?></span><div><button class="roleplay-button" type="button" data-reader-refresh>Refresh</button><button class="roleplay-button" type="button" data-reader-stop hidden>Stop Reading</button></div></div>
         <nav class="reader-pagination" aria-label="Entry pages"><?php if ($state['page'] > 1): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page' => 1])) ?>">First</a><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page' => $state['page'] - 1])) ?>">Previous</a><?php endif; ?><span><?= $state['page'] ?> / <?= $state['pages'] ?></span><?php if ($state['page'] < $state['pages']): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page' => $state['page'] + 1])) ?>">Next</a><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page' => $state['pages']])) ?>">Last</a><?php endif; ?></nav>
+        <?php endif; ?>
     </div>
     <?php
 }
