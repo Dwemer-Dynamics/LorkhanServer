@@ -184,8 +184,9 @@ body .calendar-log-page:not(.diary-log-page) .calendar-downloads :is(a,button){m
 }
 
 /* Match the AI Responses outer table and pager geometry without changing book readers. */
-.roleplay-log-page:not(.book-log-page) .log-table-container{margin:20px 0;background:#232323}
+.roleplay-log-page:not(.book-log-page) .log-table-container{margin:20px 0;background:#232323;min-height:0}
 .roleplay-log-page:not(.book-log-page) .log-pagination{margin:12px 0 10px;gap:10px;font-size:15px;line-height:1.5}
 .roleplay-log-page:not(.book-log-page) .log-pagination nav{gap:10px;font-size:15px;line-height:1.5;color:#9ca3af}
 .roleplay-log-page:not(.book-log-page) .log-page-actions{gap:10px}
 .roleplay-log-page:not(.book-log-page) .log-bottom-pagination{margin:12px 0;font-size:15px;line-height:1.5}
+.roleplay-log-page:not(.book-log-page) .ai-response-table .log-empty{text-align:left;padding:9px 10px!important}

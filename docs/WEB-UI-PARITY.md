@@ -5915,3 +5915,24 @@ checks do not establish empty-state or entire embedded-hub acceptance.
 old paths; protected-route and health checks passed. Configuration, credentials
 and voices were preserved. Rollback: /var/backups/lorkhanserver-code.RDy2Ud.
 No provider calls, reference mutations or game control. Full matrix remains active.
+
+### AI Responses empty-table acceptance
+
+Read-only live probes use an out-of-range reference page and a native unmatched
+search, without deleting records. Both return the actual rendered empty table.
+The comparison exposed a 160px minimum and generic centered 25px cell padding in
+Lorkhan. Response-only rules now use natural table height and left-aligned 9px/10px
+cell padding. Both desktop empty panels measure 104.375px and use identical cell
+font metrics. Lorkhan retains its explicit scoped-filter empty message.
+
+Temp/response-empty-proof.cjs checks a single empty row and zero POST requests and
+captures 1280/390 screenshots; those screenshots were inspected. Populated banner
+and Prompt Viewer checks were rerun successfully. 590 server checks passed during
+this CSS-only pass; diff and final deployment verification passed. Runtime files:
+799 matching, no extras or old paths; configuration, credentials and voices kept.
+Rollback: /var/backups/lorkhanserver-code.KhTu6N.
+
+AI Responses is the Roleplay responselog tab. Control Panel responses embeds the
+separate Response Queue page; its evidence must not be substituted for this log.
+This empty-state checkpoint does not close the complete page matrix or assert
+new embedded-tab interaction proof. No game or live provider interaction occurred.
