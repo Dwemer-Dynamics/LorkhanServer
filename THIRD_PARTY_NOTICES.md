@@ -369,3 +369,5 @@ Quickstart MiniMe card hierarchy, status styling and reachability-result wording
 Local LLM address classification derives from HerikaServer `lib/core/local_llm_setup.php` at the pinned reference revision. Native transport makes this an explicit saved connector service, rejects metadata/link-local/public destinations, pins localhost, disables proxy resolution and preserves TLS verification and existing public-provider policy.
 
 Quickstart Local LLM server choices, defaults and connector options derive from the pinned HerikaServer `lib/core/local_llm_setup.php`. Lorkhan uses an installation-scoped ownership association and revisioned connector records; normalization accepts private credential references only, not secret values.
+
+The shared Core Profile preset field values for Default, Local LLM, Follower and Passive derive from HerikaServer `lib/core/settings_presets.php` at pinned revision `529364c4c12b3a8bd4cc12a481f400ce19b3a344`. Native application preserves prompts, connector bindings and selected evolution fields. This mapping is not the full installation-wide Quickstart preset.

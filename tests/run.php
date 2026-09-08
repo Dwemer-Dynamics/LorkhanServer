@@ -822,6 +822,27 @@ foreach([array_replace($corePreset,['prompt'=>'forbidden']),
     try{\LorkhanServer\Application\CoreProfilePreset::validate($invalidCorePreset);$check(false,'nonportable Core preset rejected');}
     catch(InvalidArgumentException){$check(true,'nonportable Core preset rejected');}
 }
+foreach(['builtin:default'=>[75,100,50,0,2,50,true,false],
+    'builtin:local_llm'=>[20,20,20,60,1,50,false,false],
+    'builtin:follower'=>[100,150,100,0,4,60,true,true],
+    'builtin:passive'=>[75,100,50,0,1,10,false,false]] as $builtin=>$expected){
+    $applied=\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn($builtin,$corePresetSource);
+    $settings=$applied['settings_overrides'];
+    $check([$settings['memory']['recent_turn_limit'],$settings['diary']['context_turn_limit'],
+        $settings['profile_evolution']['history_limit'],$settings['response']['max_words'],
+        $settings['behavior']['rechat_max_depth'],$settings['behavior']['rechat_probability_percent'],
+        $settings['behavior']['rechat_allow_actions'],$settings['profile_evolution']['enabled']]===$expected
+        &&$settings['memory']['mid_term_enabled']===$expected[7]
+        &&$settings['diary']['automatic_enabled']===$expected[7]
+        &&$settings['diary']['automatic_wait_enabled']===$expected[7]
+        &&$settings['diary']['latest_entry_in_context']===$expected[7],$builtin.' shared profile values match reference');
+    $check($applied['prompt']===$corePresetSource['prompt']
+        &&$applied['routing']['llm_configuration_id']===$corePresetSource['routing']['llm_configuration_id']
+        &&$settings['profile_evolution']['fields']===$corePresetSource['settings_overrides']['profile_evolution']['fields']
+        &&$applied['routing']['llm_randomizer_enabled']===false,$builtin.' preserves prompt, connector and evolution field ownership');
+}
+try{\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn('builtin:unknown',$corePresetSource);$check(false,'unknown builtin rejected');}
+catch(InvalidArgumentException){$check(true,'unknown builtin rejected');}
 $evolutionResolved=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['profile_evolution'=>$evolutionDefaults]],[]);
 $check(EffectiveSettingsResolver::validateSettingsOverrides(['profile_evolution'=>$evolutionDefaults])['profile_evolution']===$evolutionDefaults
     &&!isset($evolutionResolved['settings']['profile_evolution'])
