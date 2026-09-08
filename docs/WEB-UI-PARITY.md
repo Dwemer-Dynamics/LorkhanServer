@@ -16,14 +16,14 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `074ad9c` (API Keys content-only shell).
+Current deployed product checkpoint: `6d974fb` (AI Responses CSV columns and quoting).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
 | Surface | Current comparison evidence | Still separate |
 | --- | --- | --- |
 | Events | Initial/live Record controls match; duplicate bottom pager removed to match the reference; empty-to-live reconstruction, page change and stopped refresh checked | Remaining whole-table/filter/editor acceptance |
-| AI Responses | Populated and empty table geometry compared at 1280/390; refreshed empty cells match 38.6875px height and 9px/10px padding | Multirole and empty reader geometry, copy/failure/close and escaped-text wrapping verified; remaining cleanup/export edge states |
+| AI Responses | Populated and empty table geometry compared at 1280/390; refreshed empty cells match 38.6875px height and 9px/10px padding | Multirole and empty reader geometry, copy/failure/close and escaped-text wrapping verified; cleanup cancel/failure/reload and populated/empty CSV verified; large multi-page export fixture remains |
 | Adventure Log | Actual hub populated columns match; empty-date cells now use reference padding and 39.1875px height | Remaining calendar/filter/export combinations |
 | Diaries | Actual hub populated columns match; empty-date row padding corrected; reader whitespace and editor geometry compared at both widths | Provider audio acceptance and remaining reader/cache cases |
 | Books | Populated typography and columns compared; missing empty-result panel restored and checked at both widths | Full reader/filter combinations and observed-book runtime capture |
@@ -119,7 +119,7 @@ do not use an exception to excuse a generic substitute layout.
 | `oghma_knowledge.php` | `npc_upload.php` Oghma knowledge reader | Replaced article cards with the reference Topic/Knowledge Level/Description table, metadata chips and filter controls. Populated/empty and narrow states compared; permitted-description search, paging, scope rejection and hidden-text exclusion tested. Existing standalone navigation and access diagnostics retained. |
 | `events-memories.php` | Same path | Events note, striped table, record heading, pagination/filter layout and recorded calendar dates corrected; populated live view and AJAX pagination verified |
 | Roleplay `memory` tab | Herika Memories | Summary-only table, status/settings strip, scoped sync/delete, Tamrielic dates and compact editor implemented; 67 populated live summaries, empty fixture, Cancel/focus and narrow advanced tools checked |
-| Roleplay `responselog` tab | Herika AI Responses | Whole-turn log, prompt dialog, topics, scoped export and protected clean-log workflow implemented; populated live table, multirole/empty prompt reader, clipboard success/refusal, Escape/focus and actual-template escaped-text wrapping checked; cleanup/export edge acceptance remains open |
+| Roleplay `responselog` tab | Herika AI Responses | Whole-turn log, prompt dialog, topics, scoped export and protected clean-log workflow implemented; populated live table, multirole/empty prompt reader, clipboard success/refusal, Escape/focus and actual-template escaped-text wrapping checked; cleanup cancel/failure/reload and 49-row/empty CSV verified; large multi-page export fixture remains |
 | Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, export and bulk delete retained. Full-content rows now use separate Play/Edit/Delete actions; dedicated content editor and paper reader replace combined Read/Edit. Desktop/narrow populated/empty and reader controls compared. Author-voice playback and private entry caching are implemented and mock-tested; live-provider and remaining cache invalidation acceptance remain open. |
 | Roleplay `books` tab | Herika Books | Full-content striped table, game/UTC/TS columns and content dialog implemented; populated long/short fixtures, escaped content reader, filtered empty panel, desktop/narrow and computed neutral header typography compared; shared-theme overrides and forced minimum width removed |
 | `diary_book.php` | Same path | Printable chronological parchment book and author-list link implemented; scoped IDs, escaped text, desktop/narrow populated comparisons and print/PDF checks passed (see Diary authors and printable book checkpoint) |
@@ -8258,3 +8258,21 @@ cancel made zero requests; failures restored the control; payload retained scope
 confirmation and CSRF. Narrow error screenshot inspected. Production logs were not
 deleted. Herika's destructive GET is not copied; native confirmed authenticated
 POST and preservation of source/history/active responses remain required.
+
+Export deployment evidence: full HTTP suite passed (`response-export-http.txt`),
+then `2451789` was pushed/deployed. The real populated-download probe caught a gap
+not covered by that suite: default PHP backslash escaping made prompt JSON cells
+invalid after CSV parsing. Corrected response-only fputcsv to standard quote
+doubling with an empty escape character in `6d974fb`. Other tab writers unchanged.
+PHP lint and 691 checks passed again after that correction. The full HTTP pass
+predates the quoting follow-up; do not attribute a second full-suite pass to it.
+
+Deployed final `6d974fb`, rollback `/var/backups/lorkhanserver-code.b67ig0`.
+`response-export-deployed.py` now parses all 49 populated rows and a header-only
+no-match result, verifies the six columns and allowlisted prompt/connector/message
+keys, and prints counts only. Private exported text was not written to artifacts
+or tool output. All 803 runtime hashes match; no extras/legacy paths; private403,
+unauthenticated401 and health checks pass. Existing config, credentials and voice
+content hashes preserved. No actual cleanup was performed. Large multi-page CSV
+coverage remains separate; the source query intentionally omits pagination for
+export but a 49-row runtime probe does not prove a larger fixture. Goal active.
