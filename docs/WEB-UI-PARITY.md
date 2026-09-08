@@ -7703,3 +7703,17 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
   real empty server-rendered page. This is a test/evidence-only checkpoint; runtime
   code remains the previously deployed 48d681c. Reverified all 800 runtime hashes
   and private/authentication probes. Full Events/page-matrix acceptance stays open.
+
+### Events same-type filter retry
+
+- Reset the Hide action picker after each attempted filter update. After a failed
+  request, selecting the same type now triggers a retry directly; the old state
+  required manually selecting the placeholder first. Existing rows/error feedback
+  remain until the next successful refresh. No automatic mutation retries added.
+- Updated the browser recovery probe to assert the placeholder reset and retry the
+  same type immediately at 1280/390. Hide/unhide, failure preservation and recovery
+  pass with four mocked requests per viewport and zero unmocked writes. This closes
+  the retry issue recorded above; Record icon geometry and full matrix remain open.
+- JavaScript syntax, 615 server checks and all 800 runtime hashes/private/auth probes
+  pass. Deployment preserved configuration, credentials and voices. Rollback:
+  lorkhanserver-code.E9gaCS.

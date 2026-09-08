@@ -313,6 +313,9 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       status.textContent = `Event filter update failed: ${error.message}`;
       status.className = 'eventlog-status error';
+    } finally {
+      // Reset the action picker so the same type can be chosen again after a failed request.
+      hideSelect.value = '';
     }
   };
 
