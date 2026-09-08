@@ -11,10 +11,7 @@ $fieldOrder = [
     'whisper'=>['language','option__translate'], 'azure'=>['language','option__profanity'],
     'deepgram'=>['language','model'], 'gemini'=>['language','model'], 'inworld'=>['model','language'],
 ];
-$badgeLabels = ['LORKHAN_TTS_OPENAI_API_KEY'=>'OpenAI speech key','LORKHAN_TTS_DEEPGRAM_API_KEY'=>'Deepgram',
-    'LORKHAN_TTS_AZURE_API_KEY'=>'Azure','LORKHAN_STT_GEMINI_API_KEY'=>'Gemini STT',
-    'LORKHAN_TTS_INWORLD_API_KEY'=>'Inworld','LORKHAN_TTS_GCP_API_KEY'=>'Google',
-    'LORKHAN_LLM_API_KEY'=>'Default LLM key (OpenRouter)','LORKHAN_STT_API_KEY'=>'Default STT key'];
+$badgeLabels = \LorkhanServer\Application\CredentialStore::badgeLabels();
 $badgeChoices = $credentialStatuses;
 foreach ($badgeChoices as $variable=>&$status) $status['label']=$status['label']??$badgeLabels[$variable] ?? ucwords(strtolower(str_replace('_',' ',preg_replace('/^LORKHAN_|_API_KEY$/','',$variable))));
 unset($status);

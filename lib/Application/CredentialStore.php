@@ -37,13 +37,33 @@ final class CredentialStore
     /** Return status metadata only; secret values never leave this class. */
     public function statuses(): array
     {
-        $stored=$this->read();$rows=[];$labels=(new self($this->path.'.labels.json'))->read();
+        $stored=$this->read();$rows=[];$labels=(new self($this->path.'.labels.json'))->read();$badgeLabels=self::badgeLabels();
         foreach(array_unique(array_merge(self::allowedVariables(),array_keys($stored)))as$variable){$environment=getenv($variable);
             $source=is_string($environment)&&$environment!==''?'environment':(isset($stored[$variable])?'managed store':'not configured');
-            $row=['variable'=>$variable,'configured'=>$source!=='not configured','source'=>$source];
+            $row=['variable'=>$variable,'configured'=>$source!=='not configured','source'=>$source,
+                'label'=>$badgeLabels[$variable]??ucwords(strtolower(str_replace('_',' ',preg_replace('/^LORKHAN_|_API_KEY$/','',$variable))))];
             if(str_starts_with($variable,'LORKHAN_CUSTOM_')&&isset($labels[$variable]))$row['label']=$labels[$variable];
             $rows[]=$row;}
         return$rows;
+    }
+
+    /** Share provider spelling and distinguish existing independent keys across every badge picker. */
+    public static function badgeLabels(): array
+    {
+        $labels=[];
+        foreach(['tts_provider','stt_provider'] as $kind)foreach(ConnectorCatalog::all($kind) as $definition){
+            if($definition['credential_environment']!=='')$labels[$definition['credential_environment']]=$definition['label'];
+        }
+        return array_replace($labels,[
+            'LORKHAN_LLM_API_KEY'=>'Default LLM key (OpenRouter)',
+            'LORKHAN_TTS_API_KEY'=>'Default TTS key','LORKHAN_STT_API_KEY'=>'Default STT key',
+            'LORKHAN_LLM_OPENAI_API_KEY'=>'OpenAI LLM key','LORKHAN_LLM_OPENROUTER_API_KEY'=>'OpenRouter LLM key',
+            'LORKHAN_LLM_CUSTOM_API_KEY'=>'Custom LLM key','LORKHAN_LLM_GROQ_API_KEY'=>'Groq',
+            'LORKHAN_LLM_NANOGPT_API_KEY'=>'Nano-GPT','LORKHAN_LLM_GOOGLE_API_KEY'=>'Google LLM',
+            'LORKHAN_TTS_OPENAI_API_KEY'=>'OpenAI speech key','LORKHAN_TTS_GCP_API_KEY'=>'Google',
+            'LORKHAN_STT_GEMINI_API_KEY'=>'Google Gemini STT','LORKHAN_TTS_AZURE_API_KEY'=>'Azure',
+            'LORKHAN_DEEPL_API_KEY'=>'DeepL',
+        ]);
     }
 
     /** Store one credential atomically without returning or logging it. */

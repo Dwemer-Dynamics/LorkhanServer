@@ -43,11 +43,7 @@ foreach (ConnectorCatalog::all('tts_provider') as $definition) {
 $drivers = array_replace($drivers, ['mimic3'=>'Mimic3','azure'=>'Azure','koboldcpp'=>'KoboldCPP','zonos_gradio'=>'Zonos']);
 
 // Only labels, references and configured/missing status reach the editor, never key values.
-$badgeLabels = ['LORKHAN_TTS_API_KEY'=>'Default TTS key', 'LORKHAN_STT_API_KEY'=>'Default STT key',
-    'LORKHAN_LLM_API_KEY'=>'Default LLM key (OpenRouter)', 'LORKHAN_TTS_OPENAI_API_KEY'=>'OpenAI',
-    'LORKHAN_TTS_ELEVENLABS_API_KEY'=>'ElevenLabs', 'LORKHAN_TTS_AZURE_API_KEY'=>'Azure',
-    'LORKHAN_TTS_CARTESIA_API_KEY'=>'Cartesia', 'LORKHAN_TTS_DEEPGRAM_API_KEY'=>'Deepgram',
-    'LORKHAN_TTS_GCP_API_KEY'=>'Google Cloud', 'LORKHAN_TTS_INWORLD_API_KEY'=>'Inworld'];
+$badgeLabels = \LorkhanServer\Application\CredentialStore::badgeLabels();
 $badgeChoices = [];
 foreach ((new CredentialStore((string)$config['credential_storage_path']))->statuses() as $status) {
     $variable = $status['variable'];

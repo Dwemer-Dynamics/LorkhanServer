@@ -151,6 +151,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     <?php foreach ($providers as $slug => [$label, $link, $variable, $uses, $featureId]):
                         $status = $variable !== null ? ($statuses[$variable] ?? ['configured' => false, 'source' => 'not configured']) : ['configured' => false, 'source' => 'not configured'];
                         $configured = (bool) $status['configured'];
+                        $label = $status['label'] ?? $label;
                         $environment = $status['source'] === 'environment';
                         $available = $variable !== null && !$environment;
                         $placeholder = $configured ? 'Configured - enter replacement' : 'Paste API key';

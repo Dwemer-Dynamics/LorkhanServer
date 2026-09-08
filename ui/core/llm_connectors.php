@@ -71,6 +71,8 @@ $llmCredentials = [
 $llmKeyStatuses = [];
 foreach ((new \LorkhanServer\Application\CredentialStore((string)$config['credential_storage_path']))->statuses() as $status) {
     $llmKeyStatuses[$status['variable']] = (bool)$status['configured'];
+    $existingReference=array_search($status['variable'],\LorkhanServer\Application\LlmConnector::CREDENTIALS,true);
+    if($existingReference!==false)$llmCredentials[$existingReference]=$status['label'];
     if(preg_match('/^LORKHAN_CUSTOM_(.+)_API_KEY$/D',$status['variable'],$match)===1)
         $llmCredentials['custom:'.$match[1]]=$status['label']??$match[1];
     elseif(!in_array($status['variable'],\LorkhanServer\Application\LlmConnector::CREDENTIALS,true))

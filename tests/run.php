@@ -1432,6 +1432,11 @@ $check($credentialStore->resolve('LORKHAN_TTS_GCP_API_KEY')===''&&(fileperms($cr
 $customLabelKey='LORKHAN_CUSTOM_LABEL_TEST_API_KEY';$credentialStore->set($customLabelKey,'hidden-custom-key');
 $credentialStore->setLabel($customLabelKey,'My Voice Service');
 $labelStatuses=$credentialStore->statuses();
+$badgeStatusMap=array_column($labelStatuses,null,'variable');
+$check($badgeStatusMap['LORKHAN_TTS_OPENAI_API_KEY']['label']==='OpenAI speech key'
+    &&$badgeStatusMap['LORKHAN_LLM_OPENAI_API_KEY']['label']==='OpenAI LLM key'
+    &&$badgeStatusMap['LORKHAN_STT_GEMINI_API_KEY']['label']==='Google Gemini STT',
+    'global badge labels retain provider spelling and distinguish separate saved keys');
 $labelRow=array_values(array_filter($labelStatuses,static fn(array $row):bool=>$row['variable']===$customLabelKey))[0];
 $check($labelRow['label']==='My Voice Service'&&$credentialStore->resolve($customLabelKey)==='hidden-custom-key'
     &&!str_contains(json_encode($labelStatuses),'hidden-custom-key'),'display label preserves the stable key and secret redaction');

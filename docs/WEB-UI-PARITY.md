@@ -6025,3 +6025,26 @@ Runtime verification: 799 matching files; no extras or old paths. Private route 
 health checks passed; credentials, configuration and voice file hashes preserved.
 Rollback: /var/backups/lorkhanserver-code.L2dDKD. No real provider request or game
 interaction. Full page matrix and provider-badge consolidation remain active.
+
+### Consistent global API badge labels
+
+CredentialStore status metadata now provides shared display names derived from
+provider definitions plus explicit labels for independent LLM/speech/runtime keys.
+API Keys, LLM, TTS and STT use that catalogue. Removed duplicated TTS/STT label maps.
+OpenAI speech key no longer appears as Tts Openai in LLM. Separate saved credentials
+remain distinguishable; explicit custom labels and existing references are kept.
+No credential values are exposed, copied, renamed or reassigned by this change.
+
+The first management HTTP run caught a fallback-name regression for an unnamed
+custom key. Restored the established readable fallback and reran the suite, which
+passed. 597 server checks passed, including provider spelling, distinct keys and
+existing custom-label secrecy checks. Temp/global-badge-label-proof.cjs confirms
+matching OpenAI LLM/speech and Google Gemini STT names across all four deployed
+pages and blank password inputs. Temp/llm-global-badge-proof.cjs passed draft/tab,
+intercepted Save-failure and focus checks; desktop/narrow captures were inspected.
+No live POST or provider request was made by those browser probes.
+
+Deployment verified 799 matching files, no extras or old paths, protected routes
+and health. Existing configuration, credentials and voice hashes were preserved.
+Rollback: /var/backups/lorkhanserver-code.RfYfSN. Provider-card consolidation and
+remaining page acceptance remain open; this does not complete the full goal.
