@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `a520f3a` (TTS connector action-row geometry).
+Current deployed product checkpoint: `3597af6` (Books game-time ordering).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -26,7 +26,7 @@ only the listed states, not completion of every page or feature.
 | AI Responses | Populated and empty table geometry compared at 1280/390; refreshed empty cells match 38.6875px height and 9px/10px padding | Multirole and empty reader geometry, copy/failure/close and escaped-text wrapping verified; cleanup cancel/failure/reload and populated/empty CSV verified; 61-row multi-page export and exact escaped-prompt round trip verified |
 | Adventure Log | Actual hub populated columns match; empty-date cells now use reference padding and 39.1875px height | Remaining calendar/filter/export combinations |
 | Diaries | Actual hub populated columns match; empty-date row padding corrected; reader whitespace and editor geometry compared at both widths | Provider audio acceptance and remaining reader/cache cases |
-| Books | Populated typography and columns compared; missing empty-result panel restored and checked at both widths | Full reader/filter combinations and observed-book runtime capture |
+| Books | Populated typography and columns compared; missing empty-result panel restored and checked at both widths | Game-time/numeric ordering, 150/1 pagination, filtered/empty results and full export checked with 151 isolated rows; observed-book runtime capture remains unverified |
 | API Keys | Standalone and actual hub preset geometry compared at 1280/390; Custom Keys empty/live and matched draft states inspected; failed-save and pending-save draft retention rechecked with mocks | Content-only shell corrected and deployed; live-provider acceptance remains untested |
 
 The reference's extra excluded navigation entries change wrapping and page origins.
@@ -8450,3 +8450,10 @@ proof of live observed-book capture. No game or provider calls were made.
 Full management HTTP suite passed on the second run (books-order-http-2.txt),
 including the new 151-book ordering/filter/export checks. The prior diary mock
 failure remains documented, not claimed fixed.
+
+
+Deployed 3597af6; rollback /var/backups/lorkhanserver-code.Yn3Fhc. All 803 runtime
+files match source with no extra/legacy paths. Health/auth/private-route checks
+pass, and configuration/credential/voice contents remain preserved. Post-deploy
+Books reader checks pass at both widths. Ordering proof comes from the isolated
+HTTP dataset, not fabricated live game records. Full page parity remains active.
