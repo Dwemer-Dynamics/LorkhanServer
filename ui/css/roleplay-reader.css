@@ -91,3 +91,5 @@ body .diary-people-item:hover,body .diary-people-item.active{border-color:#bc9d5
 .roleplay-reader .diary-editor-modal .button-group{display:flex;gap:10px;margin:15px 0;}
 .roleplay-reader .diary-editor-modal .button-group button{font-weight:500;line-height:1.2;letter-spacing:.3px;}
 .roleplay-reader .diary-editor-modal textarea{padding:7px 10px;}
+/* The shared accent border and focus shadow already provide the reference focus cue. */
+.roleplay-reader .diary-editor-modal textarea:focus-visible{outline:none;}

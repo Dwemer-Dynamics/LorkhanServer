@@ -6430,3 +6430,22 @@ composition); do not infer completion from those metrics alone.
 603 existing checks pass. Deployment has 799 matching files, private/auth/health checks
 pass, and configuration/credential/voice hashes are preserved. Rollback:
 /var/backups/lorkhanserver-code.i8722o. No game activity. Remaining matrix stays open.
+
+## Diary editor focus cue and unresolved heading paint
+
+Removed the extra 2px solid/offset textarea focus outline: the shared gold border and
+2px translucent shadow already match the reference focus treatment (orange there).
+Keyboard focus remains visibly indicated; other controls retain their outlines.
+603 server checks pass; empty required-field validation, intercepted 422 retaining
+unsaved content, and Cancel pass at 1280/390 with no real saves. Inspected the narrow
+failure screenshot. Deployment has 799 matching files and passing private/auth/health
+checks; config, credentials and voices preserved. Rollback: /var/backups/lorkhanserver-code.djQRgC.
+
+Heading painting is NOT resolved. Synthetic diary content inside the actual page
+sometimes leaves Edit Entry unpainted despite correct computed visibility/geometry.
+Positioned heading and transform-free centering previews initially appeared to fix
+it, but fresh deployed screenshots did not reproduce that reliably. Those speculative
+changes were discarded. Both dynamic subtree replacement and a browser-served full
+page fixture were examined; neither proves the cause. Next investigation must isolate
+an initial server-rendered populated page from fixture/Chromium painting effects.
+No whole-modal acceptance, live data edits, provider requests or game activity claimed.
