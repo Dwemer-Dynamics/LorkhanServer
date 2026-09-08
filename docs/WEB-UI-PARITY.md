@@ -8628,3 +8628,28 @@ local sample grid. Standard API refresh acceptance uses an isolated current-temp
 fixture and mock POST, not a changed live connector. Final PHP lint and 692 checks
 pass; full HTTP preceded the final batch-description-only wording change.
 No game launched or controlled. Full parity goal remains active.
+
+### Events deletion controls and remaining-state review (2026-09-08)
+
+Refreshed Events identical-data control/table metrics at 1280/390; all measured
+font, padding and column metrics match. Inspected paired narrow identical-data
+screens and desktop populated-row screens preserving the actual headers/actions.
+Different record-ID lengths naturally change the Record column width. Excluded
+navigation, Morrowind Journal, gold branding and native playthrough scope remain.
+Reference Events has no inline event editor to copy; its Record action is deletion.
+
+Aligned the selected-delete icon and count-bearing confirmation with Herika, and
+restored its full AI-context/irreversibility warning on Delete All. Native scoped,
+CSRF-protected DELETE remains; no destructive reference GET was copied. Empty
+selection is ignored. Existing event storage/deletion semantics are unchanged.
+
+Fresh isolated browser checks (events-delete-acceptance.cjs) at both widths verify
+selected cancel/failure/success, retained checked rows on failure, single-row
+removal, Delete All cancel/wrong/exact confirmation, latest-five payload and empty
+refresh. Every delete was mocked; CSRF/scope were checked without logging values.
+No live events changed. Hide/unhide, failed-filter retry, empty-to-live reconstruction,
+escaped text and stopping the live indicator also passed using existing scripts.
+The selected button already matches font/padding/margin and 36px height; its missing
+icon accounted for the remaining visible label difference. Paired deployed icon
+verification follows. No new test files committed. JS syntax, PHP lint, 692 checks
+and full management HTTP pass (events-delete-http.txt). Full page goal stays active.

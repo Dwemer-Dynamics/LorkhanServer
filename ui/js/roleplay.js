@@ -342,11 +342,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   liveButton.addEventListener('click', () => setLive(!state.live));
-  selectedButton.addEventListener('click', () => mutate({ mode: 'selected', rowids: selectedRows() }, 'Delete the selected events from AI context?'));
+  selectedButton.addEventListener('click', () => {
+    const rowids = selectedRows();
+    if (!rowids.length) return;
+    mutate({ mode: 'selected', rowids }, `Are you sure you want to delete ${rowids.length} selected event(s)?`);
+  });
   app.querySelector('[data-eventlog-delete]').addEventListener('click', () => {
     const preset = app.querySelector('[data-eventlog-delete-preset]').value;
     if (preset === 'all') {
-      const confirmation = window.prompt('THIS WILL DELETE ALL EVENTS IN THE EVENT LOG!\n\nType exactly: Delete');
+      const confirmation = window.prompt('THIS WILL DELETE ALL EVENTS IN THE EVENT LOG!\n\nEvents are used for AI context. This action cannot be undone.\n\nTo confirm this dangerous operation, please type exactly: Delete');
       if (confirmation === 'Delete') mutate({ mode: 'all', confirmation: 'Delete' });
       else if (confirmation !== null) window.alert('Operation cancelled. You must type exactly "Delete" to confirm.');
       return;
