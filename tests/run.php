@@ -358,7 +358,7 @@ putenv('LORKHAN_TEST_RUNTIME_API_KEY=runtime-fixture-key');putenv('LORKHAN_CUSTO
 try {
     $keyConfig=['provider'=>['driver'=>'openai-compatible','endpoint'=>'http://127.0.0.1:9/v1/chat/completions',
         'allowed_hosts'=>['127.0.0.1'],'allow_loopback_http'=>true,'model'=>'runtime-model','api_key_env'=>'LORKHAN_TEST_RUNTIME_API_KEY']];
-    foreach ([null=>'runtime-fixture-key','none'=>'','custom:PARITY_FIXTURE'=>'selected-fixture-key'] as $reference=>$expectedKey) {
+    foreach ([null=>'runtime-fixture-key','none'=>'','custom:PARITY_FIXTURE'=>'selected-fixture-key','badge:LORKHAN_CUSTOM_PARITY_FIXTURE_API_KEY'=>'selected-fixture-key'] as $reference=>$expectedKey) {
         $keyContent=['driver'=>'configured','model'=>'selected-model'];if($reference!=='')$keyContent['credential']=$reference;
         $keySlot=array_replace($directSlot,['content'=>LlmConnector::validate($keyContent)]);
         foreach (['dialogueForSlot','profileGenerationForSlot','oghmaTopicExtractorForSlot'] as $factory) {
@@ -367,7 +367,9 @@ try {
                 $factory.' respects inherited, explicit None and selected configured credentials');
         }
     }
-    foreach (['UNRELATED_SECRET',42] as $badReference) {
+    $check(LlmConnector::credentialVariable('badge:LORKHAN_TTS_OPENAI_API_KEY')==='LORKHAN_TTS_OPENAI_API_KEY',
+        'LLM connector can select an existing global speech badge without copying its secret');
+    foreach (['UNRELATED_SECRET','badge:UNRELATED_SECRET','badge:',42] as $badReference) {
         try { LlmConnector::validate(['driver'=>'configured','model'=>'fixture','credential'=>$badReference]);$check(false,'invalid configured key rejected'); }
         catch(InvalidArgumentException){$check(true,'invalid configured key rejected');}
     }

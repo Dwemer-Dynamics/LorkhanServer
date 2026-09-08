@@ -106,6 +106,7 @@ final class LlmConnector
     {
         if(array_key_exists($reference,self::CREDENTIALS))return self::CREDENTIALS[$reference];
         if(preg_match('/^custom:([A-Z][A-Z0-9_]{0,39})$/D',$reference,$match)===1)return 'LORKHAN_CUSTOM_'.$match[1].'_API_KEY';
+        if(str_starts_with($reference,'badge:')&&CredentialStore::isAllowed(substr($reference,6)))return substr($reference,6);
         return null;
     }
 

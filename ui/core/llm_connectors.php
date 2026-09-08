@@ -73,6 +73,8 @@ foreach ((new \LorkhanServer\Application\CredentialStore((string)$config['creden
     $llmKeyStatuses[$status['variable']] = (bool)$status['configured'];
     if(preg_match('/^LORKHAN_CUSTOM_(.+)_API_KEY$/D',$status['variable'],$match)===1)
         $llmCredentials['custom:'.$match[1]]=$status['label']??$match[1];
+    elseif(!in_array($status['variable'],\LorkhanServer\Application\LlmConnector::CREDENTIALS,true))
+        $llmCredentials['badge:'.$status['variable']]=$status['label']??ucwords(strtolower(str_replace('_',' ',preg_replace('/^LORKHAN_|_API_KEY$/','',$status['variable']))));
 }
 // Match Herika's configured-first list using status metadata, never secret values.
 asort($llmCredentials, SORT_NATURAL | SORT_FLAG_CASE);

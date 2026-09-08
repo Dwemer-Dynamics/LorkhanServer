@@ -6002,3 +6002,26 @@ This is a verification-only checkpoint: no runtime files or configuration change
 so no redeployment or backend test rerun was necessary. Existing deployed source
 remains 2354f52. Full LLM advanced/provider interaction coverage and the remaining
 page matrix are still open; this evidence closes only the stated acceptance cases.
+### Global API badge selection in LLM connectors
+
+Source audit found that TTS exposes the global CredentialStore status catalogue,
+while LLM only offered LLM-specific and custom references. LLM now includes the
+remaining global badges in its configured/missing groups. The new badge: reference
+resolves only CredentialStore allowlisted names. Existing references, environment
+precedence, secret files and saved connector selections remain unchanged. No keys
+were merged, copied or silently reassigned; provider-card consolidation remains
+separate open work, not claimed complete by this adapter change.
+
+Extended the existing server checks for global badge resolution, configured-slot
+selection across dialogue/profile-generation/Oghma factories, and rejection of
+arbitrary environment names. 596 checks passed, plus integration, migrations/jobs,
+schema inventory and management HTTP forms. The deployed browser selected the
+OpenAI speech badge for an unsaved LLM draft, switched tabs, submitted only to an
+intercepted failing Save, and verified the badge reference/draft remained. No
+provider test followed; focus returned to Test and a fresh editor was unchanged.
+Desktop/narrow screenshots of the selected badge were inspected.
+
+Runtime verification: 799 matching files; no extras or old paths. Private route and
+health checks passed; credentials, configuration and voice file hashes preserved.
+Rollback: /var/backups/lorkhanserver-code.L2dDKD. No real provider request or game
+interaction. Full page matrix and provider-badge consolidation remain active.
