@@ -17,7 +17,7 @@ final class RelationshipBuildRepository
     }
 
     /** Queue one bounded analysis, never a history scan from page viewing or automatic chance. */
-    public function enqueue(array $scope,string $requestId,int $limit=100,string $direction=''):array
+    public function enqueue(array $scope,string $requestId,int $limit=100,string $direction='',bool $preview=false):array
     {
         foreach(['installation_id','profile_id','playthrough_id'] as $field)
             if(!is_string($scope[$field]??null)||!Uuid::isValid($scope[$field]))
@@ -25,7 +25,7 @@ final class RelationshipBuildRepository
         if(!Uuid::isValid($requestId)||$limit<1||$limit>100)throw new \InvalidArgumentException('invalid_relationship_build_request');
         $direction=RelationshipBuildPolicy::direction($direction);
         $scope=['installation_id'=>$scope['installation_id'],'profile_id'=>$scope['profile_id'],'playthrough_id'=>$scope['playthrough_id']];
-        return $this->transaction(function()use($scope,$requestId,$limit,$direction):array{
+        return $this->transaction(function()use($scope,$requestId,$limit,$direction,$preview):array{
             $state=$this->scopeState($scope);
             $lock=$this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))');
             $lock->execute(['key'=>'relationship.build:'.implode(':',$scope)]);
@@ -36,7 +36,7 @@ final class RelationshipBuildRepository
                 $payload=json_decode($existing['payload'],true,64,JSON_THROW_ON_ERROR);
                 foreach($scope as $field=>$value)if(($payload[$field]??null)!==$value)
                     throw new \InvalidArgumentException('relationship_build_request_conflict');
-                if($payload['history_limit']!==$limit||($payload['direction']??'')!==$direction)
+                if($payload['history_limit']!==$limit||($payload['direction']??'')!==$direction||($payload['preview']??false)!==$preview)
                     throw new \InvalidArgumentException('relationship_build_request_conflict');
                 return ['job_id'=>$existing['job_id'],'state'=>$existing['state']];
             }
@@ -67,6 +67,8 @@ final class RelationshipBuildRepository
                 'source_hashes'=>$snapshot['source_hashes'],'targets'=>$snapshot['targets'],
                 'relationship_types'=>$snapshot['relationship_types'],
                 'relationship_types_sha256'=>$snapshot['relationship_types_sha256']];
+            $payload['preview']=$preview;
+            $payload['profile_revision']=(int)(new ProductRepository($this->db))->getRevisioned('profile',$scope['profile_id'])['current_revision'];
             $id=Uuid::v4();
             $this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority)
                 VALUES(:id,'relationship.build',1,:key,CAST(:payload AS jsonb),3,20)")
@@ -104,7 +106,7 @@ final class RelationshipBuildRepository
         return $snapshot;
     }
 
-    /** Score writes and the retry receipt form one transaction; missing output targets remain unchanged. */
+    /** Persist either a review draft or atomic score writes with a retry receipt; omitted targets remain unchanged. */
     public function save(array $payload,array $output,string $now,?string $attemptId=null):bool
     {
         $output=RelationshipBuildPolicy::output($output);
@@ -115,7 +117,7 @@ final class RelationshipBuildRepository
             $targets=$payload['targets'];ksort($targets);
             foreach($targets as $target)$this->evaluations->lockIdentity($payload+['target_identity'=>$target['identity']]);
             $input=$this->input($payload);if($input===null)return false;
-            $changed=0;$applied=[];$products=new ProductRepository($this->db);
+            $changed=0;$applied=[];$draft=[];$preview=($payload['preview']??false)===true;$products=new ProductRepository($this->db);
             foreach($output['relationships'] as $row){
                 $target=$targets[$row['target_key']];$record=$input['records'][$row['target_key']];
                 $beforeType=(string)($record['relationship_type']??'neutral');
@@ -128,18 +130,20 @@ final class RelationshipBuildRepository
                         'source_event_id'=>$target['source_event_id'],'reason'=>'Manual history build: '.trim($row['reason'])];
                 if($record===null)$write['actor_identity']=$target['identity'];
                 else $write+=['relationship_id'=>$record['relationship_id'],'expected_revision'=>(int)$record['revision']];
+                if($preview){$draft[]=$write;continue;}
                 $products->setRelationship($write,$now);++$changed;
                 $applied[]=['target'=>(string)($target['identity']['display_name']??$target['identity']['record_id']??'Unknown interlocutor'),
                     'affinity_delta'=>$row['affinity']-(int)($record['affinity']??0),'disposition_delta'=>$row['disposition']-(int)($record['disposition']??0),
                     'old_type'=>$beforeType,'type'=>$relationshipType,'reason'=>trim($row['reason'])];
             }
-            $query=$this->db->prepare("INSERT INTO relationship_build_results(job_id,source_count,target_count,changed_count)
-                SELECT job_id,:sources,:targets,:changed FROM durable_jobs WHERE job_id=:job AND state='leased'
+            $query=$this->db->prepare("INSERT INTO relationship_build_results(job_id,source_count,target_count,changed_count,draft)
+                SELECT job_id,:sources,:targets,:changed,CAST(:draft AS jsonb) FROM durable_jobs WHERE job_id=:job AND state='leased'
                     AND lease_token=:lease AND attempt_count=:attempt AND lease_expires_at>clock_timestamp()");
             $query->execute(['sources'=>count($payload['source_ids']),'targets'=>count($targets),'changed'=>$changed,
+                'draft'=>$preview?json_encode($draft,JSON_THROW_ON_ERROR):null,
                 'job'=>$payload['_job']['job_id'],'lease'=>$payload['_job']['lease_token'],'attempt'=>$payload['_job']['attempt']]);
             if($query->rowCount()!==1)throw new OperationCancelled('lease_lost');
-            if($attemptId!==null)(new ProviderAttemptRepository($this->db))->recordRelationshipApplied($attemptId,$payload['_job']['job_id'],$applied);
+            if(!$preview&&$attemptId!==null)(new ProviderAttemptRepository($this->db))->recordRelationshipApplied($attemptId,$payload['_job']['job_id'],$applied);
             return true;
         });
     }
@@ -148,15 +152,34 @@ final class RelationshipBuildRepository
     public function recentJobs(array $scope):array
     {
         if(count(array_intersect_key($scope,array_fill_keys(['installation_id','profile_id','playthrough_id'],true)))!==3)return [];
-        $query=$this->db->prepare("SELECT j.job_id,j.created_at,j.state,r.changed_count,
+        $query=$this->db->prepare("SELECT j.job_id,j.created_at,j.state,r.changed_count,jsonb_array_length(r.draft) AS draft_count,
             jsonb_array_length(j.payload->'source_ids') AS source_count,
-            CASE WHEN r.job_id IS NOT NULL THEN 'succeeded' WHEN j.state='succeeded' THEN 'stale' ELSE j.state END AS outcome
+            CASE WHEN r.draft IS NOT NULL THEN 'draft_ready' WHEN r.job_id IS NOT NULL THEN 'succeeded' WHEN j.state='succeeded' THEN 'stale' ELSE j.state END AS outcome
             FROM durable_jobs j LEFT JOIN relationship_build_results r ON r.job_id=j.job_id
             WHERE j.job_type='relationship.build' AND j.payload->>'installation_id'=:installation_id
                 AND j.payload->>'profile_id'=:profile_id AND j.payload->>'playthrough_id'=:playthrough_id
             ORDER BY j.created_at DESC,j.job_id DESC LIMIT 10");
         $query->execute(array_intersect_key($scope,array_fill_keys(['installation_id','profile_id','playthrough_id'],true)));
         return $query->fetchAll();
+    }
+
+    /** Return only a completed review draft belonging to this exact editor scope. */
+    public function draft(array $scope,string $jobId):?array
+    {
+        foreach(['installation_id','profile_id','playthrough_id'] as $field)
+            if(!is_string($scope[$field]??null)||!Uuid::isValid($scope[$field]))return null;
+        if(!Uuid::isValid($jobId))return null;
+        $query=$this->db->prepare("SELECT r.draft,j.payload->>'profile_revision' AS profile_revision
+            FROM relationship_build_results r JOIN durable_jobs j ON j.job_id=r.job_id
+            JOIN profiles p ON p.profile_id=CAST(j.payload->>'profile_id' AS uuid) AND p.deleted_at IS NULL
+            JOIN playthroughs t ON t.playthrough_id=CAST(j.payload->>'playthrough_id' AS uuid) AND t.deleted_at IS NULL
+            WHERE j.job_id=:job AND j.job_type='relationship.build' AND r.draft IS NOT NULL
+                AND j.payload->>'installation_id'=:installation_id AND j.payload->>'profile_id'=:profile_id
+                AND j.payload->>'playthrough_id'=:playthrough_id");
+        $query->execute(['job'=>$jobId]+array_intersect_key($scope,array_fill_keys(['installation_id','profile_id','playthrough_id'],true)));
+        $row=$query->fetch();
+        return $row?['job_id'=>$jobId,'profile_revision'=>(int)$row['profile_revision'],
+            'relationships'=>json_decode($row['draft'],true,32,JSON_THROW_ON_ERROR)]:null;
     }
 
     /** Lock installation/session boundaries so a concurrent load or halt cannot race the final write. */

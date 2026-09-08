@@ -5762,3 +5762,40 @@ with no hash mismatches, extra files or old paths. Private-file protection, heal
 and unauthenticated-session checks passed; configuration, credentials and voice
 files were preserved. Rollback: /var/backups/lorkhanserver-code.r25xMe.
 No game or provider requests were made.
+
+### NPC AI relationship review: durable draft foundation
+
+Pinned Herika `ext/relationship_system/relationship_editor.php` stages single-NPC
+Build results in its table and asks the user to Save NPC. Its separate batch
+builder writes directly; those are different workflows. Lorkhan's existing
+single-NPC durable worker currently uses the immediate-write path.
+
+Added an explicit preview mode to RelationshipBuildRepository. Preview requests
+store their owner profile revision and normalized changed rows in a bounded
+receipt, without updating relationship records or reporting committed changes.
+The scoped draft reader returns only the requested installation/NPC/playthrough's
+receipt. Mode is part of retry identity; completed drafts do not regenerate on
+worker retry. Migration 095 adds the nullable draft column and refuses downgrade
+while drafts exist. Existing callers still use immediate mode, preserving their
+behavior until the editor review flow is ready.
+
+Existing integration coverage now checks enqueue mode/revision, mode-conflict
+rejection, unmodified saved scores/private notes, scoped result reads, draft_ready
+status with zero committed changes, retry receipts and downgrade protection.
+Normal immediate-build tests still pass. Schema inventory now has 1600 columns
+across 172 relations.
+
+Remaining work before this gap is closed: request preview mode from the NPC
+editor, poll/display the completed draft without losing local edits, stage returned
+rows in the table (including previously unlisted bound targets), and use the
+shared revisioned Save path for review/commit. Handle stale revisions and discarded
+or suppressed source data explicitly. The draft repository is not a new public
+API and has no browser consumer yet. No visual parity or completed review workflow
+is claimed by this backend checkpoint.
+
+Foundation verification: 590 server checks, integration vertical slice, migration
+and durable-job tests passed; schema --check matched the updated inventory.
+Local deployment verified 799 runtime files with no mismatches/extras/old paths,
+private routes remained protected, and configuration/credentials/voice-file hashes
+were preserved. Rollback code: /var/backups/lorkhanserver-code.8zPCiG. No game
+launch, game commands or live AI generation occurred.

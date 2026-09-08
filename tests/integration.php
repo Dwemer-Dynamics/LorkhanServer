@@ -1234,6 +1234,12 @@ $omittedIdentity=$speechTarget;$omittedIdentity['refnum']['index']+=321;
 $products->setRelationship($buildScope+['actor_identity'=>$omittedIdentity,
     'disposition'=>11,'affinity'=>12,'source_mode'=>'manual','custom_info'=>$privateBuildNote],$now);
 $buildDirection='Focus on House hierarchy.';
+$db->exec('SAVEPOINT preview_enqueue');
+$queuedPreview=$builds->enqueue($buildScope,$newUuid(5790),100,$buildDirection,true);
+$previewPayloadQuery=$db->prepare('SELECT payload FROM durable_jobs WHERE job_id=:id');$previewPayloadQuery->execute(['id'=>$queuedPreview['job_id']]);
+$previewPayload=json_decode($previewPayloadQuery->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$assert($previewPayload['preview']===true&&$previewPayload['profile_revision']>0,'enqueue lost draft mode or owner revision');
+$db->exec('ROLLBACK TO SAVEPOINT preview_enqueue');
 $buildRequest=$newUuid(5704);$buildJob=$builds->enqueue($buildScope,$buildRequest,100,$buildDirection);
 $assert($builds->enqueue($buildScope,$buildRequest,100,' '.$buildDirection.' ')['job_id']===$buildJob['job_id'],'manual build request was not idempotent');
 try{$builds->enqueue($buildScope,$buildRequest,100,'Different direction');throw new RuntimeException('build direction changed on retry');}
@@ -1260,6 +1266,28 @@ $buildRegistry=new \LorkhanServer\Application\JobHandlerRegistry([new \LorkhanSe
     $builds,$products,new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db),[],$buildProvider)]);
 $buildWorker=static fn()=> (new \LorkhanServer\Application\Worker(new \LorkhanServer\Infrastructure\JobRepository($db),
     $buildRegistry,'relationship-build-integration',5,1,1,0,10,['relationship.build']))->run();
+// Preview builds retain scores for review without modifying saved relationships.
+$db->exec('SAVEPOINT relationship_preview');
+$beforePreview=$products->exportScope($buildScope)['relationships'];
+$db->prepare("UPDATE durable_jobs SET payload=jsonb_set(payload,'{preview}','true'::jsonb) WHERE job_id=:id")->execute(['id'=>$buildJob['job_id']]);
+$assert($builds->enqueue($buildScope,$buildRequest,100,$buildDirection,true)['job_id']===$buildJob['job_id'],'preview retry lost its request');
+try{$builds->enqueue($buildScope,$buildRequest,100,$buildDirection);throw new RuntimeException('preview mode changed on retry');}
+catch(InvalidArgumentException $error){$assert($error->getMessage()==='relationship_build_request_conflict','unexpected preview mode conflict');}
+$assert($buildWorker()['succeeded']===1,'relationship preview worker failed');
+$preview=$builds->draft($buildScope,$buildJob['job_id']);
+$assert($preview!==null&&count($preview['relationships'])===2&&$preview['profile_revision']>0
+    &&$products->exportScope($buildScope)['relationships']===$beforePreview
+    &&!str_contains(json_encode($preview),$privateBuildNote),'preview changed saved scores or copied private notes');
+$previewStatus=$builds->recentJobs($buildScope)[0];
+$assert($previewStatus['outcome']==='draft_ready'&&(int)$previewStatus['changed_count']===0&&(int)$previewStatus['draft_count']===2,'preview status claims committed writes');
+foreach(['installation_id','profile_id','playthrough_id'] as $previewScopeField)
+    $assert($builds->draft(array_replace($buildScope,[$previewScopeField=>$newUuid(5780)]),$buildJob['job_id'])===null,'preview escaped scope');
+$db->prepare("UPDATE durable_jobs SET state='queued',completed_at=NULL,next_run_at=clock_timestamp() WHERE job_id=:id")->execute(['id'=>$buildJob['job_id']]);
+$assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1&&$builds->draft($buildScope,$buildJob['job_id'])===$preview,'preview reran on retry');
+$db->exec('SAVEPOINT preview_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/095_relationship_build_drafts.down.sql'));throw new RuntimeException('draft was discarded on downgrade');}
+catch(PDOException $error){$assert(str_contains($error->getMessage(),'Review and remove relationship build drafts'),'unexpected preview downgrade error');$db->exec('ROLLBACK TO SAVEPOINT preview_downgrade');}
+$db->exec('ROLLBACK TO SAVEPOINT relationship_preview');$buildProvider->calls=0;
 $db->exec('SAVEPOINT history_queued');
 $assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1,'offline history build did not run at chance zero');
 $buildReceipt=$db->query('SELECT source_count,target_count,changed_count FROM relationship_build_results')->fetch();
