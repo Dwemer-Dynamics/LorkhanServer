@@ -57,7 +57,7 @@
 .calendar-event-kind{display:block;color:#bc9d5a;font-size:12px;margin-bottom:5px}
 .diary-entry-modal{padding:14px;width:98%;max-width:1600px;height:calc(100vh - 220px);min-height:320px}.diary-entry-modal .reader-entry{border:0;margin:0;padding:15px 0}.diary-close{float:right}
 @font-face{font-family:SkyrimBooks_Handwritten_Bold;src:url('font/SkyrimBooks_Handwritten_Bold-Regular.ttf') format('truetype');font-display:swap}
-.diary-entry-modal .reader-prose{background:url('../images/paper.jpg') center/cover;padding:40px;border-radius:6px;box-shadow:0 4px 8px #0008;color:#000!important;font-family:SkyrimBooks_Handwritten_Bold,Arial,sans-serif!important;font-size:18px;max-width:none;min-height:180px;line-height:1.6}
+.diary-entry-modal .reader-prose{background:url('../images/paper.jpg') center/cover;padding:40px;border-radius:6px;box-shadow:0 4px 8px #0008;color:#000!important;font-family:SkyrimBooks_Handwritten_Bold,Arial,sans-serif!important;font-size:18px;max-width:none;min-height:180px;line-height:1.5}
 .diary-entry-modal .reader-entry-actions{background:#202024;border:1px solid #bc9d5a80;padding:10px 14px;border-radius:0 0 6px 6px}
 .diary-entry-modal>.diary-close{position:sticky;top:0;z-index:3}
 body .roleplay-reader .roleplay-button.danger{background:#8b3038!important;border-color:#b44b56!important;color:#fff!important}

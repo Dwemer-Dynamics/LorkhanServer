@@ -5962,3 +5962,23 @@ Deployment verified 799 matching files and protected routes/health; configuratio
 credentials and voices preserved. Rollback: /var/backups/lorkhanserver-code.Wb4Ss4.
 Full counterpart matrix remains active; these measurements do not close missing
 configuration, editor and operational features elsewhere in the site.
+
+### Populated diary reader and Books interaction recheck
+
+The reference diary reader was opened read-only for an existing August entry.
+The native current month had no diary records, so a fresh source-rendered isolated
+fixture was used rather than creating live records. Paper/font/padding matched,
+but native line spacing was 28.8px against Herika's 27px. The diary prose now uses
+18px/27px with its existing 40px padding. Desktop/narrow captures were inspected.
+The fixture retained literal markup as text; both browser paths issued zero POSTs.
+No audio provider call or live diary edit was attempted. Native Export Text/Close
+controls remain; this does not assert pixel-identical controls or whole-page parity.
+
+Temp/diary-reader-fixture-proof.cjs reads current deployed CSS and source-rendered
+HTML. Temp/books-current-proof.cjs was rerun after regenerating both book fixtures
+from the current template: empty tools, single/multi-page layout, scoped Next link,
+escaped content reader and Escape passed. Fixtures are not live database proof.
+590 server checks, diff and deployment verification passed. 799 runtime files
+matched, with no extras/old paths; private routes and health passed. Persistent
+configuration, credentials and voices were preserved.
+Rollback: /var/backups/lorkhanserver-code.0j73mj. Full parity goal remains active.
