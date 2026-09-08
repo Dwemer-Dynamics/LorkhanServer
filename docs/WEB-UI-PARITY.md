@@ -6491,3 +6491,22 @@ These component checks are not full page acceptance. No POSTs or live record edi
 603 checks pass; 799 deployed files match and private/auth/health checks pass.
 Config/credentials/voice contents preserved. Rollback: /var/backups/lorkhanserver-code.0NWcFK.
 No game activity; full counterpart matrix remains active.
+
+## Books identical-content geometry and live empty flow
+
+Removed only the Books cell top/bottom border widths after measuring reference
+0px/1px/0px/1px borders against native 1px on all sides. The extra borders added 2px
+to every row. Temp/books-geometry.cjs uses the same header and two synthetic rows in
+both live stylesheet environments at 1280/390. Comparison of all 15 cell widths,
+heights, fonts, padding, border serialization, box sizing and whitespace now passes,
+as do full table width and height. Final narrow table screenshot inspected against
+reference; calendar-header gold is intentional branding. This closes the measured
+identical-content table geometry discrepancy, not the entire Books page.
+
+Temp/books-empty-flow.cjs verifies the actual deployed empty Books state, GET filter
+submission producing No books match this filter, and Reset restoring No books found
+at both widths. Narrow filtered screenshot inspected. Zero POSTs. Populated content
+remains a source-rendered browser fixture, not a claim about live captured books.
+603 checks pass; 799 matching deployed files, private/auth/health checks pass, config,
+credential and voice contents preserved. Rollback: /var/backups/lorkhanserver-code.4Cpqxw.
+Whole-page placement, reader extension and full counterpart matrix remain open.
