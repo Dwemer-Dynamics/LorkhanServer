@@ -7216,3 +7216,47 @@ were preserved. No game or provider was used.
 - Server-only deployment preserved configuration, credentials and voices; all 799
   deployed hashes and private/authentication probes passed. Provider/badge grouping
   and full-page API composition remain pending. Overall parity remains active.
+
+### API badge consolidation: complete credential coverage audit (2026-09-08)
+
+The preset-card styling is no longer the main remaining issue. A read-only
+source-extracted comparison of `CredentialStore::allowedVariables()` and the
+actual `$providers` array reports 32 built-in credential variables but only 16
+preset editors. The Custom Keys loop accepts only `LORKHAN_CUSTOM_*`, so it does
+not cover the other 16 built-ins. This is a confirmed missing management surface,
+not an accepted OpenMW difference or a completed provider consolidation.
+
+Missing built-in editors: Default STT, Default TTS, Chatterbox, Convai, Coqui AI,
+KoboldCpp, Kokoro, MeloTTS, Mimic 3, OmniVoice, Piper TTS, PocketTTS, StyleTTS2,
+XTTS, xVASynth and Zonos. These names come from the allowed source catalog; no
+credential values or live store contents were inspected. Runtime default TTS/STT
+consumers are in `connector/ProviderFactory.php`; the remaining defaults come
+from `connector/ConnectorCatalog.php`.
+
+Implementation requirements for the next structural change:
+
+1. Use the reference's provider preset grid and Custom Keys editor, with one
+   primary card per supported preset provider. The five extra role cards now
+   interleaved in presets (OpenAI LLM, OpenRouter LLM, Custom LLM, Google LLM,
+   Google Gemini STT) must remain reachable as distinct additional credentials.
+2. Preserve all existing variable identifiers, aliases, stored values, environment
+   precedence and connector references. Do not merge keys merely because their
+   provider names match; `LlmConnector::CREDENTIALS` maps OpenAI/OpenRouter/Google
+   aliases to independent variables, and `badge:` can refer to any allowed key.
+3. Cover the missing built-ins through the additional-badge surface, including
+   creating a managed value when absent. Keep environment-owned entries visibly
+   protected. Do not invent a provider preset for unsupported Replicate/ITT.
+4. Extend labels/save/delete handling coherently for additional built-in badges,
+   rather than only changing the loop: `CredentialStore::setLabel()` and status
+   labels currently accept custom identifiers only, and `delete_custom` explicitly
+   rejects built-ins. Preserve canonical provider labels and default routing.
+5. Compare the complete page with identical synthetic inventories: empty defaults,
+   primary provider keys, distinct same-provider keys, custom labels, environment
+   ownership and missing optional services. Test label/credential changes and
+   deletion in the existing disposable HTTP suite, verify all connector pickers
+   retain stable references, then verify secret-preserving deployment hashes.
+
+This audit changes the next work from cosmetic card cleanup to credential-editor
+coverage and grouping. It does not authorize overwriting credentials, changing
+providers, or sending live provider tests. No product/runtime files changed in
+this checkpoint; deployment remains the tested `d838c87` code.
