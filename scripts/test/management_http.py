@@ -1211,6 +1211,29 @@ for response_row in response_rows:
 empty_response_csv=list(csv.reader(io.StringIO(request(response_export_path.replace('q=ResponseExportFixture','q=export-no-match-fixture-926407')).read().decode())))
 assert len(empty_response_csv)==1 and empty_response_csv[0]==response_csv.fieldnames
 subprocess.run(adventure_psql,input=f"DELETE FROM public.log WHERE rowid IN (SELECT rowid FROM lorkhan_internal.log_metadata WHERE turn_id='{response_turn}'); DELETE FROM lorkhan_internal.log_metadata WHERE turn_id='{response_turn}'; DELETE FROM lorkhan_internal.turns WHERE turn_id='{response_turn}'; DELETE FROM lorkhan_internal.sessions WHERE session_id='{response_session}';",text=True,capture_output=True,check=True)
+# Books follow game time and numeric row IDs, even when wall-clock arrival runs backwards.
+book_order_sql=f"""
+WITH inserted AS (
+ INSERT INTO public.books(title,content,localts,gamets,ts)
+ SELECT 'BookOrderFixture '||lpad(n::text,3,'0'),'Read-only book fixture',1609416000-n,n/2,n
+ FROM generate_series(1,151) n ORDER BY n RETURNING rowid,title
+)
+INSERT INTO lorkhan_internal.book_metadata(rowid,installation_id,playthrough_id,record_id)
+SELECT rowid,'{valid['installation_id']}','{playthrough_id}',title FROM inserted;
+"""
+subprocess.run(adventure_psql,input=book_order_sql,text=True,capture_output=True,check=True)
+book_order_path='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'books','installation_id':valid['installation_id'],'playthrough_id':playthrough_id,'q':'BookOrderFixture'})
+_,book_order_page=parse(request(book_order_path))
+assert book_order_page.count('data-log-open=')==150 and book_order_page.index('BookOrderFixture 151')<book_order_page.index('BookOrderFixture 150')<book_order_page.index('BookOrderFixture 002')
+_,book_order_last=parse(request(book_order_path+'&reader_page=2'))
+assert book_order_last.count('data-log-open=')==1 and 'BookOrderFixture 001' in book_order_last
+book_order_export=list(csv.DictReader(io.StringIO(request(book_order_path+'&reader_page=2&export=1').read().decode())))
+assert [row['Title'] for row in book_order_export]==[f'BookOrderFixture {n:03d}' for n in range(151,0,-1)]
+_,book_order_filtered=parse(request(book_order_path.replace('q=BookOrderFixture','q=BookOrderFixture+003')))
+assert book_order_filtered.count('data-log-open=')==1 and 'BookOrderFixture 003' in book_order_filtered
+_,book_order_empty=parse(request(book_order_path.replace('q=BookOrderFixture','q=BookOrderFixture-no-match')))
+assert 'No books match this filter.' in book_order_empty and 'data-log-open=' not in book_order_empty
+subprocess.run(adventure_psql,input="DELETE FROM public.books WHERE title LIKE 'BookOrderFixture %'; DELETE FROM lorkhan_internal.book_metadata WHERE record_id LIKE 'BookOrderFixture %';",text=True,capture_output=True,check=True)
 clear_path='/LorkhanServer/manage/api/v1/roleplay/clear'
 clear_values={'installation_id':valid['installation_id'],'playthrough_id':playthrough_id,'kind':'diaries','confirm':'Clear'}
 r=json_request(clear_path,'GET',None,csrf); assert r.status in (404,405)

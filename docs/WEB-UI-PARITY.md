@@ -8420,3 +8420,33 @@ probes pass; configuration, credential and voice contents preserved. Final brows
 metrics without CSS interception reproduce matching sidebar/editor row sizes and
 all seven control font/padding/margin/radius measurements. Native safety and gold
 colours remain. No game launched; full provider/page goal remains active.
+
+### Books game-time ordering and full filtered pagination (2026-09-08)
+
+Current pinned Herika events-memories.php:2126 orders Books by gamets DESC,
+rowid DESC. Native Books instead used created_at DESC and the textual narrative ID,
+so game ordering and same-time numeric ties diverged. The existing world projection
+stores OpenMW world.game_time in books.gamets on both insert and update. Added that
+column to the internal reader projection and matched the reference ordering only
+for Books. Other readers, recorded data, scope ownership and calendar rendering
+are unchanged. Existing scoped filters and native all-matching-row export share
+the same ordering before pagination.
+
+Extended existing management HTTP tests with 151 disposable book rows in its
+isolated database: wall-clock order reverses game order, pairs share game times,
+and numeric IDs cross digit boundaries. Checks 150/1 page split, numeric descending
+tie-break, full 151-row export from page two, one-result search and empty search.
+No live book records are created or deleted. PHP lint and 691 server checks pass.
+The first full HTTP run stopped before these tests at the known diary mock-audio
+502; it is not counted as a pass. A fresh completed-run retry is recorded below.
+
+Regenerated books-current-fixture.html using the current PHP template and reran
+books-reader-refresh.cjs at 1280/390. Mocked copy success/refusal, status reset,
+focus return, body scroll restoration, long-content scrolling and Escape passed.
+Inspected the narrow copy-failure screenshot with literal markup safely shown as
+text. This refresh supplements earlier paired reader comparisons; it is not new
+proof of live observed-book capture. No game or provider calls were made.
+
+Full management HTTP suite passed on the second run (books-order-http-2.txt),
+including the new 151-book ordering/filter/export checks. The prior diary mock
+failure remains documented, not claimed fixed.
