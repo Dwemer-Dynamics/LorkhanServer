@@ -190,3 +190,13 @@ body .calendar-log-page:not(.diary-log-page) .calendar-downloads :is(a,button){m
 .roleplay-log-page:not(.book-log-page) .log-page-actions{gap:10px}
 .roleplay-log-page:not(.book-log-page) .log-bottom-pagination{margin:12px 0;font-size:15px;line-height:1.5}
 .roleplay-log-page:not(.book-log-page) .ai-response-table .log-empty{text-align:left;padding:9px 10px!important}
+
+/* Use each calendar counterpart's heading and month-navigation typography. */
+.calendar-log-page .reader-heading{padding:0}
+.calendar-log-page .reader-heading h1{font-size:33px;line-height:1.2;margin:0 0 10px}
+.calendar-log-page .reader-heading h1>span{font:inherit;line-height:inherit}
+.calendar-log-page .calendar-navigation{font-family:"Futura CondensedLight",Arial,sans-serif}
+.calendar-log-page .calendar-navigation span{font-weight:400}
+#adventure-tab .calendar-navigation a{font-weight:500;line-height:1.2;margin:5px}
+#diaries-tab .calendar-navigation a{font-weight:600}
+@media(max-width:480px){.calendar-log-page .reader-heading h1{font-size:26px}}

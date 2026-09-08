@@ -5936,3 +5936,29 @@ AI Responses is the Roleplay responselog tab. Control Panel responses embeds the
 separate Response Queue page; its evidence must not be substituted for this log.
 This empty-state checkpoint does not close the complete page matrix or assert
 new embedded-tab interaction proof. No game or live provider interaction occurred.
+
+### Priority-page group review and calendar shell correction
+
+Fresh live captures covered all five priority pages in both products. Existing
+live datasets differ (native Books empty, reference Books populated; calendar
+entries differ), so these captures are comparison evidence, not full paired
+populated/empty acceptance. Events and Responses remain tracked separately.
+
+The calendar comparison then inspected the actual reference iframe inside
+Roleplay, not merely the standalone child route. Native headings were 35px with
+extra horizontal padding and an oversized inherited emoji span. They now match
+33px/39.6px heading typography, 10px bottom margin and the available content width.
+Calendar month labels use normal weight. Adventure month links match weight 500,
+18px line height and 5px margin; Diary month links match weight 600 and their
+existing 22.5px line height. Gold accents and compact narrow headings remain.
+
+Temp/calendar-shell-metrics.cjs measured identical heading, month label/button,
+navigation and calendar geometry in the real Roleplay surfaces at 1280px.
+Temp/adventure-current-proof.cjs passed selected-day display, current/full CSV
+content, both calendar modes and an empty date. Temp/diary-mode-current.cjs passed
+Regular/Tamrielic/Person/back switching; desktop/narrow screenshots were inspected.
+590 server checks and diff check passed. No live writes, provider calls or game use.
+Deployment verified 799 matching files and protected routes/health; configuration,
+credentials and voices preserved. Rollback: /var/backups/lorkhanserver-code.Wb4Ss4.
+Full counterpart matrix remains active; these measurements do not close missing
+configuration, editor and operational features elsewhere in the site.
