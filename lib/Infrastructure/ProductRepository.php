@@ -124,6 +124,65 @@ final class ProductRepository
         });
     }
 
+    /** Snapshot exactly which default profiles and policy revisions an explicit Local LLM setup would change. */
+    public function quickstartLocalRoutingPlan(string $installation):array
+    {
+        $query=$this->db->prepare("SELECT c.core_profile_id,c.label,c.current_revision FROM core_profiles c WHERE c.installation_id=:installation AND c.deleted_at IS NULL AND (c.default_npc=true OR EXISTS(SELECT 1 FROM profiles p WHERE p.installation_id=c.installation_id AND p.core_profile_id=c.core_profile_id AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='narrator')) ORDER BY c.core_profile_id");
+        $query->execute(['installation'=>$installation]);$cores=$query->fetchAll();
+        if($cores===[]){
+            $query=$this->db->prepare('SELECT core_profile_id,label,current_revision FROM core_profiles WHERE installation_id=:installation AND deleted_at IS NULL ORDER BY created_at,core_profile_id LIMIT 1');
+            $query->execute(['installation'=>$installation]);$cores=$query->fetchAll();
+        }
+        $query=$this->db->prepare("SELECT profile_id,core_profile_id,current_revision FROM profiles WHERE installation_id=:installation AND deleted_at IS NULL AND actor_identity->>'kind'='narrator' ORDER BY profile_id");
+        $query->execute(['installation'=>$installation]);$narrators=$query->fetchAll();
+        $managed=$this->quickstartLocalLlmForInstallation($installation);$global=$this->globalSettingsForInstallation($installation);$summary=$this->memorySummaryPolicyForInstallation($installation);
+        $plan=['installation_id'=>$installation,'core_profiles'=>$cores,'narrators'=>$narrators,
+            'connector_id'=>$managed['configuration_id']??null,'connector_revision'=>(int)($managed['connector']['current_revision']??0),
+            'global_id'=>$global['configuration_id']??null,'global_revision'=>(int)($global['current_revision']??0),
+            'summary_id'=>$summary['configuration_id']??null,'summary_revision'=>(int)($summary['current_revision']??0)];
+        return $plan+['fingerprint'=>hash('sha256',json_encode($plan,JSON_THROW_ON_ERROR))];
+    }
+
+    /** Apply managed connector and default dialogue/background routes atomically; leave NPC overrides and live slots alone. */
+    public function applyQuickstartLocalLlm(string $installation,array $values,string $fingerprint,string $now):array
+    {
+        return $this->transaction(function()use($installation,$values,$fingerprint,$now):array{
+            $lock=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:installation FOR UPDATE');
+            $lock->execute(['installation'=>$installation]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
+            // Lock the editable defaults and policies before checking the browser's revision snapshot.
+            foreach(["SELECT core_profile_id FROM core_profiles WHERE installation_id=:installation AND deleted_at IS NULL ORDER BY core_profile_id FOR UPDATE",
+                "SELECT profile_id FROM profiles WHERE installation_id=:installation AND deleted_at IS NULL AND actor_identity->>'kind'='narrator' ORDER BY profile_id FOR UPDATE",
+                "SELECT configuration_id FROM configuration_sets WHERE installation_id=:installation AND deleted_at IS NULL AND kind IN ('provider','global_settings','memory_policy') ORDER BY configuration_id FOR UPDATE"] as $sql){
+                $lock=$this->db->prepare($sql);$lock->execute(['installation'=>$installation]);$lock->fetchAll();
+            }
+            $plan=$this->quickstartLocalRoutingPlan($installation);
+            if(!hash_equals($plan['fingerprint'],$fingerprint))throw new RuntimeException('revision_conflict');
+            if($plan['core_profiles']===[])throw new RuntimeException('default_core_profile_required');
+            $saved=$this->saveQuickstartLocalLlm($installation,$values,$plan['connector_revision'],$now);$id=$saved['configuration_id'];
+            $fields=['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id'];
+            if($saved['scope']==='all')$fields=array_merge($fields,['diary_generation_configuration_id','player_autochat_configuration_id']);
+            foreach($plan['core_profiles'] as $core){
+                $current=$this->getRevisioned('core_profile',(string)$core['core_profile_id']);$content=$current['content'];
+                foreach($fields as $field)$content['routing'][$field]=$id;
+                $this->revise('core_profile',(string)$core['core_profile_id'],$content,'Quickstart Local LLM routing',$now,(int)$core['current_revision']);
+            }
+            if($saved['scope']==='all'){
+                $global=$this->globalSettingsForInstallation($installation);
+                $content=EffectiveSettingsResolver::globalDocument($global['content']??[], $this->oghmaSettings($installation),
+                    $this->translationPolicyForInstallation($installation)['content'],$this->profileAutoLockEnabled($installation));
+                foreach(SettingsCatalog::systemRoutingFields() as $field)$content['system_routing'][$field]=$id;
+                if($global===null)$this->createRevisioned('global_settings',['installation_id'=>$installation,'name'=>'Global Settings','content'=>$content],$now);
+                else $this->revise('global_settings',(string)$global['configuration_id'],$content,'Quickstart Local LLM background routing',$now,(int)$global['current_revision']);
+                $summary=$this->memorySummaryPolicyForInstallation($installation);
+                $content=$summary['content']??['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''];
+                $content['provider_configuration_id']=$id;
+                if($summary===null)$this->createRevisioned('memory_policy',['installation_id'=>$installation,'name'=>'Memory Summary Policy','content'=>$content],$now);
+                else $this->revise('memory_policy',(string)$summary['configuration_id'],$content,'Quickstart Local LLM summary routing',$now,(int)$summary['current_revision']);
+            }
+            return $saved+['routing_plan'=>$this->quickstartLocalRoutingPlan($installation)];
+        });
+    }
+
     /** Return the single live revisioned settings document for one installation. */
     public function globalSettingsForInstallation(string $installationId):?array
     {

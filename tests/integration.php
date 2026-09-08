@@ -73,6 +73,42 @@ try{
     });
 }catch(RuntimeException $error){if($error->getMessage()!=='rollback-local-setup-fixture')throw$error;}
 if($products->quickstartLocalLlmForInstallation($installationId)!==null)throw new RuntimeException('outer rollback retained local setup');
+// Local setup changes default/Narrator routes as one transaction, preserving unrelated profiles.
+try{
+    $products->transaction(function()use($products,$installationId,$localSetup):void{
+        $now='2026-09-08T12:03:00Z';
+        $base=['routing'=>[], 'settings_overrides'=>[]];
+        $default=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Default fixture','default_npc'=>true,'content'=>$base],$now);
+        $narratorCore=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Narrator fixture','content'=>$base],$now);
+        $other=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Unrelated fixture','content'=>$base],$now);
+        $products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Narrator','actor_identity'=>['kind'=>'narrator'],'core_profile_id'=>$narratorCore['core_profile_id'],'content'=>[]],$now);
+        $plan=$products->quickstartLocalRoutingPlan($installationId);
+        if(count($plan['core_profiles'])!==2)throw new RuntimeException('local setup target selection failed');
+        $saved=$products->applyQuickstartLocalLlm($installationId,$localSetup,$plan['fingerprint'],$now);
+        foreach([$default,$narratorCore] as $target){
+            $content=$products->getRevisioned('core_profile',$target['core_profile_id'])['content'];
+            foreach(['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id'] as $field){
+                if(($content['routing'][$field]??null)!==$saved['configuration_id'])throw new RuntimeException('default dialogue route missing');
+            }
+            if(isset($content['routing']['diary_generation_configuration_id']))throw new RuntimeException('dialogue setup changed background routes');
+        }
+        if($products->getRevisioned('core_profile',$other['core_profile_id'])['current_revision']!==1)throw new RuntimeException('local setup changed unrelated Core');
+        if($products->globalSettingsForInstallation($installationId)!==null||$products->memorySummaryPolicyForInstallation($installationId)!==null)throw new RuntimeException('dialogue setup changed system policies');
+        try{$products->applyQuickstartLocalLlm($installationId,$localSetup,$plan['fingerprint'],$now);throw new RuntimeException('stale local routing accepted');}
+        catch(RuntimeException $error){if($error->getMessage()!=='revision_conflict')throw$error;}
+        if($products->quickstartLocalLlmForInstallation($installationId)['connector']['current_revision']!==1)throw new RuntimeException('stale routing revised connector');
+        $all=$localSetup;$all['scope']='all';
+        $products->applyQuickstartLocalLlm($installationId,$all,$saved['routing_plan']['fingerprint'],$now);
+        $global=$products->globalSettingsForInstallation($installationId)['content'];
+        foreach(\LorkhanServer\Application\SettingsCatalog::systemRoutingFields() as $field){
+            if($global['system_routing'][$field]!==$saved['configuration_id'])throw new RuntimeException('background system route missing');
+        }
+        $summary=$products->memorySummaryPolicyForInstallation($installationId)['content'];
+        if($summary['enabled']!==false||$summary['provider_configuration_id']!==$saved['configuration_id'])throw new RuntimeException('summary route or enabled state changed incorrectly');
+        throw new RuntimeException('rollback-local-routing-fixture');
+    });
+}catch(RuntimeException $error){if($error->getMessage()!=='rollback-local-routing-fixture')throw$error;}
+if($products->quickstartLocalLlmForInstallation($installationId)!==null)throw new RuntimeException('routing rollback retained managed connector');
 $presetStore=new \LorkhanServer\Infrastructure\ManagementRepository($db);
 $presetPayload=\LorkhanServer\Application\CoreProfilePreset::capture(['settings_overrides'=>['response'=>['max_words'=>60]]]);
 $presetId=$presetStore->saveCoreProfilePreset($installationId,'Custom companion',$presetPayload);
