@@ -7006,3 +7006,25 @@ the copy-feedback difference above, not every remaining page or reader state.
 
 Deployed copy tests pass at both widths. All 799 runtime files match source;
 configuration, credentials and voice files remain preserved.
+
+### Prompt Viewer role, long and empty states (2026-09-08)
+
+Compared system/developer/user/assistant/tool messages through the real native template
+and pinned Herika prompt formatter (pure formatting functions extracted to a temporary
+fixture, with no reference bootstrap/database access). Native developer/tool labels
+incorrectly inherited the assistant purple. They now use the reference default yellow;
+assistant remains purple and system/user keep their existing colors. The raw placeholder
+now has the reference word-break and exact empty-payload wording.
+
+Temp/prompt-state-fixture.php and prompt-state-compare.cjs render roles, long messages
+and empty placeholders at 1280/390. Assertions compare font, text/background colors,
+padding, margins, width/height and word-break for each role label/body/raw block; all
+six comparisons pass. Native modal content has no horizontal overflow. Narrow five-role
+screenshot reviewed; literal script-like text remains escaped. Existing provider metadata
+is preserved even when messages are absent; no historical prompt is reconstructed.
+PHP syntax, 608 server checks and diff whitespace checks pass. No live provider,
+clipboard, database mutation or game interaction was used. These state checks do not
+prove the remaining page matrix complete.
+
+All six deployed fixture comparisons pass. All 799 runtime files match source,
+and deployment preserved configuration, credentials and voice files.

@@ -148,9 +148,10 @@ body .ai-response-table [data-log-open]{white-space:nowrap}
 .response-prompt-viewer .prompt-role-system{border-left-color:#4ec9b0}
 .response-prompt-viewer .prompt-role-user{border-left-color:#dcdcaa}
 .response-prompt-viewer .prompt-modal-message-header{display:flex;align-items:center;justify-content:flex-start;gap:10px;margin-bottom:6px;padding:0;background:none;font-size:13px}
-.response-prompt-viewer .prompt-role{color:#c586c0}
+.response-prompt-viewer .prompt-role{color:#dcdcaa}
 .response-prompt-viewer .prompt-role-system .prompt-role{color:#4ec9b0}
 .response-prompt-viewer .prompt-role-user .prompt-role{color:#dcdcaa}
+.response-prompt-viewer .prompt-role-assistant .prompt-role{color:#c586c0}
 .response-prompt-viewer .prompt-index{color:#6b7280;font-size:12px}
 .response-prompt-viewer .prompt-modal-message-body{color:#ce9178;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;margin-top:5px;background:#1e1e1e;padding:10px;border-radius:5px;font-size:13px;line-height:1.8}
 
@@ -163,7 +164,7 @@ body .ai-response-table [data-log-open]{white-space:nowrap}
 
 .response-prompt-viewer .prompt-meta-label{background:#1f2937;color:#e5e7eb}
 
-.response-prompt-viewer .prompt-raw{color:#ce9178;white-space:pre-wrap;overflow-wrap:anywhere;margin:5px 0 0;background:#1e1e1e;padding:10px;border-radius:5px;font:inherit}
+.response-prompt-viewer .prompt-raw{color:#ce9178;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;margin:5px 0 0;background:#1e1e1e;padding:10px;border-radius:5px;font:inherit}
 
 /* Herika keeps percentage column preferences with automatic table layout. */
 body .roleplay-log-page .ai-response-table th:nth-child(1){width:11%}
