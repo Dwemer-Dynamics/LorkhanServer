@@ -343,7 +343,14 @@
             const endpoint = document.getElementById('llm_endpoint');
             const credential = document.getElementById('llm_credential');
             if (endpoint) { endpoint.value = preset[0]; endpoint.dispatchEvent(new Event('input', {bubbles: true})); }
-            if (credential) { credential.value = preset[1]; credential.dispatchEvent(new Event('change', {bubbles: true})); }
+            if (credential) {
+                // Herika matches provider badge labels in the configured-first picker on explicit service changes.
+                const labels = {openrouter:['openrouter'],openai:['openai'],google:['google'],groq:['groq'],nanogpt:['nano-gpt','nanogpt']}[button.dataset.llmService] || [];
+                const matching = Array.from(credential.options).find(option => !option.disabled && option.value
+                    && labels.some(label => option.textContent.toLowerCase().includes(label)));
+                credential.value = matching?.value || preset[1];
+                credential.dispatchEvent(new Event('change', {bubbles: true}));
+            }
             updateService();
             document.querySelector('[name="model"]')?.focus();
         });

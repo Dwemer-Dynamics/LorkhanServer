@@ -6048,3 +6048,23 @@ Deployment verified 799 matching files, no extras or old paths, protected routes
 and health. Existing configuration, credentials and voice hashes were preserved.
 Rollback: /var/backups/lorkhanserver-code.RfYfSN. Provider-card consolidation and
 remaining page acceptance remain open; this does not complete the full goal.
+
+### LLM service-icon badge selection
+
+Pinned Herika syncApiBadge matches the service name against its configured-first
+badge list when a service icon is chosen. Lorkhan previously forced the dedicated
+LLM reference, even when that key was empty and a matching global key existed.
+Explicit service clicks now match the visible provider badge labels in picker
+order. Opening an existing connector does not change its stored selection.
+Player2/Custom keep their existing defaults; no credential is copied or reassigned
+until the user saves an edited connector.
+
+Temp/llm-service-badge-proof.cjs used synthetic configured-status metadata in the
+browser DOM, not real key edits. It verified global OpenAI selection, OpenRouter
+matching, inherited selection on initial load, Player2/Custom defaults and absent
+option handling. Desktop/narrow selected-badge screenshots were inspected. Model
+catalogue requests were intercepted and no live Save/provider request was issued.
+597 server checks, JavaScript syntax and diff checks passed. Deployment verified
+799 matching runtime files, protected routes and health; configuration, credentials
+and voice file hashes were unchanged. Rollback: /var/backups/lorkhanserver-code.ImzbiL.
+Full provider-card consolidation and the page-by-page goal remain open.
