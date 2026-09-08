@@ -5659,3 +5659,21 @@ fixtures use the actual PHP template plus deployed styles/scripts via intercepte
 HTML only; they do not prove persistent book capture or database pagination.
 No live book/NPC/game data was changed. 588 existing server checks passed.
 The complete page matrix and remaining feature/interaction gaps remain open.
+
+## Events table metrics recheck
+
+Compared live Events tables, not hidden sibling tab tables. Herika cells use
+12.8px text, 1.5 line height and 9px 10px padding; native cells had 8px padding.
+The scoped Events rules now match, retaining semantic thead headers. Record
+buttons use 12.8px bold text with 4px 8px padding and red semantic text, replacing
+the smaller 24px controls. Identifier lengths still determine button widths.
+
+Temp/event-table-measure.cjs measured both rendered products. The actual native
+AJAX page-two load and select-all/reset passed at desktop/narrow widths in
+Temp/events-metrics-proof.cjs. A browser-intercepted empty GET response verified
+the existing empty row, hidden headings and narrow visibility; it did not alter
+server event/filter data. Its first probe used the wrong API attribute and timed
+out; the corrected data-eventlog-api probe passed. Screenshots were inspected.
+588 server checks passed; no deletion, preference write, provider or game action
+was sent. This does not establish all event operations or whole-page acceptance.
+The full matrix remains open.
