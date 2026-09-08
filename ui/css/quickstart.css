@@ -46,3 +46,8 @@ body > main.quickstart-page{max-width:none;margin:0;padding:80px 10px 40px;color
 .quickstart-page .qs-field > small.form-text{display:inline}
 
 .quickstart-page .qs-service-group > label{display:inline-block}
+
+/* MiniMe reachability status follows the reference Quickstart service card. */
+.quickstart-page .qs-status{margin-top:8px;padding:8px 10px;border-radius:8px;border:1px solid #3b3b3b;background:#222;color:#cfd8e3;font-size:.92rem}
+.quickstart-page .qs-status.ok{border-color:#2f7c55;background:rgba(31,81,57,.28);color:#d7f5e5}
+.quickstart-page .qs-status.err{border-color:#8a4c3d;background:rgba(85,34,34,.28);color:#ffd3c9}

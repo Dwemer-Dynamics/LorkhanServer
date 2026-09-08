@@ -60,6 +60,12 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
             <?php lorkhan_quickstart_key('openrouter','OpenRouter','https://openrouter.ai/keys',$keyStatuses['LORKHAN_LLM_API_KEY']??[],$keyStoreReady); ?>
             <p class="form-text">Updates the server-wide OpenRouter API badge. Direct connectors using a different API badge keep their own key selection.</p>
         </section>
+        <section class="qs-section" id="qs_minime_section" data-minime-endpoint="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/quickstart-minime" data-minime-installation="<?= lorkhan_ui_h($installationId) ?>" data-minime-csrf="<?= lorkhan_ui_h($csrf) ?>">
+            <h2 class="qs-section-title">MiniMe Service</h2>
+            <div class="form-group qs-field"><small class="form-text">Checks if MiniMe is reachable at the saved endpoint or the local default. No game text is sent.</small>
+                <div id="qs_minime_probe_status" class="qs-status" role="status" aria-live="polite">Checking MiniMe service...</div>
+            </div>
+        </section>
         <?php foreach(['tts_provider'=>['TTS Service',$tts,'tts_connectors.php'],'stt_provider'=>['STT Service',$stt,'stt_connectors.php']]as$kind=>[$label,$rows,$editor]): ?>
         <section class="qs-section qs-service-card"><h2 class="qs-section-title"><?php echo $label; ?></h2><div class="form-group qs-service-group<?php echo $kind==='stt_provider'?' qs-service-group-stt':''; ?>">
             <?php
@@ -89,7 +95,7 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
             </div><?php endforeach; ?></div>
             <p class="form-text">These are your saved connectors. <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/llm_connectors.php">Configure Models</a> · <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/api_keys.php">API Keys</a></p>
         </section>
-        <p class="form-text">MiniMe and automatic summary settings are in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/config_hub.php?tab=globals">Global Settings</a>. Quickstart makes no provider requests.</p>
+        <p class="form-text">MiniMe and automatic summary settings are in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/config_hub.php?tab=globals">Global Settings</a>. The MiniMe check only tests reachability; it does not enable summaries or generate embeddings.</p>
         <?php if(!$ready): ?><p class="quickstart-notice">Create a Core Profile and at least one LLM connector before saving Quickstart.</p><?php endif; ?>
         <div class="qs-actions"><span data-dirty-indicator hidden>Unsaved changes</span><span role="alert" data-quickstart-error></span><button type="submit" class="btn-primary qs-save-btn" aria-describedby="qs-profile-scope"<?php echo !$ready?' disabled':''; ?>>Save and Continue</button></div>
     </form>

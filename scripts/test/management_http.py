@@ -22,7 +22,10 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
     omni_speakers=None
     deletes=[]
     delete_status=204
+    minime_status=200
     def do_GET(self):
+        if self.path=='/':
+            self.send_response(self.minime_status); self.send_header('Content-Length','0'); self.end_headers(); return
         if self.path=='/voice_libraries':
             payload=json.dumps([{'id':'en','name':'English'},{'id':'fr','name':'French'}]).encode()
             self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
@@ -239,6 +242,23 @@ assert embedding_policy['fields'].get('timeout_ms')=='1500' and embedding_policy
 embedding_values=dict(embedding_policy['fields'],_csrf=csrf,enabled='1',endpoint='http://'+provider_host+':'+str(voice_provider.server_port),timeout_ms='1250')
 r=request(embedding_policy['action'],'POST',embedding_values); body=r.read().decode()
 assert r.status==200 and 'status=embedding-saved' in r.geturl() and 'Use MiniMe semantic retrieval' in body and 'value="1250"' in body and ' checked' in body,(r.status,r.geturl(),body)
+# Quickstart checks only the saved MiniMe endpoint, never an arbitrary submitted URL or an embedding.
+original_opener,original_jar=opener,jar
+jar=http.cookiejar.CookieJar()
+opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+request('/LorkhanServer/ui/home.php').read()
+minime_csrf=next(c.value for c in jar if c.name=='lorkhan_csrf')
+minime_path='/LorkhanServer/manage/api/v1/quickstart-minime'
+minime_body={'installation_id':embedding_values['installation_id']}
+assert json_request(minime_path,'POST',minime_body).status==401
+assert json_request(minime_path,'POST',dict(minime_body,url='http://127.0.0.1:1'),minime_csrf).status>=400
+probe=json_request(minime_path,'POST',minime_body,minime_csrf); result=json.load(probe)
+assert probe.status==200 and result['ok'] and result['http_code']==200 and VoiceProvider.embedding_requests==[],result
+VoiceProvider.minime_status=503
+probe=json_request(minime_path,'POST',minime_body,minime_csrf); result=json.load(probe)
+assert probe.status==200 and not result['ok'] and result['http_code']==503 and VoiceProvider.embedding_requests==[],result
+VoiceProvider.minime_status=200
+opener,jar=original_opener,original_jar
 memories,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=memory')); embedding_backfill=next(f for f in memories.forms if f['action'].endswith('/forms/memory-embedding-backfill'))
 r=request(embedding_backfill['action'],'POST',dict(embedding_backfill['fields'],_csrf=csrf,limit='100')); body=r.read().decode()
 assert r.status==200 and 'status=embedding-backfill-empty' in r.geturl() and 'No memories needed embedding' in body and VoiceProvider.embedding_requests==[],(r.status,r.geturl(),body,VoiceProvider.embedding_requests)

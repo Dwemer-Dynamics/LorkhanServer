@@ -85,3 +85,25 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
         finally{savingForm=false;button.disabled=false;fields.forEach(field=>{field.querySelector('[data-key-input]').readOnly=false;});}
     },true);
 })();
+
+// Check service reachability independently of unsaved Quickstart fields and secret autosaves.
+(() => {
+    const section=document.querySelector('[data-minime-endpoint]');
+    if(!section)return;
+    const status=section.querySelector('[role="status"]');
+    async function probe(){
+        status.className='qs-status';status.textContent='Checking MiniMe service...';
+        try{
+            const response=await fetch(section.dataset.minimeEndpoint,{method:'POST',credentials:'same-origin',
+                headers:{'Content-Type':'application/json',Accept:'application/json','X-CSRF-Token':section.dataset.minimeCsrf},
+                body:JSON.stringify({installation_id:section.dataset.minimeInstallation}),signal:AbortSignal.timeout(6000)});
+            const result=await response.json();
+            if(!response.ok||typeof result.ok!=='boolean')throw new Error('probe-failed');
+            status.classList.add(result.ok?'ok':'err');
+            const http=Number(result.http_code)||0,latency=Number(result.latency_ms)||0;
+            status.textContent=`MiniMe ${result.ok?'reachable':'not reachable'} (${http}) in ${latency} ms. ${result.message}`;
+        }catch{status.classList.add('err');status.textContent='MiniMe check could not complete. Check the service and reload this page to try again.';}
+    }
+    if(section.dataset.minimeInstallation)probe();
+    else{status.textContent='Select an installation to check MiniMe.';}
+})();

@@ -185,6 +185,41 @@ final class ManagementRouter
             if ($r->query !== []) throw new InvalidArgumentException($providers ? 'invalid_provider_catalogue_query' : 'invalid_model_catalogue_query');
             return $this->openRouterCatalogue($providers);
         }
+        if ($r->method === 'POST' && $path === '/api/v1/quickstart-minime') {
+            $body=$this->json($r);
+            if ($r->query!==[] || array_keys($body)!==['installation_id'] || !is_string($body['installation_id'])) {
+                throw new InvalidArgumentException('invalid_minime_probe_request');
+            }
+            $this->uuid($body['installation_id'],'installation_id');
+            if (!$this->management->allowTtsPreview($browserSession)) return Response::json(429,['error'=>'minime_probe_rate_limited']);
+            $policy=\LorkhanServer\Application\MemoryEmbeddingPolicy::validate(
+                $this->repository->memoryEmbeddingPolicyForInstallation($body['installation_id'])['content']
+                ?? \LorkhanServer\Application\MemoryEmbeddingPolicy::defaults());
+            $url=$policy['endpoint']!==''?$policy['endpoint']:'http://127.0.0.1:8082';
+            if (str_ends_with($url,'/embed')) $url=substr($url,0,-6);
+            $parts=parse_url($url);$started=microtime(true);$code=0;$ok=false;
+            try {
+                $options=\LorkhanServer\Security\OutboundUrlPolicy::curlOptions($url,[$parts['host']],$parts['scheme']==='http',true);
+                $handle=curl_init($url);
+                if ($handle===false) throw new RuntimeException('probe_unavailable');
+                try {
+                    // Probe reachability only: discard bounded output and never send game text or credentials.
+                    $bytes=0;
+                    curl_setopt_array($handle,$options+[
+                        CURLOPT_FOLLOWLOCATION=>false,CURLOPT_CONNECTTIMEOUT_MS=>2000,CURLOPT_TIMEOUT_MS=>4000,
+                        CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2,
+                        CURLOPT_HTTPHEADER=>['Accept: application/json, text/plain;q=0.9'],
+                        CURLOPT_WRITEFUNCTION=>static function($handle,string $chunk)use(&$bytes):int {
+                            $bytes+=strlen($chunk);return $bytes>65536?0:strlen($chunk);
+                        },
+                    ]);
+                    $success=curl_exec($handle);$code=(int)curl_getinfo($handle,CURLINFO_RESPONSE_CODE);
+                    $ok=$success!==false&&$code>=200&&$code<500;
+                } finally {curl_close($handle);}
+            } catch (Throwable) {$ok=false;}
+            return Response::json(200,['ok'=>$ok,'http_code'=>$code,'latency_ms'=>(int)round((microtime(true)-$started)*1000),
+                'message'=>$ok?'MiniMe service reachable.':'MiniMe service not reachable. Check the service and its endpoint in Global Settings.']);
+        }
         if($r->method==='POST'&&$path==='/api/v1/quickstart-key'){
             $body=$this->json($r);$keys=array_keys($body);sort($keys);
             if($keys!==['credential','provider']||!is_string($body['provider'])||!is_string($body['credential']))
