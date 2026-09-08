@@ -7048,3 +7048,23 @@ provider, data write or game operation occurred. PHP/JS syntax, diff checks and 
 
 Deployed book copy comparisons pass at both widths. All 799 runtime files match
 source; deployment preserved configuration, credentials and voice files.
+
+### Events whole-page scope and introduction (2026-09-08)
+
+Current whole-page comparison found native Current playthrough disclosure inserted
+between the reference note and toolbar. Moved it after the bottom pager, retaining
+installation/playthrough names and immutable-source-trace explanation. The introduction
+and blue note now use pinned Herika events-memories.php wording; the raw log is no
+longer described as if every event necessarily supplies AI context. No event query,
+blacklist, deletion or context behavior changed.
+
+Deployed events-frame-interaction.cjs verifies scope placement/expansion, selection and
+deselection, and AJAX page two without mutation requests. events-identical-proof.cjs
+compares reference/native Auto Refresh/Delete/Next controls and an identical seven-column
+table at 1280/390: all measured styles, widths and padding match. Narrow screenshot
+reviewed. PHP syntax, 608 checks and diff checks pass. All 799 deployed files match
+source. Persistent configuration, credentials and voices were preserved.
+
+Live rows and page counts differ by game/session, so their whole-page screenshots
+are not evidence of identical populated data layout. Remaining full matrix acceptance
+is still open; no live delete or game interaction was performed.

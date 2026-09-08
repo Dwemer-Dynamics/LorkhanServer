@@ -171,9 +171,8 @@ function lorkhan_roleplay_eventlog(array $state,string $apiPath,string $csrf,boo
     $scope=is_array($state['scope']??null)?$state['scope']:[];$pagination=is_array($state['pagination']??null)?$state['pagination']:[];
     $installation=(string)($scope['installation_id']??'');$playthrough=(string)($scope['playthrough_id']??'');
     echo'<div id="eventlog-app" data-eventlog-api="'.lorkhan_ui_h($apiPath).'" data-eventlog-csrf="'.lorkhan_ui_h($csrf).'" data-installation-id="'.lorkhan_ui_h($installation).'" data-playthrough-id="'.lorkhan_ui_h($playthrough).'" data-page="'.lorkhan_ui_h($pagination['current_page']??1).'" data-limit="'.lorkhan_ui_h($pagination['limit']??100).'" data-auto-refresh="'.($autoRefresh?'true':'false').'">';
-    echo'<div class="roleplay-description"><span class="roleplay-description-icon" aria-hidden="true">&#x1F4DD;</span><strong>Events:</strong> Raw log of in-game events that provide context to the AI. These events are filtered and selectively added to prompts based on relevance.</div>';
-    echo'<div class="roleplay-note event-log-note"><span aria-hidden="true">&#x2139;&#xFE0F;</span><strong>Note:</strong> Not all events are added to AI context. Hidden and suppressed entries remain available in immutable LORKHAN source traces.</div>';
-    if($scope!==[])echo'<details class="eventlog-scope"><summary>Current playthrough</summary><strong>'.lorkhan_ui_h($scope['installation_name']??'Installation').'</strong><span>'.lorkhan_ui_h($scope['playthrough_name']??'Playthrough').'</span></details>';
+    echo'<div class="roleplay-description"><span class="roleplay-description-icon" aria-hidden="true">&#x1F4DD;</span><strong>Events:</strong> Raw log of in-game events for inspection and, where applicable, AI context. Events used in prompts are filtered by relevance.</div>';
+    echo'<div class="roleplay-note event-log-note"><span aria-hidden="true">&#x2139;&#xFE0F;</span><strong>Note:</strong> Not all events will show up in AI context. Any blacklist settings will not be used for context. This is a raw log of some of the more relevant events.</div>';
     echo'<div class="roleplay-toolbar eventlog-toolbar"><div class="eventlog-live-controls"><button type="button" class="roleplay-button '.($autoRefresh?'':'active').'" data-eventlog-live>'.($autoRefresh?'&#x23F8;&#xFE0F; Stop Live':'Auto Refresh').'</button><span class="eventlog-live-indicator" data-eventlog-live-indicator'.($autoRefresh?'':' hidden').'>LIVE</span></div><div class="delete-controls"><button type="button" class="roleplay-button danger" data-eventlog-delete-selected hidden>Delete Selected (<span data-eventlog-selected-count>0</span>)</button><select data-eventlog-delete-preset><option value="5">Delete Latest 5</option><option value="10">Delete Latest 10</option><option value="20">Delete Latest 20</option><option value="50">Delete Latest 50</option><option value="100">Delete Latest 100</option><option value="all">Delete ALL</option></select><button type="button" class="roleplay-button danger" data-eventlog-delete>Delete</button></div></div>';
     echo'<div data-eventlog-status role="status"></div>';
     $rows=is_array($state['data']??null)?$state['data']:[];
@@ -190,7 +189,9 @@ function lorkhan_roleplay_eventlog(array $state,string $apiPath,string $csrf,boo
     // Herika repeats its pager under the table so a long page never strands the control.
     echo'</div><div class="roleplay-list-controls roleplay-list-footer"><div class="pagination-shape" data-eventlog-pagination>';
     lorkhan_eventlog_pagination($pagination);
-    echo'</div><p class="roleplay-result-count" data-eventlog-count>'.lorkhan_ui_h($count).'</p></div></div>';
+    echo'</div><p class="roleplay-result-count" data-eventlog-count>'.lorkhan_ui_h($count).'</p></div>';
+    if($scope!==[])echo'<details class="eventlog-scope"><summary>Current playthrough</summary><strong>'.lorkhan_ui_h($scope['installation_name']??'Installation').'</strong><span>'.lorkhan_ui_h($scope['playthrough_name']??'Playthrough').'</span><p>Hidden and suppressed entries remain available in immutable LORKHAN source traces.</p></details>';
+    echo'</div>';
 }
 
 /** Describe the visible slice of the paged event log using only counts the repository already returned. */
