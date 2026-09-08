@@ -152,8 +152,19 @@ final class FirstPartyJobRepository
         $sourceMemoryIds = [];
         $sourceEventIds = [];
         $parts = [];
+        $sourceGameRanges = [];
         foreach ($rows as $row) {
             $sourceMemoryIds[] = (string) $row['memory_id'];
+            // Game-time provenance describes inputs, not proof that a truncated summary covers them.
+            $sourceProvenance = json_decode((string)$row['provenance'], true, 64, JSON_THROW_ON_ERROR);
+            $range = $sourceTier === 'recent'
+                ? ['from'=>$row['game_time'], 'to'=>$row['game_time']]
+                : ($sourceProvenance['source_game_time_range'] ?? null);
+            if (is_array($range) && is_numeric($range['from'] ?? null) && is_numeric($range['to'] ?? null)) {
+                $from = (float)$range['from']; $to = (float)$range['to'];
+                if (is_finite($from) && is_finite($to) && $from >= 0 && $from <= $to && $to <= 9_007_199_254_740_991)
+                    $sourceGameRanges[] = ['from'=>$from, 'to'=>$to];
+            }
             $content = trim((string) $row['content']);
             if ($content !== '' && !in_array($content, $parts, true)) {
                 $parts[] = $content;
@@ -162,7 +173,7 @@ final class FirstPartyJobRepository
                 $sourceEventIds[] = (string) $row['source_event_id'];
                 continue;
             }
-            $provenance = json_decode((string) $row['provenance'], true, 64, JSON_THROW_ON_ERROR);
+            $provenance = $sourceProvenance;
             foreach (($provenance['source_event_ids'] ?? []) as $sourceEventId) {
                 if (is_string($sourceEventId) && !in_array($sourceEventId, $sourceEventIds, true)) {
                     $sourceEventIds[] = $sourceEventId;
@@ -202,6 +213,13 @@ final class FirstPartyJobRepository
                 'source_range' => ['from' => $sourceFrom, 'to' => $sourceTo],
             ],
         ];
+        // Partial or legacy timestamps cannot establish a boundary for the complete source bucket.
+        if (count($sourceGameRanges) === count($rows)) {
+            $memory['provenance']['source_game_time_range'] = [
+                'from'=>min(array_column($sourceGameRanges, 'from')),
+                'to'=>max(array_column($sourceGameRanges, 'to')),
+            ];
+        }
         // Commit the deterministic record and its optional durable job together so a failed enqueue is retryable.
         $owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();
         try{

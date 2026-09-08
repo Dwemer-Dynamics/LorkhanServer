@@ -1420,6 +1420,8 @@ $diaryPromptContext=$products->promptContext(['installation_id'=>$installation,'
 $check(array_column($diaryPromptContext['narrative'],'kind')===['summary'],
     'diary context opt-out removed non-diary narratives or retained the generated diary');
 
+$db->prepare('UPDATE turns SET context=CAST(:context AS jsonb) WHERE turn_id=(SELECT turn_id FROM source_events WHERE source_event_id=:source)')
+    ->execute(['source'=>$deliverySource,'context'=>json_encode(['world'=>['game_time'=>100.5]],JSON_THROW_ON_ERROR)]);
 $derivedMemoryId='30000000-0000-4000-8000-000000000001';
 $derivedPayload=['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
     'memory_id'=>$derivedMemoryId,'tier'=>'recent','content'=>'Deterministic derived memory.','source_event_id'=>$deliverySource,
@@ -1432,6 +1434,9 @@ $derivePlayedMemory=static function(int $ordinal)use($db,$derive,$legacyInstalla
     $occurred=sprintf('2026-01-01T00:00:%02dZ',$ordinal);
     $db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES(:turn,:request,:message,:session,1,'text','en','memory source','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")
         ->execute(['turn'=>$turn,'request'=>$request,'message'=>$turnMessage,'session'=>$legacySession]);
+    // One later source intentionally lacks game time to prove that partial ranges are never advertised.
+    if ($ordinal !== 19) $db->prepare('UPDATE turns SET context=CAST(:context AS jsonb) WHERE turn_id=:turn')
+        ->execute(['turn'=>$turn,'context'=>json_encode(['world'=>['game_time'=>$ordinal*100+0.5]],JSON_THROW_ON_ERROR)]);
     $db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,response_line_id,utterance_id,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,1,1,:line,:utterance,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,:text,'2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
         ->execute(['dialogue'=>$dialogue,'session'=>$legacySession,'turn'=>$turn,'request'=>$request,'line'=>$dialogue,'utterance'=>Uuid::v4(),'text'=>$memoryText]);
     $db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery',:occurred,'lorkhan.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
@@ -1462,6 +1467,14 @@ foreach($middleRows as$row){$provenance=json_decode((string)$row['provenance'],t
     &&count($provenance['source_memory_ids'])===4&&count($provenance['source_event_ids'])===4
     &&isset($provenance['source_range']['from'],$provenance['source_range']['to']),'middle-memory provenance is incomplete');}
 $longProvenance=json_decode((string)$longRows[0]['provenance'],true,64,JSON_THROW_ON_ERROR);
+$check(($longProvenance['source_game_time_range']['from']??null)===100.5
+    &&($longProvenance['source_game_time_range']['to']??null)===1600.5,
+    'long memory must propagate complete fractional game-time source bounds');
+foreach($middleRows as $row){
+    $meta=json_decode((string)$row['provenance'],true,64,JSON_THROW_ON_ERROR);
+    $range=$meta['source_game_time_range'];
+    $check($range['to']-$range['from']===300.0,'middle memory must retain its exact source game-time bucket');
+}
 $cappedSummaries=0;
 foreach($consolidated as$row){
     $coverage=json_decode((string)$row['provenance'],true,64,JSON_THROW_ON_ERROR)['content_coverage'];
@@ -1571,6 +1584,9 @@ $db->exec('DROP TRIGGER reject_model_enqueue ON durable_jobs');
 $check((int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND tier='mid'")->fetchColumn()===$beforeEnqueueFailure,
     'failed model enqueue left a consolidated record that could not be retried');
 $autoConsolidation=(new Worker($jobs,$firstPartyRegistry,'model-memory-auto-consolidation',5,1,20,0,10,['memory.consolidate'],static fn(int $microseconds):mixed=>null))->run();
+$partialRange=$db->query("SELECT provenance FROM memory_records WHERE installation_id='{$legacyInstallation}' AND tier='mid' ORDER BY occurred_at DESC LIMIT 1")->fetchColumn();
+$check(!array_key_exists('source_game_time_range',json_decode((string)$partialRange,true,64,JSON_THROW_ON_ERROR)),
+    'missing source game time must not fabricate a complete summary boundary');
 $autoSummary=(new Worker($jobs,$firstPartyRegistry,'model-memory-auto-summary',5,1,10,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
 $check($autoConsolidation['dead']===0&&$autoSummary['succeeded']===1
     &&(int)$db->query('SELECT count(*) FROM memory_model_summaries')->fetchColumn()===3,
