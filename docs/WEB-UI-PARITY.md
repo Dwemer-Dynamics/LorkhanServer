@@ -7747,3 +7747,19 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - 615 server checks, deployment syntax and 800 runtime hashes/private/auth probes
   pass. No provider calls or game control; configuration, credentials and voices
   preserved. Rollback: lorkhanserver-code.XOh3Q9. Full matrix remains active.
+
+### Diaries embedded table refresh
+
+- Compared within both Roleplay hubs. Reference has no current-month diary rows;
+  used its actual table with source-shaped synthetic row/action markup and native's
+  freshly rendered PHP fixture. No production diary or provider was used as data.
+- Removed inherited 670px minimum from diary table and matched reference break-word
+  wrapping. At 1280 all five columns and 60.34375px row height match exactly; at 390
+  both tables are 386.453125px wide with identical columns and 154.3125px row height.
+  The reference's small horizontal overflow is retained, not labelled overflow-free.
+  Inspected native narrow populated capture. Reader/edit/audio wiring unchanged.
+- Refreshed mocked reader checks at both widths: pending audio abort, playback stop,
+  dialog padding versus backdrop behavior, focus/scroll restoration pass. No real
+  TTS requests. 615 server checks and all 800 deployed hashes/private/auth probes
+  pass; configuration, credentials and voices preserved. Rollback:
+  lorkhanserver-code.kLJdwF. Broader matrix and live-provider limits remain open.

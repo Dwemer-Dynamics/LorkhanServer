@@ -43,13 +43,13 @@ body .roleplay-reader .diary-audio-button{background:#bc9d5a!important;border-co
 .roleplay-reader .reader-prose{white-space:pre-wrap}
 .roleplay-reader .diary-editor-modal{font-family:'Futura CondensedLight',Arial,sans-serif}
 .roleplay-reader .calendar-event-table:has(.log-empty){min-width:0}
-.diary-log-page .calendar-event-table{scroll-margin-top:200px;table-layout:auto;border-collapse:separate;border-spacing:0;font-size:13px;margin-top:20px;border:1px solid #404040;border-radius:10px}
+.diary-log-page .calendar-event-table{min-width:0;scroll-margin-top:200px;table-layout:auto;border-collapse:separate;border-spacing:0;font-size:13px;margin-top:20px;border:1px solid #404040;border-radius:10px}
 .diary-log-page .diary-col-people{width:20%}
 .diary-log-page .diary-col-gamets{width:15%}
 .diary-log-page .diary-col-time{width:10%}
 .diary-log-page .calendar-event-table th a{color:#bc9d5a}
 .diary-log-page .calendar-event-table th:first-child,.diary-log-page .calendar-event-table th:nth-child(2){width:auto}
-.diary-log-page .calendar-event-table th,.diary-log-page .calendar-event-table td{padding:9px 10px;border:1px solid #343434;vertical-align:middle;color:#e0e0e0}
+.diary-log-page .calendar-event-table th,.diary-log-page .calendar-event-table td{overflow-wrap:break-word;padding:9px 10px;border:1px solid #343434;vertical-align:middle;color:#e0e0e0}
 .diary-log-page .calendar-event-table th{color:#bc9d5a;background:#292929}
 .diary-log-page .calendar-event-table tbody tr:nth-child(even){background:#202020}
 .diary-log-page .calendar-event-table tbody tr:nth-child(odd){background:#232323}
