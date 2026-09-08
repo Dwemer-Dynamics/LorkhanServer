@@ -5623,3 +5623,22 @@ Temp/lorkhan-response-live-proof.cjs opened prompts and closed with Escape at
 No provider request, destructive action, live-data save or game interaction occurred.
 Full counterpart acceptance remains open; this checkpoint corrects measured
 controls rather than treating different live datasets as visual parity proof.
+
+## Adventure Log control and state recheck
+
+Extended the shared calendar control rules to Adventure Log, retaining its
+200px minimum for downloads instead of forcing the longer full-log label to
+200px. Temp/adventure-controls-measure.cjs measured exact equality with Herika
+for all four controls: width/height, font, line height, padding and margins.
+Current Date is 200x36; Entire Adventure Log is 219.234375x36; calendar modes
+are 135.640625x36 and 142.046875x36 at the checked desktop viewport.
+
+Temp/adventure-current-proof.cjs selected a populated day, confirmed rendered
+rows, checked that both scoped/current-date and whole-log CSV responses contain
+the displayed event, switched calendar modes and selected an empty historical
+day/month. Desktop/narrow selected-day and empty-state screenshots were inspected.
+The wide populated event table remains horizontally scrollable at narrow widths;
+the empty table keeps all headings and its empty message in view. This did not
+write game/server data or exercise the game. 588 server checks passed. Full-range
+export completeness remains supported by prior tests, not claimed from the one
+row checked here. The complete page matrix remains open.
