@@ -7794,3 +7794,40 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - 615 server checks and all 800 deployed hashes/private/auth/health probes pass.
   Configuration, credentials and voices preserved. Rollback: lorkhanserver-code.T5LFKs.
   Full page matrix remains active; these comparisons do not establish completion.
+
+### Google Free STT: rejected exception corrected by source audit
+
+- This is an incomplete parity feature, not an accepted OpenMW exception. The current
+  disabled control/registry says browser dictation cannot preserve session/target
+  fencing. That is an implementation gap, not proof that a fenced bridge cannot work.
+- Pinned Herika ui/stt_connectors.php opens ui/addons/pmstt/index.html inside the
+  existing test modal. It provides browser speech recognition, language and pause
+  delay, interim/final text and Start/Stop. Final text reaches PlayerSays.php, which
+  queues rolecommand|ImpersonatePlayer@...@inputtext for client-side input handling.
+  The reference uses a mutation through GET and wildcard CORS; neither is suitable
+  for copying into Lorkhan's authenticated management boundary.
+- Native Router::createTurn and Repository::acceptTurn require installation, current
+  session/generation, playthrough and fingerprint, with speaker/target/context in the
+  protocol envelope. The typed debug-command schema contains no transcript/chat
+  command. Read-only client inspection at 6daab0c4b2e33b109575e7592deb8e83298b1bd0
+  finds player.lua::submitText resolves the target and builds fresh conversation
+  context; the debug queue executor does not forward text to this path.
+- Implementation dependency: add a dedicated bounded, authenticated management POST
+  and idempotent expiring transcript queue scoped to the selected live session and
+  generation. Negotiate client support; have the client validate/resolve its current
+  target and feed recognized text into the ordinary player-input lane. Do not reuse
+  an earlier turn's target/context or expose the native pairing credential in JS.
+  Integrate recognition controls into the reference-style modal only once this path
+  exists. Clear recognition timers and abort pending capture on Stop, close, navigation
+  and session change; render transcripts with textContent and surface send failures.
+- Acceptance: mocked recognition interim/final results, pause delay, denied/unavailable
+  microphone, Start/Stop/reopen, duplicate delivery, offline/stale generation, changed
+  target, busy lane, expiry and exact-once turn submission. Compare modal populated,
+  empty and failure states at desktop/narrow widths. No microphone or game was opened
+  during this audit. Browser-only transcription is not completion of this feature.
+- Reference checkout has advanced to 1aa2021d854d7a2811b89c0a06c23e09284e2169; pinned
+  529364c still remains the task baseline. Verified the two pmstt files are unchanged
+  and the pinned STT page has the same launch path. Future visual comparisons must
+  re-establish which source version the live reference is serving.
+- Documentation-only checkpoint. Runtime remains c4796ff, with its previously verified
+  800-file deployment; no claim of a new deployment or completed STT parity.
