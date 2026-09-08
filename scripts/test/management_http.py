@@ -2746,4 +2746,23 @@ assert list(csv.DictReader(io.StringIO(request(biography_export_url).read().deco
 assert multipart_request(biography_import['action'],{'_csrf':csrf,'installation_id':biography_installation},'csv_file','restore-biographies.csv','text/csv',backup_csv.encode()).status==200
 restored_rows=list(csv.DictReader(io.StringIO(request(biography_export_url).read().decode('utf-8-sig'))))
 assert sorted(restored_rows,key=lambda r:(r['scope'],r['name']))==sorted(backup_rows,key=lambda r:(r['scope'],r['name']))
+# Managed Local LLM setup uses browser CSRF and an exact routing snapshot, without a provider call.
+local_path='/LorkhanServer/manage/api/v1/quickstart-local-llm'
+plan_response=request(local_path+'?installation_id='+valid['installation_id'])
+assert plan_response.status==200
+local_plan=json.loads(plan_response.read())['routing_plan']
+local_body={'installation_id':valid['installation_id'],'fingerprint':local_plan['fingerprint'],
+    'setup':{'server_type':'lm_studio','scope':'conversations','endpoint':'http://127.0.0.1:1234/v1/chat/completions','model':'isolated-routing-fixture'}}
+assert json_request(local_path,'POST',local_body,csrf_token='').status==401
+assert json_request(local_path,'POST',dict(local_body,unexpected=True),csrf_token=csrf).status==422
+assert json_request(local_path,'POST',dict(local_body,setup=dict(local_body['setup'],api_key='must-not-be-stored')),csrf_token=csrf).status==422
+saved_local=json_request(local_path,'POST',local_body,csrf_token=csrf)
+saved_local_body=json.loads(saved_local.read())
+assert saved_local.status==200,(saved_local.status,saved_local_body)
+assert set(saved_local_body)=={'configuration_id','routing_plan'}
+assert saved_local_body['routing_plan']['connector_revision']==1
+stale_local=json_request(local_path,'POST',local_body,csrf_token=csrf)
+assert stale_local.status==409,(stale_local.status,stale_local.read())
+reloaded_plan=json.loads(request(local_path+'?installation_id='+valid['installation_id']).read())['routing_plan']
+assert reloaded_plan==saved_local_body['routing_plan']
 print('browser-like management HTTP forms passed')

@@ -185,6 +185,22 @@ final class ManagementRouter
             if ($r->query !== []) throw new InvalidArgumentException($providers ? 'invalid_provider_catalogue_query' : 'invalid_model_catalogue_query');
             return $this->openRouterCatalogue($providers);
         }
+        if ($r->method === 'GET' && $path === '/api/v1/quickstart-local-llm') {
+            if(array_keys($r->query)!==['installation_id'])throw new InvalidArgumentException('invalid_local_llm_setup_query');
+            $installation=$this->queryUuid($r,'installation_id');
+            return Response::json(200,['routing_plan'=>$this->repository->quickstartLocalRoutingPlan($installation)]);
+        }
+        if ($r->method === 'POST' && $path === '/api/v1/quickstart-local-llm') {
+            $body=$this->json($r);$keys=array_keys($body);sort($keys);
+            if($r->query!==[]||$keys!==['fingerprint','installation_id','setup']
+                ||!is_string($body['installation_id'])||!is_string($body['fingerprint'])
+                ||!preg_match('/^[a-f0-9]{64}$/D',$body['fingerprint'])
+                ||!is_array($body['setup'])||array_is_list($body['setup']))throw new InvalidArgumentException('invalid_local_llm_setup_request');
+            $this->uuid($body['installation_id'],'installation_id');
+            $saved=$this->repository->applyQuickstartLocalLlm($body['installation_id'],$body['setup'],$body['fingerprint'],gmdate('Y-m-d\TH:i:s\Z'));
+            // Return routing metadata only: provider configuration and credential references stay out of this response.
+            return Response::json(200,['configuration_id'=>$saved['configuration_id'],'routing_plan'=>$saved['routing_plan']]);
+        }
         if ($r->method === 'POST' && $path === '/api/v1/quickstart-minime') {
             $body=$this->json($r);
             if ($r->query!==[] || array_keys($body)!==['installation_id'] || !is_string($body['installation_id'])) {
