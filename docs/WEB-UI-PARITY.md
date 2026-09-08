@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `3d5a56e` (memory source game-time provenance). Latest UI/RPG checkpoints remain `f6118e6`/`4230cc5`; client `1560dbe` remains deployed.
+Current deployed product checkpoint: `d0ce6f4` (working Short Term Memory card and per-profile Max Summaries), following scene selector `9aa6851`. Client `1560dbe` remains deployed.
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -32,7 +32,7 @@ only the listed states, not completion of every page or feature.
 Core Profiles now includes the RPG Comments card with supported event choices and
 probability, bound-responder policy, portable/named presets and built-in probabilities.
 Its actual hub desktop card and native 860/390 controls were compared; the complete
-Core editor, Short Term Memory card and remaining profile features are still open.
+Core editor and remaining profile features are still open. The Short Term Memory card now matches the reference desktop geometry, with saved 1-50/default10 controls and native 860/390 interactions verified. Digest high-water selection and safe history-overlap removal are still unfinished runtime parity work.
 
 The reference's extra excluded navigation entries change wrapping and page origins.
 Do not add blank tabs or reintroduce excluded features to force absolute offsets.
@@ -9206,3 +9206,41 @@ not yet establish the reference digest high-water selection before the scene cap
 These are unfinished parity work, not permanent product exceptions. The remaining
 Core sections and every other open counterpart-matrix row remain in the full goal.
 GitHub workflow remains manually disabled.
+
+
+## 2026-09-08 - Short Term Memory card and per-profile summary limit
+
+Product `d0ce6f4`, branch `codex/web-ui-parity`, pushed directly to main and locally
+deployed. Core now uses the reference Short Term Memory provider card, title/icon,
+Max Summaries label/help and paired range/number controls. Gold branding is retained.
+The server-owned field defaults to10, validates integer1-50, survives Core saves,
+named presets and portable export/import, and reaches actual prompt scene selection
+including the history-removal budget fallback. It does not alter the client schema
+or silently become a global/NPC override. No new CSS, test file or migration.
+
+772 PHP checks passed, covering the real three-summary prompt result, resolver
+ownership, client projection exclusion, preset application and invalid inputs.
+`stm-card-management-http.txt` passed the full browser-like forms suite, including
+saving37, rejecting51 and exporting/importing37. `stm-card-integration.txt` passed
+vertical slice,173-relation schema inventory and migration/durable-job tests.
+
+Actual hub evidence `stm-card-ui.cjs` / `stm-card-ui.txt`: reference and native1280
+card both412.5x196.5625; identical card/head/body/row/range measurements, padding,
+gaps, fonts and radius. Paired screenshots were actually viewed; native390 disabled
+STM state was also viewed. Native1280/860/390 passed slider-to-number and reverse,
+keyboard arrows, minimum1/maximum50, default10, retaining the limit with STM off,
+no page errors or card overflow. Non-GET requests were blocked during live visual
+checks; saves/imports used isolated HTTP fixtures, not private live profiles.
+The reference narrow iframe limitation remains separate from native narrow checks.
+
+Deployment rollback `/var/backups/lorkhanserver-code.idYKU1`; all807 runtime files
+match, no extras/old paths, protected routes403 and unauthenticated session401,
+health/NPC probes pass. Configuration/credential/voice hashes preserved. No game
+launch/control and no client changes. Workflow remains disabled.
+
+Still open: digest coverage/high-water selection before the scene cap, retained
+summary/source-event linkage and safe overlapping-history removal, including model
+projections and budget fallbacks. This card checkpoint does not close those runtime
+requirements or the full Core editor/counterpart matrix. Continue those and then
+remaining Core sections (Bored, Combat, Quest comments, physical diary), with actual
+OpenMW consumers and corresponding visual comparisons rather than inert controls.
