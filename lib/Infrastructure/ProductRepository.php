@@ -91,6 +91,39 @@ final class ProductRepository
     }
     public function revisionContent(string $kind,string $id,int $revision):array{[, $key,$table]=$this->revisionMeta($kind);$s=$this->db->prepare("SELECT content FROM {$table} WHERE {$key}=:id AND revision=:revision");$s->execute(['id'=>$id,'revision'=>$revision]);$v=$s->fetchColumn();if($v===false)throw new RuntimeException('revision_not_found');return$this->json($v);}
 
+    /** Resolve Quickstart's owned connector by identity rather than adopting a similarly named user connector. */
+    public function quickstartLocalLlmForInstallation(string $installation):?array
+    {
+        $query=$this->db->prepare("SELECT q.configuration_id,q.server_type,q.scope FROM quickstart_local_llm q JOIN configuration_sets c ON c.configuration_id=q.configuration_id AND c.installation_id=q.installation_id WHERE q.installation_id=:installation AND c.deleted_at IS NULL");
+        $query->execute(['installation'=>$installation]);$state=$query->fetch();
+        if(!$state)return null;
+        return $state+['connector'=>$this->getRevisioned('provider',(string)$state['configuration_id'])];
+    }
+
+    /** Upsert the managed connector inside the caller's routing transaction, without writing or returning raw keys. */
+    public function saveQuickstartLocalLlm(string $installation,array $values,int $expectedRevision,string $now):array
+    {
+        return $this->transaction(function()use($installation,$values,$expectedRevision,$now):array{
+            $lock=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:installation FOR UPDATE');
+            $lock->execute(['installation'=>$installation]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
+            $state=$this->quickstartLocalLlmForInstallation($installation);$existing=$state['connector']??null;
+            if($expectedRevision<0||$expectedRevision!==(int)($existing['current_revision']??0))throw new RuntimeException('revision_conflict');
+            if($existing!==null&&($existing['content']['service']??'')!=='local')throw new RuntimeException('local_llm_connector_repurposed');
+            // Omitting the reference keeps the current private badge selection; an explicit 'none' clears only the reference.
+            $values['credential']??=$existing['content']['credential']??'none';
+            $setup=\LorkhanServer\Application\QuickstartLocalLlm::normalize($values);
+            if($existing===null){
+                $connector=$this->createRevisioned('provider',['installation_id'=>$installation,'name'=>$setup['name'],'content'=>$setup['content']],$now);
+            }else{
+                $connector=$this->revise('provider',(string)$state['configuration_id'],$setup['content'],'Quickstart Local LLM setup',$now,$expectedRevision);
+                $this->db->prepare('UPDATE configuration_sets SET name=:name WHERE configuration_id=:id')->execute(['name'=>$setup['name'],'id'=>$state['configuration_id']]);
+            }
+            $this->db->prepare('INSERT INTO quickstart_local_llm(installation_id,configuration_id,server_type,scope) VALUES(:installation,:id,:server,:scope) ON CONFLICT(installation_id) DO UPDATE SET configuration_id=EXCLUDED.configuration_id,server_type=EXCLUDED.server_type,scope=EXCLUDED.scope')
+                ->execute(['installation'=>$installation,'id'=>$connector['configuration_id'],'server'=>$setup['server_type'],'scope'=>$setup['scope']]);
+            return $this->quickstartLocalLlmForInstallation($installation)??throw new RuntimeException('local_llm_save_failed');
+        });
+    }
+
     /** Return the single live revisioned settings document for one installation. */
     public function globalSettingsForInstallation(string $installationId):?array
     {

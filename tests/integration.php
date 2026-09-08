@@ -47,6 +47,32 @@ $tokenHash = PairingToken::hash($token);$macKey=hex2bin($tokenHash);$installatio
 $attempts = new ProviderAttemptRepository($db);
 $products = new ProductRepository($db);
 $repo->ensureInstallation($installationId,$tokenHash,$macKey);
+// Quickstart connector ownership is stable, revision fenced, and participates in an outer routing rollback.
+$localSetup=['server_type'=>'lm_studio','scope'=>'conversations','endpoint'=>'http://127.0.0.1:1234/v1/chat/completions','model'=>' fixture ','credential'=>'custom'];
+try{
+    $products->transaction(function()use($products,$installationId,$localSetup,$db):void{
+        $first=$products->saveQuickstartLocalLlm($installationId,$localSetup,0,'2026-09-08T12:00:00Z');
+        $id=$first['configuration_id'];
+        $db->exec('SAVEPOINT local_setup_down');
+        try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/096_quickstart_local_llm.down.sql'));throw new RuntimeException('populated Local LLM downgrade accepted');}
+        catch(PDOException $error){
+            $db->exec('ROLLBACK TO SAVEPOINT local_setup_down');
+            if(!str_contains($error->getMessage(),'Cannot remove Local LLM setup'))throw$error;
+        }
+
+        if($first['connector']['content']['model']!=='fixture'||$first['connector']['current_revision']!==1)throw new RuntimeException('local setup creation failed');
+        $next=$localSetup;unset($next['credential']);$next['server_type']='ollama';$next['scope']='all';$next['disable_streaming']=true;
+        $second=$products->saveQuickstartLocalLlm($installationId,$next,1,'2026-09-08T12:01:00Z');
+        if($second['configuration_id']!==$id||$second['connector']['current_revision']!==2
+            ||$second['connector']['content']['credential']!=='custom'||$second['connector']['content']['options']['stream']!==false
+            ||$second['scope']!=='all'||$second['connector']['name']!=='Local LLM - Ollama')throw new RuntimeException('local setup revision failed');
+        try{$products->saveQuickstartLocalLlm($installationId,$localSetup,1,'2026-09-08T12:02:00Z');throw new RuntimeException('stale local setup accepted');}
+        catch(RuntimeException $error){if($error->getMessage()!=='revision_conflict')throw$error;}
+        if($products->quickstartLocalLlmForInstallation($installationId)['connector']['current_revision']!==2)throw new RuntimeException('stale local setup changed state');
+        throw new RuntimeException('rollback-local-setup-fixture');
+    });
+}catch(RuntimeException $error){if($error->getMessage()!=='rollback-local-setup-fixture')throw$error;}
+if($products->quickstartLocalLlmForInstallation($installationId)!==null)throw new RuntimeException('outer rollback retained local setup');
 $presetStore=new \LorkhanServer\Infrastructure\ManagementRepository($db);
 $presetPayload=\LorkhanServer\Application\CoreProfilePreset::capture(['settings_overrides'=>['response'=>['max_words'=>60]]]);
 $presetId=$presetStore->saveCoreProfilePreset($installationId,'Custom companion',$presetPayload);

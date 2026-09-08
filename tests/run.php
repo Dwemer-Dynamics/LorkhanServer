@@ -394,6 +394,13 @@ try {
         });
     $check(false,'diagnostic observer did not run');
 }catch(RuntimeException $error){if($error->getMessage()!=='diagnostic-observed')throw$error;}
+$localSetup=\LorkhanServer\Application\QuickstartLocalLlm::normalize(['model'=>' fixture ','endpoint'=>'http://127.0.0.1:1234/v1/chat/completions']);
+$check($localSetup['server_type']==='lm_studio'&&$localSetup['scope']==='conversations'&&$localSetup['content']['timeout_ms']===30000
+    &&$localSetup['content']['options']['stream']===true&&$localSetup['content']['credential']==='none','Local LLM setup defaults match reference');
+foreach([['timeout_seconds'=>4],['timeout_seconds'=>121],['server_type'=>'unknown'],['scope'=>'selected'],['disable_streaming'=>'false'],['api_key'=>'secret-fixture']]as$invalidSetup){
+    try{\LorkhanServer\Application\QuickstartLocalLlm::normalize($invalidSetup+['model'=>'fixture','endpoint'=>'http://localhost:1234/v1/chat/completions']);$check(false,'invalid local setup rejected');}
+    catch(InvalidArgumentException){$check(true,'invalid local setup rejected');}
+}
 // Explicit Local LLM transport must never widen legacy/public connector access.
 foreach(['localhost','127.0.0.1','10.0.0.2','172.16.1.2','172.31.255.254','192.168.1.4','[::1]','[fd12::1]','[fc00::2]'] as $localHost){
     $localContent=LlmConnector::validate(['driver'=>'openai-compatible','service'=>'local','model'=>'fixture','endpoint'=>'http://'.$localHost.':1234/v1/chat/completions','credential'=>'none']);
