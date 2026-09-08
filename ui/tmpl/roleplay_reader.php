@@ -187,7 +187,7 @@ function lorkhan_roleplay_reader(array $state, array $installationOptions, strin
             <article class="reader-entry" data-reader-entry>
                 <header><div><span class="reader-person"><?= lorkhan_ui_h($row['person']) ?><?php if ($tab === 'responselog'): ?> · <?= lorkhan_ui_h($row['kind']) ?><?php endif; ?></span><h2 data-reader-title><?= lorkhan_ui_h($row['title']) ?></h2></div><time><?= lorkhan_ui_h((string) $row['created_at']) ?></time></header>
                 <div class="reader-prose" data-reader-text><?= lorkhan_ui_h($row['content']) ?></div>
-                <div class="reader-entry-actions"><button type="button" class="roleplay-button diary-audio-button" data-reader-play<?= $ready?'':' disabled' ?>>▶ Play Audio</button><button type="button" class="roleplay-button" data-reader-export>Export Text</button><?php if($calendar): ?><button type="button" class="roleplay-button" data-calendar-close autofocus>Close</button><?php endif; ?></div>
+                <div class="reader-entry-actions"><button type="button" class="roleplay-button diary-audio-button" data-reader-play<?= $ready?'':' disabled' ?>>▶ Play Audio</button><?php if(!$calendar): ?><button type="button" class="roleplay-button" data-reader-export>Export Text</button><?php endif; ?></div>
             </article>
             <?php if($calendar): ?></dialog><?php endif; ?>
             <?php if($editable) include __DIR__.'/diary_entry_editor.php'; ?>

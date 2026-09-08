@@ -6868,3 +6868,28 @@ unresolved. These are not accepted product exceptions or full reader parity proo
 
 The same interaction assertions pass on the deployed JavaScript. All 799 runtime
 files match source; configuration, credentials and voices were preserved by the deploy.
+
+### Diary single-toggle reader footer (2026-09-08)
+
+Replaced the calendar Diary reader's Export Text/Close/Stop/media-player toolbar with
+Herika's single audio toggle and status. Escape and backdrop closing remain available;
+other non-calendar readers retain their export control. The native audio object remains
+behind the toggle for sentence queuing, pause/resume and cancellation. Browser autoplay
+failure points to Play rather than a hidden transport. Opening the same playing table
+entry moves its status into the reader without canceling or restarting the clip.
+
+Reference diary_adventure.css and rendered diarylog.php show a one-pixel container
+border, 61px footer and 36px button. Restored that border and matched button line-height.
+Temp/diary-footer-parity.cjs compares actual reference/native pages with synthetic diary
+content at 1280/390: outer modal, parchment, footer and button y/width/height, padding,
+font size and line-height now match. Screenshots were reviewed. HTML remains escaped
+in Lorkhan; fixture content is not inserted as executable markup.
+Temp/diary-open-playing-proof.cjs verifies table-to-reader continuity, synchronized
+pause/resume without generation, sentence advancement and close cancellation with
+browser-local audio/fetch mocks. No real provider, diary write or game operation.
+
+Author-voice mapping, full content-format/data behavior, long/empty content and remaining
+calendar/delete states still need review; this checkpoint is not full Diary acceptance.
+
+Deployed reader geometry and playback-continuity probes pass at both widths. The
+799-file runtime verification matches source; PHP/JavaScript syntax and 608 checks pass.

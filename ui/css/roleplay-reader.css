@@ -32,14 +32,15 @@ body .roleplay-reader .diary-save{background:#176529!important;border-color:#238
 body .roleplay-reader .diary-audio-button{background:#bc9d5a!important;border-color:#9d8045!important;color:#141414!important}
 @media(max-width:768px){.roleplay-reader .diary-delete-modal{top:20px;max-height:calc(100dvh - 40px);width:calc(100% - 24px);padding:20px}.roleplay-reader .diary-delete-modal form{max-height:calc(100dvh - 130px)}}
 /* Keep the paper reader separate from editing, with the reference's fixed audio footer. */
-.roleplay-reader .diary-entry-modal{position:fixed;inset:80px auto auto 50%;transform:translateX(-50%);margin:0;padding:0;width:98%;max-width:1600px;height:calc(100dvh - 220px);min-height:0;background:transparent;border:0;box-shadow:none;overflow:hidden}
+.roleplay-reader .diary-entry-modal{position:fixed;inset:80px auto auto 50%;transform:translateX(-50%);margin:0;padding:0;width:98%;max-width:1600px;height:calc(100dvh - 220px);min-height:0;background:transparent;border:1px solid #404040;border-radius:14px;box-shadow:0 2px 10px #0005;overflow:hidden}
 .roleplay-reader .diary-entry-modal::backdrop{background:#0008;backdrop-filter:blur(5px)}
 .roleplay-reader .diary-entry-modal .reader-entry{display:flex;flex-direction:column;height:100%;padding:0;margin:0;background:transparent;border:0}
 .roleplay-reader .diary-entry-modal .reader-entry>header{display:none}
 .roleplay-reader .diary-entry-modal .reader-prose{flex:1;min-height:0;margin:0;overflow-y:auto;overflow-x:hidden}
-.roleplay-reader .diary-entry-modal .reader-entry-actions{flex-shrink:0;margin:0;gap:10px}
-.roleplay-reader .diary-entry-modal audio{width:min(400px,100%);margin:0}
-.roleplay-reader .diary-entry-modal .reader-status{margin:0}
+.roleplay-reader .diary-entry-modal .reader-entry-actions{flex-shrink:0;margin:0;gap:12px;flex-wrap:nowrap;border-top:0}
+/* The reference reader exposes one toggle and status, not a second transport toolbar. */
+.roleplay-reader .diary-entry-modal audio,.roleplay-reader .diary-entry-modal [data-reader-stop]{display:none}
+.roleplay-reader .diary-entry-modal .reader-status{margin:0;font-size:.9rem;color:#ddd;min-height:0}
 
 .roleplay-reader .reader-prose{white-space:pre-wrap}
 .roleplay-reader .diary-editor-modal{font-family:'Futura CondensedLight',Arial,sans-serif}
@@ -98,3 +99,5 @@ body .diary-people-item:hover,body .diary-people-item.active{border-color:#bc9d5
 .roleplay-reader .diary-editor-modal textarea{padding:7px 10px;}
 /* The shared accent border and focus shadow already provide the reference focus cue. */
 .roleplay-reader .diary-editor-modal textarea:focus-visible{outline:none;}
+
+.roleplay-reader .diary-entry-modal .diary-audio-button{line-height:1.1!important}

@@ -97,7 +97,7 @@
             if (!signal.aborted && active) updatePlayButtons(active.entry, '❚❚ Pause');
         }).catch(() => {
             if (!signal.aborted && active) updatePlayButtons(active.entry);
-            if (!signal.aborted) announce('Audio is ready. Press Play on the audio player to continue.');
+            if (!signal.aborted) announce('Audio is ready. Press Play to continue.');
         });
     });
 
@@ -159,7 +159,7 @@
     root.querySelectorAll('[data-calendar-open]').forEach(button => button.addEventListener('click', () => {
         const modal = document.getElementById(button.dataset.calendarOpen);
         if (!modal || modal.open) return;
-        stop('');
+        if (active?.entry !== modal.querySelector('[data-reader-entry]')) stop('');
         modalTrigger = button;
         previousOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
@@ -167,6 +167,9 @@
         modal.querySelectorAll('details').forEach(details => { details.open = false; });
         modal.querySelectorAll('[data-reader-form-status]').forEach(message => { message.textContent = ''; });
         modal.showModal();
+        if (modal.classList.contains('diary-entry-modal')) {
+            modal.querySelector('.reader-entry-actions').append(stopButton, status, audio);
+        }
         const body = modal.querySelector('.modal-body');
         if (body) body.scrollTop = 0;
     }));
