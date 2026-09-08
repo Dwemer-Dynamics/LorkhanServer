@@ -6791,3 +6791,30 @@ populated/empty relationship-card fixture regression also passes, with unchanged
 This closes the missing double margin and wrong responsive coordinate-system causes,
 not the entire NPC editor matrix. Remaining field placement, populated controls,
 metadata semantics and other page families still require their own evidence.
+
+### Diary content-only editor (2026-09-08)
+
+Removed the extra Entry details/title disclosure from the Diary edit dialog. Like the
+reference's hidden topic, the native title is retained as a hidden form value; Narrative
+Manager still exposes its editable title metadata. The update route, identity, title,
+kind and content remain intact. Empty status paragraphs no longer reserve layout space;
+an error still becomes visible when its text is populated.
+
+Copied the reference label size and inline help flow, and removed the native-only
+narrow edit-dialog sizing override. The separate native deletion confirmation keeps
+its existing narrow styling. Fresh screenshots show the native Edit Entry heading;
+no speculative heading repaint/position workaround was added for the older observation.
+
+Source-rendered fixture comparison in each actual page at 1280/390 asserts matching
+y positions, widths and heights for the complete edit container, heading, label, help,
+textarea, footer and button group. Container widths are 800/351px and height is
+643.34375px; the textarea remains 400px high. The title is hidden and preserved, and
+Cancel submits no request. Native narrow screenshots were visually inspected.
+
+Evidence: `Temp/diary-editor-parity.cjs`, regenerated `diary-current-fixture.php/html`,
+608 server checks and the full disposable management HTTP suite, including hidden-title
+preservation. This closes the confirmed extra editor field and measured flow/sizing
+differences. It does not accept unrelated reader, calendar, deletion or other page states.
+The same geometry assertions pass against deployed CSS. The existing browser-mocked
+422 check confirms blank content prevents submission, rejected edits retain the typed
+content and show their error, and Cancel closes at both widths. No live save occurred.

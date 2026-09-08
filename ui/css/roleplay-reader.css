@@ -20,18 +20,17 @@
 .roleplay-reader .diary-editor-modal h2{color:#fff;margin:0 0 15px;font-size:26px}
 .roleplay-reader .diary-editor-modal form{display:flex;flex-direction:column;margin:0;max-height:calc(100dvh - 217px);min-height:0}
 .roleplay-reader .diary-editor-modal .modal-body{padding:0;overflow-y:auto;min-height:0}
-.roleplay-reader .diary-editor-modal label{display:block;margin-top:15px;color:#bc9d5a;font-weight:bold;font-size:inherit}
+.roleplay-reader .diary-editor-modal label{display:block;margin-top:15px;color:#bc9d5a;font-weight:bold;font-size:13.44px}
 .roleplay-reader .diary-editor-modal .modal-body>label:first-child{margin-top:0}
-.roleplay-reader .diary-editor-modal small{display:block;color:#aaa;margin-bottom:5px}
+.roleplay-reader .diary-editor-modal small{display:inline;color:#aaa;margin:0;padding-right:15px}
 .roleplay-reader .diary-editor-modal textarea,.roleplay-reader .diary-editor-modal input{width:100%;margin-bottom:15px;background:#252525;color:#fff;border:1px solid #666;border-radius:4px;padding:8px;font-size:16px}
 .roleplay-reader .diary-editor-modal textarea{height:400px;min-height:180px;resize:vertical;font-size:13.44px;line-height:1.45}
-.roleplay-reader .diary-entry-metadata{margin:12px 0}
-.roleplay-reader .diary-entry-metadata summary{cursor:pointer;padding:4px 0}
+.roleplay-reader .diary-editor-modal [data-reader-form-status]:empty{display:none}
 .roleplay-reader .diary-editor-modal .modal-footer{flex-shrink:0;display:flex;justify-content:flex-end;gap:10px;padding:15px 0 0;background:#2b2b2b;border-top:1px solid #4a4a4a}
 .roleplay-reader .diary-delete-modal{max-width:600px}
 body .roleplay-reader .diary-save{background:#176529!important;border-color:#23843a!important;color:#fff!important}
 body .roleplay-reader .diary-audio-button{background:#bc9d5a!important;border-color:#9d8045!important;color:#141414!important}
-@media(max-width:768px){.roleplay-reader .diary-editor-modal{top:20px;max-height:calc(100dvh - 40px);width:calc(100% - 24px);padding:20px}.roleplay-reader .diary-editor-modal form{max-height:calc(100dvh - 130px)}}
+@media(max-width:768px){.roleplay-reader .diary-delete-modal{top:20px;max-height:calc(100dvh - 40px);width:calc(100% - 24px);padding:20px}.roleplay-reader .diary-delete-modal form{max-height:calc(100dvh - 130px)}}
 /* Keep the paper reader separate from editing, with the reference's fixed audio footer. */
 .roleplay-reader .diary-entry-modal{position:fixed;inset:80px auto auto 50%;transform:translateX(-50%);margin:0;padding:0;width:98%;max-width:1600px;height:calc(100dvh - 220px);min-height:0;background:transparent;border:0;box-shadow:none;overflow:hidden}
 .roleplay-reader .diary-entry-modal::backdrop{background:#0008;backdrop-filter:blur(5px)}

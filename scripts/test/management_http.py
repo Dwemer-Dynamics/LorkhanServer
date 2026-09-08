@@ -1019,6 +1019,7 @@ assert 'Read / Edit' not in diary_html and 'id="edit-'+narrative_id+'"' in diary
 assert 'Save Changes' in diary_html and 'Edit the content of the diary entry below.' in diary_html
 diary_revise=next(f for f in diary_page.forms if f['action'].endswith('/forms/narrative-revise') and f['fields'].get('narrative_id')==narrative_id)
 assert diary_revise['fields']['title']==narrative_title and diary_revise['fields']['kind']=='diary'
+assert '<input type="hidden" name="title"' in diary_html and 'diary-entry-metadata' not in diary_html
 _,game_diary_html=parse(request(diary_url+'&calendar=tamrielic&game_year=427&game_month=8'))
 assert 'Last Seed, 3E 427' in game_diary_html and 'Fredas' in game_diary_html and 'Not recorded' in game_diary_html and 'game_month=9' in game_diary_html
 _,empty_diary_html=parse(request(diary_url+'&date=1900-01-01'))
