@@ -88,6 +88,8 @@ final class EffectiveSettingsResolver
         $this->markLeaves($settings, $globalSettings === [] ? 'default' : 'global', 'settings', $sources);
         $this->markLeaves($settings['narrator'], 'default', 'settings.narrator', $sources);
         $this->markLeaves($settings['diary'], 'default', 'settings.diary', $sources);
+        $settings['memory']['short_term_max_summaries'] = 10;
+        $sources['settings.memory.short_term_max_summaries'] = 'default';
         $settings['rpg_comments'] = $global['rpg_comments'];
         foreach (array_keys($settings['rpg_comments']) as $field) {
             $sources['settings.rpg_comments.' . $field] = $globalSettings === [] ? 'default' : 'global';
@@ -126,7 +128,7 @@ final class EffectiveSettingsResolver
         foreach (['rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_allow_actions'] as $field) {
             if (array_key_exists($field, $coreOverrides['behavior'] ?? [])) $allowedOverrides['behavior'][$field] = $coreOverrides['behavior'][$field];
         }
-        foreach (['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled'] as $field) {
+        foreach (['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled', 'short_term_max_summaries'] as $field) {
             if (array_key_exists($field, $coreOverrides['memory'] ?? [])) $allowedOverrides['memory'][$field] = $coreOverrides['memory'][$field];
         }
         if (isset($coreOverrides['diary'])) $allowedOverrides['diary'] = $coreOverrides['diary'];
@@ -358,6 +360,11 @@ final class EffectiveSettingsResolver
                 || (array_key_exists('lang_llm_xtts', $response) && !is_bool($response['lang_llm_xtts'])))
                 throw new InvalidArgumentException('invalid_settings_overrides');
             unset($validation['response']);
+        }
+        if (array_key_exists('short_term_max_summaries', $validation['memory'] ?? [])) {
+            $limit = $validation['memory']['short_term_max_summaries'];
+            if (!is_int($limit) || $limit < 1 || $limit > 50) throw new InvalidArgumentException('invalid_settings_overrides');
+            unset($validation['memory']['short_term_max_summaries']);
         }
         // Retrieval switches are server-owned and do not enlarge the client controls contract.
         foreach (['short_term_enabled', 'mid_term_enabled', 'long_term_enabled'] as $field) {

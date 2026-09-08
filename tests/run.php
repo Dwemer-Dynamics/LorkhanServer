@@ -2136,6 +2136,24 @@ $enabledScenePrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$sce
 $check(count($enabledScenePrompt['trace']['memory_retrieval']['result_ids'])===7,
     'scene summaries are not incorrectly owned by the Middle Term Memory switch');
 
+$sceneSelection['effective_settings']['settings']['memory']['short_term_max_summaries']=3;
+$limitedScenePrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$sceneSelection);
+$check($limitedScenePrompt['trace']['memory_retrieval']['result_ids']===['scene-05','scene-06','scene-07'],
+    'profile Max Summaries reaches the real scene selector');
+$stmCore=['settings_overrides'=>['memory'=>['short_term_max_summaries'=>37]]];
+$stmResolved=(new EffectiveSettingsResolver())->resolve([],$stmCore,[]);
+$check($stmResolved['settings']['memory']['short_term_max_summaries']===37
+    &&$stmResolved['sources']['settings.memory.short_term_max_summaries']==='core_profile'
+    &&!isset(EffectiveSettingsResolver::controlsProjection($stmResolved)['settings']['memory']['short_term_max_summaries']),
+    'Max Summaries is a traced server-owned Core field without changing the client contract');
+$stmPreset=\LorkhanServer\Application\CoreProfilePreset::capture($stmCore);
+$check(\LorkhanServer\Application\CoreProfilePreset::apply($stmPreset,$corePresetSource)['settings_overrides']['memory']['short_term_max_summaries']===37,
+    'Max Summaries survives named preset capture and application');
+foreach([0,51,1.5,'10',true]as$invalidLimit){
+    try{EffectiveSettingsResolver::validateSettingsOverrides(['memory'=>['short_term_max_summaries'=>$invalidLimit]]);$check(false,'invalid Core STM limit rejected');}
+    catch(InvalidArgumentException){$check(true,'invalid Core STM limit rejected');}
+}
+
 $globalSettings=SettingsCatalog::globalDefaults();
 $check($globalSettings['profile_management']===['auto_lock_profile'=>true,
         'autofill_custom_profiles'=>true,'autofill_custom_profiles_trigger'=>40],

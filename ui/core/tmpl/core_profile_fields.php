@@ -99,6 +99,19 @@ foreach (['mid_term_enabled'=>'Middle Term Memory','short_term_enabled'=>'Short 
             </div></div>
         </div>
     </div>
+</div>
+<div class="provider-card profile-short-term-memory">
+    <div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#x1F5C2;&#xFE0F;</div><div>Short Term Memory</div></div></div>
+    <div class="provider-body" style="display:block;">
+        <?php $stmMax=(int)($overrides['memory']['short_term_max_summaries']??10); ?>
+        <div class="setting-row">
+            <div><div class="setting-key"><span class="setting-icon" aria-hidden="true">&#x1F5C2;&#xFE0F;</span><label for="setting_memory_short_term_max_summaries">Max Summaries</label></div><div class="setting-desc">How many past-scene summaries may be injected in one response. Higher = deeper memory and more tokens. Only used when Short Term Memory is enabled above.</div></div>
+            <div class="setting-control"><div class="range-pair">
+                <input type="range" min="1" max="50" step="1" value="<?php echo $stmMax; ?>" data-range-for="setting_memory_short_term_max_summaries" aria-label="Max Summaries slider">
+                <input type="number" id="setting_memory_short_term_max_summaries" name="setting_memory_short_term_max_summaries" min="1" max="50" step="1" value="<?php echo $stmMax; ?>" required>
+            </div></div>
+        </div>
+    </div>
 </div></div>
 <div class="profile-settings-columns"><section class="profile-settings-group"><h3 class="profile-settings-heading">Language</h3><div class="provider-card">
 <div class="setting-row"><div><div class="setting-key"><span class="setting-icon" aria-hidden="true">&#x1F310;</span><label for="setting_response_core_lang">Core Lang</label> <?php $copyButton('setting_response_core_lang','Core Lang'); ?></div><div class="setting-desc">Language of the built-in roleplay instructions. Leave blank for English. Custom prompts and output translation are unchanged.</div></div><div class="setting-control"><select id="setting_response_core_lang" name="setting_response_core_lang"><?php foreach (\LorkhanServer\Application\CoreProfileLanguage::LABELS as $code=>$label): ?><option value="<?php echo lorkhan_ui_h($code); ?>"<?php echo ($overrides['response']['core_lang']??'')===$code?' selected':''; ?>><?php echo lorkhan_ui_h($label); ?></option><?php endforeach; ?></select></div></div><div class="setting-row"><div><div class="setting-key"><span class="setting-icon" aria-hidden="true">&#x1F310;</span><label for="setting_response_lang_llm_xtts">Lang Llm Xtts</label> <?php $copyButton('setting_response_lang_llm_xtts','Lang Llm Xtts'); ?></div><div class="setting-desc">Ask the LLM for the spoken language and use it for XTTS/Chatterbox. Missing or unsupported codes keep the configured voice language.</div></div><label class="profile-inline-toggle"><input id="setting_response_lang_llm_xtts" type="checkbox" name="setting_response_lang_llm_xtts" value="1"<?php echo ($overrides['response']['lang_llm_xtts']??false)===true?' checked':''; ?>><span class="toggle-text"><?php echo ($overrides['response']['lang_llm_xtts']??false)===true?'On':'Off'; ?></span></label></div><?php $numberField('setting_response_max_words','Max Words Limit','Maximum words requested across the complete response. Set 0 for no additional word limit. This does not buffer or truncate streamed speech.',$values['max_words'],0,10000); ?></div></section><section class="profile-settings-group"><h3 class="profile-settings-heading">Rechat</h3>

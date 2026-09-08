@@ -1303,7 +1303,7 @@ final class ManagementRouter
             'rechat_max_depth'=>(int)($overrides['behavior']['rechat_max_depth']??2),
             'rechat_probability_percent'=>(int)($overrides['behavior']['rechat_probability_percent']??50),
             'rechat_allow_actions'=>($overrides['behavior']['rechat_allow_actions']??false)===true],
-            'memory'=>['recent_turn_limit'=>(int)($overrides['memory']['recent_turn_limit']??20)]+array_intersect_key($overrides['memory']??[],array_flip(['short_term_enabled','mid_term_enabled','long_term_enabled'])),
+            'memory'=>['recent_turn_limit'=>(int)($overrides['memory']['recent_turn_limit']??20),'short_term_max_summaries'=>(int)($overrides['memory']['short_term_max_summaries']??10)]+array_intersect_key($overrides['memory']??[],array_flip(['short_term_enabled','mid_term_enabled','long_term_enabled'])),
             'diary'=>['enabled'=>($overrides['diary']['enabled']??false)===true,
                 'automatic_enabled'=>($overrides['diary']['automatic_enabled']??false)===true,
                 'automatic_wait_enabled'=>($overrides['diary']['automatic_wait_enabled']??false)===true,
@@ -2183,7 +2183,8 @@ final class ManagementRouter
                 'rechat_max_depth'=>$number($values,'setting_behavior_rechat_max_depth',2),
                 'rechat_probability_percent'=>$number($values,'setting_behavior_rechat_probability_percent',50),
                 'rechat_allow_actions'=>isset($values['setting_behavior_rechat_allow_actions'])],
-            'memory'=>['recent_turn_limit'=>$number($values,'setting_memory_recent_turn_limit',20)]
+            'memory'=>['recent_turn_limit'=>$number($values,'setting_memory_recent_turn_limit',20),
+                'short_term_max_summaries'=>$number($values,'setting_memory_short_term_max_summaries',10)]
                 + (isset($values['memory_switches_present']) ? [
                     'short_term_enabled'=>isset($values['setting_memory_short_term_enabled']),
                     'mid_term_enabled'=>isset($values['setting_memory_mid_term_enabled']),

@@ -159,6 +159,7 @@ final class PromptAssembler
             $responseMaxWords,
             (string)($selection['effective_settings']['settings']['response']['core_lang'] ?? $coreProfile['content']['settings_overrides']['response']['core_lang'] ?? ''),
             $llmSpeechLanguage,
+            (int)($memoryFlags['short_term_max_summaries'] ?? 10),
         );
 
         $system = $built['system'];
@@ -314,6 +315,7 @@ final class PromptAssembler
         int $responseMaxWords,
         string $coreLanguage,
         bool $llmSpeechLanguage,
+        int $sceneLimit,
     ): array {
         $outputContract = 'Return one JSON object with exactly two keys: "utterances" and "action". '
             . '"utterances" must be a JSON array of one to four objects. Each utterance object must have exactly one key named "text", '
@@ -408,7 +410,7 @@ final class PromptAssembler
         $historyFloor = $historyTimes !== [] && count(array_filter($historyTimes, static fn($time): bool =>
             is_numeric($time) && is_finite((float)$time) && $time >= 0)) === count($historyTimes)
             ? (float)min($historyTimes) : null;
-        $memoryState = MemoryPromptSelection::selectSceneContext($memoryCandidates, implode("\n", $historyText), $historyFloor, $this->maxSourceBytes);
+        $memoryState = MemoryPromptSelection::selectSceneContext($memoryCandidates, implode("\n", $historyText), $historyFloor, $this->maxSourceBytes, $sceneLimit);
         $memoryXml = $memoryState['xml'];
         $actionResults = $this->sourceItemsXml($actions, 'action_result');
         $capabilities = $turn['_negotiated_capabilities'] ?? [];
@@ -449,7 +451,7 @@ final class PromptAssembler
             $sections[$optional] = '';
             $presentationSections[$optional] = '';
             if ($optional === 'conversation_context') {
-                $memoryState = MemoryPromptSelection::selectSceneContext($memoryCandidates, '', null, $this->maxSourceBytes);
+                $memoryState = MemoryPromptSelection::selectSceneContext($memoryCandidates, '', null, $this->maxSourceBytes, $sceneLimit);
                 $sections['memory_context'] = $memoryState['xml'];
                 $presentationSections['memory_context'] = $memoryState['xml'];
             }

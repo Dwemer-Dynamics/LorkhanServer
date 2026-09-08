@@ -1751,7 +1751,7 @@ assert 'Create a physical in-game diary that can be read.' not in core_body
 core_form=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
 core_values=dict(core_form['fields'],_csrf=csrf,tts_configuration_id=tts_id,llm_configuration_id=slot_id,llm_fast_configuration_id=slot_id,
     setting_behavior_rechat='1',setting_behavior_rechat_max_depth='5',setting_behavior_rechat_probability_percent='65',setting_behavior_rechat_allow_actions='1',
-    setting_memory_recent_turn_limit='24',setting_response_max_words='60',setting_response_core_lang='de',setting_response_lang_llm_xtts='1',diary_generation_configuration_id=slot_id,
+    setting_memory_recent_turn_limit='24',setting_memory_short_term_max_summaries='37',setting_response_max_words='60',setting_response_core_lang='de',setting_response_lang_llm_xtts='1',diary_generation_configuration_id=slot_id,
     setting_diary_enabled='1',setting_diary_automatic_enabled='1',setting_diary_automatic_wait_enabled='1',
     setting_diary_automatic_interval_seconds='10',setting_diary_context_turn_limit='150',
     setting_diary_prompt='Record only witnessed events.')
@@ -1769,6 +1769,8 @@ assert core_saved['fields']['setting_diary_automatic_enabled']=='1' and core_sav
 assert core_saved['fields']['setting_diary_automatic_interval_seconds']=='10'
 assert core_saved['fields']['setting_behavior_rechat']=='1' and core_saved['fields']['setting_behavior_rechat_max_depth']=='5' and core_saved['fields']['setting_behavior_rechat_probability_percent']=='65'
 assert core_saved['fields']['setting_memory_recent_turn_limit']=='24',core_saved
+assert core_saved['fields']['setting_memory_short_term_max_summaries']=='37'
+assert request(core_form['action'],'POST',dict(core_values,setting_memory_short_term_max_summaries='51')).status==422
 assert core_saved['fields']['setting_response_max_words']=='60',core_saved
 assert core_saved['fields']['setting_response_core_lang']=='de'
 assert core_saved['fields']['setting_response_lang_llm_xtts']=='1'
@@ -1832,7 +1834,7 @@ core_preset_response=request('/LorkhanServer/manage/exports/core-profile-setting
 core_preset=json.loads(core_preset_response.read().decode())
 assert core_preset_response.status==200 and sorted(core_preset)==['exported_at','name','schema','settings_overrides']
 assert core_preset['schema']=='lorkhan.core-profile-settings.v2' and core_preset['settings_overrides']['behavior']=={'rechat':True,'rechat_max_depth':5,'rechat_probability_percent':65,'rechat_allow_actions':True}
-assert core_preset['settings_overrides']['memory']=={'recent_turn_limit':24,'short_term_enabled':True,'mid_term_enabled':True,'long_term_enabled':True}
+assert core_preset['settings_overrides']['memory']=={'recent_turn_limit':24,'short_term_enabled':True,'mid_term_enabled':True,'long_term_enabled':True,'short_term_max_summaries':37}
 assert core_preset['settings_overrides']['response']=={'max_words':60,'core_lang':'de','lang_llm_xtts':True}
 assert core_preset['settings_overrides']['rpg_comments']=={'events':['sleep','wait'],'chance_percent':73}
 assert core_preset['settings_overrides']['profile_evolution']=={'enabled':True,'fields':['occupation','skills'],'history_limit':20}
@@ -1868,6 +1870,7 @@ assert imported_form['fields']['setting_response_max_words']=='60'
 assert imported_form['fields']['setting_response_core_lang']=='de'
 assert imported_form['fields']['setting_response_lang_llm_xtts']=='1'
 assert imported_form['fields']['setting_rpg_comments_chance_percent']=='0'
+assert imported_form['fields']['setting_memory_short_term_max_summaries']=='37'
 assert all('name="profile_rpg_events[]" value="'+event+'" checked' not in body for event in ['levelup','combat_end','sleep','wait'])
 assert imported_form['fields']['profile_evolution_enabled']=='1'
 assert all('value="'+field+'" checked' in body for field in ['occupation','skills'])
