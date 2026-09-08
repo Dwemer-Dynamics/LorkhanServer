@@ -175,7 +175,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <div class="provider-title"><span class="provider-icon" aria-hidden="true">&#x1F511;</span><span><?php echo lorkhan_ui_h($label); ?></span></div>
                             <div class="provider-links">
                                 <?php if ($featureId !== 'config.keys'): echo lorkhan_ui_feature_badge($featureId, true); endif; ?>
-                                <?php if ($environment): ?><span class="key-source" title="Change this key in the server environment; it cannot be replaced here.">Environment managed</span><?php endif; ?>
+                                <?php if ($environment): ?><span class="key-source" tabindex="0" aria-label="Environment managed" aria-describedby="environment-help-<?= lorkhan_ui_h($variable) ?>"><span aria-hidden="true">🔒</span><span class="key-source-help" id="environment-help-<?= lorkhan_ui_h($variable) ?>" role="tooltip">Environment managed. Change this key in the server environment; it cannot be replaced here.</span></span><?php endif; ?>
                                 <?php if ($link !== null): ?><a href="<?php echo lorkhan_ui_h($link); ?>" target="_blank" rel="noopener noreferrer">Create Key</a><?php endif; ?>
                             </div>
                         </header>

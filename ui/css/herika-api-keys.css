@@ -50,6 +50,9 @@ body.api-keys-page-shell > main.api-keys-page {
 .api-keys-page :is(.provider-card, .custom-card):hover { border-color: #4a4a4a; box-shadow: 0 3px 8px rgba(0, 0, 0, .2); transform: translateY(-1px); }
 .api-keys-page .custom-card.has-key { border-color: #2d6a4f; box-shadow: 0 0 0 1px rgba(45, 106, 79, .35) inset, 0 1px 4px rgba(0, 0, 0, .1); }
 .api-keys-page .provider-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.api-keys-page .key-source { position: relative; cursor: help; }
+.api-keys-page .key-source-help { display: none; position: absolute; z-index: 5; top: 100%; right: 0; width: 220px; padding: 8px; background: #222; border: 1px solid #505050; border-radius: 4px; color: #eee; white-space: normal; }
+.api-keys-page .key-source:is(:hover,:focus) .key-source-help { display: block; }
 .api-keys-page .provider-title { display: flex; align-items: center; gap: 10px; color: #e0e0e0; }
 .api-keys-page .provider-icon { display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 6px; background: linear-gradient(135deg, rgba(58, 58, 58, .9), rgba(48, 48, 48, .9)); box-shadow: 0 1px 3px rgba(0, 0, 0, .2); font-size: 16px; }
 .api-keys-page .provider-links { display: flex; align-items: center; gap: 10px; }
