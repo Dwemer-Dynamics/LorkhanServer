@@ -7617,3 +7617,23 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
   These are browser fixtures plus separate real HTTP persistence proof, not a
   production connector save. Deployment preserved configuration/credentials/voices;
   all 800 runtime hashes and private/authentication probes pass.
+
+### AI Responses fresh populated/empty comparison
+
+- Reopened deployed native/reference response pages and prompt readers at 1280/390
+  with all non-GET requests blocked. The toolbar height difference initially seen
+  was pagination-dependent, not an action-button spacing defect; no toolbar CSS
+  was changed on that evidence.
+- Normalised browser-only row contents and pagination to compare table structures.
+  Desktop populated row/table heights match (59.5/125.1875px), as do empty states
+  (38.6875/104.375px). Narrow empty table heights match (123.5625px). No database
+  content was changed. These are presentation fixtures, not production empty data.
+- Found and copied missing reference column constraints: response max-width 680px,
+  HTTP Request min-width 240px. Narrow requests now keep the same minimum width
+  inside the existing scrolling table rather than compressing to about 72px.
+  Inspected the deployed narrow populated capture. Populated narrow row wrapping
+  still differs (native 96.25px/reference 115.4375px in the matched fixture), and
+  the inner table offset differs by 1px; full table acceptance remains open.
+- Fresh prompt open, Escape dismissal and focus return checks passed. 615 server
+  checks pass; all 800 deployed runtime hashes/private/authentication probes pass.
+  Secrets and voices preserved. Rollback: lorkhanserver-code.0gDi3O.

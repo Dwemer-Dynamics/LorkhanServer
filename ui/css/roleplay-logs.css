@@ -254,3 +254,7 @@ body .roleplay-log-page :is(.response-prompt-viewer,.book-content-viewer) [data-
 .roleplay-log-page :is(.response-prompt-viewer,.book-content-viewer)>header:has([data-log-status]:not(:empty))>div{flex-basis:auto}
 
 .roleplay-log-page .book-content-viewer>header{flex-wrap:nowrap}
+
+/* Preserve the reference response/request column constraints inside the scrolling log. */
+.ai-response-table .log-response-text{max-width:680px}
+.ai-response-table .log-request-text{min-width:240px}
