@@ -294,3 +294,8 @@ body .tts-studio-page .voice-upload-form .button-group .btn-primary{background:#
 /* OmniVoice has short readiness labels, not flexible cloud-provider IDs. */
 .tts-studio-page .voice-status-item.omnivoice-status-item .voice-copy{flex:1 1 auto}
 .tts-studio-page .voice-status-item.omnivoice-status-item > .voice-id{flex:0 0 auto}
+
+/* Keep the provider refresh action above optional connector settings, as in TTS Studio. */
+.tts-studio-page .voice-cache-refresh { margin-top: 20px; }
+.tts-studio-page .voice-mode-note { color: #4a8ab6; }
+.tts-studio-page .voice-cache-refresh > button { align-self: flex-start; }

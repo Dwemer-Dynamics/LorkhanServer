@@ -402,6 +402,9 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
         $canSync = is_array($selectedProvider) && in_array($selectedProviderDriver, $sampleUploadDrivers, true) && lorkhan_voice_can_sync($selectedProvider);
         $cloudClone = in_array($activeTab, ['cartesia', 'inworld'], true);
         $localOnly=$selectedProviderDriver==='pockettts'&&!$canSync;
+        $pocketModeLabel = 'Not configured';
+        if (is_array($selectedProvider)) $pocketModeLabel = $localOnly ? 'audio.cpp' : 'Standard API';
+        $primaryRefresh = !$cloudClone && $canBrowse;
         $omniLanguages=[];
         if($activeTab==='omnivoice'){
             if($requestedLanguage==='')$discoverLanguage=lorkhan_voice_language((string)($selectedProviderContent['language']??'en'));
@@ -468,7 +471,8 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
         </section><?php endif; ?>
         <section class="content-section">
             <h1>Voice Sample Upload</h1>
-            <?php if($activeTab==='omnivoice'): ?><p>Upload WAV samples into the selected OmniVoice language library. Reference text is generated automatically by local STT.</p><?php else: ?><p>Upload voice samples to LORKHAN's persistent voice library. <?php if($cloudClone): ?>Files will be available for generating voices in <?php echo lorkhan_ui_h($providerLabel); ?>.<?php else: ?>Files will be available to sync with <?php echo lorkhan_ui_h($providerLabel); ?>.<?php endif; ?></p><?php endif; ?>
+            <?php if($activeTab==='omnivoice'): ?><p>Upload WAV samples into the selected OmniVoice language library. Reference text is generated automatically by local STT.</p><?php else: ?><p>Upload voice samples to LORKHAN's persistent voice library. <?php if($cloudClone): ?>Files will be available for generating voices in <?php echo lorkhan_ui_h($providerLabel); ?>.<?php elseif ($localOnly): ?>PocketTTS audio.cpp uses these local samples directly; no server synchronization is needed.<?php else: ?>Files will be available to sync with <?php echo lorkhan_ui_h($providerLabel); ?>.<?php endif; ?></p><?php endif; ?>
+            <?php if ($activeTab === 'pockettts' && is_array($selectedProvider)): ?><p class="voice-mode-note"><strong>Detected PocketTTS Mode:</strong> <?php echo lorkhan_ui_h($pocketModeLabel); ?>.</p><?php endif; ?>
             <span class="visually-hidden">Add WAV voice samples</span>
             <form class="voice-upload-form" method="post" enctype="multipart/form-data" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>">
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="upload"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>">
@@ -484,18 +488,18 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
         <section class="content-section">
             <h1><?php echo lorkhan_ui_h($providerLabel); ?> Voice <?php echo $activeTab==='omnivoice'?'Library':'Cache'; ?></h1>
             <span class="visually-hidden">Voice Library</span>
-            <?php if($activeTab==='omnivoice'): ?><p>Manage voices for the selected language library: <code><?php echo lorkhan_ui_h($discoverLanguage); ?></code>.</p><?php else: ?><p>Manage voice <?php echo $cloudClone?'generation':'synchronization'; ?> for <?php echo lorkhan_ui_h($providerLabel); ?> from the persistent local WAV library.</p><?php endif; ?>
+            <?php if($activeTab==='omnivoice'): ?><p>Manage voices for the selected language library: <code><?php echo lorkhan_ui_h($discoverLanguage); ?></code>.</p><?php elseif($activeTab === 'pockettts'): ?><p>Manage voice samples for PocketTTS. Current mode: <strong><?php echo lorkhan_ui_h($pocketModeLabel); ?></strong>.</p><?php else: ?><p>Manage voice <?php echo $cloudClone?'generation':'synchronization'; ?> for <?php echo lorkhan_ui_h($providerLabel); ?> from the persistent local WAV library.</p><?php endif; ?>
             <?php if($cloudClone&&!is_array($selectedProvider)): ?><div class="voice-warning"><strong>⚠️ No <?php echo lorkhan_ui_h($providerLabel); ?> connector is configured</strong><p><a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/tts_connectors.php">Configure a TTS connector</a> before discovering or generating provider voices.</p></div><?php endif; ?>
             <?php if($cloudClone): ?><div class="voice-info"><strong>ℹ️ Automatic Voice Generation</strong><p>Voices are generated from local samples when needed for dialogue. You do not need to sync every voice before playing.</p></div><?php endif; ?>
-            <?php if($activeTab==='omnivoice'&&$canBrowse): ?><div class="button-group"><button class="btn-primary" type="submit" form="voice-discovery-form">Refresh OmniVoice Voices</button></div><?php endif; ?>
+            <?php if($primaryRefresh): ?><div class="button-group voice-cache-refresh"><button class="btn-primary" type="submit" form="voice-discovery-form">Refresh <?php echo lorkhan_ui_h($providerLabel); ?><?php echo in_array($activeTab, ['xtts', 'chatterbox'], true) ? ' Server' : ''; ?> Voices</button></div><?php endif; ?>
             <details class="voice-provider-library"><summary>Provider Voice Browser &amp; Connector Settings</summary>
-            <p><?php echo $activeTab==='omnivoice'?'The selected language library and speaker list are read from OmniVoice. Refresh below to check again.':"Explicitly query the selected connector's speaker library. Opening TTS Studio never contacts a provider automatically."; ?></p>
+            <p><?php echo $activeTab==='omnivoice'?'The selected language library and speaker list are read from OmniVoice. Use Refresh above to check again.':"Explicitly query the selected connector's speaker library. Opening TTS Studio never contacts a provider automatically."; ?></p>
             <?php if (is_array($selectedProvider)): ?><p><strong>Current connector default:</strong> <?php echo lorkhan_ui_h((string)($selectedProviderContent['voice'] ?? 'Connector default')); ?> <span class="status-badge"><?php echo lorkhan_ui_h((string)($selectedProviderContent['language'] ?? 'en')); ?></span></p><?php endif; ?>
             <?php if ($canBrowse): ?>
                 <form id="voice-discovery-form" method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>">
                     <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="discover"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>">
                     <div class="field-row"><div><label for="voice-discovery-connector">TTS connector</label><select id="voice-discovery-connector" name="configuration_id"><?php foreach ($providerPresets as $preset): ?><option value="<?php echo lorkhan_ui_h($preset['configuration_id'] ?? ''); ?>"<?php echo $selectedProviderId === ($preset['configuration_id'] ?? '') ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($preset['name'] ?? $providerLabel); ?></option><?php endforeach; ?></select></div><div><?php if($activeTab!=='omnivoice'): ?><label for="voice-discovery-language">Language</label><?php endif; ?><input type="<?php echo $activeTab==='omnivoice'?'hidden':'text'; ?>" id="voice-discovery-language" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>" maxlength="12"></div></div>
-                    <?php if($activeTab!=='omnivoice'): ?><div class="button-group"><button class="btn-primary" type="submit">Refresh <?php echo lorkhan_ui_h($providerLabel); ?> Server Voices</button></div><?php endif; ?>
+                    <?php if(!$primaryRefresh): ?><div class="button-group"><button class="btn-primary" type="submit">Refresh <?php echo lorkhan_ui_h($providerLabel); ?> Server Voices</button></div><?php endif; ?>
                 </form>
             <?php elseif ($cloudClone): ?>
                 <p>Choose or configure a connector to discover voices and upload samples.</p><div class="button-group"><span class="feature-control"><a class="btn-primary" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/tts_connectors.php">Configure TTS connector</a><?php echo lorkhan_ui_feature_badge('config.tts-studio.cloud-cloning', true); ?></span></div>
@@ -532,7 +536,7 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
 
         <section class="content-section">
             <h1>Batch <?php echo $cloudClone?'Generate':($activeTab==='omnivoice'?'Import':'Process'); ?> Missing Voices</h1>
-            <p><?php echo $batchVerb; ?> missing local samples to <?php echo lorkhan_ui_h($providerLabel); ?>. Existing provider voices are skipped.</p>
+            <p><?php if ($activeTab === 'pockettts'): ?>Make missing local voices available to PocketTTS.<?php else: ?><?php echo $batchVerb; ?> missing local samples to <?php echo lorkhan_ui_h($providerLabel); ?>. Existing provider voices are skipped.<?php endif; ?></p>
             <?php if($canSync&&$missingCount>0): ?><p class="voice-missing-count">Found <?php echo $missingCount; ?> voice(s) not yet <?php echo $cloudClone?'generated':'synced'; ?> in the cached provider library.</p>
             <?php if($batchDelayMs>0&&$missingCount>1): ?><p class="voice-batch-estimate">Estimated time: <?php echo (int)(($missingCount-1)*$batchDelayMs/1000); ?> seconds of request spacing, plus provider processing. Browser batches wait <?php echo $batchDelayMs/1000; ?> seconds between voices.</p><?php endif; ?>
             <form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>" data-voice-batch data-voice-batch-delay="<?php echo $batchDelayMs; ?>">

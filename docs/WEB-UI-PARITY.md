@@ -8598,3 +8598,24 @@ Existing configuration, credentials and voice contents preserved. The reproduced
 invalid_voice_sample failure now has a deterministic passing regression and full
 HTTP acceptance. Historical unresolved-cause notes above are superseded by this
 checkpoint, not by a claim that all live TTS errors are solved. Full goal active.
+
+### Local TTS Studio refresh and PocketTTS mode (2026-09-08)
+
+Reference xtts_clone.php exposes Refresh above the cache for XTTS, Chatterbox,
+PocketTTS and OmniVoice. Native hid the first three inside connector settings.
+Moved the existing protected discovery form submit into that primary position for
+supported local connectors; retained the same connector/language/CSRF payload and
+kept cloud provider controls unchanged. Narrow refresh buttons retain natural width.
+PocketTTS upload and cache now identify the selected connector's actual mode, and
+its audio.cpp copy no longer promises server synchronization. An unconfigured
+connector reports Not configured. Existing local-only readiness remains unchanged.
+
+Current-template isolated empty-cache fixtures and read-only reference captures
+were inspected at 1280/390. Refresh submits exactly one mocked discovery request
+with connector, action and CSRF while settings remain collapsed; audio.cpp has no
+primary synchronization button. Computed refresh font/padding/line-height match.
+The first temporary fixture omitted Bootstrap/UTF-8 and was corrected before visual
+acceptance. No saved connector, local voice, provider or game state was changed.
+This does not claim whole-cache parity: connector disclosure, populated row actions,
+provider error/batch views and remaining service sections still require review.
+PHP lint, 692 checks and full management HTTP passed (voice-refresh-http.txt).
