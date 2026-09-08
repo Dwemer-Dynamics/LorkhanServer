@@ -7717,3 +7717,19 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - JavaScript syntax, 615 server checks and all 800 runtime hashes/private/auth probes
   pass. Deployment preserved configuration, credentials and voices. Rollback:
   lorkhanserver-code.E9gaCS.
+
+### Adventure Log fresh day/reader review
+
+- Rechecked live populated day selection, empty day, Regular/Tamrielic switches,
+  Current Date and Entire Adventure Log exports. Both CSVs contain the displayed
+  event; no writes or provider calls. Compared pinned/live reference day table and
+  normalised browser-only event/location fixtures at 1280/390.
+- Found the shared calendar CSS forcing a 670px minimum on Adventure Log. Removed
+  that inherited minimum for Adventure only, matching the reference fluid four-
+  column structure. Diary tables are unchanged. Inspected narrow rendered fixture.
+- Desktop row/location-divider heights match (58.375/39.1875px). Narrow table now
+  fits its 346px content area rather than scrolling a 670px table. Reference direct
+  page has 368px available; the 22px native frame difference changes narrow wrapping
+  and remains open. Do not treat earlier broad narrow-review notes as exact parity.
+- 615 server checks pass; all 800 deployed hashes/private/auth probes verified.
+  Configuration, credentials and voices preserved. Rollback: lorkhanserver-code.EoCZwB.
