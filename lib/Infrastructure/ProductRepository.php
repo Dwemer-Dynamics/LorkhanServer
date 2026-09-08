@@ -1439,6 +1439,12 @@ SQL);
             default=>$this->selectedActorProfileId($installationId,$playthroughId,$identity),
         };
         $profile=is_string($profileId)&&$profileId!==''?$this->getRevisioned('profile',$profileId):null;
+        return $this->speechContextFromProfile($profile,$identity,$connector);
+    }
+
+    /** Share voice resolution with saved narrative authors without consulting current actor bindings. */
+    private function speechContextFromProfile(?array $profile,array $identity,?array $connector):array
+    {
         $content=$profile['content']??[];$voice=$content['voice']??null;
         if($voice===null)$voice=[];elseif(is_string($voice))$voice=['id'=>$voice];
         if(!is_array($voice)||($voice!==[]&&array_is_list($voice)))return[];
@@ -1490,11 +1496,43 @@ SQL);
             default=>$this->selectedActorProfileId($installationId,$playthroughId,$identity),
         };
         if(!is_string($profileId)||$profileId==='')return['pronunciation_scope'=>$scope];
-        $profile=$this->getRevisioned('profile',$profileId);$content=is_array($profile['content']??null)?$profile['content']:[];
+        return $this->pronunciationContextFromProfile($this->getRevisioned('profile',$profileId),$identity);
+    }
+
+    /** Use the same pronunciation scope for live speech and an explicitly recorded diary author. */
+    private function pronunciationContextFromProfile(array $profile,array $identity):array
+    {
+        $scope=['npc_name'=>trim((string)($identity['display_name']??$identity['record_id']??'')),
+            'race'=>trim((string)($identity['race']??'')),'oghma_tags'=>[]];
+        $content=is_array($profile['content']??null)?$profile['content']:[];
         $scope['npc_name']=trim((string)($profile['name']??$scope['npc_name']));
         $scope['race']=trim((string)($content['race']??$scope['race']));
         $scope['oghma_tags']=$content['oghma_knowledge_tags']??$content['oghma_tags']??[];
         return['pronunciation_scope'=>$scope];
+    }
+
+    /** Resolve a saved diary author and speech inputs without generating audio or changing profile bindings. */
+    public function diarySpeechPlan(string $installationId,string $narrativeId):array
+    {
+        $statement=$this->db->prepare("SELECT n.narrative_id,n.profile_id,n.playthrough_id,n.content,n.updated_at FROM narrative_records n JOIN profiles p ON p.profile_id=n.profile_id AND p.installation_id=n.installation_id WHERE n.narrative_id=:id AND n.installation_id=:installation AND n.kind='diary' AND n.deleted_at IS NULL AND p.deleted_at IS NULL");
+        $statement->execute(['id'=>$narrativeId,'installation'=>$installationId]);$entry=$statement->fetch();
+        if(!$entry)throw new RuntimeException('diary_audio_entry_not_found');
+        $text=trim((string)$entry['content']);
+        if($text==='')throw new RuntimeException('diary_audio_empty_entry');
+        $profile=$this->getRevisioned('profile',(string)$entry['profile_id']);
+        $effective=$this->effectiveSettingsForProfile($installationId,(string)$entry['profile_id']);
+        $configurationId=trim((string)($effective['routing']['tts_configuration_id']??''));
+        if($configurationId==='')throw new RuntimeException('diary_audio_connector_not_configured');
+        $query=$this->db->prepare("SELECT c.configuration_id,c.name,c.current_revision AS revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.configuration_id=:id AND c.installation_id=:installation AND c.kind='tts_provider' AND c.deleted_at IS NULL");
+        $query->execute(['id'=>$configurationId,'installation'=>$installationId]);$connector=$query->fetch();
+        if(!$connector)throw new RuntimeException('diary_audio_connector_not_configured');
+        $connector['content']=$this->json($connector['content']);$connector['revision']=(int)$connector['revision'];
+        $identity=$this->json($profile['actor_identity']??[]);
+        $context=$this->speechContextFromProfile($profile,$identity,$connector);
+        if(trim((string)($context['voice']??''))==='')throw new RuntimeException('diary_audio_voice_not_configured');
+        $context+=$this->pronunciationContextFromProfile($profile,$identity);
+        return ['entry'=>$entry,'author'=>(string)$profile['name'],'profile_id'=>(string)$entry['profile_id'],
+            'connector'=>$connector,'context'=>$context,'text'=>$this->applyTtsPronunciation($text,$context)];
     }
 
     /** Create and bind an actor profile before its first prompt, even when a creature has no catalog voice. */

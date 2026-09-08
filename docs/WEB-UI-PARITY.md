@@ -7413,3 +7413,25 @@ Next implementation boundary:
 No product code changed for this audit. The matrix now explicitly reopens home
 and diary functional acceptance instead of treating previous layout proof as
 proof of author-voice behavior. No provider calls, game actions or runtime writes.
+
+### Diary author resolver groundwork
+
+- Added ProductRepository::diarySpeechPlan, reading the persisted diary and its
+  recorded author ID with installation/deletion/kind checks. It resolves that
+  profile's effective Core Profile TTS connector, voice and pronunciation text.
+  It does not consult the actor's current binding, generate audio or write data.
+- Extracted shared private profile-based voice and pronunciation resolvers from
+  the existing live speech methods. The diary path uses those same rules for
+  cloud/sample voices, global race fallbacks, player overrides and scoped terms.
+  No duplicate diary voice settings or browser-controlled voice overrides added.
+- Extended the existing database integration suite with an NPC rebound to another
+  profile after its entry, NPC race fallback/pronunciation, Narrator explicit
+  voice, wrong installation, non-diary, deleted entry and deleted author cases.
+  Fixtures are rolled back. Full integration vertical slice, 172-relation schema
+  inventory, backup/restore and migration/durable-job runner passed. Existing 609
+  checks and PHP syntax/diff checks passed. No live provider or game requests.
+- Source-only deployment verified 799 runtime hashes and private/authentication
+  probes; secrets and voices preserved. Rollback: lorkhanserver-code.cvnQTd.
+- The UI is deliberately not marked fixed: authenticated diary audio generation,
+  private cache and homepage/reader wiring are still required. The new resolver
+  is internal groundwork; Play currently continues to use the old preview lane.

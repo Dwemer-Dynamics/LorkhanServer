@@ -649,6 +649,42 @@ $assert($status===200&&($profileSpeech['configuration_id']??null)===$profileTtsP
 $profileSpeechContext=$products->speechContext($installationId,$session['playthrough_id'],$speechTarget,$profileSpeech);
 $assert($profileSpeechContext===['voice'=>'mw_dark_elf_female'],
     'NPC profile race and gender did not select the global Morrowind fallback before the connector fallback: '.json_encode($profileSpeechContext));
+// A diary retains its recorded author even when a live actor is rebound to another profile.
+$db->beginTransaction();
+try {
+    $diaryScope=['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id'],'profile_id'=>$speechProfile['profile_id']];
+    $voiceDiary=$products->createNarrative($diaryScope+['kind'=>'diary','title'=>'Author voice fixture',
+        'content'=>'The Nerevarine returned to Vvardenfell under the Tribunal.','provenance'=>[]],$now);
+    $products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],$speechTarget,$actorProfile['profile_id'],$now);
+    $diaryPlan=$products->diarySpeechPlan($installationId,$voiceDiary['narrative_id']);
+    $assert($diaryPlan['profile_id']===$speechProfile['profile_id']
+        &&$diaryPlan['connector']['configuration_id']===$profileTtsPreset['configuration_id']
+        &&$diaryPlan['context']['voice']==='mw_dark_elf_female'
+        &&$diaryPlan['text']==='The Nerevareen returned to Vardenfell under the Trybyoonal.'
+        &&$diaryPlan['context']['pronunciation_scope']['npc_name']==='Jiub speech route',
+        'diary author routing, fallback voice or pronunciation used the live binding instead of its recorded author');
+    $summaryEntry=$products->createNarrative($diaryScope+['kind'=>'summary','title'=>'Not a diary','content'=>'Summary.','provenance'=>[]],$now);
+    foreach([[$newUuid(9900),$voiceDiary['narrative_id']],[$installationId,$summaryEntry['narrative_id']]] as [$scopeId,$entryId]) {
+        $rejected=false;try{$products->diarySpeechPlan($scopeId,$entryId);}catch(RuntimeException $e){$rejected=$e->getMessage()==='diary_audio_entry_not_found';}
+        $assert($rejected,'diary speech accepted a wrong-scope or non-diary entry');
+    }
+    $narratorDiaryContent=$narratorProfile['content'];
+    $narratorDiaryContent['voice']=['id'=>'NarratorFixture','language'=>'en'];
+    $narratorDiaryContent['routing']=['tts_configuration_id'=>$profileTtsPreset['configuration_id']];
+    $products->revise('profile',$narratorProfile['profile_id'],$narratorDiaryContent,'diary narrator fixture',$now);
+    $narratorDiary=$products->createNarrative(array_replace($diaryScope,['profile_id'=>$narratorProfile['profile_id']])+
+        ['kind'=>'diary','title'=>'Narrator diary','content'=>'Narrator entry.','provenance'=>[]],$now);
+    $narratorPlan=$products->diarySpeechPlan($installationId,$narratorDiary['narrative_id']);
+    $assert($narratorPlan['profile_id']===$narratorProfile['profile_id']&&$narratorPlan['context']['voice']==='NarratorFixture',
+        'a Narrator-authored diary did not retain its own explicit voice');
+    $db->prepare('UPDATE profiles SET deleted_at=:now WHERE profile_id=:id')->execute(['now'=>$now,'id'=>$speechProfile['profile_id']]);
+    $rejected=false;try{$products->diarySpeechPlan($installationId,$voiceDiary['narrative_id']);}catch(RuntimeException $e){$rejected=$e->getMessage()==='diary_audio_entry_not_found';}
+    $assert($rejected,'diary speech accepted a deleted author');
+    $db->prepare('UPDATE profiles SET deleted_at=NULL WHERE profile_id=:id')->execute(['id'=>$speechProfile['profile_id']]);
+    $products->deleteNarrative($voiceDiary['narrative_id'],$now);
+    $rejected=false;try{$products->diarySpeechPlan($installationId,$voiceDiary['narrative_id']);}catch(RuntimeException $e){$rejected=$e->getMessage()==='diary_audio_entry_not_found';}
+    $assert($rejected,'diary speech accepted a deleted entry');
+} finally {$db->rollBack();}
 $playerContent=$playerProfile['content'];
 $playerContent['routing']['tts_configuration_id']=$profileTtsPreset['configuration_id'];
 $playerContent['routing']['player_autochat_configuration_id']=$profileModelSlot['configuration_id'];
