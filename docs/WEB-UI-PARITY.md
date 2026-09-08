@@ -67,7 +67,7 @@ do not use an exception to excuse a generic substitute layout.
 
 | Lorkhan page | Herika counterpart | Current status |
 | --- | --- | --- |
-| `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty and desktop/narrow layout reviewed. Latest-diary audio still uses Narrator/default rather than its author; functional acceptance remains open |
+| `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty and desktop/narrow layout reviewed. Latest-diary author audio is wired, with populated-template playback/error checks; live-provider acceptance remains open |
 | `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; Setup/Local LLM, MiniMe probe, service provisioning and Player2 still pending |
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. Remaining children and full embedded interactions still pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins and the distinct Context behavior panel remain missing; see Global Settings Context panel re-audit |
@@ -89,7 +89,7 @@ do not use an exception to excuse a generic substitute layout.
 | `events-memories.php` | Same path | Events note, striped table, record heading, pagination/filter layout and recorded calendar dates corrected; populated live view and AJAX pagination verified |
 | Roleplay `memory` tab | Herika Memories | Summary-only table, status/settings strip, scoped sync/delete, Tamrielic dates and compact editor implemented; 67 populated live summaries, empty fixture, Cancel/focus and narrow advanced tools checked |
 | Roleplay `responselog` tab | Herika AI Responses | Whole-turn log, prompt dialog, topics, scoped export and protected clean-log workflow implemented; populated live table, prompt dialog and controls checked |
-| Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, export and bulk delete retained. Full-content rows now use separate Play/Edit/Delete actions; dedicated content editor and paper reader replace combined Read/Edit. Desktop/narrow populated/empty and reader controls compared. Author-voice playback and entry audio caching remain incomplete; see Diary audio routing audit below. |
+| Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, export and bulk delete retained. Full-content rows now use separate Play/Edit/Delete actions; dedicated content editor and paper reader replace combined Read/Edit. Desktop/narrow populated/empty and reader controls compared. Author-voice playback and private entry caching are implemented and mock-tested; live-provider and remaining cache invalidation acceptance remain open. |
 | Roleplay `books` tab | Herika Books | Full-content striped table, game/UTC/TS columns and content dialog implemented; populated long/short fixtures, escaped content reader, filtered empty panel, desktop/narrow and computed neutral header typography compared; shared-theme overrides and forced minimum width removed |
 | `diary_book.php` | Same path | Printable chronological parchment book and author-list link implemented; scoped IDs, escaped text, desktop/narrow populated comparisons and print/PDF checks passed (see Diary authors and printable book checkpoint) |
 | Roleplay `adventure` tab | Herika Adventure Log | Chronological context/people/game-time/UTC rows, location dividers, contiguous speaker bands and counterpart CSV formatting implemented. Desktop/narrow populated, empty and long fixtures compared; date-selection, selected/latest-day and full exports checked. Full checks and 744-file deployment passed; live populated calendar/table verified. Native dates and complete OpenMW cell names retained. Month navigation now uses measured reference rules, including its narrow-screen clipping limitation; see source-parity checkpoint below. |
@@ -7470,3 +7470,25 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
   homepage playback still unverified. Live-provider long-entry limits, changed
   author/connector cache invalidation through HTTP and provider-failure visual
   states still need acceptance; this is not full Diary/page/goal completion.
+
+### Populated homepage diary playback and recoverable errors
+
+- Rendered the current homepage diary fragment with isolated author/content/entry
+  data, then inserted it into the actual loaded homepage at 1280 and 390 pixels.
+  No live records were created. Mock WAV playback verified entry-ID-only requests,
+  pause/resume without another request, Stop clearing audio and escaped markup.
+  This closes populated-template interaction coverage, not live populated data or
+  a new whole-page comparison. The live homepage remains in its empty diary state.
+- Replaced the generic diary failure with allowlisted messages for missing/deleted
+  entry or author, empty content, missing connector, missing voice, busy generator
+  and oversized entry. Rate-limit guidance remains. Unknown/non-JSON errors retain
+  safe generic copy; provider error text is never rendered.
+- Eight mocked error states at each width leave Play enabled, audio cleared and
+  raw error details undisplayed. Inspected narrow populated and error captures.
+  No live provider calls or game actions. Initial temporary browser-probe syntax
+  error was corrected before execution; all final probes passed.
+- JavaScript syntax, diff checks and 613 server checks pass. Deployed source-only;
+  all 800 runtime hashes and private/authentication probes pass, preserving secrets
+  and voices. Rollback: lorkhanserver-code.Pwqcgx. Backend is unchanged from the
+  preceding passing management HTTP suite. Full goal remains open, including live
+  provider/long-entry behavior and changed-author/connector HTTP cache acceptance.

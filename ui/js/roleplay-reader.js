@@ -139,9 +139,28 @@
                     body: JSON.stringify(diaryId ? { installation_id: root.dataset.installation, narrative_id: diaryId } : { installation_id: root.dataset.installation, configuration_id: root.dataset.connector,
                         voice: root.dataset.voice, text: chunks[i] }),
                 });
-                if (!response.ok) throw new Error(response.status === 429
-                    ? 'Speech request limit reached. Wait before reading again.'
-                    : diaryId ? 'Diary audio could not be loaded. Check the author’s profile voice and TTS connector, then try again.' : 'Speech generation failed. Check TTS Studio and the Narrator voice, then try again.');
+                if (!response.ok) {
+                    let message = response.status === 429
+                        ? 'Speech request limit reached. Wait before reading again.'
+                        : diaryId ? 'Diary audio generation failed. Check the author’s TTS connector, then try again.'
+                            : 'Speech generation failed. Check TTS Studio and the Narrator voice, then try again.';
+                    if (diaryId) {
+                        // Only server-owned codes select UI text; never display a provider response.
+                        const messages = {
+                            diary_audio_entry_not_found: 'This diary entry or its author is no longer available. Reload the page.',
+                            diary_audio_empty_entry: 'This diary entry has no text to read.',
+                            diary_audio_connector_not_configured: 'Configure a TTS connector in the diary author’s Core Profile.',
+                            diary_audio_voice_not_configured: 'Configure a voice for the diary author or its race fallback.',
+                            diary_audio_busy: 'Another diary is generating audio. Wait for it to finish, then press Play again.',
+                            diary_audio_entry_too_long: 'This diary entry is too long to read aloud in one request.',
+                        };
+                        try {
+                            const failure = await response.json();
+                            if (Object.hasOwn(messages, failure?.error)) message = messages[failure.error];
+                        } catch { /* Keep the safe fallback for non-JSON errors. */ }
+                    }
+                    throw new Error(message);
+                }
                 if (!response.headers.get('content-type')?.startsWith('audio/')) throw new Error('The server did not return audio. Reload this page to check your session.');
                 const clip = await response.blob();
                 if (run.controller.signal.aborted) return;
