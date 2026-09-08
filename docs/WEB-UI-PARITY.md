@@ -67,7 +67,7 @@ do not use an exception to excuse a generic substitute layout.
 
 | Lorkhan page | Herika counterpart | Current status |
 | --- | --- | --- |
-| `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty, desktop/narrow and whole-page review completed with OpenMW exceptions below |
+| `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty and desktop/narrow layout reviewed. Latest-diary audio still uses Narrator/default rather than its author; functional acceptance remains open |
 | `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; Setup/Local LLM, MiniMe probe, service provisioning and Player2 still pending |
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. Remaining children and full embedded interactions still pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins and the distinct Context behavior panel remain missing; see Global Settings Context panel re-audit |
@@ -89,7 +89,7 @@ do not use an exception to excuse a generic substitute layout.
 | `events-memories.php` | Same path | Events note, striped table, record heading, pagination/filter layout and recorded calendar dates corrected; populated live view and AJAX pagination verified |
 | Roleplay `memory` tab | Herika Memories | Summary-only table, status/settings strip, scoped sync/delete, Tamrielic dates and compact editor implemented; 67 populated live summaries, empty fixture, Cancel/focus and narrow advanced tools checked |
 | Roleplay `responselog` tab | Herika AI Responses | Whole-turn log, prompt dialog, topics, scoped export and protected clean-log workflow implemented; populated live table, prompt dialog and controls checked |
-| Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, export and bulk delete retained. Full-content rows now use separate Play/Edit/Delete actions; dedicated content editor and paper reader replace combined Read/Edit. Desktop/narrow populated/empty and interaction comparisons, existing tests and local deployment passed. |
+| Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, export and bulk delete retained. Full-content rows now use separate Play/Edit/Delete actions; dedicated content editor and paper reader replace combined Read/Edit. Desktop/narrow populated/empty and reader controls compared. Author-voice playback and entry audio caching remain incomplete; see Diary audio routing audit below. |
 | Roleplay `books` tab | Herika Books | Full-content striped table, game/UTC/TS columns and content dialog implemented; populated long/short fixtures, escaped content reader, filtered empty panel, desktop/narrow and computed neutral header typography compared; shared-theme overrides and forced minimum width removed |
 | `diary_book.php` | Same path | Printable chronological parchment book and author-list link implemented; scoped IDs, escaped text, desktop/narrow populated comparisons and print/PDF checks passed (see Diary authors and printable book checkpoint) |
 | Roleplay `adventure` tab | Herika Adventure Log | Chronological context/people/game-time/UTC rows, location dividers, contiguous speaker bands and counterpart CSV formatting implemented. Desktop/narrow populated, empty and long fixtures compared; date-selection, selected/latest-day and full exports checked. Full checks and 744-file deployment passed; live populated calendar/table verified. Native dates and complete OpenMW cell names retained. Month navigation now uses measured reference rules, including its narrow-screen clipping limitation; see source-parity checkpoint below. |
@@ -7367,3 +7367,49 @@ this checkpoint; deployment remains the tested `d838c87` code.
   private/authentication probes pass. Rollback: lorkhanserver-code.JCiSt5.
 - Service provisioning, Setup presets and remaining Quickstart controls are still
   incomplete. This checkpoint does not close whole-page or whole-goal acceptance.
+
+### Diary audio routing audit — implementation still required
+
+Source evidence rechecked after 787df86:
+
+- Pinned Herika ui/api/chim_diary_audio.php loads the saved entry and its author,
+  resolves NPC/Narrator -> assigned/default Core Profile -> TTS connector -> voice,
+  then caches full-entry audio under a content/author/voice/connector-derived key.
+  diarylog.php requests it only after Play; row and reader share playback state.
+- Native ui/tmpl/roleplay_reader.php and ui/home.php instead publish one global
+  Narrator/default connector and voice. roleplay-reader.js posts each sentence's
+  browser-supplied text to /api/v1/tts-previews. This is not author-voice parity.
+- ManagementRouter::speechPreview uses the pronunciation-preview allowlist and a
+  240-character text limit. It does not resolve an author or apply the repository's
+  pronunciation dictionary. ManagementRepository::allowTtsPreview limits this lane
+  to 30 requests per 60 seconds; sufficiently short diary sentences can exhaust
+  that budget. This is a code-path risk, not a measured provider latency claim.
+- Existing ProductRepository::speechContext handles profile voices, cloud catalog
+  IDs, global race/gender fallbacks and sample-capable adapters. ProviderFactory
+  already supplies local/cloud voice resolvers. ttsPronunciationContext and
+  applyTtsPronunciation supply scoped speech replacements. Reuse these rules;
+  do not add a browser voice override or relax the Studio preview allowlist.
+
+Next implementation boundary:
+
+1. Add a dedicated authenticated, CSRF-protected diary audio request keyed by the
+   persisted narrative ID and installation. Reject deleted/non-diary/wrong-scope
+   entries before provider work. Read text and author server-side. Preserve the
+   recorded profile ID even if the actor's current binding has since changed.
+2. Share profile-based voice/pronunciation resolution with the normal speech path
+   rather than resolving a diary author by name or falling back to Narrator.
+   Missing author/connector/voice must produce a clear safe failure.
+3. Use bounded private cached audio, keyed by content and effective speech inputs,
+   with duplicate generation protection and authenticated retrieval. Account for
+   full-entry size/provider limits without weakening Studio preview protections.
+4. Rewire both the diary row/modal and homepage latest-diary Play to the entry
+   request. Preserve pause/resume, cancellation, close/focus and stale-request
+   protection. Update help/status copy only when author routing actually exists.
+5. Extend existing disposable management HTTP coverage: two authors/connectors,
+   Narrator author, missing/deleted/wrong-scope entries, profile-binding changes,
+   pronunciation, cache hit/invalidation and opaque provider failures. Use mock
+   providers only. Browser checks must cover row/modal/home and cancellation.
+
+No product code changed for this audit. The matrix now explicitly reopens home
+and diary functional acceptance instead of treating previous layout proof as
+proof of author-voice behavior. No provider calls, game actions or runtime writes.
