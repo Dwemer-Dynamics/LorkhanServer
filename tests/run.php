@@ -276,6 +276,11 @@ $check(LlmConnector::validate($inheritedLlm)===$inheritedLlm
 $directLlm=['driver'=>'openai-compatible','model'=>'local-model','endpoint'=>'http://127.0.0.1:1234/v1/chat/completions',
     'options'=>['temperature'=>0,'top_p'=>0,'stream'=>false,'json_mode'=>false,'disable_reasoning'=>false,'reasoning_model'=>true]];
 $validatedLlm=LlmConnector::validate($directLlm);
+$customLlm=LlmConnector::validate($directLlm+['service'=>'custom']);
+$check($customLlm['service']==='custom' && !isset($validatedLlm['service']) && $customLlm['options']===$validatedLlm['options'], 'custom editor service survives validation without changing legacy transport');
+try { LlmConnector::validate($directLlm+['service'=>'unknown']); $check(false,'unknown editor service rejected'); }
+catch(InvalidArgumentException $error) { $check($error->getMessage()==='invalid_provider_service','unknown editor service rejected'); }
+
 $check($validatedLlm['credential']==='none'&&$validatedLlm['timeout_ms']===30000
     &&$validatedLlm['options']['reasoning_model']===true
     &&LlmConnector::requestOptions($validatedLlm['options'],null,true)===['temperature'=>0,'top_p'=>0]

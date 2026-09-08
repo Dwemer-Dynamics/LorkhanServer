@@ -7596,3 +7596,24 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - JavaScript syntax, diff checks and 613 server checks pass. Deployed code verified
   against all 800 runtime hashes; private/authentication probes pass and existing
   configuration, credentials and voices are preserved.
+
+### Saved Custom LLM service identity
+
+- Added optional allowlisted service metadata to direct connector documents and
+  revisioned forms. Older documents still infer service from their endpoint.
+  Explicit Custom survives save/reload even for a recognised provider URL; sidebar
+  badges use the saved identity. Service metadata does not enter request options.
+- Saved Custom initialisation keeps URL/Provider editable and suppresses automatic
+  provider catalogues, matching reference Custom behaviour. Explicit hosted-service
+  selection updates the saved identity. This supersedes the prior checkpoint's
+  pending saved-Custom-identity item; Custom driver/IP tools and Player2 stay open.
+- Extended existing unit and HTTP suites: legacy documents unchanged, invalid
+  service rejected, direct create/revise/reload retains Custom, and the mock LLM
+  request contains no service metadata. 615 checks pass. The first HTTP run failed
+  in the earlier diary-audio fixture (502) before LLM checks; a full clean rerun
+  passed. No production records or real providers were used as fixtures.
+- Browser initialisation fixtures at 1280/390 confirm a recognised URL stays Custom,
+  remains editable, has no automatic catalogue, and switches explicitly to OpenAI.
+  These are browser fixtures plus separate real HTTP persistence proof, not a
+  production connector save. Deployment preserved configuration/credentials/voices;
+  all 800 runtime hashes and private/authentication probes pass.

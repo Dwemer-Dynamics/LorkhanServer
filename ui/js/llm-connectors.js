@@ -297,11 +297,16 @@
         google: 'https://ai.google.dev/', groq: 'https://console.groq.com/keys',
         nanogpt: 'https://nano-gpt.com/',
     };
-    let customServiceSelected = false;
+    const serviceInput = document.getElementById('llm_service');
+    let customServiceSelected = serviceInput?.value === 'custom';
     const updateService = () => {
         const service = driver.value === 'openai-compatible'
             ? (customServiceSelected ? 'custom' : Object.keys(services).find((key) => key !== 'custom' && services[key][0] === endpoint?.value) || 'custom')
             : (driver.value === 'configured' ? document.getElementById('llm_model')?.dataset.runtimeService || '' : '');
+        if (serviceInput) {
+            serviceInput.disabled = driver.value !== 'openai-compatible';
+            serviceInput.value = serviceInput.disabled ? '' : service;
+        }
         serviceButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.llmService === service)));
         const label = document.getElementById('llm-service-label');
         const active = serviceButtons.find((button) => button.dataset.llmService === service);
@@ -383,6 +388,7 @@
         const cache = new Map(), pending = new Map();
 
         function catalogueService() {
+            if (customServiceSelected) return '';
             let service = '';
             if (driver.value === 'configured') service = document.getElementById('llm_model')?.dataset.runtimeService || '';
             else if (driver.value === 'openai-compatible') {

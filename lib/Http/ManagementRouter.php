@@ -975,6 +975,7 @@ final class ManagementRouter
         if($driver==='configured'&&isset($values['credential'])&&$values['credential']!=='__inherit__')$content['credential']=$values['credential'];
         if($driver==='openai-compatible')$content+=['endpoint'=>$this->need($values,'endpoint'),
             'credential'=>$values['credential']??'none'];
+        if($driver==='openai-compatible'&&isset($values['service'])&&$values['service']!=='')$content['service']=$values['service'];
         if(isset($values['timeout_ms'])&&$values['timeout_ms']!==''){
             $timeout=filter_var($values['timeout_ms'],FILTER_VALIDATE_INT);
             if($timeout===false)throw new InvalidArgumentException('invalid_provider_timeout');

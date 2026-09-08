@@ -1958,13 +1958,14 @@ r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'co
 # Keep the shared model available for the later player and narrator generation checks.
 # Exercise the real adapter with a disposable local HTTP provider, never a paid endpoint.
 direct_name='HTTP direct '+uuid.uuid4().hex
-direct_values={'_csrf':csrf,'installation_id':valid['installation_id'],'name':direct_name,'driver':'openai-compatible','model':'local-test',
+direct_values={'_csrf':csrf,'installation_id':valid['installation_id'],'name':direct_name,'driver':'openai-compatible','model':'local-test','service':'custom',
     'endpoint':'http://127.0.0.1:'+str(voice_provider.server_port)+'/llm/chat/completions','credential':'none','timeout_ms':'4000',
     'option_temperature':'0','option_top_p':'0','option_max_completion_tokens':'64','option_stream':'false','option_json_mode':'false',
     'option_provider_order':' together , google-vertex/us-east5 '}
 r=request('/LorkhanServer/manage/forms/providers','POST',direct_values); body=r.read().decode(); assert r.status==200 and direct_name in body,(r.status,body)
 direct_id=connector_editor_id(body,direct_name)
 _,direct_editor=parse(request('/LorkhanServer/ui/core/llm_connectors.php?edit='+direct_id))
+assert 'id="llm_service" name="service" value="custom"' in direct_editor
 assert re.search(r'id="llm_option_max_completion_tokens"[^>]*value="64"',direct_editor),direct_editor
 # Range companions must never duplicate the submitted override or turn blank defaults into zero.
 llm_ranges=re.findall(r'<input type="range"[^>]+>',direct_editor)
@@ -1986,12 +1987,14 @@ assert re.search(r'<option value="custom" data-empty="1">🔴 Custom LLM key —
 direct_test={'_csrf':csrf,'installation_id':valid['installation_id'],'configuration_id':direct_id}
 r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
 headers,sent=VoiceProvider.llm_requests[-1]
+assert 'service' not in sent, sent
 assert 'Authorization' not in headers and sent['temperature']==0 and sent['top_p']==0 and sent['max_completion_tokens']==64 and sent['stream'] is False and 'response_format' not in sent,(headers,sent)
 assert sent['provider']=={'order':['together','google-vertex/us-east5']} and 'provider_order' not in sent,sent
 r=request('/LorkhanServer/ui/core/api_keys.php','POST',{'_csrf':csrf,'action':'set','variable':'LORKHAN_LLM_CUSTOM_API_KEY','credential':'local-parity-test-key'}); body=r.read().decode(); assert 'Credential saved.' in body,body
 direct_values.update(configuration_id=direct_id,credential='custom',option_stream='true',option_json_mode='true',option_disable_reasoning='true',option_reasoning_model='true',change_reason='Exercise explicit key, streaming, and reasoning cleanup')
 r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); assert r.status==200,(r.status,r.read().decode())
 r=request('/LorkhanServer/ui/core/llm_connectors.php?edit='+direct_id); direct_key_editor=r.read().decode()
+assert 'id="llm_service" name="service" value="custom"' in direct_key_editor
 assert re.search(r'<option value="custom" data-empty="0" selected>🟢 Custom LLM key</option>',direct_key_editor),direct_key_editor
 assert direct_key_editor.index('🟢 Custom LLM key') < direct_key_editor.index('— Missing Key —'),direct_key_editor
 assert 'local-parity-test-key' not in direct_key_editor and 'id="llm_key_notice" class="api-key-notice warn" role="status"></div>' in direct_key_editor

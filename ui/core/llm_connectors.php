@@ -271,8 +271,8 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     $inUse = (int) ($row['profile_usage'] ?? 0) > 0 || (int) ($row['active_session_usage'] ?? 0) > 0
                         || (int) ($row['queued_job_usage'] ?? 0) > 0 || (int) ($row['memory_policy_usage'] ?? 0) > 0;
                     $rowDriver = (string) ($content['driver'] ?? 'configured');
-                    $rowService = $rowDriver === 'mock' ? '' : lorkhan_llm_endpoint_service((string)($rowDriver === 'configured' ? ($config['provider']['endpoint'] ?? '') : ($content['endpoint'] ?? '')));
-                    $rowBadge = ['openrouter'=>'OpenRouter','openai'=>'OpenAI','google'=>'Google','groq'=>'Groq','nanogpt'=>'NanoGPT','player2'=>'Player2'][$rowService] ?? (LORKHAN_LLM_DRIVERS[$rowDriver][1] ?? $rowDriver);
+                    $rowService = $rowDriver === 'openai-compatible' && isset($content['service']) ? (string)$content['service'] : ($rowDriver === 'mock' ? '' : lorkhan_llm_endpoint_service((string)($rowDriver === 'configured' ? ($config['provider']['endpoint'] ?? '') : ($content['endpoint'] ?? ''))));
+                    $rowBadge = ['openrouter'=>'OpenRouter','openai'=>'OpenAI','google'=>'Google','groq'=>'Groq','nanogpt'=>'NanoGPT','player2'=>'Player2','custom'=>'Custom'][$rowService] ?? (LORKHAN_LLM_DRIVERS[$rowDriver][1] ?? $rowDriver);
                 ?>
                 <div class="conn-li<?php echo $active ? ' active' : ''; ?>" data-configuration-id="<?php echo lorkhan_ui_h($row['configuration_id']); ?>">
                     <a class="conn-li-select" href="<?php echo lorkhan_ui_h($queryFor(['edit' => $row['configuration_id']])); ?>" aria-label="Edit <?php echo lorkhan_ui_h($row['name']); ?>">
@@ -340,6 +340,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     <form id="<?php echo lorkhan_ui_h($formId); ?>" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/<?php echo lorkhan_ui_h($formAction); ?>">
                         <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
                         <?php if ($creating): ?><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php else: ?><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><input type="hidden" name="change_reason" value="Management LLM update"><?php endif; ?>
+                        <input type="hidden" id="llm_service" name="service" value="<?php echo lorkhan_ui_h($isDirect ? ($content['service'] ?? '') : ''); ?>">
                     </form>
 
                     <div class="two-col-llm">

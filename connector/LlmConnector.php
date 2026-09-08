@@ -55,7 +55,7 @@ final class LlmConnector
         $allowed = ['driver', 'model', 'timeout_ms'];
         if ($driver === 'mock') $allowed[] = 'mock_prefix';
         else $allowed = array_merge($allowed, ['options', 'credential']);
-        if ($driver === 'openai-compatible') $allowed[] = 'endpoint';
+        if ($driver === 'openai-compatible') $allowed = array_merge($allowed, ['endpoint', 'service']);
         if (array_diff(array_keys($content), $allowed) !== []) throw new InvalidArgumentException('invalid_provider_content');
         $result = ['driver' => $driver, 'model' => $model];
         if ($driver === 'mock') {
@@ -74,6 +74,13 @@ final class LlmConnector
             if ($options !== []) $result['options'] = $options;
         }
         if ($driver === 'openai-compatible') {
+            // Service is editor identity, separate from transport options and endpoint validation.
+            if (array_key_exists('service', $content)) {
+                if (!in_array($content['service'], ['openrouter', 'openai', 'google', 'groq', 'nanogpt', 'player2', 'custom'], true)) {
+                    throw new InvalidArgumentException('invalid_provider_service');
+                }
+                $result['service'] = $content['service'];
+            }
             $endpoint = $content['endpoint'] ?? null;
             if (!is_string($endpoint) || strlen($endpoint) > 2048 || preg_match('/[\x00-\x20\x7f]/', $endpoint)) {
                 throw new InvalidArgumentException('invalid_provider_endpoint');
