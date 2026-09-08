@@ -3032,6 +3032,18 @@ $assert($editedCalendar['provenance']['source_turn_ids']===[$responseScope['turn
 $_GET['game_date']='0427-08-17';
 $otherDate=lorkhan_roleplay_reader_state($db,[$calendarScope['installation_id']=>'Test'],'diaries');
 $assert(!in_array($calendarDiary['narrative_id'],array_column($otherDate['rows'],'narrative_id'),true), 'Tamrielic date filter returned another day');
+unset($_GET['game_date']);
+$unselectedDiary=lorkhan_roleplay_reader_state($db,[$calendarScope['installation_id']=>'Test'],'diaries');
+$assert($unselectedDiary['rows']===[] && $unselectedDiary['total']===0
+    && $unselectedDiary['calendar']===$calendarState['calendar'] && $unselectedDiary['people']===$calendarState['people'],
+    'unselected diary calendar listed entries or lost calendar/author navigation');
+$_GET['person']=$calendarScope['profile_id'];
+$authorDiary=lorkhan_roleplay_reader_state($db,[$calendarScope['installation_id']=>'Test'],'diaries');
+$assert(in_array($calendarDiary['narrative_id'],array_column($authorDiary['rows'],'narrative_id'),true), 'author diary selection required a date');
+unset($_GET['person']);
+$_GET['q']='Edited date fixture';
+$searchedDiary=lorkhan_roleplay_reader_state($db,[$calendarScope['installation_id']=>'Test'],'diaries');
+$assert(in_array($calendarDiary['narrative_id'],array_column($searchedDiary['rows'],'narrative_id'),true), 'explicit diary search required a date');
 $_GET=$savedQuery;
 $db->rollBack();
 if (is_dir($mediaPath)) {

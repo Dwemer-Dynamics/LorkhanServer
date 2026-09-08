@@ -85,6 +85,10 @@ function lorkhan_roleplay_reader_state(PDO $database, array $installationOptions
     $query = trim(mb_substr((string) ($_GET['q'] ?? ''), 0, 200));
     if ($query !== '') { $state['query'] = $query; $where .= " AND (n.title ILIKE :title_query OR n.content ILIKE :content_query)"; $params['title_query'] = '%'.$query.'%'; $params['content_query'] = '%'.$query.'%'; }
     $export = ($_GET['export'] ?? '') === '1';
+    if ($tab === 'diaries' && !$export && $state['date'] === '' && $state['game_date'] === '' && $state['person'] === '' && $query === '') {
+        // Keep calendar/author counts, but wait for a selection before listing diary entries.
+        $where .= ' AND FALSE';
+    }
     if ($tab === 'adventure' && $state['date'] === '' && $state['game_date'] === '') {
         if (!$export) {
             // The calendar stays populated, but the reference does not show events until a day is selected.
@@ -175,7 +179,7 @@ function lorkhan_roleplay_reader(array $state, array $installationOptions, strin
             <button type="button" class="roleplay-button" data-calendar-open="edit-<?= lorkhan_ui_h($row['narrative_id']) ?>">Edit</button>
             <button type="button" class="roleplay-button danger" data-calendar-open="delete-<?= lorkhan_ui_h($row['narrative_id']) ?>">Delete</button>
         </div></td></tr>
-        <?php endforeach; ?><?php if($state['rows']===[]): ?><tr><td colspan="5" class="log-empty">No entries match this date, person or playthrough.</td></tr><?php endif; ?></tbody></table></div>
+        <?php endforeach; ?><?php if($state['rows']===[]): ?><tr><td colspan="5" class="log-empty"><?= $state['person']!==''?'No diary entries found for this person.':(($state['date']!==''||$state['game_date']!=='')?'No diary entries found for this date.':($state['query']!==''?'No diary entries match this filter.':'Select a date to view diary entries.')) ?></td></tr><?php endif; ?></tbody></table></div>
         <?php endif; ?>
         <div class="reader-entries">
         <?php foreach ($tab==='adventure'?[]:$state['rows'] as $row): $id = (string) $row['narrative_id']; ?>

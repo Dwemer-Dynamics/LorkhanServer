@@ -6548,3 +6548,22 @@ private/auth/health checks; configuration/credentials/voices preserved. Rollback
 /var/backups/lorkhanserver-code.hfMPAF. No live data edits or game activity.
 Full Diary page/reader/editor acceptance remains open, including heading paint and
 narrow table/calendar behavior; this evidence covers the table component only.
+
+## Diary initial selection and empty-state parity
+
+Diary listing now waits for a date or author before showing entries, matching the
+reference calendar flow. Only unselected, non-export, non-search listing queries get
+AND FALSE; calendar/author queries run first and retain navigation counts. Explicit
+search remains supported across dates and CSV export scope is unchanged. Empty text
+now distinguishes initial selection, selected date, selected author and filtered results.
+
+Extended the existing integration calendar fixture with three focused checks: no
+selection returns zero rows/count without losing calendar/authors; author selection
+works without a date; explicit search works without a date. Full disposable PostgreSQL
+integration, schema inventory, backup/restore and migration/durable-job checks passed
+(terminal exit 0). 603 server checks pass. Live diary-empty-flow.cjs passes initial,
+filtered empty and Reset states at 1280/390, with zero POSTs; scrolled narrow empty
+state screenshot inspected. No real diary edits or exports were performed.
+799 deployed files match, private/auth/health checks pass, configuration/credentials/
+voices preserved. Rollback: /var/backups/lorkhanserver-code.XbPCOw. No game activity.
+Full page and reader/editor acceptance remains open.
