@@ -146,7 +146,6 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     <h2>Preset Keys (Saves Automatically)</h2>
                     <button type="submit" name="save_all" value="1" class="button btn-save">Save Keys</button>
                 </div>
-                <p class="keys-help">Replacement keys save when you leave the card. Blank keeps the saved key. Show reveals only your entered replacement.</p>
                 <div class="provider-grid">
                     <?php foreach ($providers as $slug => [$label, $link, $variable, $uses, $featureId]):
                         $status = $variable !== null ? ($statuses[$variable] ?? ['configured' => false, 'source' => 'not configured']) : ['configured' => false, 'source' => 'not configured'];
@@ -166,7 +165,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             </div>
                         </header>
                         <div class="provider-body">
-                            <?php $inputId = 'credential-' . $slug; ?><label class="visually-hidden" for="<?php echo lorkhan_ui_h($inputId); ?>"><?php echo lorkhan_ui_h($label); ?> API key</label><input id="<?php echo lorkhan_ui_h($inputId); ?>" type="password"<?php echo $variable !== null ? ' name="credentials[' . lorkhan_ui_h($variable) . ']"' : ''; ?> placeholder="<?php echo lorkhan_ui_h($placeholder); ?>" autocomplete="new-password" maxlength="8192"<?php echo $available ? '' : ' disabled aria-disabled="true"'; ?>>
+                            <?php $inputId = 'credential-' . $slug; ?><label class="visually-hidden" for="<?php echo lorkhan_ui_h($inputId); ?>"><?php echo lorkhan_ui_h($label); ?> API key</label><input id="<?php echo lorkhan_ui_h($inputId); ?>" type="password" aria-describedby="preset-key-help"<?php echo $variable !== null ? ' name="credentials[' . lorkhan_ui_h($variable) . ']"' : ''; ?> placeholder="<?php echo lorkhan_ui_h($placeholder); ?>" autocomplete="new-password" maxlength="8192"<?php echo $available ? '' : ' disabled aria-disabled="true"'; ?>>
                             <button type="button" class="button" data-key-visibility<?php echo $available ? '' : ' disabled aria-disabled="true"'; ?>>Show</button>
                             <?php if (in_array($slug, ['openrouter', 'openai','openai-llm'], true)): ?><button type="submit" class="btn-save" name="test_key" value="<?php echo lorkhan_ui_h($variable); ?>">Test</button><?php endif; ?>
                         </div>
@@ -175,6 +174,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     </article>
                     <?php endforeach; ?>
                 </div>
+                <p id="preset-key-help" class="keys-help preset-key-help">Replacement keys save when you leave the card. Blank keeps the saved key. Show reveals only your entered replacement.</p>
             </section>
 
             <section class="content-section full-width-section">

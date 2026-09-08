@@ -7109,3 +7109,33 @@ separately from the requested literal presentation parity.
 All four deployed geometry comparisons and all four keyboard navigation paths pass.
 Runtime verification matches all 799 files; configuration, credentials and voices
 were preserved. No game or provider was used.
+
+### Route inventory and API Keys panel alignment (2026-09-08)
+
+- Audited tracked top-level and core PHP routes against this matrix: all 37
+  canonical user pages are represented. Configuration exposes 15 tab targets,
+  Control Panel 12, and Roleplay seven. Templates, bootstrap/feature helpers,
+  two media endpoints and two canonical redirects are not separate pages.
+  `placeholder.php` remains an unlinked generic feature-state route (no UI
+  references); it is not evidence that any unavailable feature is implemented.
+  Route coverage does not prove that every nested state has parity.
+- Compared the deployed API Keys page with pinned Herika `core/api_badge.php`
+  at 1280px and 390px. Removed native-only compact panel padding and toolbar
+  alignment overrides. Restored reference Save Keys letter spacing and its
+  500px width rule. Moved replacement-key guidance below the preset grid and
+  associated it with each preset input via `aria-describedby`; blank keys still
+  preserve stored values and saved secrets are never rendered into fields.
+- Measured identical toolbar geometry: desktop 1164x40 with 94.359375x36 Save
+  button; narrow 318x75.5625 with 169.015625x36 button. Both panels use 25px
+  padding; preset grid begins immediately after the reference toolbar spacing.
+  Inspected desktop/narrow screenshots after clearing reference input values
+  in isolated browser memory. No screenshots contain saved key values.
+- Existing 608 checks and PHP syntax passed. Browser checks at 1280/501/500/390px
+  verified guidance association, Show/Hide, adding an unsaved custom card and
+  confirming its removal, with all non-GET traffic blocked and no write attempts.
+  Local server-only deployment preserved configuration, credentials and voices;
+  all 799 runtime hashes match, with private-route/authentication checks passing.
+- API Keys remains incomplete: duplicated provider/role badges, supported-provider
+  grouping and complete custom/test states still need reconciliation. Do not
+  treat differing key inventories or native credential security as proof of full
+  page parity. The broader page-by-page goal remains active.

@@ -31,6 +31,10 @@ body.api-keys-page-shell > main.api-keys-page {
 .api-keys-page .content-section h3 { margin-bottom: 15px; color: #f5f1e8; font: 400 1.4em/1.2 MagicCards, serif; word-spacing: 6px; text-shadow: 1px 1px 2px rgba(0, 0, 0, .5); }
 .api-keys-page .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
 .api-keys-page .section-header h2 { margin: 0; }
+.api-keys-page .section-header > .button { letter-spacing: .3px; }
+@media (max-width: 500px) {
+    .api-keys-page .section-header > .button { width: 100%; }
+}
 .api-keys-page .full-width-section { grid-column: 1 / -1; }
 .api-keys-page .provider-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
@@ -70,6 +74,7 @@ body.api-keys-page-shell > main.api-keys-page {
 .api-keys-page .key-actions { display: flex; gap: 6px; }
 .api-keys-page .key-status, .api-keys-page .keys-help { color: #bdbdbd; font-size: 12px; line-height: 18px; margin: 8px 0 0; }
 .api-keys-page .keys-help { margin: 0 0 10px; }
+.api-keys-page .preset-key-help { margin: 10px 0 0; }
 .api-keys-page .key-status:empty { display: none; }
 .api-keys-page #add-custom-key + .keys-help { margin-top: 10px; }
 .api-keys-page .provider-body button, .api-keys-page .key-actions button { flex-shrink: 0; }
@@ -99,8 +104,6 @@ body.api-keys-page-shell > main.api-keys-page {
 }
 
 @media (max-width: 560px) {
-    .api-keys-page .section-header { align-items: flex-start; gap: 12px; }
-    .api-keys-page .content-section { padding: 14px; }
     .api-keys-page .provider-head { flex-wrap: wrap; }
     .api-keys-page .provider-body { flex-wrap: wrap; }
     .api-keys-page .provider-body input { flex-basis: 100%; }
