@@ -744,6 +744,24 @@ $wordPrompt=$assembler->assemble($promptTurn,$wordSelection)['provider_input']['
 $check(str_contains($wordPrompt,'Keep the combined spoken dialogue across all utterances within 60 words.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'combined spoken dialogue'),'profile word limit reaches compact prompt while absent limits preserve the prompt');
 $wordResolved=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['response'=>['max_words'=>60]]],[]);
+$npcWordSelection=$wordSelection;
+$npcWordSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve([], $npcWordSelection['core_profile']['content'],
+    ['settings_overrides'=>['response'=>['max_words'=>17]]]);
+$npcWordPrompt=$assembler->assemble($promptTurn,$npcWordSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($npcWordPrompt,'within 17 words.')&&!str_contains($npcWordPrompt,'within 60 words.'),
+    'Resolved NPC response limit reaches the assembled prompt ahead of the Core Profile limit');
+$npcWordSelection['effective_settings']['settings']['response']['max_words']=0;
+$check(!str_contains($assembler->assemble($promptTurn,$npcWordSelection)['provider_input']['_assembled_prompt'],'combined spoken dialogue'),
+    'Explicit zero NPC word limit removes the inherited prompt instruction');
+$npcMemorySelection=$promptSelection;
+$npcMemorySelection['memory']=[['memory_id'=>'npc-memory','tier'=>'mid','content'=>'NPC_MEMORY_SENTINEL']];
+$npcMemorySelection['effective_settings']=(new EffectiveSettingsResolver())->resolve([], [],
+    ['settings_overrides'=>['memory'=>['mid_term_enabled'=>false]]]);
+$check(!str_contains($assembler->assemble($promptTurn,$npcMemorySelection)['provider_input']['_assembled_prompt'],'NPC_MEMORY_SENTINEL'),
+    'Resolved NPC memory switch excludes the disabled tier from the actual prompt');
+$npcMemorySelection['effective_settings']['settings']['memory']['mid_term_enabled']=true;
+$check(str_contains($assembler->assemble($promptTurn,$npcMemorySelection)['provider_input']['_assembled_prompt'],'NPC_MEMORY_SENTINEL'),
+    'Enabled resolved NPC memory tier is retained in the actual prompt');
 $evolutionDefaults=['enabled'=>true,'fields'=>EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS,'history_limit'=>20];
 $corePresetSource=['schema'=>'lorkhan.core-profile.v1','prompt'=>'Keep the profile prompt.',
     'routing'=>['llm_configuration_id'=>'00000000-0000-4000-8000-000000000001','llm_randomizer_enabled'=>true],
@@ -1867,13 +1885,27 @@ $coreLayer=['settings_overrides'=>['behavior'=>['rechat'=>false,'rechat_max_dept
 $npcLayer=['settings_overrides'=>['behavior'=>['rechat'=>true]],
     'routing'=>['llm_configuration_id'=>''],'oghma_knowledge_tags'=>'Dagoth Ur'];
 $effective=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcLayer);
-$check($effective['settings']['behavior']['rechat']===false
+$check($effective['settings']['behavior']['rechat']===true
     &&$effective['settings']['behavior']['rechat_max_depth']===4
     &&$effective['settings']['memory']['recent_turn_limit']===7
     &&$effective['settings']['memory']['knowledge_limit']===5
     &&$effective['routing']['llm_configuration_id']==='00000000-0000-4000-8000-000000000111'
     &&$effective['routing']['oghma_configuration_id']==='00000000-0000-4000-8000-000000000222',
-    'Core Profiles own explicit response settings while NPC behavior and routing overrides stay inert');
+    'Explicit NPC Rechat overrides Core Profile behavior while system routing remains separately owned');
+$npcExplicit = ['settings_overrides'=>['behavior'=>['rechat'=>false,'rechat_probability_percent'=>0],
+    'memory'=>['recent_turn_limit'=>3,'short_term_enabled'=>false], 'response'=>['max_words'=>0]]];
+$npcResolved=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcExplicit);
+$check($npcResolved['settings']['behavior']['rechat']===false
+    &&$npcResolved['settings']['behavior']['rechat_probability_percent']===0
+    &&$npcResolved['settings']['memory']['recent_turn_limit']===3
+    &&$npcResolved['settings']['memory']['short_term_enabled']===false
+    &&$npcResolved['settings']['response']['max_words']===0
+    &&$npcResolved['sources']['settings.response.max_words']==='npc',
+    'NPC false and zero overrides survive typed precedence and report their source');
+$npcInherited=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,[]);
+$check($npcInherited['settings']['memory']['recent_turn_limit']===7
+    &&$npcInherited['sources']['settings.memory.recent_turn_limit']==='core_profile',
+    'Removing an NPC override restores Core Profile inheritance');
 $check($effective['settings']['oghma']['topic_count']===2
     &&$effective['settings']['oghma']['racial_context_enabled']===false
     &&($effective['sources']['settings.oghma.topic_count']??null)==='global'
@@ -1907,7 +1939,7 @@ $check($narratorEffective['settings']['narrator']['name']==='The Temple Chronicl
 try{(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcLayer,[],false,['random_chance_percent'=>101]);
     $check(false,'Narrator profile event chance above one hundred rejected');}
 catch(InvalidArgumentException){$check(true,'Narrator profile event chance above one hundred rejected');}
-$check(($effective['sources']['settings.behavior.rechat']??null)==='core_profile'
+$check(($effective['sources']['settings.behavior.rechat']??null)==='npc'
     &&($effective['sources']['routing.llm_configuration_id']??null)==='core_profile'
     &&$effective['context']['sections']['nearby_items']===false
     &&$effective['context']['item_blacklist']===['iron dagger']
@@ -1964,10 +1996,10 @@ $projectionInput['routing']['relationship_configuration_id']='00000000-0000-4000
 $projectionInput['routing']['diary_generation_configuration_id']='00000000-0000-4000-8000-000000000555';
 $projectionInput['settings']['diary']=$diaryOverrides;
 $projection=EffectiveSettingsResolver::controlsProjection($projectionInput);
-$check($projection['settings']['behavior']['rechat']===false
+$check($projection['settings']['behavior']['rechat']===true
     &&$projection['settings']['memory']['knowledge_limit']===EffectiveSettingsResolver::defaults()['memory']['knowledge_limit']
     &&$projection['routing']['llm_configuration_id']==='00000000-0000-4000-8000-000000000111'
-    &&$projection['source_map']['settings.behavior.rechat']==='core_profile'
+    &&$projection['source_map']['settings.behavior.rechat']==='npc'
     &&!array_key_exists('settings.memory.knowledge_limit',$projection['source_map'])
     &&$projection['settings']['presentation']===EffectiveSettingsResolver::defaults()['presentation'],
     'controls retain typed overrides while presentation remains inert v1 compatibility data');

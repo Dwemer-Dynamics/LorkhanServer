@@ -1729,6 +1729,23 @@ assert 'routing' not in saved_routing_content and 'settings_overrides' not in sa
 assert len(VoiceProvider.llm_requests)==provider_calls_before_routing_save # Saving character details never calls a provider.
 assert not any(field in saved_routing['fields'] for field in ['profile_generation_configuration_id','relationship_configuration_id','diary_generation_configuration_id','setting_relationship_locked'])
 
+# Explicit NPC overrides round-trip through the existing revisioned profile save.
+npc_overrides={'behavior':{'rechat':False,'rechat_probability_percent':0},'memory':{'recent_turn_limit':3},'response':{'max_words':17}}
+for submitted in [npc_overrides, None, {}]:
+    override_values=dict(saved_routing['fields'],_csrf=csrf,change_reason='NPC overrides HTTP')
+    if submitted is not None: override_values['npc_settings_overrides_json']=json.dumps(submitted)
+    r=request(saved_routing['action'],'POST',override_values); override_page,override_body=parse(r)
+    assert r.status==200,(r.status,override_body)
+    saved_routing=next(f for f in override_page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==routing_profile_id)
+    saved_routing_content=json.loads(saved_routing['fields']['base_content_json'])
+    assert saved_routing_content.get('settings_overrides',{})==(npc_overrides if submitted is None else submitted),saved_routing_content
+for invalid_override in [{'behavior':{'rechat':'false'}},{'memory':{'recent_turn_limit':0}},{'response':{'max_words':10001}},{'narrator':{'enabled':True}}]:
+    r=request(saved_routing['action'],'POST',dict(saved_routing['fields'],_csrf=csrf,npc_settings_overrides_json=json.dumps(invalid_override),biography='MUST NOT SAVE'))
+    assert r.status==422,(r.status,r.read().decode())
+    unchanged_page,_=parse(request('/LorkhanServer/ui/core/npc_master.php'))
+    unchanged=next(f for f in unchanged_page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==routing_profile_id)
+    assert unchanged['fields']['base_content_json']==saved_routing['fields']['base_content_json']
+
 # NPC diary switches preserve inheritance and other diary policy leaves.
 diary_base=dict(saved_routing_content,diary={'automatic_interval_seconds':240,'include_in_context':False})
 diary_values=dict(saved_routing['fields'],_csrf=csrf,change_reason='HTTP NPC diary override',base_content_json=json.dumps(diary_base),

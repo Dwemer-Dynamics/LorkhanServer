@@ -152,6 +152,15 @@ final class EffectiveSettingsResolver
         if (!is_array($npcProfileContent) || ($npcProfileContent !== [] && array_is_list($npcProfileContent))) {
             throw new InvalidArgumentException('invalid_settings_layer');
         }
+        $npcOverrides = self::validateSettingsOverrides($npcProfileContent['settings_overrides'] ?? []);
+        $npcAllowed = [];
+        foreach (SettingsCatalog::npcOverrideFields() as $section => $fields) {
+            foreach ($fields as $field) {
+                if (array_key_exists($field, $npcOverrides[$section] ?? []))
+                    $npcAllowed[$section][$field] = $npcOverrides[$section][$field];
+            }
+        }
+        $this->mergeSettings($settings, $npcAllowed, 'npc', 'settings', $sources);
         if ($allowProfileTtsRouting) {
             $profileRouting = self::validateRouting($npcProfileContent['routing'] ?? []);
             foreach (['tts_configuration_id','player_autochat_configuration_id'] as $field) {

@@ -2173,7 +2173,27 @@ final class ManagementRouter
         }
         if(array_key_exists('voice_id',$values)){$voice=trim((string)$values['voice_id']);$language=trim((string)($values['voice_language']??'en'));
             if($voice!=='')$content['voice']=['id'=>$voice,'language'=>$language===''?'en':$language];else unset($content['voice']);}
-        unset($content['settings_overrides']);
+        // Only an explicit override-editor submission changes these leaves; ordinary saves preserve them.
+        if ($allowSpecialTtsRouting) unset($content['settings_overrides']);
+        elseif (array_key_exists('npc_settings_overrides_json', $values)) {
+            $submitted = $this->jsonField($values, 'npc_settings_overrides_json');
+            $catalog = SettingsCatalog::npcOverrideFields();
+            foreach ($submitted as $section => $fields) {
+                if (!isset($catalog[$section]) || !is_array($fields)
+                    || array_diff(array_keys($fields), $catalog[$section]) !== [])
+                    throw new InvalidArgumentException('invalid_npc_settings_override');
+            }
+            $submitted = EffectiveSettingsResolver::validateSettingsOverrides($submitted);
+            $overrides = $content['settings_overrides'] ?? [];
+            foreach ($catalog as $section => $fields) {
+                foreach ($fields as $field) unset($overrides[$section][$field]);
+                if (($overrides[$section] ?? null) === []) unset($overrides[$section]);
+            }
+            foreach ($submitted as $section => $fields)
+                $overrides[$section] = array_replace($overrides[$section] ?? [], $fields);
+            if ($overrides === []) unset($content['settings_overrides']);
+            else $content['settings_overrides'] = $overrides;
+        }
         if(array_key_exists('npc_relationship_locked',$values)){
             $value=$values['npc_relationship_locked'];
             if(!in_array($value,['inherit','0','1'],true))throw new InvalidArgumentException('invalid_npc_relationship_override');

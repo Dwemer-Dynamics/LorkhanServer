@@ -266,6 +266,16 @@ final class SettingsCatalog
         return self::ENUMS;
     }
 
+    /** NPC editor leaves with verified per-actor consumers; other settings keep their current owner. */
+    public static function npcOverrideFields(): array
+    {
+        return [
+            'behavior' => ['rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_allow_actions'],
+            'memory' => ['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled'],
+            'response' => ['max_words'],
+        ];
+    }
+
     /** List the server settings projected into the OpenMW controls response. */
     public static function controlsProjectionFields(): array
     {

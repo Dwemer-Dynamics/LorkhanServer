@@ -72,7 +72,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. Remaining children and full embedded interactions still pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; scrolling slot summary, linked assigned slots and toolbar spacing aligned. Presets and additional profile fields remain |
-| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI-result staging and full editor/list review remain. Info has confirmed missing Skills/Equipment/Stats/Inventory/Spells/Metadata panels and Setting Overrides; NPC settings_overrides are accepted but intentionally ignored by the resolver and existing test. This is a parity gap, not an exception; see NPC Info implementation sequence below |
+| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI-result staging and full editor/list review remain. Info has confirmed missing Skills/Equipment/Stats/Inventory/Spells/Metadata panels and Setting Overrides; Nine per-actor override leaves now resolve and reach prompt selection, with revisioned form round trips; the visual override editor and remaining catalogue are still missing. See NPC override runtime checkpoint below |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; remaining generation edge states remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; full provider-badge consolidation remains pending |
@@ -5422,3 +5422,48 @@ processor/RechatCoordinator.php (selected actor behavior). The reference is
 pinned core/npc_master.php and core/tmpl/override_editor.php. This checkpoint
 records an implementation-ready gap; it does not claim those missing controls
 or backend semantics have been implemented.
+
+
+## NPC override runtime checkpoint (editor still pending)
+
+Implemented the prerequisite ownership change from the NPC Info audit. Nine
+explicit NPC leaves now take precedence over Core/global values: Rechat,
+Rechat rounds/probability/actions, recent conversation limit, short/mid/long
+memory switches, and response word limit. Sources report npc; absent values
+inherit. Dedicated NPC diary, special Player/Narrator routing and unrelated
+installation-owned settings keep their existing paths. No client schema or
+database migration was added. Previously persisted values for these nine
+leaves become active; this intentionally replaces their earlier inert policy.
+
+The existing revisioned NPC form accepts npc_settings_overrides_json. Only
+catalogue leaves are accepted through that field. Empty object removes those
+overrides; ordinary saves preserve them. Unrelated legacy override leaves
+are retained but not newly activated. Player/Narrator form behaviour is
+unchanged. Existing invalid-value validation and transactional profile saves
+remain authoritative; this is not an unrestricted raw configuration import.
+
+PromptAssembler previously read memory switches and response length straight
+from Core Profile content. It now consumes resolved memory/response sections;
+ProductRepository includes only those sections in prompt selection. The
+original Core revision/provenance is not rewritten. Inline narrator word-limit
+substitution uses the same resolved value. Legacy assembler callers without
+resolved settings retain their Core fallback. RechatCoordinator already reads
+the selected actor's resolved behavior; its participant selection and chain
+lifetime policy are unchanged, and no in-game Rechat acceptance is claimed.
+
+Existing unit tests now test the intended NPC precedence, false/zero, removal
+back to Core, source projection, actual assembled word-limit instruction and
+memory-tier inclusion/exclusion. 588 checks pass. Existing management HTTP
+coverage adds create/save/reload, ordinary save preservation, removal, and
+invalid type/range/foreign-section refusal without saving a concurrent biography
+edit. Integration vertical slice and migration/durable-job tests pass. Schema
+inventory remains 172 relations / 1599 columns; the known hash-only generated
+summary drift was inspected and restored, with no schema changes retained.
+
+This is backend foundation for the reference editor, not UI parity acceptance.
+Next: mount current-override rows and Add/Edit/Remove in NPC Info using these
+catalogue leaves, stage changes until NPC Save, compare empty/populated/edit/
+rejected-save states, then expand the remaining reference catalogue only after
+tracing its consumers. The game-data disclosures and complete NPC Info parity
+remain outstanding. No live NPC settings, paid providers or game controls were
+used in this checkpoint.

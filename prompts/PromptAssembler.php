@@ -83,7 +83,10 @@ final class PromptAssembler
         $history = $enabled['conversation_history'] ? $this->limitedSelection($selection, 'history') : [];
         $memory = array_slice($this->selectedList($selection, array_key_exists('memory_candidates', $selection) ? 'memory_candidates' : 'memory'), 0, 500);
         if (!$enabled['memories']) $memory = [];
-        $memoryFlags = $coreProfile['content']['settings_overrides']['memory'] ?? [];
+        $memoryFlags = $selection['effective_settings']['settings']['memory']
+            ?? $coreProfile['content']['settings_overrides']['memory'] ?? [];
+        $responseMaxWords = (int)($selection['effective_settings']['settings']['response']['max_words']
+            ?? $coreProfile['content']['settings_overrides']['response']['max_words'] ?? 0);
         $memory = array_values(array_filter($memory, static function (array $row) use ($memoryFlags): bool {
             $flag = match ($row['tier'] ?? '') { 'recent' => 'short_term_enabled', 'mid' => 'mid_term_enabled', 'long' => 'long_term_enabled', default => '' };
             return $flag === '' || ($memoryFlags[$flag] ?? true) === true;
@@ -116,7 +119,7 @@ final class PromptAssembler
         $inlineMode = ($narratorContent['enabled'] ?? false) === true ? ($narratorContent['inline_narration_mode'] ?? 'Disabled') : 'Disabled';
         if (($turn['payload']['target']['kind'] ?? '') !== 'narrator' && in_array($inlineMode, ['Narrator','NPC','Text Only'], true)) {
             $suffix = $inlineMode === 'Narrator' ? 'narrator' : 'npc';
-            $maxWords = (int)($coreProfile['content']['settings_overrides']['response']['max_words'] ?? 0);
+            $maxWords = $responseMaxWords;
             $replacements = ['{NPC_NAME}'=>$actorName, '{NARRATOR_NAME}'=>(string)($turn['_narrator_profile']['name'] ?? 'The Narrator'),
                 '{MAXIMUM_WORDS}'=>$maxWords > 0 ? " Keep the complete response within {$maxWords} words." : ''];
             foreach (['dialogue_line_inline_response_', 'inline_narration_prompt_'] as $prefix) {
@@ -150,6 +153,7 @@ final class PromptAssembler
             $contextPolicy,
             $selection['effective_settings']['prompt'] ?? SettingsCatalog::globalDefaults()['prompt'],
             ParalinguisticSpeech::prompt($speechStyle),
+            $responseMaxWords,
         );
 
         $system = $built['system'];
@@ -301,12 +305,13 @@ final class PromptAssembler
         array $contextPolicy,
         array $promptDefaults,
         string $speechStylePrompt,
+        int $responseMaxWords,
     ): array {
         $outputContract = 'Return one JSON object with exactly two keys: "utterances" and "action". '
             . '"utterances" must be a JSON array of one to four objects. Each utterance object must have exactly one key named "text", '
             . 'and "text" must be a non-empty string. Never return utterances as strings. "action" is null or a supported name and parameters object. '
             . 'Do not add prose outside JSON.';
-        $maxWords = $coreProfile['content']['settings_overrides']['response']['max_words'] ?? 0;
+        $maxWords = $responseMaxWords;
         if (is_int($maxWords) && $maxWords > 0 && $maxWords <= 10000) {
             $outputContract .= ' Keep the combined spoken dialogue across all utterances within ' . $maxWords . ' words.';
         }

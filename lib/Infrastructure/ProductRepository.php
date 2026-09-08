@@ -2840,7 +2840,8 @@ SQL);
             $promptKeys[]='dialogue_line_inline_response_'.$suffix;$promptKeys[]='inline_narration_prompt_'.$suffix;
         }
         return ['profile'=>$profile,'core_profile'=>$coreProfile,'selected_profile_id'=>$activeProfileId,'speech_style'=>$speechStyle,
-            'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources'],'context'=>$contextPolicy,'prompt'=>$effective['prompt']],
+            'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources'],'context'=>$contextPolicy,'prompt'=>$effective['prompt'],
+                'settings'=>array_intersect_key($effective['settings'], ['memory'=>true,'response'=>true])],
             'player_profile'=>$this->playerProfileForInstallation($turn['installation_id']),
             'narrator_profile'=>$narratorProfile,
             'narrator_event_prompts'=>$promptKeys===[]?[]:$this->narratorEventPromptTexts($turn['installation_id'],$promptKeys),
