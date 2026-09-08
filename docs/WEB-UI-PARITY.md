@@ -5594,3 +5594,32 @@ submitting profiles. Desktop/narrow screenshots were visually inspected.
 588 existing server checks passed. The complete NPC editor, metadata ownership,
 remaining override catalogue and other page-matrix gaps are still open; no
 whole-page acceptance follows from these geometry checks. No game was touched.
+
+## Priority reader rendered-control recheck
+
+Fresh live screenshots cover Events, AI Responses, Adventure Log, Diaries and
+Books in both products (Temp/priority-pages-current.cjs). Live data differs:
+Herika has populated Books but no diary/adventure entries in the selected month;
+Lorkhan has diary/adventure records and no Books. These captures therefore do not
+replace paired populated/empty fixture acceptance for the complete pages.
+
+Visible-table measurements confirmed AI Responses cell typography and padding
+already match; querying the first table without visibility incorrectly measures
+Lorkhan's hidden Events tab. The real remaining differences were View Prompt
+weight/line height and neutral body text color; these are corrected with scoped
+response-table rules. Header gold remains the product accent.
+
+Diary toolbar measurements found uneven native action widths, 40px download
+links and missing letter spacing. All three download/delete actions now match
+Herika's 200x36px geometry, 13.12px/1.2 Futura, weight 500, 7px 12px padding,
+2px margin and .3px letter spacing. Calendar mode links use the same text metrics
+and 36px minimum, allowing wrapping at narrow widths.
+
+Temp/diary-controls-measure.cjs and diary-spacing-measure.cjs measured both live
+products. Temp/diary-mode-current.cjs switched Tamrielic, Regular, Person and back
+without writes; desktop/narrow final screenshots were inspected. Existing
+Temp/lorkhan-response-live-proof.cjs opened prompts and closed with Escape at
+1280/390px. Diary secondary-tool accessibility checks and 588 server checks passed.
+No provider request, destructive action, live-data save or game interaction occurred.
+Full counterpart acceptance remains open; this checkpoint corrects measured
+controls rather than treating different live datasets as visual parity proof.

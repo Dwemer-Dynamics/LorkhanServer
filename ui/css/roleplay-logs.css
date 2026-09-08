@@ -165,3 +165,16 @@ body .roleplay-log-page .ai-response-table th:nth-child(6){width:7%}
 body .roleplay-log-page .log-bottom-pagination,body .roleplay-log-page .log-bottom-pagination span{font-weight:normal}
 body .roleplay-log-page:not(.book-log-page) .log-pagination nav .roleplay-button{background:#bc9d5a!important;color:#171717!important;border-color:#9d8045!important;border-radius:8px;font-weight:normal}
 body .roleplay-log-page .log-bottom-pagination .roleplay-button{background:#1e232dcc!important;color:#fff!important;border:1px solid #8a9bb661;border-radius:8px;font-weight:normal}
+
+/* Match the rendered Herika reader controls, including link-based actions. */
+body .ai-response-table [data-log-open]{font-weight:500;line-height:1.1}
+body .roleplay-log-page .ai-response-table td{color:#f8f9fa}
+body .diary-log-page .calendar-downloads :is(a,button),
+body .diary-log-page .calendar-mode-toggle .roleplay-button{
+    font:500 13.12px/1.2 "Futura CondensedLight",Arial,sans-serif!important;
+    padding:7px 12px;margin:2px;min-height:36px;height:36px;letter-spacing:.3px;
+}
+body .diary-log-page .calendar-downloads :is(a,button){width:200px;max-width:100%}
+@media(max-width:700px){
+    body .diary-log-page .calendar-mode-toggle .roleplay-button{height:auto;min-height:36px;}
+}
