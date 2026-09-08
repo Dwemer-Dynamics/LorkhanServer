@@ -200,3 +200,15 @@ body .calendar-log-page:not(.diary-log-page) .calendar-downloads :is(a,button){m
 #adventure-tab .calendar-navigation a{font-weight:500;line-height:1.2;margin:5px}
 #diaries-tab .calendar-navigation a{font-weight:600}
 @media(max-width:480px){.calendar-log-page .reader-heading h1{font-size:26px}}
+
+/* AI Responses owns one content frame, matching Herika ai-response.php rather than the generic hub card. */
+body.hub-page > main.ai-response-page{padding:0 12px 40px}
+body .ai-response-page > .tab-container{border:0;background:transparent;box-shadow:none}
+body .ai-response-page .log-table-container{border-color:#404040;width:100%}
+body .ai-response-page .log-page-actions .roleplay-button{
+    font:500 13.12px/1.2 "Futura CondensedLight",Arial,sans-serif!important;
+    padding:7px 12px;margin:2px;min-height:36px;letter-spacing:.3px;border-radius:6px;
+}
+@media(max-width:768px){
+    body .ai-response-page .roleplay-log-page:not(.book-log-page) .log-table-container{margin:10px -15px;max-height:calc(100vh - 430px)}
+}

@@ -230,7 +230,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
 <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/main.css">
 <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/hub-navigation.css?v=<?php echo lorkhan_ui_h((string)filemtime(__DIR__.'/css/hub-navigation.css')); ?>">
-<main class="container-fluid events-memories-page">
+<main class="container-fluid events-memories-page<?= $activeTab === 'responselog' ? ' ai-response-page' : '' ?>">
     <?php if(($_GET['status']??'')==='saved'): ?><p class="lorkhan-status" role="status">Changes saved.</p>
     <?php elseif(($_GET['status']??'')==='summary-requested'): ?><p class="lorkhan-status" role="status">Summary requested. Check Jobs for progress.</p>
     <?php elseif(($_GET['status']??'')==='summary-failed'): ?><p class="lorkhan-status" role="status">The previous summary job failed. Check the connector and retry it in Jobs.</p>

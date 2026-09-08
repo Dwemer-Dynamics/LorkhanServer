@@ -6101,3 +6101,33 @@ or infer automatic styling from existing explicit Instructions/Fixedmood fields.
 This is a source-audit checkpoint, not implemented feature or in-game proof.
 No runtime edits, deployment, credentials or reference data changes occurred.
 The full page matrix remains active; these dependencies are not exceptions.
+
+## AI Responses frame and action controls recheck
+
+A fresh live comparison against HerikaServer's pinned `529364c4c12b3a8bd4cc12a481f400ce19b3a344`
+`ui/ai-response.php` found differences that earlier cell/pager checks did not cover:
+Lorkhan retained the generic hub's second border, used 10px instead of 12px outer gutters,
+omitted the reference narrow table margins, and rendered the export action at 700/15px
+instead of 500/13.12px. The response page now has a dedicated class, a single content
+frame, reference outer padding/table border and narrow spacing, and matching action typography.
+Changes are scoped to AI Responses; other roleplay pages and their data behavior are unchanged.
+
+Evidence from the deployed runtime:
+- `Temp/response-shell-proof.cjs`: real populated pages at 1280 and 390px; exact paired
+  main/frame/table horizontal geometry, padding, margins, neutral borders/backgrounds,
+  and Export button font, padding, margin, radius, height and letter spacing. Zero mutation requests.
+- Inspected both pairs of `Temp/response-shell-{ref,native}-{1280,390}.png` screenshots.
+  Different row content/counts, the explicit native scope disclosure, Lorkhan branding and
+  excluded navigation entries remain visible; these are not identical-data screenshots.
+- `Temp/response-empty-proof.cjs`: actual unmatched native filter and empty reference page,
+  one empty row each, matching 104.375px desktop table height and 12.8/19.2px cell font.
+- `Temp/response-intro-proof.cjs`: description parity and populated Prompt Viewer open/close
+  at both widths; native Escape closes the reader. No provider requests or game control.
+- 597 existing server checks passed. Deployment verified all 799 runtime files with no
+  hash mismatches, extras or old paths; health, private-file denial and authentication checks passed.
+- Local rollback: `/var/backups/lorkhanserver-code.ViCwmC`. Configuration, credentials and
+  voice-file hashes were preserved. No database or client changes were required.
+
+This closes the measured frame/action-control differences, not the whole-site goal.
+Automatic speech mood transport and the remaining counterpart-matrix gaps stay open;
+no inert TTS controls or dialogue response-format changes were introduced in this UI pass.
