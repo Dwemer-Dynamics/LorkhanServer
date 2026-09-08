@@ -8174,3 +8174,18 @@ Evidence: `C:/Users/reece/AppData/Local/Temp/response-empty-refresh.cjs`, `respo
   scrolled captures show different top-header persistence; that behavior remains
   for source comparison rather than being silently accepted as branding.
   Broader parity goal stays active. GitHub server workflow remains disabled.
+
+### API Keys content-only child shell correction (2026-09-08)
+
+Source comparison resolved the standalone scroll discrepancy: Herika api_badge.php
+never includes navbar.php. Lorkhan did, adding a fixed logo/navigation shell and
+82px vertical offset. Removed this page's navbar include and zeroed its body top
+padding for both standalone and embedded entry. Configuration hub navigation is
+unchanged. This is a structural correction, not a branding exception.
+
+The existing HTTP assertion now requires zero current navigation links and no
+navbar element on the child page. The first run failed its old one-current-link
+expectation; the assertion was corrected to the intended reference structure.
+PHP lint and 691 server checks passed. Final HTTP and deployed visual evidence
+will be recorded after completion. No credentials, profile data or provider
+routing changed.

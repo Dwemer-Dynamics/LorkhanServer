@@ -142,7 +142,7 @@ foreach($statuses as $variable=>$status){
 
 $additionalStylesheets = ['herika-api-keys.css?v=' . (string) filemtime(dirname(__DIR__) . '/css/herika-api-keys.css')];
 include dirname(__DIR__) . '/tmpl/head.html';
-if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
+// The Configuration hub owns navigation; this child page matches the content-only reference.
 ?>
 <main class="api-keys-page">
     <header class="page-header lorkhan-page-head">

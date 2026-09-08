@@ -1,6 +1,6 @@
 /* API Keys presentation copied from the pinned HerikaServer api_badge.php baseline. */
 body.api-keys-page-shell { color: #f8f9fa; font: 15px/1.5 "Futura CondensedLight", Arial, sans-serif; }
-body.api-keys-page-shell.embedded-page { padding-top: 0; }
+body.api-keys-page-shell { padding-top: 0; }
 
 body.api-keys-page-shell > main.api-keys-page {
     width: 100%;

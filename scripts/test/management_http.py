@@ -546,7 +546,8 @@ r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'vo
 assert r.status==429 and json.loads(body)=={'error':'tts_preview_rate_limited'} and len(VoiceProvider.speech_requests)==27,(r.status,body,len(VoiceProvider.speech_requests))
 r=request('/LorkhanServer/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':sync_tts_id,'kind':'tts_provider'}); assert r.status==200,(r.status,r.geturl())
 assert 'MockProviderVoice' not in request('/LorkhanServer/ui/core/npc_master.php').read().decode()
-keys,text=parse(request('/LorkhanServer/ui/core/api_keys.php')); assert keys.current==1 and 'API Keys</h1>' in text and 'LORKHAN_LLM_API_KEY' in text and 'type="password"' in text
+keys,text=parse(request('/LorkhanServer/ui/core/api_keys.php')); assert keys.current==0 and 'API Keys</h1>' in text and 'LORKHAN_LLM_API_KEY' in text and 'type="password"' in text
+assert '<nav class="navbar' not in text, 'API Keys child page must not add a second navigation shell'
 deepl_key_input=re.search(r'<input id="credential-deepl"[^>]*>',text); assert deepl_key_input,text
 deepl_key_input=deepl_key_input.group(0); assert 'name="credentials[LORKHAN_DEEPL_API_KEY]"' in deepl_key_input and 'disabled' not in deepl_key_input and 'value=' not in deepl_key_input,deepl_key_input
 player,text=parse(request('/LorkhanServer/ui/core/player_management.php')); assert player.current==1 and 'Player Management</h1>' in text and any(f['action'].endswith(('/forms/player-profile-create','/forms/player-profile-revise')) for f in player.forms) and 'Profile generation uses the connector selected in' in text,text
