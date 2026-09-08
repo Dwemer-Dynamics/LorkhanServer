@@ -121,7 +121,7 @@ body.tts-page-shell .tts-page .editor-toolbar form button.btn-primary { border-c
 .tts-page .field-help { margin-top: 5px; color: #8fa0bb; font-size: 12px; line-height: 1.45; }
 .tts-page .orm-note { margin-bottom: 12px; padding: 6px 10px; border-bottom: 1px dashed rgba(138, 155, 182, .25); border-radius: 8px; background: #0c0f14; color: #97a6ba; font-size: 12px; }
 .tts-page .meta-group { margin-top: 8px; padding-top: 16px; border-top: 1px solid rgba(188, 157, 90, .12); }
-.tts-page .meta-group h3 { margin: 0 0 14px; color: #e2d5b9; font: 400 1.2em MagicCards, serif; word-spacing: 6px; }
+.tts-page .meta-group h3 { margin: 0 0 14px; color: #e2d5b9; font: 400 1.2em/1.2 MagicCards, serif; word-spacing: 6px; }
 .tts-page .settings-empty-note { padding: 10px 12px; border: 1px dashed rgba(138, 155, 182, .25); border-radius: 8px; background: #0c0f14; color: #97a6ba; font-size: 12px; }
 .tts-page .boolean-field { display: flex !important; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px; border: 1px solid #3a3a3a; border-radius: 6px; background: rgba(26, 26, 26, .82); }
 .tts-page .advanced-json { margin-top: 12px; }
@@ -186,3 +186,22 @@ body:has(.tts-test-dialog[open]) { overflow: hidden; }
 .tts-page .api-key-notice { margin-top:6px; font-size:12px; }
 .tts-page .api-key-notice.warn { color:#ffb862; }
 .tts-page .api-key-notice.ok { color:#6dd19c; }
+
+/* Preserve the reference toolbar geometry despite native POST forms replacing links. */
+body.tts-page-shell .tts-page .editor-toolbar :is(button, a) {
+    font-weight: 500 !important;
+    line-height: 1.2 !important;
+}
+body.tts-page-shell .tts-page .editor-toolbar > a.btn-save {
+    font-size: .82rem;
+    min-height: 36px;
+    height: 36px;
+    padding: 7px 12px;
+}
+body.tts-page-shell .tts-page .editor-toolbar :is(form, .toolbar-disabled) > button {
+    font-size: 15px !important;
+    min-height: 40px !important;
+    padding: 10px 20px !important;
+}
+body.tts-page-shell .tts-page .editor-toolbar { align-items: flex-start; }
+body.tts-page-shell .tts-page .editor-toolbar > button { height: 36px; }

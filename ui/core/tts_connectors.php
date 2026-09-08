@@ -120,7 +120,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         ?>
                             <a class="conn-card<?php echo $active ? ' active' : ''; ?>" href="<?php echo lorkhan_ui_h($queryFor(['edit' => $row['configuration_id']])); ?>">
                                 <span class="conn-head"><span class="title"><?php echo lorkhan_ui_h($row['name']); ?></span><span class="conn-badge"><?php echo lorkhan_ui_h($drivers[(string) ($content['driver'] ?? '')] ?? ($content['driver'] ?? 'Configured')); ?></span></span>
-                                <span class="conn-sub"><?php echo lorkhan_ui_h($content['endpoint'] ?? ''); ?></span>
+                                <?php if (!in_array((string) ($content['driver'] ?? ''), $cloudDrivers, true)): ?><span class="conn-sub"><?php echo lorkhan_ui_h($content['endpoint'] ?? ''); ?></span><?php endif; ?>
                                 <span class="conn-usage"><?php echo $assignmentCount; ?> assignment<?php echo $assignmentCount === 1 ? '' : 's'; ?></span>
                             </a>
                         <?php endforeach; ?>

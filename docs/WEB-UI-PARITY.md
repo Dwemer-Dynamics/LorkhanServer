@@ -5307,3 +5307,28 @@ for every hub and removed the now-redundant Roleplay-only override. Decorative
 headings/icons remain unchanged. Final native/reference hub screenshots were
 visually compared after the candidate CSS loaded. No live settings changed.
 Full connector edge-state and remaining page acceptance remain open.
+
+## TTS connector toolbar and section geometry checkpoint
+
+Compared saved Inworld editors on both live servers at 1280px and 390px,
+using independent read-only browser pages. All eleven visible field labels
+match in order. Corrected the native heading font shorthand that reset
+line-height to normal: both sections now measure 18px font / 21.6px line height,
+matching Herika. Restored reference toolbar geometry across native POST forms:
+Save/Test/Export 36px, Clone/Delete 40px, weight 500 and line-height 1.2.
+Cloud connector cards omit the extra endpoint line, as in the counterpart;
+local connector endpoint information remains. Saved endpoint values are unchanged.
+
+Actual deployed desktop and narrow screenshots were inspected. Narrow layouts
+stack controls without horizontal overflow (390px client/scroll width). The
+live connectors have different saved models, voices and list counts; these
+were not overwritten. Native in-use deletion protection remains. The reference
+and native toolbar text widths still vary by approximately 1-2px, and sidebar
+button spacing remains a follow-up rather than a claim of exact visual identity.
+No Save, Clone, Delete, Import or provider Test was invoked. This checkpoint
+is not acceptance of every TTS provider panel or the whole-site parity goal.
+
+Evidence: private Temp/tts-current-review.cjs and paired
+{herika,lorkhan}-tts-review.png / -tts-review-narrow.png captures.
+PHP lint, git diff --check and 582 existing server checks passed. Code was
+deployed locally with configuration, credentials and voice contents preserved.
