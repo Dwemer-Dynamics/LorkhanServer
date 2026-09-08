@@ -92,7 +92,7 @@ do not use an exception to excuse a generic substitute layout.
 | Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, export and bulk delete retained. Full-content rows now use separate Play/Edit/Delete actions; dedicated content editor and paper reader replace combined Read/Edit. Desktop/narrow populated/empty and interaction comparisons, existing tests and local deployment passed. |
 | Roleplay `books` tab | Herika Books | Full-content striped table, game/UTC/TS columns and content dialog implemented; populated long/short fixtures, escaped content reader, filtered empty panel, desktop/narrow and computed neutral header typography compared; shared-theme overrides and forced minimum width removed |
 | `diary_book.php` | Same path | Printable chronological parchment book and author-list link implemented; scoped IDs, escaped text, desktop/narrow populated comparisons and print/PDF checks passed (see Diary authors and printable book checkpoint) |
-| Roleplay `adventure` tab | Herika Adventure Log | Chronological context/people/game-time/UTC rows, location dividers, contiguous speaker bands and counterpart CSV formatting implemented. Desktop/narrow populated, empty and long fixtures compared; date-selection, selected/latest-day and full exports checked. Full checks and 744-file deployment passed; live populated calendar/table verified. Native dates and complete OpenMW cell names retained. |
+| Roleplay `adventure` tab | Herika Adventure Log | Chronological context/people/game-time/UTC rows, location dividers, contiguous speaker bands and counterpart CSV formatting implemented. Desktop/narrow populated, empty and long fixtures compared; date-selection, selected/latest-day and full exports checked. Full checks and 744-file deployment passed; live populated calendar/table verified. Native dates and complete OpenMW cell names retained. Narrow month-navigation mismatch remains open; see current-state audit below. |
 | Roleplay `journal` tab | Morrowind-only Journal using Herika's record table | Full-content striped table, Journal ID, game/UTC/TS columns and content dialog implemented; three live records, reader and focus restoration verified |
 | `control_panel.php` | Same path | Shared geometry and label typography corrected; all 12 embedded tabs load at desktop/narrow widths and retain mounted frames on switches. Request reader Escape/focus and unsaved filter retention verified. Remaining child feature/interaction comparisons are tracked in their rows; see embedded checkpoint below |
 | `request_logs.php` | Same path | Nine-column LLM-attempt table, toolbar, page sizes and separate payload readers aligned; populated/empty, keyboard and narrow fixture states compared. Safe scoped Clear preserves accounting/history/pending work; URL and unretained raw provider payloads remain explicit data limitations. See Request Logs evidence below. |
@@ -7068,3 +7068,20 @@ source. Persistent configuration, credentials and voices were preserved.
 Live rows and page counts differ by game/session, so their whole-page screenshots
 are not evidence of identical populated data layout. Remaining full matrix acceptance
 is still open; no live delete or game interaction was performed.
+
+### Adventure Log current-state audit (2026-09-08)
+
+Re-ran the deployed selected-date, both CSV export, UTC/Tamrielic mode switching and
+empty-day checks. Displayed events appear in both relevant exports and no writes were
+performed. Current reference/native table header widths, padding, borders and fonts
+match. Download/mode controls also match measured size, margins, padding and typography.
+Whole-page screenshots were refreshed at 1280/390, not reused from earlier work.
+
+Unresolved narrow calendar navigation: Herika's 390px embedded page clips both month
+links and truncates the heading; native keeps the controls visible by reducing the
+heading to 16px under 650px. This is not accepted full visual parity or a Morrowind
+product exception. Do not blindly remove the native responsive rule and claim success
+from reproducing clipped controls. The remaining work is a source-based month-navigation
+comparison, preserving access to previous/next while matching reference type hierarchy,
+followed by UTC/Tamrielic and long month-name checks. No new product changes or deploy
+were needed for this audit. The previously deployed commit remains 23fe9fb.
