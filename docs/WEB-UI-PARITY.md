@@ -74,7 +74,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; scrolling slot summary, linked assigned slots and toolbar spacing aligned. Presets and additional profile fields remain |
 | `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI-result staging, remaining General/Info and full editor/list review remain |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; remaining generation edge states remain pending |
-| `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and player template placeholder substitutions remain pending; current action catalog has no narrator-capable actions |
+| `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; full provider-badge consolidation remains pending |
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key selection is now wired and browser save/reload tested; full hub/narrow/interaction review remains. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired; remaining provider controls listed in the latest audit below |
@@ -4985,3 +4985,36 @@ remaining whole-page Narration/Core Profile acceptance or game audio proof.
 Final integration rerun passed the vertical slice and migration/durable-job suite
 after restricting template loads. The known hash-only schema inventory difference
 was inspected and reverted; there is no schema migration in this checkpoint.
+
+
+### Narration placeholder support and measured toggle spacing
+
+The player speech-style editor now documents and substitutes the four reference
+placeholders from HerikaServer 529364c4c12b3a8bd4cc12a481f400ce19b3a344,
+ui/cmd/action_player_generate_speech_style.php: PLAYER_NAME, PLAYER_GUIDANCE,
+CURRENT_SPEECH_STYLE and DIALOGUE_SAMPLES (each in braces). Empty guidance/current
+style use the reference None provided./None set. fallbacks. Dialogue samples are
+formatted as a bullet block. The template is still server-owned and frozen at
+queue time; generated output must still satisfy the native JSON speech_style
+contract. Expansion size is computed before strtr allocation and limited to 64KiB,
+preventing repeated sample placeholders from producing unbounded provider input.
+
+Full-page header/section enumeration and top-of-page screenshots were compared
+read-only at 1280px. A visual discrepancy was confirmed by actual bounding boxes:
+Herika toggle rows were 54px while native rows were 40px, despite matching padding,
+margin, gap and border radius. Herika's 38px content-box minimum includes another
+16px padding/border; native global border-box sizing had collapsed that spacing.
+The Narration-specific minimum is now 54px. Player-page sizing was not changed.
+New native 1280/390 screenshots and a keyboard toggle were checked without saving;
+measured boxes are 54px at both widths and the page has no horizontal overflow.
+The narrow layout was visually inspected, not accepted solely from metrics.
+
+582 unit checks passed, including exact placeholder substitution in the outgoing
+system message and expansion rejection before network I/O. The management HTTP
+suite passed. No database/schema/protocol changes or real provider requests.
+
+Whole-page acceptance remains open: importing/exporting before a native Narrator
+profile exists is absent from the toolbar, saved Narrator name is still read-only,
+book-event enablement is not the reference NPC book-summary restriction, and the
+native catalog has no Narrator actions. These are remaining gaps to investigate,
+not blanket product-specific exceptions or a completed Narration page.

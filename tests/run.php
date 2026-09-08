@@ -291,7 +291,7 @@ $auditProvider=new \LorkhanServer\Application\OpenAiCompatibleProfileGenerationP
     ['127.0.0.1'],'fixture-model','fixture-secret',allowLoopbackHttp:true,directConnection:true);
 foreach(['relationship_evaluation','relationship_build','player_speech_style']as$auditMode){
 $auditMessages=[];$auditInput=['generation_mode'=>$auditMode,'input'=>'A recorded exchange.','user_direction'=>'Focus on House hierarchy.'];
-if($auditMode==='player_speech_style')$auditInput+=['speech_style_prompt'=>'Describe terse vocabulary and short sentences.','recent_player_inputs'=>['Where is the guild?']];
+if($auditMode==='player_speech_style')$auditInput+=['name'=>'Test Player','speech_style_prompt'=>'Describe {PLAYER_NAME}: {PLAYER_GUIDANCE}; {CURRENT_SPEECH_STYLE}; {DIALOGUE_SAMPLES}.','speech_style_guidance'=>'Terse vocabulary.','current_speech_style'=>'Short sentences.','recent_player_inputs'=>['Where is the guild?']];
 try{$auditProvider->generate($auditInput,new NeverCancelledToken(),static function(array $messages)use(&$auditMessages):void{
     $auditMessages=$messages;throw new RuntimeException('audit-observed-before-network');
 });$check(false,'request observer must run before network');}
@@ -299,9 +299,11 @@ catch(RuntimeException $error){$check($error->getMessage()==='audit-observed-bef
     &&array_column($auditMessages,'role')===['system','user']&&json_decode($auditMessages[1]['content'],true)===$auditInput
     &&!str_contains(json_encode($auditMessages),'fixture-secret')
     &&($auditMode!=='relationship_build'||str_contains($auditMessages[0]['content'],'user_direction'))
-    &&($auditMode!=='player_speech_style'||(str_contains($auditMessages[0]['content'],$auditInput['speech_style_prompt'])&&str_contains($auditMessages[0]['content'],'exactly one non-empty string key: speech_style'))),
+    &&($auditMode!=='player_speech_style'||(str_contains($auditMessages[0]['content'],'Describe Test Player: Terse vocabulary.; Short sentences.; - Where is the guild?.')&&str_contains($auditMessages[0]['content'],'exactly one non-empty string key: speech_style'))),
     'relationship request observer captures exact messages without credentials or network I/O');}
 }
+try{$auditProvider->generate(['generation_mode'=>'player_speech_style','speech_style_prompt'=>str_repeat('{DIALOGUE_SAMPLES}',100),'recent_player_inputs'=>[str_repeat('a',1000)]],new NeverCancelledToken());$check(false,'oversized template expansion accepted');}
+catch(RuntimeException $error){$check($error->getMessage()==='profile_input_too_large','template expansion is bounded before provider I/O');}
 $schema=LlmConnector::objectSchema(['text'=>['type'=>'string']]);
 $bodyYaml="temperature: 0.25\nprovider:\n  order: [together, google-vertex]\nstop: [END, 'a,b']\nlogit_bias: {}\nmetadata:\n  label: 'literal <img src=x>'\n";
 $bodyOptions=['extra_parameters_yaml'=>$bodyYaml,'extra_parameters_enabled'=>true,'json_mode'=>false];
