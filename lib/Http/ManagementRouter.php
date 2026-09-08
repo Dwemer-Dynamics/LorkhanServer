@@ -2364,6 +2364,7 @@ final class ManagementRouter
             $management=is_array($content['management']??null)?$content['management']:[];$management['locked']=true;$management['favorite']=($management['favorite']??false)===true;$content['management']=$management;}
         $batch=trim((string)($values['npc_relationship_edits']??''))===''?null:$this->jsonField($values,'npc_relationship_edits');
         if($batch!==null&&(!is_int($batch['profile_revision']??null)||$batch['profile_revision']<1))throw new InvalidArgumentException('invalid_expected_revision');
+        if($batch!==null)$batch=$this->resolveNpcRelationshipPreviews($batch,['installation_id'=>(string)$profile['installation_id'],'profile_id'=>$profileId]);
         $revised=$this->service->revise('profile',$profileId,$content,$this->need($values,'change_reason'),$batch['profile_revision']??null);
         if(isset($values['core_profile_id'])&&trim((string)$values['core_profile_id'])!==''){
             $this->uuid((string)$values['core_profile_id'],'core_profile_id');$this->repository->assignCoreProfile($profileId,(string)$values['core_profile_id']);
@@ -2372,6 +2373,32 @@ final class ManagementRouter
         if($batch!==null)$this->saveNpcRelationships($batch,['installation_id'=>(string)$profile['installation_id'],'profile_id'=>$profileId]);
         return$revised;
         });
+    }
+
+    /** Resolve generated targets from scoped receipts, never from client-supplied actor identities. */
+    private function resolveNpcRelationshipPreviews(array $batch,array $scope):array
+    {
+        $scope['playthrough_id']=$this->need($batch,'playthrough_id');$previews=[];
+        foreach(['updates','additions'] as $mode){
+            if(!is_array($batch[$mode]??null)||!array_is_list($batch[$mode]))throw new InvalidArgumentException('invalid_relationship_batch');
+            foreach($batch[$mode] as &$edit){
+                if(!is_array($edit)||array_key_exists('_preview_identity',$edit))throw new InvalidArgumentException('invalid_relationship_batch');
+                if(!isset($edit['preview_job_id']))continue;
+                $job=$this->need($edit,'preview_job_id');$this->uuid($job,'job_id');
+                $preview=$previews[$job]??=$this->repository->relationshipBuildPreviewStatus($scope,$job);
+                if($preview['state']!=='ready'||$preview['profile_revision']!==$batch['profile_revision'])throw new RuntimeException('relationship_revision_conflict');
+                $key=$this->need($edit,'preview_target_key');$candidate=null;
+                foreach($preview['relationships'] as $row)if(($row['target_key']??null)===$key){$candidate=$row;break;}
+                if($candidate===null)throw new InvalidArgumentException('invalid_relationship_build_target');
+                if($mode==='updates'){
+                    if(($candidate['relationship_id']??null)!==($edit['relationship_id']??null))throw new InvalidArgumentException('invalid_relationship_build_target');
+                }else{
+                    if(!isset($candidate['actor_identity'])||isset($candidate['relationship_id'])||!empty($edit['actor_profile_id']))throw new InvalidArgumentException('invalid_relationship_build_target');
+                    $edit['_preview_identity']=$candidate['actor_identity'];
+                }
+            }unset($edit);
+        }
+        return $batch;
     }
 
     /** Apply a staged editor batch inside the NPC revision transaction; omitted records remain untouched. */
@@ -2403,9 +2430,11 @@ final class ManagementRouter
         }
         foreach($batch['additions']as$edit){
             if(!is_array($edit)||isset($edit['relationship_id']))throw new InvalidArgumentException('invalid_relationship_batch');
-            $target=$this->need($edit,'actor_profile_id');
-            if($target===$scope['profile_id'])throw new InvalidArgumentException('invalid_actor_profile');
-            $this->saveRelationship($edit,$scope,[]);
+            if(!isset($edit['_preview_identity'])){
+                $target=$this->need($edit,'actor_profile_id');
+                if($target===$scope['profile_id'])throw new InvalidArgumentException('invalid_actor_profile');
+            }
+            $this->saveRelationship($edit,$scope,$edit['_preview_identity']??[]);
         }
     }
 

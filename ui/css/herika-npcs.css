@@ -862,3 +862,14 @@ body.view-characters .npc-editor-modal .npc-modal-body {max-height:calc(85vh - 1
 .npc-observed-state pre {white-space:pre-wrap;overflow-wrap:anywhere;background:#1a1a1a;padding:12px;border:1px solid #4a4a4a;border-radius:6px;max-height:400px;overflow:auto;}
 .npc-observed-state summary:focus-visible {outline:2px solid #bc9d5a;outline-offset:3px;}
 @media(max-width:700px){.npc-observed-grid{grid-template-columns:minmax(0,1fr);}.npc-observed-value>span{min-width:110px;}.npc-observed-value{flex-wrap:wrap;}}
+
+/* Build feedback appears only while there is a result to review. */
+[data-rel-preview-status]:empty{display:none}
+/* Single-NPC Build uses the reference dialog typography and content-box width. */
+body dialog.npc-rel-history-build{box-sizing:content-box;width:calc(90vw - 42px);max-width:500px;padding:20px;font:18px "Futura CondensedLight",Arial,sans-serif}
+.npc-rel-history-build>p{font-size:.9em;line-height:1.5}
+.npc-rel-history-build .npc-rel-warning{font-size:.85em;line-height:1.4;font-weight:400}
+.npc-rel-history-build .npc-rel-direction{font-size:.85em;line-height:normal}
+.npc-rel-history-build .npc-rel-direction textarea{font:13.3333px monospace}
+body .npc-relationships .npc-rel-history-build button{padding:8px 16px;font:13.3333px Arial;background:#2a2a2a!important;color:#888!important;border-color:#4a4a4a!important}
+body .npc-relationships .npc-rel-history-build button[type=submit]{font-weight:500;color:#86efac!important}

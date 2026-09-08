@@ -130,7 +130,7 @@ final class RelationshipBuildRepository
                         'source_event_id'=>$target['source_event_id'],'reason'=>'Manual history build: '.trim($row['reason'])];
                 if($record===null)$write['actor_identity']=$target['identity'];
                 else $write+=['relationship_id'=>$record['relationship_id'],'expected_revision'=>(int)$record['revision']];
-                if($preview){$draft[]=$write;continue;}
+                if($preview){$draft[]=$write+['target_key'=>$row['target_key']];continue;}
                 $products->setRelationship($write,$now);++$changed;
                 $applied[]=['target'=>(string)($target['identity']['display_name']??$target['identity']['record_id']??'Unknown interlocutor'),
                     'affinity_delta'=>$row['affinity']-(int)($record['affinity']??0),'disposition_delta'=>$row['disposition']-(int)($record['disposition']??0),
@@ -152,7 +152,7 @@ final class RelationshipBuildRepository
     public function recentJobs(array $scope):array
     {
         if(count(array_intersect_key($scope,array_fill_keys(['installation_id','profile_id','playthrough_id'],true)))!==3)return [];
-        $query=$this->db->prepare("SELECT j.job_id,j.created_at,j.state,r.changed_count,jsonb_array_length(r.draft) AS draft_count,
+        $query=$this->db->prepare("SELECT j.job_id,j.created_at,j.state,j.payload->'preview' AS preview,r.changed_count,jsonb_array_length(r.draft) AS draft_count,
             jsonb_array_length(j.payload->'source_ids') AS source_count,
             CASE WHEN r.draft IS NOT NULL THEN 'draft_ready' WHEN r.job_id IS NOT NULL THEN 'succeeded' WHEN j.state='succeeded' THEN 'stale' ELSE j.state END AS outcome
             FROM durable_jobs j LEFT JOIN relationship_build_results r ON r.job_id=j.job_id

@@ -670,7 +670,7 @@
             // Only changed rows enter the batch; unopened and undisplayed records retain their revisions.
             const readRow=form=>{
                 const fields=Object.fromEntries(new FormData(form));const result={};
-                for(const key of ['relationship_id','actor_profile_id','expected_revision','affinity','disposition','relationship_type','custom_info','reason'])
+                for(const key of ['relationship_id','actor_profile_id','expected_revision','preview_job_id','preview_target_key','affinity','disposition','relationship_type','custom_info','reason'])
                     if(Object.hasOwn(fields,key))result[key]=fields[key];
                 result.details={};
                 for(const key of ['relation','note','best','worst'])if(Object.hasOwn(fields,`details[${key}]`))result.details[key]=fields[`details[${key}]`];
@@ -712,29 +712,105 @@
                 deletion.addEventListener('submit',event=>{event.preventDefault();event.stopImmediatePropagation();removeRow(row);sync();},{capture:true});
             };
             view.querySelectorAll('form[action$="/relationships"][id]').forEach(form=>register(form));
-            addForm.addEventListener('submit',event=>{
-                event.preventDefault();event.stopImmediatePropagation();if(!addForm.reportValidity())return;
-                const selected=addForm.elements.actor_profile_id;const fields=readRow(addForm);
-                if([...rows.values()].some(row=>!row.removed&&row.added&&readRow(row.form).actor_profile_id===selected.value)){
-                    note.textContent='That target is already in the staged relationships.';selected.focus();return;
-                }
+            // Manual additions and generated targets use identical editable rows and draft semantics.
+            const addRow=(fields,name)=>{
                 const fragment=view.querySelector('[data-rel-row-template]').content.cloneNode(true);
                 const id=`${profileForm.id}-relationship-new-${++serial}`;
                 fragment.querySelectorAll('[id],[form],[data-rel-form],[data-rel-details]').forEach(element=>{
                     for(const attr of ['id','form','data-rel-form','data-rel-details'])if(element.hasAttribute(attr))
                         element.setAttribute(attr,element.getAttribute(attr).replace('__REL_FORM__',id));
                 });
-                const name=selected.selectedOptions[0].textContent.split(' — ')[0];
                 fragment.querySelector('.npc-rel-target').textContent=name;
                 fragment.querySelectorAll('[aria-label]').forEach(element=>element.setAttribute('aria-label',element.getAttribute('aria-label').replace('New relationship',name)));
                 const type=fragment.querySelector('.npc-rel-type');type.replaceChildren(...[...addForm.elements.relationship_type.options].map(option=>option.cloneNode(true)));
                 const newRows=[...fragment.querySelectorAll('tbody>tr')];const forms=[...fragment.querySelectorAll('form')];
                 table.tBodies[0].append(...newRows);view.append(...forms);
                 const form=document.getElementById(id);
-                for(const [key,value] of Object.entries(fields))if(form.elements.namedItem(key))form.elements.namedItem(key).value=value;
-                register(form,true);addForm.reset();dirtyForms.delete(addForm);addForm.classList.remove('is-dirty');
+                for(const [key,value] of Object.entries(fields)){
+                    let field=form.elements.namedItem(key);
+                    if(!field&&['preview_job_id','preview_target_key'].includes(key)){field=document.createElement('input');field.type='hidden';field.name=key;form.append(field);}
+                    if(field){if(field.tagName==='SELECT'&&![...field.options].some(option=>option.value===String(value)))field.add(new Option(String(value),String(value)));field.value=value;}
+                }
+                register(form,true);return form;
+            };
+            addForm.addEventListener('submit',event=>{
+                event.preventDefault();event.stopImmediatePropagation();if(!addForm.reportValidity())return;
+                const selected=addForm.elements.actor_profile_id;const fields=readRow(addForm);
+                if([...rows.values()].some(row=>!row.removed&&row.added&&readRow(row.form).actor_profile_id===selected.value)){
+                    note.textContent='That target is already in the staged relationships.';selected.focus();return;
+                }
+                const form=addRow(fields,selected.selectedOptions[0].textContent.split(' — ')[0]);
+                addForm.reset();dirtyForms.delete(addForm);addForm.classList.remove('is-dirty');
                 form.elements.affinity.dispatchEvent(new Event('input',{bubbles:true}));sync();selected.focus();
             },{capture:true});
+            const buildForm=view.querySelector('form[action$="/relationship-preview"]');
+            const previewStatus=view.querySelector('[data-rel-preview-status]');
+            const resume=view.querySelector('[data-rel-preview-resume]');
+            let building=false;
+            // Only a completed, unchanged editor receives proposals; persistence remains the header Save's job.
+            const reviewBuild=async(generate)=>{
+                if(building||!buildForm)return;
+                if(generate&&!buildForm.reportValidity())return;
+                const baseline=draft.value;
+                const body=new URLSearchParams(new FormData(buildForm));
+                const trigger=view.querySelector(`[data-rel-details="${buildForm.closest('dialog').id}"]`);
+                const submit=buildForm.querySelector('button[type="submit"]');
+                const request=async(operation,job)=>{
+                    body.set('operation',operation);if(job)body.set('job_id',job);
+                    const response=await fetch(buildForm.action,{method:'POST',body,credentials:'same-origin',headers:{Accept:'application/json'}});
+                    const result=await response.json();
+                    if(!response.ok)throw new Error(result.error||`Request failed (${response.status})`);
+                    return result;
+                };
+                building=true;submit.disabled=true;resume.disabled=true;trigger.disabled=true;
+                if(generate)buildForm.closest('dialog').close();
+                previewStatus.textContent='Building relationships… Your saved relationships are unchanged.';
+                try{
+                    let job=resume.dataset.job;
+                    if(generate){const queued=await request('generate');job=queued.job_id;resume.dataset.job=job;resume.hidden=false;}
+                    if(!job)throw new Error('No relationship draft is available.');
+                    let result;
+                    for(let attempt=0;attempt<90;attempt++){
+                        result=await request('status',job);
+                        if(!['queued','building'].includes(result.state))break;
+                        previewStatus.textContent=result.state==='queued'?'Waiting for the relationship worker…':'Analyzing recent conversations…';
+                        if(!profileForm.closest('[data-npc-modal]').getClientRects().length)throw new Error('Build continues in the background. Reopen this NPC and review the result.');
+                        await new Promise(resolve=>setTimeout(resolve,2000));
+                    }
+                    if(result.state!=='ready')throw new Error(result.state==='stale'?'This result is stale. Build again using the latest NPC and history.':result.state==='failed'?'Relationship build failed. Your saved relationships are unchanged.':'Build is still running. Use Review result to check again.');
+                    if(result.profile_revision!==Number(view.dataset.profileRevision))throw new Error('This NPC changed. Reload before reviewing generated relationships.');
+                    if(draft.value!==baseline)throw new Error('Your relationship edits changed during generation and were kept. Review result again when you are ready to merge generated scores.');
+                    if(clearSnapshot!==null)throw new Error('Clear All is staged. Save or discard it before reviewing generated relationships.');
+                    const proposals=result.relationships||[];
+                    // Validate the entire merge before touching any local row.
+                    if(proposals.some(candidate=>!/^([0-9a-f]{64})$/.test(candidate.target_key||'')))throw new Error('This draft predates the review editor. Build again.');
+                    for(const candidate of proposals)if(candidate.relationship_id&&![...rows.values()].some(row=>row.initial.relationship_id===candidate.relationship_id))
+                        throw new Error('A generated target is not loaded in this editor. Reload the NPC before reviewing.');
+                    let count=0;
+                    for(const candidate of proposals){
+                        let row=[...rows.values()].find(row=>candidate.relationship_id?row.initial.relationship_id===candidate.relationship_id:readRow(row.form).preview_target_key===candidate.target_key);
+                        if(row?.removed)continue;
+                        const fields={affinity:candidate.affinity,disposition:candidate.disposition,relationship_type:candidate.relationship_type,reason:candidate.reason,
+                            preview_job_id:job,preview_target_key:candidate.target_key};
+                        let form=row?.form;
+                        if(!form){
+                            form=addRow(fields,candidate.actor_identity?.display_name||candidate.actor_identity?.record_id||'Generated target');
+                        }else for(const [key,value] of Object.entries(fields)){
+                            let field=form.elements.namedItem(key);
+                            if(!field){field=document.createElement('input');field.type='hidden';field.name=key;form.append(field);}
+                            if(field.tagName==='SELECT'&&![...field.options].some(option=>option.value===String(value)))field.add(new Option(String(value),String(value)));field.value=value;
+                        }
+                        form.elements.affinity.dispatchEvent(new Event('input',{bubbles:true}));++count;
+                    }
+                    sync();previewStatus.textContent=`${count} generated relationship${count===1?'':'s'} staged. Review the rows and click Save in the NPC header.`;
+                    resume.hidden=true;buildForm.elements.request_id.value=crypto.randomUUID();
+                }catch(error){
+                    const messages={relationship_build_no_connector:'Choose a Relationship LLM before building.',relationship_build_no_history:'No eligible played conversations were found.',relationship_build_locked:'Relationship Lock is enabled.',relationship_build_pending:'A build is already pending. Reload to review its status.'};
+                    previewStatus.textContent=messages[error.message]||error.message||'Build failed. Your editor draft is unchanged.';
+                }finally{building=false;submit.disabled=false;resume.disabled=false;trigger.disabled=false;}
+            };
+            buildForm?.addEventListener('submit',event=>{event.preventDefault();event.stopImmediatePropagation();reviewBuild(true);},{capture:true});
+            resume?.addEventListener('click',()=>reviewBuild(false));
             clearForm?.addEventListener('submit',event=>{
                 event.preventDefault();event.stopImmediatePropagation();if(!clearForm.reportValidity())return;
                 if(initialCount>0)clearSnapshot=clearForm.elements.snapshot_token.value;

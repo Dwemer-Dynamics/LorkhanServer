@@ -72,7 +72,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. Remaining children and full embedded interactions still pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; scrolling slot summary, linked assigned slots and toolbar spacing aligned. Presets and additional profile fields remain |
-| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI-result staging and full editor/list review remain. Info has confirmed missing Skills/Equipment/Stats/Inventory/Spells/Metadata panels and Setting Overrides; Nine per-actor override leaves now resolve and reach prompt selection, with revisioned form round trips; the nine-leaf visual override editor now stages Add/Edit/Remove and JSON with save/reload and failure proof. Observed Skills/Equipment/Stats/Inventory/Spells/Metadata disclosures now render exact-target recorded state with populated/empty fixture proof. Remaining: target inventory capture, editable metadata semantics, full override catalogue and full modal composition. See NPC observed-state checkpoint below |
+| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI builds now stage reviewed results with the NPC Save; the full editor/list review and an unloaded-existing-target edge remain. Info has confirmed missing Skills/Equipment/Stats/Inventory/Spells/Metadata panels and Setting Overrides; Nine per-actor override leaves now resolve and reach prompt selection, with revisioned form round trips; the nine-leaf visual override editor now stages Add/Edit/Remove and JSON with save/reload and failure proof. Observed Skills/Equipment/Stats/Inventory/Spells/Metadata disclosures now render exact-target recorded state with populated/empty fixture proof. Remaining: target inventory capture, editable metadata semantics, full override catalogue and full modal composition. See NPC observed-state checkpoint below |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; remaining generation edge states remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; full provider-badge consolidation remains pending |
@@ -5827,3 +5827,46 @@ migration/durable-job tests and schema --check passed. Local deployment has 799
 matching runtime files, no extras/old paths, protected private routes and healthy
 API responses. Configuration, credentials and voice-file hashes were preserved.
 Rollback: /var/backups/lorkhanserver-code.NuDHXo. No game or live provider requests.
+
+### NPC Build now stages generated relationships for review
+
+The single-NPC Build form now requests preview mode, polls scoped status and
+merges completed scores/types into editable relationship rows. Header Save is the
+only persistence action. Existing Custom Info and detail fields stay unchanged.
+Generated new targets use a job/target-key reference; Save resolves their identity
+from the scoped server receipt before advancing the NPC revision. Client-supplied
+internal identities are rejected. Stale receipts fail before profile mutation.
+
+The browser keeps edits made while generation is running instead of merging over
+them. Failed saves preserve the complete draft. Repeated builds merge previously
+generated targets by exact target key instead of appending duplicates. Empty
+proposals leave existing rows untouched. A Review result control can resume a
+background job or retrieve its receipt after reopening the editor. Results for a
+saved relationship absent from the loaded table are rejected rather than silently
+partially merged; that unloaded-target edge still needs a complete load/review path.
+
+The Build dialog was compared directly with a read-only existing Herika NPC editor:
+matched the 500px content width plus padding, 18px base typography, description/
+Direction sizes and Arial button styling. Kept the native bounded history selector
+and Lorkhan text/branding. No reference Build was submitted. Claude remained
+unavailable from the earlier task attempt; Codex continued the UI fallback.
+
+Temp/relationship-preview-browser.cjs uses a disposable PHP/PostgreSQL runtime and
+intercepted provider-preview responses. It verifies existing/new staged targets,
+escaped actor labels, preserved private notes, no profile POST before Save, one
+rejected Save retaining both rows, repeated-build deduplication, late-result edit
+preservation and empty proposals. Desktop/narrow screenshots were inspected.
+These browser probes do not claim a real provider call or live-game validation.
+
+Existing integration coverage invokes the actual revisioned NPC Save handler with
+one existing and one new target plus a response override, checks durable values
+and private-note preservation, and rejects an injected identity. The browser-like
+management HTTP suite, 590 server checks, integration, migrations/durable jobs,
+schema --check and JavaScript syntax check passed. Full page/site acceptance is
+still open; this checkpoint does not mark the goal complete.
+
+Deployment: 799 runtime files matched with no extras, old paths or hash mismatches;
+private routes and API health checks passed. Configuration, credentials and voices
+were preserved. The deployed NPC Build dialog was opened/cancelled read-only:
+preview endpoint, 18px typography and 500px content width confirmed, with zero
+POST requests. Rollback: /var/backups/lorkhanserver-code.ZI2gdn.

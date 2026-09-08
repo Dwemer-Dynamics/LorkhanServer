@@ -135,18 +135,22 @@ $relRenderRow=static function(array$rel,string$relForm)use($relTiers,$relTypeOpt
         <label>Type Clear to confirm<input name="confirm_clear" required pattern="Clear" autocomplete="off"></label><button type="button" data-rel-details="<?=$relKey?>-clear">Cancel</button><button type="submit" class="btn-danger">Clear All</button>
     </form></dialog>
     <dialog id="<?=$relKey?>-custom-type" class="npc-rel-build" aria-label="Add Custom Relationship Type" hidden><h3>🏷️ Add Custom Relationship Type</h3><p>Create a type such as client, mentor or servant. Select it on a relationship and save that row to retain it.</p><form data-rel-custom-type><label>Type Name<input name="custom_type" required maxlength="50" pattern="[a-zA-Z][a-zA-Z0-9_-]{0,49}" placeholder="e.g., client"></label><button type="button" data-rel-details="<?=$relKey?>-custom-type">Cancel</button><button type="submit">Add Type</button><span role="status" data-rel-custom-status></span></form></dialog>
-    <dialog id="<?=$relKey?>-build" class="npc-rel-build npc-rel-history-build" aria-label="Build Relationships with AI" hidden><h3>🤖 Build Relationships with AI</h3><p>Uses recent played conversations involving this NPC to infer affinity scores and relationship types.</p><p class="npc-rel-warning"><strong>Merge warning:</strong> Existing scores for the same actors may be replaced. Custom Info stays unchanged.</p>
-        <form method="post" action="<?=lorkhan_ui_h($managementBasePath.'/forms/relationship-history-build')?>">
-            <?php $relHiddenFields($relHidden+['request_id'=>\LorkhanServer\Infrastructure\Uuid::v4()]); ?>
+    <dialog id="<?=$relKey?>-build" class="npc-rel-build npc-rel-history-build" aria-label="Build Relationships with AI" hidden><h3>🤖 Build Relationships with AI</h3><p>Uses recent played conversations involving this NPC to infer affinity scores and relationship types.</p><p class="npc-rel-warning"><strong>Merge warning:</strong> Generated scores for matching actors merge into your draft. Review them and click Save to keep them. Custom Info stays unchanged.</p>
+        <form method="post" action="<?=lorkhan_ui_h($managementBasePath.'/forms/relationship-preview')?>">
+            <?php $relHiddenFields($relHidden+['operation'=>'generate','request_id'=>\LorkhanServer\Infrastructure\Uuid::v4()]); ?>
             <label>Recent conversations<select name="history_limit"><?php foreach([10,25,50,100]as$limit): ?><option value="<?=$limit?>"<?=$limit===100?' selected':''?>><?=$limit?></option><?php endforeach; ?></select></label>
             <label class="npc-rel-direction">Direction (optional):<textarea name="direction" maxlength="2000" rows="3" placeholder="e.g., Focus on House hierarchy, or this NPC's distrust of strangers"></textarea></label>
             <div class="npc-rel-build-buttons"><button type="button" data-rel-details="<?=$relKey?>-build">Cancel</button><button type="submit">🤖 Build</button></div>
         </form>
     </dialog>
-    <?php $relBuildJobs=$relData['build_jobs']??[];if($relBuildJobs!==[]): ?>
+    <?php $relBuildJobs=$relData['build_jobs']??[];$previewJob=null;foreach($relBuildJobs as$job)if(filter_var($job['preview']??false,FILTER_VALIDATE_BOOL)){$previewJob=$job;break;} ?>
+    <p class="npc-rel-save-note" data-rel-preview-status role="status"></p>
+    <button type="button" data-rel-preview-resume data-job="<?=lorkhan_ui_h($previewJob['job_id']??'')?>"<?=$previewJob===null?' hidden':''?>>Review result</button>
+    <?php if($relBuildJobs!==[]): ?>
     <div class="npc-rel-build-status" role="status">
         <?php $job=$relBuildJobs[0];$outcome=match($job['outcome']){
             'queued'=>'Waiting to start','leased'=>'Analyzing recent event history…',
+            'draft_ready'=>'Ready for review: '.(int)($job['draft_count']??0).' proposed relationships',
             'succeeded'=>'Finished: '.(int)$job['changed_count'].' relationships updated',
             'stale'=>'Stopped before saving; nothing changed','dead'=>'Did not finish; nothing changed',default=>'Unavailable',
         }; ?>

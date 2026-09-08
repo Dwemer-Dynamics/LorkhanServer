@@ -1293,6 +1293,29 @@ foreach(['profile','source','relationship'] as $staleCase){
         'preview exposed a stale '.$staleCase.' result');
     $db->exec('ROLLBACK TO SAVEPOINT preview_stale');
 }
+// Exercise the same revisioned Save handler used by the NPC header, with one existing and one new target.
+$db->exec('SAVEPOINT preview_editor_save');
+$previewBatch=['profile_revision'=>$preview['profile_revision'],'playthrough_id'=>$buildScope['playthrough_id'],'updates'=>[],'additions'=>[],'deletes'=>[]];
+foreach($preview['relationships'] as $candidate){
+    $edit=array_intersect_key($candidate,array_flip(['relationship_id','expected_revision','affinity','disposition','relationship_type','reason']));
+    $edit+=['preview_job_id'=>$buildJob['job_id'],'preview_target_key'=>$candidate['target_key']];
+    $previewBatch[isset($candidate['relationship_id'])?'updates':'additions'][]=$edit;
+}
+$previewManager=new \LorkhanServer\Http\ManagementRouter($presetStore,$products,$biographyService);
+$previewSave=new ReflectionMethod($previewManager,'reviseNpcProfile');
+$previewForm=['profile_id'=>$buildScope['profile_id'],'voice_id'=>'','change_reason'=>'Review generated relationships',
+    'base_content_json'=>json_encode($products->getRevisioned('profile',$buildScope['profile_id'])['content']),
+    'npc_settings_overrides_json'=>'{"response":{"max_words":23}}','npc_relationship_edits'=>json_encode($previewBatch)];
+$forgedBatch=$previewBatch;$forgedBatch['additions'][0]['_preview_identity']=['kind'=>'player'];
+try{$previewSave->invoke($previewManager,array_replace($previewForm,['npc_relationship_edits'=>json_encode($forgedBatch)]));throw new RuntimeException('browser injected a preview identity');}
+catch(InvalidArgumentException $error){$assert($error->getMessage()==='invalid_relationship_batch','unexpected forged identity error');}
+$previewSaved=$previewSave->invoke($previewManager,$previewForm);
+$reviewedRelationships=$products->exportScope($buildScope)['relationships'];
+$assert(count($previewBatch['updates'])===1&&count($previewBatch['additions'])===1
+    &&count(array_filter($reviewedRelationships,static fn(array $row):bool=>$row['relationship_type']==='professional'))===2
+    &&count(array_filter($reviewedRelationships,static fn(array $row):bool=>$row['custom_info']===$privateBuildNote))===2
+    &&$previewSaved['content']['settings_overrides']['response']['max_words']===23,'review Save did not persist both targets and override while preserving private notes');
+$db->exec('ROLLBACK TO SAVEPOINT preview_editor_save');
 $previewStatus=$builds->recentJobs($buildScope)[0];
 $assert($previewStatus['outcome']==='draft_ready'&&(int)$previewStatus['changed_count']===0&&(int)$previewStatus['draft_count']===2,'preview status claims committed writes');
 foreach(['installation_id','profile_id','playthrough_id'] as $previewScopeField)
