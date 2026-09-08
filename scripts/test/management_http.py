@@ -2200,6 +2200,9 @@ else:
 narrator_page,body=parse(request('/LorkhanServer/ui/narrator_management.php'))
 assert 'profile_generation_configuration_id' not in {control[2] for control in narrator_page.controls} and 'Global Settings' in body
 # Inline narrator prompts and Prompts Manager share one revisioned document, even before a narrator exists.
+for inline_key in ('dialogue_line_inline_response_narrator','inline_narration_prompt_narrator','dialogue_line_inline_response_npc','inline_narration_prompt_npc'):
+    assert any(f['fields'].get('prompt_key')==inline_key for f in narrator_page.forms),inline_key
+
 style_template_form=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-prompt-save') and f['fields'].get('prompt_key')=='player_speech_style_prompt')
 r=request(style_template_form['action'],'POST',dict(style_template_form['fields'],_csrf=csrf,custom_prompt='Describe terse vocabulary.'))
 assert r.status==200 and json.loads(r.read())['ok']

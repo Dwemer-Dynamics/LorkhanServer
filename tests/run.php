@@ -808,6 +808,25 @@ foreach (\LorkhanServer\Application\NarratorEventPrompts::SOURCES as $source => 
     $messages = $assembler->assemble($narratorTurn, $promptSelection)['provider_input']['_messages'];
     $check($messages[array_key_last($messages)]['content'] === 'Observe the scene for Nerevarine, without inventing events.', $key.' applies the frozen custom instruction');
 }
+foreach (['Narrator'=>'narrator','NPC'=>'npc','Text Only'=>'npc','Disabled'=>''] as $mode=>$suffix) {
+    $inlineTurn=$promptTurn;$inlineTurn['_narrator_profile']['content']['enabled']=true;
+    $inlineTurn['_narrator_profile']['content']['inline_narration_mode']=$mode;
+    $inlineTurn['_narrator_profile']['name']='Fixture Narrator';
+    $inlineTurn['_narrator_event_prompts']=['dialogue_line_inline_response_narrator'=>'Narrator template for {NPC_NAME} and {NARRATOR_NAME}.{MAXIMUM_WORDS}.',
+        'inline_narration_prompt_narrator'=>'Narrator block sentinel.', 'dialogue_line_inline_response_npc'=>'NPC template for {NPC_NAME}.{MAXIMUM_WORDS}.',
+        'inline_narration_prompt_npc'=>'NPC block sentinel.'];
+    $inlineMessages=$assembler->assemble($inlineTurn,$wordSelection)['provider_input']['_messages'];
+    $inlineFinal=$inlineMessages[array_key_last($inlineMessages)]['content'];
+    $check(($suffix===''&&!str_contains($inlineFinal,'template for')&&!str_contains($inlineFinal,'block sentinel'))
+        ||($suffix==='narrator'&&str_contains($inlineFinal,'Narrator block sentinel.')&&str_contains($inlineFinal,'Fixture Narrator')&&!str_contains($inlineFinal,'NPC block sentinel'))
+        ||($suffix==='npc'&&str_contains($inlineFinal,'NPC block sentinel.')&&!str_contains($inlineFinal,'Narrator block sentinel')),
+        $mode.' selects only its inline prompt pair');
+    $check(!str_contains($inlineFinal,'{NPC_NAME}')&&!str_contains($inlineFinal,'{NARRATOR_NAME}')&&!str_contains($inlineFinal,'{MAXIMUM_WORDS}')
+        &&($suffix===''||(str_contains($inlineFinal,'Fargoth')&&str_contains($inlineFinal,'within 60 words'))),'inline names and word limits are substituted');
+    $inlineTurn['payload']['target']['kind']='narrator';
+    $directMessages=$assembler->assemble($inlineTurn,$promptSelection)['provider_input']['_messages'];
+    $check(!str_contains($directMessages[array_key_last($directMessages)]['content'],'block sentinel'),'direct Narrator dialogue skips inline templates');
+}
 $check(str_contains($assembled['provider_input']['_assembled_prompt'],'### Player Character')
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'Freed from the Imperial prison.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe'),

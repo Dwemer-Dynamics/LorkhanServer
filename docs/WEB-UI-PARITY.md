@@ -74,7 +74,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; scrolling slot summary, linked assigned slots and toolbar spacing aligned. Presets and additional profile fields remain |
 | `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI-result staging, remaining General/Info and full editor/list review remain |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; remaining generation edge states remain pending |
-| `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
+| `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and player template placeholder substitutions remain pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; full provider-badge consolidation remains pending |
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key selection is now wired and browser save/reload tested; full hub/narrow/interaction review remains. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired; remaining provider controls listed in the latest audit below |
@@ -4947,3 +4947,41 @@ no equivalent NPC quest-comment route to wire into Core Profile controls. Do not
 relabel Narrator probability as an NPC profile setting; the client candidate,
 policy, cooldown and generation fencing work remains required, alongside Bored
 Event, Combat and regular Context History range changes already documented.
+
+
+### Narration inline template editor parity
+
+Added all four reference inline keys, in reference table order:
+dialogue_line_inline_response_narrator, inline_narration_prompt_narrator,
+dialogue_line_inline_response_npc, and inline_narration_prompt_npc. They use the
+existing shared Prompt Key/Description/Status/Preview/Actions table and revisioned
+Default/Custom editor, including Clear-to-default. Definitions and selection are
+derived from HerikaServer 529364c4c12b3a8bd4cc12a481f400ce19b3a344,
+ui/core/narrator_management.php and prompts/dialogue_prompt.php; native files are
+prompts/NarratorEventPrompts.php, prompts/PromptAssembler.php and the existing
+shared UI renderer. Reference repos were not modified.
+
+The enabled Narrator mode selects its two instructions; NPC and Text Only select
+the NPC pair. Disabled mode and direct Narrator dialogue omit them, matching the
+reference dispatch boundary. Current target name, Narrator name and word limit
+are substituted. The native target placeholder is {NPC_NAME}, not a Skyrim product
+name. Only relevant custom templates are loaded into each frozen dialogue request;
+the player speech-style job likewise loads only its own template. Existing inline
+speech routing remains in InlineNarrationRouter, with no client protocol change.
+
+Browser fixture proof covers all four readers: save, reopen, 1280/390 viewport
+bounds, Escape and Clear/default restoration. Representative native desktop and
+narrow screenshots were visually inspected against the live read-only reference
+inline Narrator editor: title, default/custom order, 300px text area and footer
+match aside from branding and native wording/help. Screenshots remain private in
+Temp/lorkhan-inline-*.png and Temp/herika-inline-narrator-1280.png. No reference
+save, real provider call or game interaction was performed.
+
+581 unit checks passed, including all mode selections, direct Narrator exclusion,
+and NPC/name/60-word substitutions. The management HTTP suite passed with all
+four form keys present. This closes the missing inline editor controls, not the
+remaining whole-page Narration/Core Profile acceptance or game audio proof.
+
+Final integration rerun passed the vertical slice and migration/durable-job suite
+after restricting template loads. The known hash-only schema inventory difference
+was inspected and reverted; there is no schema migration in this checkpoint.

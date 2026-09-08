@@ -18,6 +18,14 @@ final class NarratorEventPrompts
     public static function definitions(): array
     {
         return [
+            'dialogue_line_inline_response_narrator' => ['description' => 'Dialogue instruction when inline narration uses the Narrator voice. Supports {NPC_NAME}, {NARRATOR_NAME} and {MAXIMUM_WORDS}.',
+                'default_prompt' => "Write {NPC_NAME}'s next prose/narration. Be original, creative and knowledgeable. Review context history to stay on topic and avoid repeating previous lines.{MAXIMUM_WORDS}"],
+            'inline_narration_prompt_narrator' => ['description' => 'Format for a leading narration block routed to the Narrator voice.',
+                'default_prompt' => 'You may include one brief third-person narration block in single asterisks before the dialogue (e.g., *She smiles*). Do not wrap the entire reply in asterisks; keep any spoken dialogue outside the asterisks.'],
+            'dialogue_line_inline_response_npc' => ['description' => 'Dialogue instruction for NPC voice or Text Only inline narration. Supports {NPC_NAME}, {NARRATOR_NAME} and {MAXIMUM_WORDS}.',
+                'default_prompt' => "Write {NPC_NAME}'s next dialogue line. Be original, creative and knowledgeable. Review context history to stay on topic and avoid repeating previous lines.{MAXIMUM_WORDS}"],
+            'inline_narration_prompt_npc' => ['description' => 'Format for a leading narration block spoken by the NPC or displayed as text only.',
+                'default_prompt' => 'You may include one brief third-person narration block in single asterisks before the dialogue (e.g., *She smiles softly*). Keep any spoken dialogue outside the asterisks. Do not wrap the entire reply in asterisks.'],
             'narrator_welcome_prompt' => ['description' => 'Narrator welcome after loading a game. {PLAYER_NAME} is replaced with the current player name.',
                 'default_prompt' => 'Welcome {PLAYER_NAME} after loading the game. Give a concise recap grounded only in the supplied history, journal, and current scene. Do not invent events or speak as another character.'],
             'player_speech_style_prompt' => ['description' => 'Instructions used when generating the player speech style from recorded player dialogue.',

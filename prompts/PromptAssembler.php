@@ -111,6 +111,21 @@ final class PromptAssembler
         $moodTemplates = $promptContent['player_mood_prompts'] ?? null;
         $playerMoodCue = PlayerMoodPolicy::cue($turn['payload']['input']['mood'] ?? null, $moodTemplates, $playerName);
         $final = $this->currentTurnMessage($turn, $actorName, $playerName, $moodTemplates);
+        // Inline templates describe the existing leading-asterisk transport; direct Narrator dialogue is separate.
+        $narratorContent = $turn['_narrator_profile']['content'] ?? [];
+        $inlineMode = ($narratorContent['enabled'] ?? false) === true ? ($narratorContent['inline_narration_mode'] ?? 'Disabled') : 'Disabled';
+        if (($turn['payload']['target']['kind'] ?? '') !== 'narrator' && in_array($inlineMode, ['Narrator','NPC','Text Only'], true)) {
+            $suffix = $inlineMode === 'Narrator' ? 'narrator' : 'npc';
+            $maxWords = (int)($coreProfile['content']['settings_overrides']['response']['max_words'] ?? 0);
+            $replacements = ['{NPC_NAME}'=>$actorName, '{NARRATOR_NAME}'=>(string)($turn['_narrator_profile']['name'] ?? 'The Narrator'),
+                '{MAXIMUM_WORDS}'=>$maxWords > 0 ? " Keep the complete response within {$maxWords} words." : ''];
+            foreach (['dialogue_line_inline_response_', 'inline_narration_prompt_'] as $prefix) {
+                $key = $prefix.$suffix;
+                $custom = $turn['_narrator_event_prompts'][$key] ?? null;
+                $instruction = is_string($custom) && trim($custom) !== '' ? $custom : NarratorEventPrompts::definitions()[$key]['default_prompt'];
+                $final .= "\n".strtr($instruction, $replacements);
+            }
+        }
         $historyMessages = $this->historyMessages($history, $turn, $actorName, $playerName, $moodTemplates);
         $knowledgeStatus = (string)($selection['knowledge_retrieval']['status'] ?? 'grounded');
         $systemBudget = max(192, $this->maxInputBytes - strlen($final) - 256);

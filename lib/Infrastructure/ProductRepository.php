@@ -767,7 +767,7 @@ final class ProductRepository
             if($this->recentPlayerInputs((string)$row['installation_id'],1)===[])throw new \InvalidArgumentException('player_inputs_unavailable');
             $revision=(int)$row['current_revision'];$key='player-speech-style:'.$profileId.':revision:'.$revision;$jobId=Uuid::v4();
             $payload=$this->profileGenerationPayload((string)$row['installation_id'],$profileId,$revision,'player_speech_style');
-            $payload['speech_style_prompt']=$this->narratorEventPromptTexts((string)$row['installation_id'])['player_speech_style_prompt']
+            $payload['speech_style_prompt']=$this->narratorEventPromptTexts((string)$row['installation_id'],['player_speech_style_prompt'])['player_speech_style_prompt']
                 ??\LorkhanServer\Application\NarratorEventPrompts::definitions()['player_speech_style_prompt']['default_prompt'];
             if($guidance!==''){$payload['speech_style_guidance']=$guidance;$key.=':guidance:'.hash('sha256',$guidance);}
             if($currentStyle!==null){$payload['current_speech_style']=$currentStyle;$key.=':style:'.hash('sha256',$currentStyle);}
@@ -2815,12 +2815,20 @@ SQL);
             'driver'=>$speechConnector['content']['driver']??'',
             'options'=>array_intersect_key((array)($speechConnector['content']['options']??[]),array_flip([
                 'paralinguistic_tags_enabled','paralinguistic_tags_prompt','paralinguistic_tags_list']))];
+        $narratorProfile=$this->narratorProfileForInstallation($turn['installation_id']);
+        $promptKeys=[];
+        $eventKey=\LorkhanServer\Application\NarratorEventPrompts::SOURCES[$turn['payload']['ui_source']??'']??null;
+        if($eventKey!==null)$promptKeys[]=$eventKey;
+        $inlineMode=($narratorProfile['content']['enabled']??false)===true?($narratorProfile['content']['inline_narration_mode']??'Disabled'):'Disabled';
+        if(($turn['payload']['target']['kind']??'')!=='narrator'&&in_array($inlineMode,['Narrator','NPC','Text Only'],true)){
+            $suffix=$inlineMode==='Narrator'?'narrator':'npc';
+            $promptKeys[]='dialogue_line_inline_response_'.$suffix;$promptKeys[]='inline_narration_prompt_'.$suffix;
+        }
         return ['profile'=>$profile,'core_profile'=>$coreProfile,'selected_profile_id'=>$activeProfileId,'speech_style'=>$speechStyle,
             'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources'],'context'=>$contextPolicy,'prompt'=>$effective['prompt']],
             'player_profile'=>$this->playerProfileForInstallation($turn['installation_id']),
-            'narrator_profile'=>$this->narratorProfileForInstallation($turn['installation_id']),
-            'narrator_event_prompts'=>isset(\LorkhanServer\Application\NarratorEventPrompts::SOURCES[$turn['payload']['ui_source']??''])
-                ?$this->narratorEventPromptTexts($turn['installation_id']):[],
+            'narrator_profile'=>$narratorProfile,
+            'narrator_event_prompts'=>$promptKeys===[]?[]:$this->narratorEventPromptTexts($turn['installation_id'],$promptKeys),
             'nearby_actor_profiles'=>$contextSections['nearby_actors']?$this->nearbyActorProfilesForTurn($turn):[],
             'item_descriptions'=>$contextSections['record_descriptions']?$this->itemDescriptionsForTurn($turn):[],
             'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),
@@ -3461,11 +3469,12 @@ SQL);
 
     private function revision(string $table,string $key,string $id,int $revision,array $content,string $reason,string $now):void{$this->db->prepare("INSERT INTO {$table} ({$key},revision,content,change_reason,created_at) VALUES (:id,:revision,CAST(:content AS jsonb),:reason,:now)")->execute(['id'=>$id,'revision'=>$revision,'content'=>$this->encode($content),'reason'=>$reason,'now'=>$now]);}
     /** Load only known event overrides for the selected installation before the turn is frozen. */
-    public function narratorEventPromptTexts(string $installationId): array
+    public function narratorEventPromptTexts(string $installationId, ?array $keys = null): array
     {
         $query = $this->db->prepare('SELECT prompt_key,custom_prompt FROM prompts WHERE installation_id=:installation');
         $query->execute(['installation' => $installationId]);
         $known = \LorkhanServer\Application\NarratorEventPrompts::definitions();
+        if($keys!==null)$known=array_intersect_key($known,array_flip($keys));
         $result = [];
         foreach ($query->fetchAll() as $row) {
             if (isset($known[$row['prompt_key']]) && is_string($row['custom_prompt']) && trim($row['custom_prompt']) !== '')
