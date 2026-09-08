@@ -61,7 +61,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $store->set($savedVariable,(string)($_POST['custom_credential']??''));
             $notice='Custom key saved. Select it in a service connector.';
         } elseif (isset($_POST['delete_custom'])) {
-            $variable=(string)$_POST['delete_custom'];if(!str_starts_with($variable,'LORKHAN_CUSTOM_'))throw new InvalidArgumentException('invalid_credential_variable');
+            $variable=(string)$_POST['delete_custom'];if(isset(CredentialStore::PRESET_LABELS[$variable]))throw new InvalidArgumentException('invalid_credential_variable');
             $assertEditable($variable);
             $store->delete($variable);$notice='Custom key removed.';
         } elseif (isset($_POST['save_all'])) {
@@ -109,23 +109,36 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 $statuses = [];
 foreach ($store->statuses() as $status) $statuses[(string) $status['variable']] = $status;
 $providers = [
-    'openrouter' => ['Default LLM key (OpenRouter)', 'https://openrouter.ai/keys', 'LORKHAN_LLM_API_KEY', ['configured runtime and Default LLM key'], 'config.keys'],
-    'openai-llm' => ['OpenAI LLM key', 'https://platform.openai.com/api-keys', 'LORKHAN_LLM_OPENAI_API_KEY', ['direct LLM connectors selecting OpenAI LLM key'], 'config.keys'],
-    'openrouter-llm' => ['OpenRouter LLM key', 'https://openrouter.ai/keys', 'LORKHAN_LLM_OPENROUTER_API_KEY', ['direct LLM connectors selecting OpenRouter LLM key'], 'config.keys'],
-    'custom-llm' => ['Custom LLM key', null, 'LORKHAN_LLM_CUSTOM_API_KEY', ['direct LLM connectors selecting Custom LLM key'], 'config.keys'],
-    'openai' => ['OpenAI speech key', 'https://platform.openai.com/api-keys', 'LORKHAN_TTS_OPENAI_API_KEY', ['TTS'], 'config.keys'],
+    'openrouter' => ['OpenRouter', 'https://openrouter.ai/keys', 'LORKHAN_LLM_API_KEY', ['LLM'], 'config.keys'],
+    'openai' => ['OpenAI', 'https://platform.openai.com/api-keys', 'LORKHAN_TTS_OPENAI_API_KEY', ['LLM', 'TTS', 'STT'], 'config.keys'],
     'deepgram' => ['Deepgram', 'https://console.deepgram.com/', 'LORKHAN_TTS_DEEPGRAM_API_KEY', ['STT', 'TTS'], 'config.keys'],
     'google' => ['Google', 'https://console.cloud.google.com/apis/credentials', 'LORKHAN_TTS_GCP_API_KEY', ['LLM', 'TTS'], 'config.keys'],
     'azure' => ['Azure', 'https://ai.azure.com/', 'LORKHAN_TTS_AZURE_API_KEY', ['TTS', 'STT'], 'config.keys'],
     'elevenlabs' => ['ElevenLabs', 'https://elevenlabs.io/app/settings/api-keys', 'LORKHAN_TTS_ELEVENLABS_API_KEY', ['TTS'], 'config.keys'],
     'cartesia' => ['Cartesia', 'https://play.cartesia.ai/console', 'LORKHAN_TTS_CARTESIA_API_KEY', ['TTS'], 'config.keys'],
     'inworld' => ['Inworld', 'https://studio.inworld.ai/', 'LORKHAN_TTS_INWORLD_API_KEY', ['TTS'], 'config.keys'],
-    'google-stt' => ['Google Gemini STT', 'https://aistudio.google.com/apikey', 'LORKHAN_STT_GEMINI_API_KEY', ['STT'], 'config.keys'],
     'groq' => ['Groq', 'https://console.groq.com/keys', 'LORKHAN_LLM_GROQ_API_KEY', ['LLM'], 'config.keys'],
     'nano-gpt' => ['Nano-GPT', 'https://nano-gpt.com/', 'LORKHAN_LLM_NANOGPT_API_KEY', ['LLM'], 'config.keys'],
-    'google-llm' => ['Google LLM', 'https://aistudio.google.com/apikey', 'LORKHAN_LLM_GOOGLE_API_KEY', ['LLM'], 'config.keys'],
     'deepl' => ['DeepL', 'https://www.deepl.com/en/pro-api', 'LORKHAN_DEEPL_API_KEY', ['Translation'], 'config.keys.deepl'],
 ];
+
+// Render saved and unused additional badges with identical reference card markup.
+$renderCredentialCard = static function (string $variable, array $status): void {
+    $environment=$status['source']==='environment';
+?>
+                    <article class="custom-card<?php echo $status['configured'] ? ' has-key' : ''; ?>" data-configured="<?php echo $status['configured'] ? 'true' : 'false'; ?>" data-key-card data-variable="<?php echo lorkhan_ui_h($variable); ?>">
+                        <header class="provider-head"><div class="provider-title"><span class="provider-icon" aria-hidden="true">&#x1F9E9;</span><span>Custom Key</span></div><div class="key-actions"><button type="button" class="button btn-save" data-save-custom<?php echo $environment?' disabled':''; ?>>Save</button><button type="submit" class="button btn-delete btn-danger" name="delete_custom" value="<?php echo lorkhan_ui_h($variable); ?>"<?php echo $environment?' disabled':''; ?>>Delete</button></div></header>
+                        <label for="custom-label-<?php echo lorkhan_ui_h($variable); ?>">Label</label><input id="custom-label-<?php echo lorkhan_ui_h($variable); ?>" type="text" value="<?php echo lorkhan_ui_h($status['label']??$variable); ?>" data-custom-display-label maxlength="80"<?php echo $environment || !$status['configured'] ? ' readonly' : ''; ?> title="Display label; connector identifier stays unchanged.">
+                        <label for="custom-<?php echo lorkhan_ui_h($variable); ?>">API Key</label><div class="provider-body"><input id="custom-<?php echo lorkhan_ui_h($variable); ?>" type="password" name="credentials[<?php echo lorkhan_ui_h($variable); ?>]" placeholder="<?php echo $status['configured'] ? 'Leave blank to keep saved key' : 'Paste API key'; ?>" autocomplete="new-password" maxlength="8192"<?php echo $environment?' disabled':''; ?>>
+                        <button type="button" class="button" data-key-visibility<?php echo $environment?' disabled':''; ?>>Show</button></div><div class="key-status" role="status" aria-live="polite" data-key-status><?php echo $environment?'Managed by the server environment.':''; ?></div></article>
+<?php
+};
+$additionalKeys=[];$unusedKeys=[];
+foreach($statuses as $variable=>$status){
+    if(isset(CredentialStore::PRESET_LABELS[$variable]))continue;
+    if($status['configured'])$additionalKeys[$variable]=$status;
+    else $unusedKeys[$variable]=$status;
+}
 
 $additionalStylesheets = ['herika-api-keys.css?v=' . (string) filemtime(dirname(__DIR__) . '/css/herika-api-keys.css')];
 include dirname(__DIR__) . '/tmpl/head.html';
@@ -181,15 +194,10 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
             <section class="content-section full-width-section">
                 <h2>Custom Keys</h2>
-                <div id="custom-keys" class="provider-grid"><?php foreach($statuses as $variable=>$status): if(preg_match('/^LORKHAN_CUSTOM_(.+)_API_KEY$/D',$variable,$match)!==1)continue; $environment=$status['source']==='environment'; ?>
-                    <article class="custom-card has-key" data-key-card data-variable="<?php echo lorkhan_ui_h($variable); ?>">
-                        <header class="provider-head"><div class="provider-title"><span class="provider-icon" aria-hidden="true">&#x1F9E9;</span><span>Custom Key</span></div><div class="key-actions"><button type="button" class="button btn-save" data-save-custom<?php echo $environment?' disabled':''; ?>>Save</button><button type="submit" class="button btn-delete btn-danger" name="delete_custom" value="<?php echo lorkhan_ui_h($variable); ?>"<?php echo $environment?' disabled':''; ?>>Delete</button></div></header>
-                        <label for="custom-label-<?php echo lorkhan_ui_h($match[1]); ?>">Label</label><input id="custom-label-<?php echo lorkhan_ui_h($match[1]); ?>" type="text" value="<?php echo lorkhan_ui_h($status['label']??$match[1]); ?>" data-custom-display-label maxlength="80"<?php echo $environment?' readonly':''; ?> title="Display label; connector identifier stays unchanged.">
-                        <label for="custom-<?php echo lorkhan_ui_h($match[1]); ?>">API Key</label><div class="provider-body"><input id="custom-<?php echo lorkhan_ui_h($match[1]); ?>" type="password" name="credentials[<?php echo lorkhan_ui_h($variable); ?>]" placeholder="Leave blank to keep saved key" autocomplete="new-password" maxlength="8192"<?php echo $environment?' disabled':''; ?>>
-                        <button type="button" class="button" data-key-visibility<?php echo $environment?' disabled':''; ?>>Show</button></div><div class="key-status" role="status" aria-live="polite" data-key-status><?php echo $environment?'Managed by the server environment.':''; ?></div></article>
-                <?php endforeach; ?></div>
+                <div id="custom-keys" class="provider-grid"><?php foreach ($additionalKeys as $variable=>$status) $renderCredentialCard($variable,$status); ?></div>
                 <button type="button" class="action-button add-new" id="add-custom-key">Add Custom Key</button>
                 <p class="keys-help">New keys use a stable identifier with letters, digits and underscores. You can edit their display labels without changing saved connector references.</p>
+                <?php if($unusedKeys!==[]): ?><details class="unused-key-slots"><summary>Additional credential slots</summary><p class="keys-help">Optional service and runtime slots. Saving a key preserves its existing connector identifier. Separate keys are never merged.</p><div class="provider-grid"><?php foreach($unusedKeys as $variable=>$status)$renderCredentialCard($variable,$status); ?></div></details><?php endif; ?>
             </section>
         </div>
     </form>

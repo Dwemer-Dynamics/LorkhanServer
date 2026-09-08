@@ -9,6 +9,16 @@ use RuntimeException;
 
 final class CredentialStore
 {
+    /** One primary badge per provider; other identities remain independent additional keys. */
+    public const PRESET_LABELS = [
+        'LORKHAN_LLM_API_KEY'=>'OpenRouter', 'LORKHAN_TTS_OPENAI_API_KEY'=>'OpenAI',
+        'LORKHAN_TTS_DEEPGRAM_API_KEY'=>'Deepgram', 'LORKHAN_TTS_GCP_API_KEY'=>'Google',
+        'LORKHAN_TTS_AZURE_API_KEY'=>'Azure', 'LORKHAN_TTS_ELEVENLABS_API_KEY'=>'ElevenLabs',
+        'LORKHAN_TTS_CARTESIA_API_KEY'=>'Cartesia', 'LORKHAN_TTS_INWORLD_API_KEY'=>'Inworld',
+        'LORKHAN_LLM_GROQ_API_KEY'=>'Groq', 'LORKHAN_LLM_NANOGPT_API_KEY'=>'Nano-GPT',
+        'LORKHAN_DEEPL_API_KEY'=>'DeepL',
+    ];
+
     public function __construct(private readonly string $path)
     {
         $absolute=str_starts_with($path,DIRECTORY_SEPARATOR)||preg_match('/^[A-Za-z]:[\\\\\/]/D',$path)===1;
@@ -42,7 +52,7 @@ final class CredentialStore
             $source=is_string($environment)&&$environment!==''?'environment':(isset($stored[$variable])?'managed store':'not configured');
             $row=['variable'=>$variable,'configured'=>$source!=='not configured','source'=>$source,
                 'label'=>$badgeLabels[$variable]??ucwords(strtolower(str_replace('_',' ',preg_replace('/^LORKHAN_|_API_KEY$/','',$variable))))];
-            if(str_starts_with($variable,'LORKHAN_CUSTOM_')&&isset($labels[$variable]))$row['label']=$labels[$variable];
+            if(!isset(self::PRESET_LABELS[$variable])&&isset($labels[$variable]))$row['label']=$labels[$variable];
             $rows[]=$row;}
         return$rows;
     }
@@ -63,7 +73,7 @@ final class CredentialStore
             'LORKHAN_TTS_OPENAI_API_KEY'=>'OpenAI speech key','LORKHAN_TTS_GCP_API_KEY'=>'Google',
             'LORKHAN_STT_GEMINI_API_KEY'=>'Google Gemini STT','LORKHAN_TTS_AZURE_API_KEY'=>'Azure',
             'LORKHAN_DEEPL_API_KEY'=>'DeepL',
-        ]);
+        ],self::PRESET_LABELS);
     }
 
     /** Store one credential atomically without returning or logging it. */
@@ -85,7 +95,7 @@ final class CredentialStore
     public function setLabel(string $variable,string $label): void
     {
         $this->variable($variable);$label=trim($label);
-        if(!str_starts_with($variable,'LORKHAN_CUSTOM_')||!isset($this->read()[$variable]))throw new InvalidArgumentException('invalid_credential_variable');
+        if(isset(self::PRESET_LABELS[$variable])||!isset($this->read()[$variable]))throw new InvalidArgumentException('invalid_credential_variable');
         if($label===''||mb_strlen($label)>80||!mb_check_encoding($label,'UTF-8')||preg_match('/[\x00-\x1F\x7F]/',$label))throw new InvalidArgumentException('invalid_credential_label');
         (new self($this->path.'.labels.json'))->set($variable,$label);
     }

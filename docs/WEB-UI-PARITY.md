@@ -75,7 +75,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI builds now stage reviewed results with the NPC Save; the unloaded-existing-target review edge is fixed; the full editor/list review remains. Info has confirmed missing Skills/Equipment/Stats/Inventory/Spells/Metadata panels and Setting Overrides; Nine per-actor override leaves now resolve and reach prompt selection, with revisioned form round trips; the nine-leaf visual override editor now stages Add/Edit/Remove and JSON with save/reload and failure proof. Observed Skills/Equipment/Stats/Inventory/Spells/Metadata disclosures now render exact-target recorded state with populated/empty fixture proof. Remaining: target inventory capture, editable metadata semantics, full override catalogue and full modal composition. See NPC observed-state checkpoint below |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; remaining generation edge states remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
-| `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; full provider-badge consolidation remains pending |
+| `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; provider presets consolidated to 11 cards with all 32 built-in credential identities editable through saved/optional additional badges; final full-page and embedded acceptance remains open |
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key selection is now wired and browser save/reload tested; hub selection and unsaved draft retention, narrow editor bounds and failed-save Test refusal are verified; remaining provider/advanced interaction review stays open. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired; remaining provider controls listed in the latest audit below |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
@@ -7260,3 +7260,39 @@ This audit changes the next work from cosmetic card cleanup to credential-editor
 coverage and grouping. It does not authorize overwriting credentials, changing
 providers, or sending live provider tests. No product/runtime files changed in
 this checkpoint; deployment remains the tested `d838c87` code.
+
+### Provider presets and complete additional-badge coverage (2026-09-08)
+
+- Implemented the structural audit: one primary card for each of 11 supported
+  reference providers, in reference order. Removed the five role-specific cards
+  from the preset grid. Their existing identities now appear with other saved
+  additional credentials in Custom Keys. No values, aliases or connector bindings
+  were copied, merged, deleted or reassigned by deployment.
+- All 32 built-in variables are now represented exactly once: 11 primary plus
+  21 additional. Unconfigured optional service/runtime slots are collapsed below
+  the custom editor, using the same card controls. Saving an unused slot keeps its
+  identifier, clears the replacement and enables label editing. After reload it
+  appears among saved additional keys. Environment-owned slots remain protected.
+- Added a central primary-provider label map shared by existing badge pickers.
+  Additional built-ins support the existing label and deletion operations while
+  primary labels/deletion stay protected. LLM aliases and TTS/STT direct variable
+  references retain their distinct established formats. Deleting a managed
+  additional value leaves its unconfigured built-in slot available again.
+- Reference/native synthetic inventories compare all 11 provider cards at
+  1280/390px, with matching titles, dimensions, input rows and button typography.
+  Reference-only Replicate is absent because Lorkhan has no supported connector;
+  ITT remains excluded. Isolated fixtures normalize supported-use text and
+  environment ownership, then compare presentation with all POSTs blocked.
+  Separate live GET/mocked-save checks verify real 32-slot coverage, blank secret
+  fields, collapsed optional slots, successful save and identifier-preserving rename.
+- Existing tests extended without adding a test file: 609 checks pass, including
+  additional-key label/value/alias preservation. Full disposable management HTTP
+  suite passes extra-slot save/rename/delete/reload and all three connector-picker
+  references. Early fixture failures incorrectly expected every picker to use a
+  `badge:` prefix; corrected to the verified existing LLM aliases and TTS/STT
+  variable format, without changing runtime routing.
+- Server-only deployment preserved configuration, credentials and voice files;
+  all 799 hashes and private/authentication probes pass. No game launch, live
+  provider call or live credential edit. Full-page embedded/empty/composition
+  acceptance still needs review; neither this page nor the overall goal is marked
+  complete from its component checks alone.

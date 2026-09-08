@@ -28,7 +28,7 @@
             const input=keyInput(card),status=card.querySelector('[data-key-status]');
             if(!card.isConnected||input.disabled)return;
             const value=input.value,variable=card.dataset.variable,label=card.querySelector('[data-new-label]');
-            if(variable&&card.querySelector('[data-custom-display-label]')){
+            if(variable&&card.dataset.configured!=='false'&&card.querySelector('[data-custom-display-label]')){
                 const display=card.querySelector('[data-custom-display-label]');
                 const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
                 try{await post({action:'label',variable,display_label:display.value},controller.signal);}
@@ -55,7 +55,8 @@
                 }
                 const unchanged=input.value===value;
                 if(unchanged){input.value='';input.type='password';card.querySelector('[data-key-visibility]').textContent='Show';}
-                input.placeholder='Configured - enter replacement';
+                input.placeholder='Configured - enter replacement';card.dataset.configured='true';
+                const savedLabel=card.querySelector('[data-custom-display-label]');if(savedLabel)savedLabel.readOnly=false;
                 if(card.classList.contains('custom-card'))card.classList.add('has-key');
                 status.textContent=unchanged?'Saved.':'Previous value saved. Your new replacement is still unsaved.';
             }catch(error){

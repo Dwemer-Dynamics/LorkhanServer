@@ -2579,6 +2579,25 @@ for connector_page in ('llm_connectors', 'tts_connectors', 'stt_connectors'):
 r=request(badge_path,'POST',{'_csrf':csrf,'delete_custom':custom_variable},accept=ajax)
 assert r.status==200 and json.loads(r.read())['ok'] is True
 _,card_body=parse(request(badge_path)); assert custom_variable not in card_body
+# Additional built-in badges use the same editor without changing their stable references.
+for extra_variable in ('LORKHAN_LLM_OPENAI_API_KEY','LORKHAN_TTS_POCKETTTS_API_KEY'):
+    extra_label='HTTP Additional '+extra_variable
+    r=request(badge_path,'POST',{'_csrf':csrf,'action':'set','variable':extra_variable,'credential':dummy_key},accept=ajax)
+    assert r.status==200 and dummy_key not in r.read().decode()
+    r=request(badge_path,'POST',{'_csrf':csrf,'action':'label','variable':extra_variable,'display_label':extra_label},accept=ajax)
+    assert r.status==200
+    _,extra_body=parse(request(badge_path))
+    assert extra_label in extra_body and 'data-configured="true" data-key-card data-variable="'+extra_variable+'"' in extra_body and dummy_key not in extra_body
+    for connector_page in ('llm_connectors','tts_connectors','stt_connectors'):
+        _,extra_body=parse(request('/LorkhanServer/ui/core/'+connector_page+'.php?create=1&installation_id='+valid['installation_id']))
+        expected_reference=('openai' if extra_variable=='LORKHAN_LLM_OPENAI_API_KEY' else 'badge:'+extra_variable) if connector_page=='llm_connectors' else extra_variable
+        assert extra_label in extra_body and expected_reference in extra_body and dummy_key not in extra_body, (connector_page,extra_variable)
+    r=request(badge_path,'POST',{'_csrf':csrf,'delete_custom':extra_variable},accept=ajax)
+    assert r.status==200
+    _,extra_body=parse(request(badge_path))
+    assert extra_label not in extra_body and 'data-configured="false" data-key-card data-variable="'+extra_variable+'"' in extra_body
+r=request(badge_path,'POST',{'_csrf':csrf,'delete_custom':'LORKHAN_TTS_OPENAI_API_KEY'},accept=ajax)
+assert r.status==422
 # Full biography backup includes global overrides as well as selected-installation templates.
 biography_export_url='/LorkhanServer/manage/exports/biographies/custom.csv?installation_id='+biography_installation
 mixed_header=biography_header+['scope']; mixed=io.StringIO(); mixed_writer=csv.DictWriter(mixed,fieldnames=mixed_header); mixed_writer.writeheader()

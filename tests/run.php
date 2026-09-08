@@ -1447,11 +1447,20 @@ putenv('LORKHAN_TTS_GCP_API_KEY=environment-secret');
 $check($credentialStore->resolve('LORKHAN_TTS_GCP_API_KEY')==='environment-secret','process environment overrides browser-managed credentials');
 putenv('LORKHAN_TTS_GCP_API_KEY');$credentialStore->delete('LORKHAN_TTS_GCP_API_KEY');
 $check($credentialStore->resolve('LORKHAN_TTS_GCP_API_KEY')===''&&(fileperms($credentialPath)&0777)===0640,'credential deletion is persistent and store permissions are restrictive');
+$additionalKey='LORKHAN_LLM_OPENAI_API_KEY';$credentialStore->set($additionalKey,'separate-llm-key');
+$credentialStore->setLabel($additionalKey,'Separate OpenAI account');
+$additionalStatus=array_column($credentialStore->statuses(),null,'variable');
+$check($additionalStatus[$additionalKey]['label']==='Separate OpenAI account'
+    &&$credentialStore->resolve($additionalKey)==='separate-llm-key'
+    &&LlmConnector::credentialVariable('openai')===$additionalKey
+    &&!str_contains(json_encode($additionalStatus),'separate-llm-key'),
+    'additional built-in badge labels preserve credential values and alias identities');
+$credentialStore->delete($additionalKey);
 $customLabelKey='LORKHAN_CUSTOM_LABEL_TEST_API_KEY';$credentialStore->set($customLabelKey,'hidden-custom-key');
 $credentialStore->setLabel($customLabelKey,'My Voice Service');
 $labelStatuses=$credentialStore->statuses();
 $badgeStatusMap=array_column($labelStatuses,null,'variable');
-$check($badgeStatusMap['LORKHAN_TTS_OPENAI_API_KEY']['label']==='OpenAI speech key'
+$check($badgeStatusMap['LORKHAN_TTS_OPENAI_API_KEY']['label']==='OpenAI'
     &&$badgeStatusMap['LORKHAN_LLM_OPENAI_API_KEY']['label']==='OpenAI LLM key'
     &&$badgeStatusMap['LORKHAN_STT_GEMINI_API_KEY']['label']==='Google Gemini STT',
     'global badge labels retain provider spelling and distinguish separate saved keys');
