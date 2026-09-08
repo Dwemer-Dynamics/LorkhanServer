@@ -122,7 +122,7 @@ body .calendar-mode-toggle .roleplay-button.active{border-color:#bc9d5a!importan
 /* Preserve the reference response log's wrapping columns on small screens. */
 body .roleplay-log-page:not(.book-log-page) .ai-response-table{table-layout:auto}
 body .roleplay-log-page:not(.book-log-page) .ai-response-table th{vertical-align:top}
-body .roleplay-log-page:not(.book-log-page) .ai-response-table td{overflow-wrap:break-word;hyphens:auto;line-height:1.5}
+body .roleplay-log-page:not(.book-log-page) .ai-response-table td{overflow-wrap:anywhere;hyphens:auto;line-height:1.5}
 body .roleplay-log-page .log-pagination nav{color:#aaa;font-weight:normal}
 body .ai-response-table [data-log-open]{white-space:nowrap}
 

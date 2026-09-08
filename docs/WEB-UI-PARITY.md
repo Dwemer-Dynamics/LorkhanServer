@@ -7637,3 +7637,17 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - Fresh prompt open, Escape dismissal and focus return checks passed. 615 server
   checks pass; all 800 deployed runtime hashes/private/authentication probes pass.
   Secrets and voices preserved. Rollback: lorkhanserver-code.0gDi3O.
+
+### AI Responses narrow wrapping correction
+
+- Computed-style comparison identified the remaining row-height difference: a
+  later native rule replaced reference overflow-wrap:anywhere with break-word.
+  Corrected the existing AI Responses rule; other readers are untouched.
+- Matched fixtures now have identical populated narrow row/table heights
+  (115.4375/200.3125px), desktop heights (59.5/125.1875px), and empty table heights
+  (104.375px desktop, 123.5625px narrow). Inspected the new narrow screenshot.
+  Small prompt-button column and 1px inner-offset differences remain recorded;
+  this resolves wrapping rather than asserting complete page acceptance.
+- Live prompt open/Escape/focus-return checks pass at 1280/390 with writes blocked.
+  615 server checks and all 800 deployed runtime hashes/private/auth probes pass.
+  Configuration, credentials and voices unchanged. Rollback: lorkhanserver-code.gIPmDM.
