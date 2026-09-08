@@ -5714,3 +5714,18 @@ The earlier OmniVoice row's prepared-selector gap is addressed; the claimed
 Save-time preparation gap is superseded by this audit, not by a fabricated control.
 Language-library states, other provider controls and whole-site acceptance remain
 in the full matrix. No game interaction occurred.
+
+## TTS shell and exact toolbar geometry recheck
+
+Fresh existing-Inworld editor comparison found both sidebars already share the
+same 90px sticky offset. The earlier apparent top-inset discrepancy came from
+scrolling the reference, so no sidebar change was made. Native toolbar labels
+lacked the reference .3px letter spacing. Applying that scoped property closes
+the remaining measured width differences without changing actions or endpoints.
+
+Temp/tts-shell-final-proof.cjs opens only existing Inworld editors in both
+products and asserts exact equality for all five actions' width, height, font and
+letter spacing. Desktop/narrow screenshots were inspected; both bodies fit their
+viewports. There were no create/save/delete/provider requests. 590 server checks
+passed. This proves the compared shell/toolbar state, not all provider workflows
+or the full page matrix. The full goal remains active.
