@@ -7831,3 +7831,20 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
   re-establish which source version the live reference is serving.
 - Documentation-only checkpoint. Runtime remains c4796ff, with its previously verified
   800-file deployment; no claim of a new deployment or completed STT parity.
+
+### Core Profile preset container layout
+
+- Ported the pinned 529364c Core Profile preset row's 540px container rules:
+  stacked label/select/Apply, full-width stacked secondary actions, and wrapping
+  status text. Replaced the divergent native viewport-only 600px partial rule.
+  Existing llm-right container ownership is unchanged; no profile data was saved.
+- Deployed browser checks at 1280, 860, 800 and 390 confirm row layout above the
+  breakpoint and equal-width stacked buttons below it. The 800px viewport has a
+  524px editor panel and correctly stacks despite its wider viewport. No row
+  overflow; Save as new/Escape/focus return pass. Inspected native narrow capture.
+- Reference basis for this bounded change is the pinned source CSS, not the current
+  live Profiles page: its source has since changed substantially. Full preset
+  catalogue, saved semantics and page-wide visual acceptance remain open.
+- 615 checks and all 800 deployed hashes/private/auth/health probes pass. Config,
+  credentials and voices preserved; rollback lorkhanserver-code.0PnZNj. No provider,
+  microphone or game operations. Full parity goal remains active.
