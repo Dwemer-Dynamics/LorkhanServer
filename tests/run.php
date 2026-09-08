@@ -817,11 +817,15 @@ $evolutionDefaults=['enabled'=>true,'fields'=>EffectiveSettingsResolver::DYNAMIC
 $corePresetSource=['schema'=>'lorkhan.core-profile.v1','prompt'=>'Keep the profile prompt.',
     'routing'=>['llm_configuration_id'=>'00000000-0000-4000-8000-000000000001','llm_randomizer_enabled'=>true],
     'settings_overrides'=>['response'=>['max_words'=>70],'profile_evolution'=>$evolutionDefaults]];
+$corePresetSource['settings_overrides']['rpg_comments']=['events'=>['sleep'],'chance_percent'=>73];
 $corePreset=\LorkhanServer\Application\CoreProfilePreset::capture($corePresetSource);
+$check($corePreset['settings_overrides']['rpg_comments']===$corePresetSource['settings_overrides']['rpg_comments'],'Named Core presets capture RPG event and probability choices');
 $check(!isset($corePreset['prompt'])&&!isset($corePreset['routing']['llm_configuration_id'])
     &&$corePreset['routing']['llm_randomizer_enabled']===true,'Core presets exclude prompts and connector bindings');
 $corePreset['settings_overrides']['profile_evolution']['fields']=['skills'];
+$corePreset['settings_overrides']['rpg_comments']=['events'=>[],'chance_percent'=>0];
 $corePresetApplied=\LorkhanServer\Application\CoreProfilePreset::apply($corePreset,$corePresetSource);
+$check($corePresetApplied['settings_overrides']['rpg_comments']===['events'=>[],'chance_percent'=>0],'Named Core preset application preserves explicit RPG off');
 $check($corePresetApplied['prompt']===$corePresetSource['prompt']
     &&$corePresetApplied['routing']['llm_configuration_id']===$corePresetSource['routing']['llm_configuration_id']
     &&$corePresetApplied['settings_overrides']['profile_evolution']['fields']===['skills'],

@@ -251,6 +251,11 @@ final class Router
                         if($message['type']==='rpg_event'){
                             $global=$this->products?->globalSettingsForInstallation((string)$message['installation_id'])['content']??[];
                             $policy=$global['rpg_comments']??SettingsCatalog::globalDefaults()['rpg_comments'];
+                            if(isset($message['payload']['responder'])&&$this->products!==null){
+                                $effective=$this->products->effectiveSettingsForActor((string)$message['installation_id'],
+                                    (string)$message['playthrough_id'],$message['payload']['responder']);
+                                $policy=$effective['settings']['rpg_comments'];
+                            }
                             $roll=hexdec(substr(hash('sha256',(string)$message['request_id']),0,6))%100;
                             $extra['comment_requested']=in_array($message['payload']['kind'],$policy['events'],true)&&$roll<$policy['chance_percent'];
                         }

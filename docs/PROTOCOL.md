@@ -259,3 +259,19 @@ Unsupported client/server versions return a visible mismatch; no legacy tuple/fi
 Required fixtures cover every endpoint/event/action; min/max/boundary Unicode; all identities;
 duplicates/cursors; malformed/unknown/oversized/overflow data; auth/session/generation failures;
 provider/media failures; and every terminal action status.
+
+### RPG responder policy correlation
+
+RPG payloads optionally carry `responder`, a strict NPC/creature identity. The
+server resolves that actor's Core Profile before the single idempotent event/chance
+decision. Legacy player-only payloads retain global policy. Supported event kinds
+are levelup, combat_end, sleep and wait; lockpick is not accepted until the client
+can prove the actor and actual lockpick use rather than a generic Unlock event.
+
+The client freezes an eligible nearby responder when observing the event. A bounded
+32-entry, 30-second request map correlates acceptance to the same identity and
+session/generation. Changed targets, expired/duplicate acknowledgements and busy
+speech/combat/input lanes cannot substitute another NPC. The global handoff checks
+that identity again. A successful RPG turn starts a 60-second game-owned real-time
+scheduler cooldown; lifecycle invalidation clears it. Existing native serialization
+and acknowledgement fields are unchanged; no native engine modification is needed.

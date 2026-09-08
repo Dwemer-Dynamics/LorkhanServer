@@ -1759,6 +1759,8 @@ core_values.pop('setting_diary_include_in_context',None)
 core_values['setting_diary_latest_entry_in_context']='1'
 core_values.update(profile_evolution_enabled='1',setting_profile_evolution_history_limit='20')
 core_values['profile_evolution_fields[]']=['occupation','skills']
+core_values['profile_rpg_events[]']=['sleep','wait']
+core_values['setting_rpg_comments_chance_percent']='73'
 core_response=request(core_form['action'],'POST',core_values); assert core_response.status==200
 core_body=core_response.read().decode(); core_page=Page(); core_page.feed(core_body)
 core_saved=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
@@ -1770,6 +1772,8 @@ assert core_saved['fields']['setting_memory_recent_turn_limit']=='24',core_saved
 assert core_saved['fields']['setting_response_max_words']=='60',core_saved
 assert core_saved['fields']['setting_response_core_lang']=='de'
 assert core_saved['fields']['setting_response_lang_llm_xtts']=='1'
+assert core_saved['fields']['setting_rpg_comments_chance_percent']=='73'
+assert all('name="profile_rpg_events[]" value="'+event+'" checked' in core_body for event in ['sleep','wait'])
 assert request(core_form['action'],'POST',dict(core_values,setting_response_core_lang='../de')).status==422
 assert core_saved['fields']['profile_evolution_enabled']=='1'
 assert core_saved['fields']['setting_profile_evolution_history_limit']=='20'
@@ -1779,7 +1783,7 @@ assert request(core_form['action'],'POST',invalid_evolution).status==422
 invalid_word_values=dict(core_values,setting_response_max_words='10001')
 assert request(core_form['action'],'POST',invalid_word_values).status==422
 assert 'setting_diary_include_in_context' not in core_saved['fields'] and core_saved['fields']['setting_diary_context_turn_limit']=='150'
-assert '<textarea id="profile-diary-prompt" name="setting_diary_prompt" rows="3" maxlength="8192">Record only witnessed events.</textarea>' in core_body
+assert '<textarea id="profile-diary-prompt" name="setting_diary_prompt" rows="4" maxlength="8192">Record only witnessed events.</textarea>' in core_body
 assert len(VoiceProvider.llm_requests)==provider_calls_before_diary,core_saved
 connector_plan_calls=len(VoiceProvider.llm_requests)
 connector_plan_response=json_request('/LorkhanServer/manage/api/v1/profile-connector-tests?installation_id='+valid['installation_id'])
@@ -1830,10 +1834,12 @@ assert core_preset_response.status==200 and sorted(core_preset)==['exported_at',
 assert core_preset['schema']=='lorkhan.core-profile-settings.v2' and core_preset['settings_overrides']['behavior']=={'rechat':True,'rechat_max_depth':5,'rechat_probability_percent':65,'rechat_allow_actions':True}
 assert core_preset['settings_overrides']['memory']=={'recent_turn_limit':24,'short_term_enabled':True,'mid_term_enabled':True,'long_term_enabled':True}
 assert core_preset['settings_overrides']['response']=={'max_words':60,'core_lang':'de','lang_llm_xtts':True}
+assert core_preset['settings_overrides']['rpg_comments']=={'events':['sleep','wait'],'chance_percent':73}
 assert core_preset['settings_overrides']['profile_evolution']=={'enabled':True,'fields':['occupation','skills'],'history_limit':20}
 assert core_preset['settings_overrides']['diary']=={'enabled':True,'automatic_enabled':True,'automatic_wait_enabled':True,'automatic_interval_seconds':10,'include_in_context':False,'latest_entry_in_context':True,'context_turn_limit':150,'prompt':'Record only witnessed events.'}
 assert not any(key in core_preset for key in ['core_profile_id','installation_id','prompt','routing','slot','default_npc','revision','npc_assignments'])
 core_preset['name']='HTTP imported Core settings '+uuid.uuid4().hex
+core_preset['settings_overrides']['rpg_comments']={'events':[],'chance_percent':0}
 r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(core_preset)))
 body=r.read().decode(); assert r.status==200 and 'status=imported' in r.geturl() and core_preset['name'] in body,(r.status,r.geturl(),body)
 imported_id_match=re.search(r'core_profiles\.php\?[^"\']*edit=([0-9a-f-]{36})[^"\']*status=imported',r.geturl())
@@ -1861,6 +1867,8 @@ assert imported_form['fields']['setting_diary_automatic_interval_seconds']=='10'
 assert imported_form['fields']['setting_response_max_words']=='60'
 assert imported_form['fields']['setting_response_core_lang']=='de'
 assert imported_form['fields']['setting_response_lang_llm_xtts']=='1'
+assert imported_form['fields']['setting_rpg_comments_chance_percent']=='0'
+assert all('name="profile_rpg_events[]" value="'+event+'" checked' not in body for event in ['levelup','combat_end','sleep','wait'])
 assert imported_form['fields']['profile_evolution_enabled']=='1'
 assert all('value="'+field+'" checked' in body for field in ['occupation','skills'])
 assert imported_form['fields']['setting_behavior_rechat_allow_actions']=='1'

@@ -37,7 +37,7 @@ foreach ($profiles as $profile) {
     if ($selectedId !== '' && hash_equals((string) $profile['core_profile_id'], $selectedId)) $selected = $profile;
 }
 $effectiveCoreSettings = [];
-if ($selected !== null && $installationId !== '') {
+if ($installationId !== '') {
     $globalSettings = $productRepository->globalSettingsForInstallation($installationId);
     $globalContent = is_array($globalSettings['content'] ?? null) ? $globalSettings['content'] : [];
     $coreContent = is_array($selected['content'] ?? null) ? $selected['content'] : [];

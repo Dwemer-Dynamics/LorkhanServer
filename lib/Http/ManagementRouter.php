@@ -1297,7 +1297,8 @@ final class ManagementRouter
     private function portableCoreProfileOverrides(array $overrides):array
     {
         $overrides=EffectiveSettingsResolver::validateSettingsOverrides($overrides);$diary=DiaryGenerationPolicy::defaults();
-        return (isset($overrides['profile_evolution']) ? ['profile_evolution'=>$overrides['profile_evolution']] : []) + ['response'=>['max_words'=>(int)($overrides['response']['max_words']??0),'core_lang'=>(string)($overrides['response']['core_lang']??''),'lang_llm_xtts'=>($overrides['response']['lang_llm_xtts']??false)===true],
+        return (isset($overrides['rpg_comments']) ? ['rpg_comments'=>$overrides['rpg_comments']] : [])
+            + (isset($overrides['profile_evolution']) ? ['profile_evolution'=>$overrides['profile_evolution']] : []) + ['response'=>['max_words'=>(int)($overrides['response']['max_words']??0),'core_lang'=>(string)($overrides['response']['core_lang']??''),'lang_llm_xtts'=>($overrides['response']['lang_llm_xtts']??false)===true],
             'behavior'=>['rechat'=>($overrides['behavior']['rechat']??false)===true,
             'rechat_max_depth'=>(int)($overrides['behavior']['rechat_max_depth']??2),
             'rechat_probability_percent'=>(int)($overrides['behavior']['rechat_probability_percent']??50),
@@ -2198,6 +2199,11 @@ final class ManagementRouter
                 'prompt'=>trim((string)($values['setting_diary_prompt']??DiaryGenerationPolicy::defaults()['prompt']))],
         ];
 
+        if (isset($values['rpg_comments_present'])) {
+            $overrides['rpg_comments']=['events'=>$values['profile_rpg_events']??[],
+                'chance_percent'=>$number($values,'setting_rpg_comments_chance_percent',50)];
+            EffectiveSettingsResolver::validateSettingsOverrides(['rpg_comments'=>$overrides['rpg_comments']]);
+        }
         if (isset($values['profile_evolution_present'])) {
             $fields=$values['profile_evolution_fields']??[];
             if (!is_array($fields)) throw new InvalidArgumentException('invalid_profile_evolution_defaults');

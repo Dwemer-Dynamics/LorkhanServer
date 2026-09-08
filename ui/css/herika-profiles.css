@@ -660,6 +660,8 @@ body.profiles-page-shell:not(.embedded-page) .profile-editor-toolbar { top:64px;
 
 .profiles-page .profile-feature-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-bottom:9px; }
 .profiles-page .profile-feature-grid .provider-card { height:100%; margin:0; box-sizing:border-box; }
+.profiles-page .profile-feature-grid .provider-body { gap:8px; }
+.profiles-page .profile-feature-grid .range-pair input[type="number"] { font-size:14px; }
 .profiles-page .profile-feature-grid .setting-row { grid-template-columns:1fr; gap:7px; }
 .profiles-page .profile-feature-grid .setting-control { max-width:none; justify-self:stretch; margin-top:0; }
 .profiles-page .profile-setting-chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-start; }

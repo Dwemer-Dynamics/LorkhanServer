@@ -11,6 +11,7 @@ final class CoreProfilePreset
 {
     private const FIELDS = [
         'response'=>['max_words','core_lang','lang_llm_xtts'],
+        'rpg_comments'=>['events','chance_percent'],
         'behavior'=>['rechat','rechat_max_depth','rechat_probability_percent','rechat_allow_actions'],
         'memory'=>['recent_turn_limit','short_term_enabled','mid_term_enabled','long_term_enabled'],
         'diary'=>['enabled','automatic_enabled','automatic_wait_enabled','automatic_interval_seconds','include_in_context','latest_entry_in_context','context_turn_limit','prompt'],

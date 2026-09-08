@@ -834,6 +834,34 @@ $autoProfileCount->execute(['installation'=>$installationId,'record'=>$autoTarge
 $assert($duplicateAutoStatus===202&&(int)$autoProfileCount->fetchColumn()===1,
     'replayed auto-activation created a duplicate NPC profile');
 
+// Opposing global/Core policies prove the responder owns the single RPG decision, including legacy fallback.
+$db->beginTransaction();
+try {
+    $rpgGlobal=$products->globalSettingsForInstallation($installationId);
+    $rpgGlobalContent=$rpgGlobal['content'];
+    $rpgGlobalContent['rpg_comments']=['events'=>['levelup'],'chance_percent'=>0];
+    $products->revise('global_settings',$rpgGlobal['configuration_id'],$rpgGlobalContent,'RPG global fixture',$now);
+    $rpgCore=$products->getRevisioned('core_profile',$autoProfile['core_profile_id']);
+    $rpgCoreContent=$rpgCore['content'];$rpgCoreContent['settings_overrides']['rpg_comments']=['events'=>['levelup'],'chance_percent'=>100];
+    $products->revise('core_profile',$rpgCore['core_profile_id'],$rpgCoreContent,'RPG Core fixture',$now);
+    $rpgData=$autoProfileData;$rpgData['type']='rpg_event';$rpgData['request_id']=$newUuid(68001);
+    $rpgData['payload']=$fixture('gamedata-rpg-responder')['payload'];$rpgData['payload']['responder']=$autoTarget;
+    [$rpgStatus,$rpgAccepted]=$call($router,'POST',$base.'/gamedata',$headers($rpgData['request_id']),[],$rpgData);
+    $assert($rpgStatus===202&&($rpgAccepted['comment_requested']??null)===true,'Core 100 must override global zero for the bound responder');
+    $rpgCoreContent['settings_overrides']['rpg_comments']['chance_percent']=0;
+    $products->revise('core_profile',$rpgCore['core_profile_id'],$rpgCoreContent,'RPG Core disabled',$now);
+    [$rpgReplayStatus,$rpgReplay]=$call($router,'POST',$base.'/gamedata',$headers($rpgData['request_id']),[],$rpgData);
+    $assert($rpgReplayStatus===202&&($rpgReplay['comment_requested']??null)===true,'RPG retry must retain its original decision after profile changes');
+    $rpgGlobalContent['rpg_comments']['chance_percent']=100;
+    $products->revise('global_settings',$rpgGlobal['configuration_id'],$rpgGlobalContent,'RPG global enabled',$now);
+    $rpgData['request_id']=$newUuid(68002);
+    [$rpgStatus,$rpgAccepted]=$call($router,'POST',$base.'/gamedata',$headers($rpgData['request_id']),[],$rpgData);
+    $assert($rpgStatus===202&&($rpgAccepted['comment_requested']??null)===false,'Core zero must override global 100');
+    unset($rpgData['payload']['responder']);$rpgData['request_id']=$newUuid(68003);
+    [$rpgStatus,$rpgAccepted]=$call($router,'POST',$base.'/gamedata',$headers($rpgData['request_id']),[],$rpgData);
+    $assert($rpgStatus===202&&($rpgAccepted['comment_requested']??null)===true,'Legacy player-only RPG observations retain the global policy');
+} finally { $db->rollBack(); }
+
 $backfillTarget=$autoTarget;$backfillTarget['record_id']='profile_backfill_sentinel';
 $backfillTarget['display_name']='Profile Backfill Sentinel';$backfillTarget['refnum']['index']=6100;
 $backfillProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,
