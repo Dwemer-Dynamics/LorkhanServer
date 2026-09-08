@@ -5167,3 +5167,24 @@ inspected and reverted; no schema migration is introduced.
 Populated three-badge and empty-prompt visual acceptance remains open. Historical
 responses with missing label evidence deliberately retain only recorded badges.
 No new live conversation, provider request or game interaction was triggered.
+
+
+### Prompt Viewer empty and three-badge state review
+
+Rendered the actual roleplay_logs.php function with two synthetic records: one
+with all three recorded badges plus system/user/assistant messages, and one with
+no recorded prompt or badges. Loaded the generated fragment into the live page
+shell with the candidate stylesheet and production dialog script. This is
+source-rendered visual fixture proof, not a new database-backed conversation.
+The separate integration test above proves snapshot-to-attempt label persistence.
+
+Inspected screenshots at 1280/390 and exercised Escape. Label text containing
+literal angle brackets stays escaped; all three pills and role rails render.
+The empty state now uses the reference inset preformatted panel rather than an
+unstyled paragraph, while accurately stating that frozen messages are absent.
+No live dialogue/history/configuration was changed. The disposable management
+HTTP suite also passed and its fixture was stopped cleanly.
+
+These checks close the previously recorded empty/three-badge visual gaps for
+this reader. They do not establish all-page acceptance or convert missing
+historical labels into invented data.
