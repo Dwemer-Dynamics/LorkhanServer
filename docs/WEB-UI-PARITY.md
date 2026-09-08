@@ -7940,3 +7940,10 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - Normalized populated fixtures now have identical six-column widths: desktop 136.2/359/198.1/156.8/250.2/86.7; narrow 55.8/82.2/65.1/150.7/240/55.1. Populated/empty table and row heights match. Native narrow screenshot inspected. Fixture changes were browser-only GET-backed comparisons, not production data writes.
 - Remaining measured discrepancy: native table is 1px higher relative to its content panel. Full live reader/state parity remains separate; do not count this correction as whole-page completion.
 - Server-only deployment verified all 800 hashes, no extra/legacy files, protected private routes/auth and preserved configuration/credentials/voices. Rollback `/var/backups/lorkhanserver-code.v7TKs7`. CSS-only change; no game or provider calls.
+
+### AI Responses reader comparison checkpoint (2026-09-08)
+
+- Opened the actual reference/native prompt readers, normalized the message body to one identical SYSTEM fixture and removed metadata in browser memory only. At 1280: both modal widths 1152, heights 255.171875; at 390: both widths 351 and heights 255.171875. Message row/header/body geometry and fonts match at both widths. Paired narrow screenshots inspected; branding colours remain intentionally different.
+- Native clipboard-mock checks at both widths passed: exact multiline literal text, success feedback, close/reopen reset, denied-copy alert, Escape and focus returned to opener. No provider/production POSTs or real clipboard writes. Initial probes were corrected for normal whitespace handling and asynchronous alert dismissal; no product change was needed.
+- Evidence: temporary `response-reader-compare.cjs`, `response-reader-copy-proof.cjs`, and paired `response-reader-{ref,native}-{1280,390}.png`. This verifies the normalized single-message reader, not all live metadata/multimessage or raw-unavailable states. The separate 1px table offset and full matrix remain open.
+- Documentation-only checkpoint; runtime remains `32fafda`, with no new deployment required.
