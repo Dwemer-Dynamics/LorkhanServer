@@ -217,8 +217,8 @@ function lorkhan_eventlog_pagination(array $pagination):void
 /** Render the exact CHIM event columns with all stored text escaped. */
 function lorkhan_eventlog_table(array $rows):void
 {
+    if ($rows === []) return;
     echo'<table class="eventlog-table table table-striped table-bordered table-sm"><thead><tr><th><input type="checkbox" data-eventlog-select-all aria-label="Select all events"></th><th>Event</th><th>Events</th><th>People Present</th><th><a href="https://en.uesp.net/wiki/Lore:Calendar" target="_blank" rel="noopener noreferrer">Tamrielic Time</a></th><th>Time (UTC)</th><th>Record</th></tr></thead><tbody>';
-    if($rows===[])echo'<tr class="eventlog-empty"><td colspan="7">No events match the current playthrough and filters.</td></tr>';
     foreach($rows as$row){$id=(int)($row['rowid']??0);$chat=($row['type']??'')==='chat';echo'<tr data-eventlog-row="'.$id.'"><td><input type="checkbox" class="event-checkbox" data-eventlog-rowid="'.$id.'" aria-label="Select event '.$id.'"></td><td'.($chat?' class="eventlog-chat"':'').'>'.lorkhan_ui_h($row['type']??'').'</td><td'.($chat?' class="eventlog-chat"':'').'>'.nl2br(lorkhan_ui_h($row['data']??'')).'</td><td>'.lorkhan_ui_h($row['people']??'').'</td><td>'.lorkhan_ui_h($row['game_time']??'—').'</td><td>'.lorkhan_ui_h($row['time_utc']??'').'</td><td><button type="button" class="eventlog-row-delete" data-eventlog-delete-row="'.$id.'" title="Delete event">'.$id.' &#x1F5D1;&#xFE0F;</button></td></tr>';}
     echo'</tbody></table>';
 }

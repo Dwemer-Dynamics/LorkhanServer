@@ -7667,3 +7667,21 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - JavaScript syntax, diff checks, 615 server checks and all 800 deployed hashes /
   private-authentication probes pass. Configuration, credentials and voices
   preserved. Rollback: lorkhanserver-code.47bDlm.
+
+### Events empty-to-live table lifecycle
+
+- Pinned Herika misc_ui_functions.php print_array_as_table returns before emitting
+  a table for zero rows. Native now follows that structure in initial and AJAX
+  rendering, instead of an empty seven-column table. Zero-result counts and filter
+  controls remain visible. No production deletion was used to obtain an empty log.
+- The first live result can now build the absent table; later results prepend as
+  before. Matched the recurring reference refresh interval of five seconds, keeping
+  native's immediate initial check when enabled. Stop Live still clears the timer.
+- Mocked empty page -> first live event -> Stop Live at 1280/390 passes. The table
+  and calendar link return, literal HTML remains text, and there are no mutation
+  requests. Inspected narrow empty-state screenshot. This combines pinned-source
+  empty reference evidence with native browser fixtures; not a live empty-reference
+  database comparison. Broader filter/refresh failure acceptance remains open.
+- JavaScript/deployment syntax, diff checks and 615 server checks pass; all 800
+  runtime hashes/private/auth probes verified. Configuration, credentials and voices
+  unchanged. Rollback: lorkhanserver-code.fNjaH7.

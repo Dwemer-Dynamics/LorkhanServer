@@ -101,6 +101,12 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const renderTable = (events) => {
+    // Herika leaves the log surface empty until a row exists.
+    if (!events.length) {
+      tableRoot.replaceChildren();
+      updateSelected();
+      return;
+    }
     const table = document.createElement('table');
     table.className = 'eventlog-table table table-striped table-bordered table-sm';
     const head = document.createElement('thead');
@@ -127,17 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
     head.appendChild(headerRow);
     table.appendChild(head);
     const body = document.createElement('tbody');
-    if (!events.length) {
-      const row = document.createElement('tr');
-      row.className = 'eventlog-empty';
-      const empty = document.createElement('td');
-      empty.colSpan = 7;
-      empty.textContent = 'No events match the current playthrough and filters.';
-      row.appendChild(empty);
-      body.appendChild(row);
-    } else {
-      events.forEach((event) => body.appendChild(buildRow(event)));
-    }
+    events.forEach((event) => body.appendChild(buildRow(event)));
     table.appendChild(body);
     tableRoot.replaceChildren(table);
     updateSelected();
@@ -264,8 +260,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const events = data.data || [];
       if (events.length) {
         const body = tableRoot.querySelector('tbody');
-        body?.querySelector('.eventlog-empty')?.remove();
-        events.slice().reverse().forEach((event) => body?.prepend(buildRow(event, true)));
+        if (body) events.slice().reverse().forEach((event) => body.prepend(buildRow(event, true)));
+        else renderTable(events);
         state.cursor = Math.max(state.cursor, ...events.map((event) => Number(event.rowid)));
         const visible = app.querySelectorAll('[data-eventlog-row]').length;
         counts.forEach((element) => {
@@ -288,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
     liveButton.classList.toggle('active', !enabled);
     liveIndicator.hidden = !enabled;
     if (state.interval) window.clearInterval(state.interval);
-    state.interval = enabled ? window.setInterval(poll, 2000) : null;
+    state.interval = enabled ? window.setInterval(poll, 5000) : null;
     history.replaceState({}, '', pageUrl());
     if (enabled) poll();
   };
