@@ -5206,3 +5206,23 @@ in one row. Different group heights follow the intentionally excluded features
 and native Journal, not a reason to restore excluded navigation. This supersedes
 the earlier assertion that explicitly setting MagicCards on label spans matched
 the reference. No backend/data changes. git diff --check passed.
+
+
+### AI Responses page pagination and column preferences
+
+Restored the reference bottom Previous/Next navigation; native previously showed
+only a footer count. Both locations use the same scoped link builder, retaining
+playthrough, installation, search, person and date. The source-rendered middle
+page fixture verified equal top/bottom destinations and preserved filters at
+1280/390. Footer typography and neutral buttons follow the reference, while top
+paging uses the primary gold treatment.
+
+Removed the later width:auto override on response headers. Herika has automatic
+table layout but retains inline percentage preferences (11/29/16/12/20/7); these
+are now restored with 8px narrow cell padding. Earlier auto-layout evidence did
+not justify deleting the reference percentages. Actual rendered desktop/narrow
+fixture screenshots were inspected. Existing safe HTTP-request summaries and
+native filters remain; no raw transport payload is exposed.
+
+PHP lint and diff checks passed. This is presentation/link construction proof,
+not a new database pagination fixture or full priority-page completion.

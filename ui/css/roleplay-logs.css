@@ -110,7 +110,7 @@ body .calendar-mode-toggle .roleplay-button.active{border-color:#bc9d5a!importan
 
 /* Preserve the reference response log's wrapping columns on small screens. */
 body .roleplay-log-page:not(.book-log-page) .ai-response-table{table-layout:auto}
-body .roleplay-log-page:not(.book-log-page) .ai-response-table th{width:auto;vertical-align:top}
+body .roleplay-log-page:not(.book-log-page) .ai-response-table th{vertical-align:top}
 body .roleplay-log-page:not(.book-log-page) .ai-response-table td{overflow-wrap:break-word;hyphens:auto;line-height:1.5}
 body .roleplay-log-page .log-pagination nav{color:#aaa;font-weight:normal}
 body .ai-response-table [data-log-open]{white-space:nowrap}
@@ -151,3 +151,17 @@ body .ai-response-table [data-log-open]{white-space:nowrap}
 .response-prompt-viewer .prompt-meta-label{background:#1f2937;color:#e5e7eb}
 
 .response-prompt-viewer .prompt-raw{color:#ce9178;white-space:pre-wrap;overflow-wrap:anywhere;margin:5px 0 0;background:#1e1e1e;padding:10px;border-radius:5px;font:inherit}
+
+/* Herika keeps percentage column preferences with automatic table layout. */
+body .roleplay-log-page .ai-response-table th:nth-child(1){width:11%}
+body .roleplay-log-page .ai-response-table th:nth-child(2){width:29%}
+body .roleplay-log-page .ai-response-table th:nth-child(3){width:16%}
+body .roleplay-log-page .ai-response-table th:nth-child(4){width:12%}
+body .roleplay-log-page .ai-response-table th:nth-child(5){width:20%}
+body .roleplay-log-page .ai-response-table th:nth-child(6){width:7%}
+.log-bottom-pagination{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;color:#9ca3af;font-size:14px}
+@media(max-width:768px){body .roleplay-log-page .ai-response-table th,body .roleplay-log-page .ai-response-table td{padding:8px}}
+
+body .roleplay-log-page .log-bottom-pagination,body .roleplay-log-page .log-bottom-pagination span{font-weight:normal}
+body .roleplay-log-page:not(.book-log-page) .log-pagination nav .roleplay-button{background:#bc9d5a!important;color:#171717!important;border-color:#9d8045!important;border-radius:8px;font-weight:normal}
+body .roleplay-log-page .log-bottom-pagination .roleplay-button{background:#1e232dcc!important;color:#fff!important;border:1px solid #8a9bb661;border-radius:8px;font-weight:normal}

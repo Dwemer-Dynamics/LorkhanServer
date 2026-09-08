@@ -50,7 +50,11 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
             </table>
             <?php endif; ?>
         </div>
-        <p class="log-footer">Page <?= $state['page'] ?> / <?= $state['pages'] ?> · <?= $state['total'] ?> rows</p>
+        <?php if($responses): ?><nav class="log-footer log-bottom-pagination" aria-label="Bottom log pages">
+            <span>Page <?= $state['page'] ?> / <?= $state['pages'] ?> (<?= $state['total'] ?> rows)</span>
+            <?php if($state['page']>1): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page'=>$state['page']-1])) ?>">Previous</a><?php endif; ?>
+            <?php if($state['page']<$state['pages']): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page'=>$state['page']+1])) ?>">Next</a><?php endif; ?>
+        </nav><?php else: ?><p class="log-footer">Page <?= $state['page'] ?> / <?= $state['pages'] ?> · <?= $state['total'] ?> rows</p><?php endif; ?>
         <?php foreach($state['rows'] as $row): $id='log-entry-'.(int)$row['narrative_id']; ?>
             <dialog id="<?= $id ?>" class="log-content-modal<?= $responses?' response-prompt-viewer':'' ?>" aria-labelledby="<?= $id ?>-title">
                 <header><h2 id="<?= $id ?>-title"><?= $responses?'📜 Prompt Viewer':lorkhan_ui_h($row['title']) ?></h2><div><span role="status" data-log-status></span><button type="button" class="roleplay-button" data-log-copy><?= $responses?'📋 Copy':'Copy' ?></button><button type="button" class="roleplay-button" data-log-close aria-label="Close reader">✕</button></div></header>
