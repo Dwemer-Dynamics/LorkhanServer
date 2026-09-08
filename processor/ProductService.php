@@ -67,6 +67,17 @@ final class ProductService
         return $this->repository->revisePlayer($installation,$id,$name,$content,$reason,$expectedRevision,$this->clock->iso());
     }
 
+    /** Save the Narrator display name, persona and Core Profile as one validated revision. */
+    public function reviseNarrator(string $installation,string $id,string $name,array $content,string $reason,string $coreProfileId,int $expectedRevision):array
+    {
+        $this->uuid($installation);$this->uuid($id);if($coreProfileId!=='')$this->uuid($coreProfileId);
+        $name=trim($name);$this->boundedString(['name'=>$name],'name',1,256);
+        if(preg_match('/[\x00-\x1f\x7f]/',$name)||$expectedRevision<1)throw new InvalidArgumentException('invalid_narrator_name');
+        if($reason===''||strlen($reason)>512)throw new InvalidArgumentException('invalid_reason');
+        $this->assertNoSecrets($content);$content=$this->validateConfiguration('profile',$content);
+        return $this->repository->reviseNarrator($installation,$id,$name,$content,$reason,$coreProfileId,$expectedRevision,$this->clock->iso());
+    }
+
     /** Validate an editable connector label together with the same typed settings used by normal revisions. */
     public function reviseNamedConnector(string $kind,string $id,string $name,array $content,string $reason):array
     {

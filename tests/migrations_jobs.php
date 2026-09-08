@@ -1190,6 +1190,15 @@ $check(($queuedNarrator['mode']??null)==='narrator_profile'&&$narratorStats['suc
     &&$narratorContent['enabled']===true&&$narratorContent['inline_narration_mode']==='Narrator'
     &&($narratorContent['routing']['tts_configuration_id']??null)===($narratorProfile['content']['routing']['tts_configuration_id']??null)
     &&($narratorContent['voice']['id']??null)==='narrator-test','narrator profile generation did not preserve routing fields');
+$renamedNarrator=$service->reviseNarrator($legacyInstallation,$narratorProfile['profile_id'],'Renamed Narrator',$narratorContent,'Narrator name parity','',2);
+$renamedNarratorIdentity=json_decode((string)$renamedNarrator['actor_identity'],true,64,JSON_THROW_ON_ERROR);
+$check($renamedNarrator['name']==='Renamed Narrator'&&$renamedNarrator['profile_id']===$narratorProfile['profile_id']
+    &&$renamedNarratorIdentity['record_id']==='lorkhan:narrator'&&$renamedNarratorIdentity['display_name']==='Renamed Narrator'
+    &&$renamedNarrator['content']===$narratorContent,'Narrator rename changed identity or persona content');
+try{$service->reviseNarrator($legacyInstallation,$narratorProfile['profile_id'],'Stale rename',[],'Stale narrator save','',2);throw new RuntimeException('stale narrator rename accepted');}
+catch(RuntimeException $error){$check($error->getMessage()==='revision_conflict'&&$products->getRevisioned('profile',$narratorProfile['profile_id'])['name']==='Renamed Narrator','stale Narrator edit was not rejected atomically');}
+try{$service->reviseNarrator(Uuid::v4(),$narratorProfile['profile_id'],'Wrong scope',$narratorContent,'Scope test','',3);throw new RuntimeException('cross-installation narrator rename accepted');}
+catch(RuntimeException $error){$check($error->getMessage()==='not_found','Narrator edit crossed installation scope');}
 $switchTarget=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Alternate NPC profile',
     'actor_identity'=>['kind'=>'npc','record_id'=>'alternate','content_file'=>'Morrowind.esm'],
     'content'=>['biography'=>'Alternate profile','management'=>['locked'=>false,'favorite'=>false]]]);

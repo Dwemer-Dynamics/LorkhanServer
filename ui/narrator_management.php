@@ -110,6 +110,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                 <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
                 <?php if ($profile !== null): ?>
                     <input type="hidden" name="profile_id" value="<?php echo lorkhan_ui_h($profile['profile_id']); ?>">
+                    <input type="hidden" name="expected_revision" value="<?php echo (int)$profile['current_revision']; ?>">
                     <input type="hidden" name="base_content_json" value="<?php echo lorkhan_ui_h(json_encode($content, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)); ?>">
                 <?php endif; ?>
 
@@ -123,8 +124,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     <section class="narrator-content-section">
                         <h2>Core Settings</h2>
                         <label for="narrator-name">Narrator Name</label>
-                        <input id="narrator-name" name="name" type="text" maxlength="256" required value="<?php echo lorkhan_ui_h($profile['name'] ?? 'The Narrator'); ?>"<?php echo $profile === null ? '' : ' readonly'; ?>>
-                        <span class="narrator-hint">Changes how the narrator is identified in prompts, context, subtitles, and history displays.</span>
+                        <input id="narrator-name" name="name" type="text" maxlength="256" required value="<?php echo lorkhan_ui_h($profile['name'] ?? 'The Narrator'); ?>">
+                        <span class="narrator-hint">Changes the display name in prompts, context and future subtitles. Internal identity and recorded history stay unchanged.</span>
                         <?php
                         lorkhan_narrator_toggle('enabled', 'Enable Narrator', ($content['enabled'] ?? false) === true, 'Enable or disable the narrator system entirely.');
                         echo '<span class="narrator-hint">Book event summaries and Read Aloud use the Narrator profile. Read Aloud is enabled separately in the in-game Sound settings.</span>';

@@ -227,6 +227,21 @@ final class ProductRepository
         });}catch(\PDOException $error){if($error->getCode()==='23505')throw new InvalidArgumentException('player_name_exists');throw $error;}
     }
 
+    /** Rename only the Narrator display fields; stable identity and recorded events are untouched. */
+    public function reviseNarrator(string $installation,string $id,string $name,array $content,string $reason,string $coreProfileId,int $expectedRevision,string $now):array
+    {
+        try{return $this->transaction(function()use($installation,$id,$name,$content,$reason,$coreProfileId,$expectedRevision,$now):array{
+            $query=$this->db->prepare("SELECT current_revision FROM profiles WHERE profile_id=:id AND installation_id=:installation AND deleted_at IS NULL AND actor_identity->>'kind'='narrator' FOR UPDATE");
+            $query->execute(['id'=>$id,'installation'=>$installation]);$revision=$query->fetchColumn();
+            if($revision===false)throw new RuntimeException('not_found');
+            if((int)$revision!==$expectedRevision)throw new RuntimeException('revision_conflict');
+            if($coreProfileId!=='')$this->assignCoreProfile($id,$coreProfileId);
+            $this->db->prepare("UPDATE profiles SET name=:name,actor_identity=jsonb_set(actor_identity,'{display_name}',to_jsonb(CAST(:display AS text))) WHERE profile_id=:id")
+                ->execute(['name'=>$name,'display'=>$name,'id'=>$id]);
+            return $this->revise('profile',$id,$content,$reason,$now,$expectedRevision);
+        });}catch(\PDOException $error){if($error->getCode()==='23505')throw new InvalidArgumentException('narrator_name_exists');throw $error;}
+    }
+
     /** Materialize the installation-scoped player profile before the first game turn needs it. */
     public function ensurePlayerProfile(string $installationId,string $now):array
     {

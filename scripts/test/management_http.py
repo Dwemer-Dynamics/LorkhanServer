@@ -2237,12 +2237,16 @@ generate_narrator=next((f for f in narrator_page.forms if f['action'].endswith('
 assert generate_narrator is not None and generate_narrator['fields'].get('profile_id'),'narrator profile generation control is missing'
 r=request(generate_narrator['action'],'POST',dict(generate_narrator['fields'],_csrf=csrf)); assert r.status==200 and r.geturl().endswith('/ui/core/config_hub.php?tab=narration-page&status=saved'),(r.status,r.geturl())
 narrator_revise=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
-narrator_route_values=dict(narrator_revise['fields'],_csrf=csrf,inline_narration_mode='Narrator',diary_enabled='1',oghma_knowledge_tags='knowall, Common, Tribunal, Tribunal',
+narrator_route_values=dict(narrator_revise['fields'],_csrf=csrf,name='Renamed HTTP Narrator',inline_narration_mode='Narrator',diary_enabled='1',oghma_knowledge_tags='knowall, Common, Tribunal, Tribunal',
     auto_diary_enabled='1',auto_diary_wait_enabled='1',diary_interval_seconds='90',change_reason='HTTP narrator portability route')
 r=request(narrator_revise['action'],'POST',narrator_route_values); narrator_route_body=r.read().decode(); assert r.status==200,(r.status,r.geturl(),narrator_route_body)
 narrator_page,body=parse(request('/LorkhanServer/ui/narrator_management.php'))
 saved_narrator_form=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
 assert saved_narrator_form['fields'].get('oghma_knowledge_tags')=='knowall, Tribunal'
+assert saved_narrator_form['fields']['name']=='Renamed HTTP Narrator'
+stale_narrator=request(narrator_revise['action'],'POST',dict(narrator_route_values,name='Stale Narrator'))
+assert stale_narrator.status==409
+
 invalid_tags=request(narrator_revise['action'],'POST',dict(narrator_route_values,oghma_knowledge_tags='x'*4097))
 assert invalid_tags.status==422,invalid_tags.read().decode()
 assert saved_narrator_form['fields'].get('diary_enabled')=='1' and saved_narrator_form['fields'].get('auto_diary_enabled')=='1'
@@ -2288,6 +2292,8 @@ assert r.status==200 and '/ui/narrator_management.php?status=saved&embed=1&insta
 legacy_narrator_export=json.loads(request('/LorkhanServer/manage/exports/narrator-profile-settings/'+narrator_id+'.json').read().decode())
 assert legacy_narrator_export['settings']['oghma_knowledge_tags']=='knowall, Tribunal'
 # Unchecking saves explicit false and does not revert to the Core Profile default.
+embedded_narrator_page,_=parse(request('/LorkhanServer/ui/narrator_management.php?embed=1'))
+embedded_narrator_form=next(f for f in embedded_narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
 unchecked_narrator=dict(embedded_narrator_form['fields'],_csrf=csrf,inline_narration_mode='Text Only')
 unchecked_narrator.pop('latest_diary_context_enabled',None)
 unchecked_narrator.pop('only_diary_access',None)

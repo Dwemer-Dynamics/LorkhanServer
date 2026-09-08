@@ -5018,3 +5018,30 @@ profile exists is absent from the toolbar, saved Narrator name is still read-onl
 book-event enablement is not the reference NPC book-summary restriction, and the
 native catalog has no Narrator actions. These are remaining gaps to investigate,
 not blanket product-specific exceptions or a completed Narration page.
+
+
+### Editable Narrator display name
+
+The saved Narrator Name field now remains editable, matching the reference Core
+Settings field. It submits the existing display label alongside the persona and
+Core Profile assignment. A scoped transaction locks the selected Narrator row,
+checks the expected revision, updates only name and actor_identity.display_name,
+and saves the content revision. Profile UUID, kind, record ID and historical
+source events remain unchanged. A failed route assignment, stale revision or
+cross-installation request cannot partially rename the profile. This supersedes
+the read-only-name gap recorded in the preceding review.
+
+Browser fixture proof: create Fixture Narrator, rename to The Chronicler, reload,
+confirm the same profile ID and editable value, capture 1280/390. The narrow
+post-save page was visually inspected; the name remains in the reference Core
+Settings position and Export/Import toolbar is present once a profile exists.
+No live Narrator name was changed and no game or provider interaction occurred.
+HTTP tests passed rename/reload and stale-save rejection, and now reload revisions
+between intentional successive edits. The existing 582 unit checks also passed.
+The database regression covers preserved record identity and content, stale
+revision rejection, and installation scope. Full page acceptance still requires
+the remaining book restrictions, empty-profile import lifecycle and action gaps.
+
+The vertical-slice integration and migration/durable-job suites passed. The known
+schema inventory hash-only difference was inspected and reverted; no migration
+or protocol change is included.

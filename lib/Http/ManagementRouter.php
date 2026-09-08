@@ -517,7 +517,7 @@ final class ManagementRouter
             'narrator-profile-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],
                 'name'=>$this->need($v,'name'),'actor_identity'=>$this->narratorIdentity($v),'content'=>$this->narratorContent($v)]
                 +(trim((string)($v['core_profile_id']??''))===''?[]:['core_profile_id'=>$v['core_profile_id']])),
-            'narrator-profile-revise'=>$this->service->revisePersona($this->need($v,'profile_id'),$this->narratorContent($v),$this->need($v,'change_reason'),trim((string)($v['core_profile_id']??''))),
+            'narrator-profile-revise'=>$this->service->reviseNarrator($this->need($v,'installation_id'),$this->need($v,'profile_id'),$this->need($v,'name'),$this->narratorContent($v),$this->need($v,'change_reason'),trim((string)($v['core_profile_id']??'')),(int)($v['expected_revision']??0)),
             'narrator-profile-settings-import'=>$this->importSpecialProfileSettings($v,$scope,'narrator'),
             'narrator-profile-generate'=>$this->repository->enqueueNarratorProfileGeneration($this->need($v,'profile_id')),
             'global-settings-save'=>$this->saveGlobalSettings($v,$scope),
