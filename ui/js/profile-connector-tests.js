@@ -211,6 +211,7 @@
             const response = await fetch(endpoint + '?installation_id=' + encodeURIComponent(installationId), {
                 credentials: 'same-origin',
                 headers: { Accept: 'application/json' },
+                signal: AbortSignal.timeout(15000),
             });
             if (!response.ok) throw new Error('plan-unavailable');
             const payload = await response.json();
@@ -247,6 +248,7 @@
             const response = await fetch(endpoint, {
                 method: 'POST',
                 credentials: 'same-origin',
+                signal: AbortSignal.timeout(135000),
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf, Accept: 'application/json' },
                 body: JSON.stringify({
                     installation_id: installationId,
@@ -256,7 +258,10 @@
                 }),
             });
             let payload = null;
-            try { payload = await response.json(); } catch (_parseError) { payload = null; }
+            try { payload = await response.json(); } catch (_parseError) {
+                if (_parseError.name === 'TimeoutError' || _parseError.name === 'AbortError') throw _parseError;
+                payload = null;
+            }
             const result = payload && typeof payload === 'object' ? payload.result : null;
             if (response.ok && result && typeof result === 'object') {
                 status = bucketFor(text(result.status));
@@ -265,7 +270,9 @@
                 message = 'The server reported: ' + text(payload.error);
             }
         } catch (_error) {
-            message = 'The server could not be reached for this connector.';
+            message = _error.name === 'TimeoutError'
+                ? 'Timed out waiting for the connector. The server may still finish this test; its result is unknown.'
+                : 'The server could not be reached for this connector.';
         }
         jobStates.set(jobKey, { status: status, message: message });
         completedJobs += 1;
