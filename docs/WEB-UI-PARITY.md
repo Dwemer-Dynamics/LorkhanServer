@@ -5332,3 +5332,30 @@ Evidence: private Temp/tts-current-review.cjs and paired
 {herika,lorkhan}-tts-review.png / -tts-review-narrow.png captures.
 PHP lint, git diff --check and 582 existing server checks passed. Code was
 deployed locally with configuration, credentials and voice contents preserved.
+
+## TTS test reader presentation and mocked result states
+
+Opened the actual Test controls on both live saved Inworld editors without
+submitting reference synthesis. Compared desktop 1280x1000 and narrow 390x900
+screenshots. The reference reader computes flat #232323 cards and 13.44px /
+19.488px text inputs; native still had gradient cards and 14px / 21px controls.
+These now match, as do the Run Test button weight (500) and line-height (1.2).
+Close uses the reference secondary styling. Success and error statuses now
+use the reference green #9be29b and red #ff9898; generation clears prior state.
+
+Private Temp/tts-test-states.cjs intercepts every preview request in an isolated
+browser: 429, 403, 422, 500, 200 non-audio and network failure all show red,
+restore Run Test, and never render the synthetic private response payload.
+A synthetic silent WAV shows the green success state and player. Escape clears
+the audio source; closing a held pending request and reopening resets the form
+button and hides stale results. Eight requests were intercepted, none forwarded
+to the live API or a provider. This is browser state proof, not synthesis or
+server authorization proof. Screenshots tts-test-error-390.png and
+tts-test-success-390.png were visually inspected alongside paired modal captures.
+
+The native validated voice picker, charge notice, redacted request preview,
+focus-contained dialog and immediate audio cleanup remain. Unlike the reference,
+raw provider debug output is not exposed. Native narrow title sizing remains
+smaller to keep the close control clear; the whole TTS section is not marked
+complete by these checks. PHP/JavaScript syntax, diff checks and all 582 existing
+server checks passed. No saved connector values or game state changed.

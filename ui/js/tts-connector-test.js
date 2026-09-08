@@ -107,6 +107,7 @@
         document.getElementById('tts-test-result').hidden = false;
         document.getElementById('tts-test-request').hidden = false;
         document.getElementById('tts-test-request-text').textContent = JSON.stringify({text: spoken, voice: voice.value}, null, 2);
+        status.className = '';
         status.textContent = 'Generating audio…';
         const started = performance.now();
         const timer = window.setTimeout(() => request.abort(), 125000);
@@ -119,6 +120,7 @@
             });
             if (request !== pending || !dialog.open) return;
             if (!response.ok) {
+                status.className = 'error';
                 status.textContent = response.status === 429 ? 'Too many previews. Wait a moment and try again.'
                     : response.status === 401 || response.status === 403 ? 'Session expired. Reload the page before testing.'
                     : response.status === 422 ? 'The selected text, connector or voice is no longer available. Reload and check the saved settings.'
@@ -128,18 +130,23 @@
             const blob = await response.blob();
             if (request !== pending || !dialog.open) return;
             if (!blob.size || !/^audio\//.test(blob.type)) {
+                status.className = 'error';
                 status.textContent = 'The connector did not return playable audio.';
                 return;
             }
             objectUrl = URL.createObjectURL(blob);
             audio.src = objectUrl;
             audio.hidden = false;
+            status.className = 'ok';
             status.textContent = 'Synthesis completed in ' + ((performance.now() - started) / 1000).toFixed(2) + ' seconds.';
             try { await audio.play(); }
             catch (_) { if (request === pending && dialog.open) status.textContent += ' Press Play to listen.'; }
         } catch (error) {
-            if (request === pending && dialog.open) status.textContent = error.name === 'AbortError'
-                ? 'The preview timed out. Check the provider before retrying.' : 'The server could not be reached for this test.';
+            if (request === pending && dialog.open) {
+                status.className = 'error';
+                status.textContent = error.name === 'AbortError'
+                    ? 'The preview timed out. Check the provider before retrying.' : 'The server could not be reached for this test.';
+            }
         } finally {
             window.clearTimeout(timer);
             if (request === pending) {

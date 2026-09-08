@@ -8,7 +8,7 @@ $testReady = ($ttsPreview['voices'] ?? []) !== [];
         data-installation="<?php echo lorkhan_ui_h($installationId); ?>"
         data-configuration="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"
         data-csrf="<?php echo lorkhan_ui_h($csrf); ?>">
-    <div class="tts-test-toolbar"><button type="button" class="btn-primary" id="tts-test-close" autofocus>Close</button></div>
+    <div class="tts-test-toolbar"><button type="button" class="btn-secondary" id="tts-test-close" autofocus>Close</button></div>
     <div class="tts-test-content">
         <section class="tts-test-card">
             <h1 id="tts-test-title">TTS Connector Test</h1>

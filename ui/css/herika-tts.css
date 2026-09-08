@@ -205,3 +205,10 @@ body.tts-page-shell .tts-page .editor-toolbar :is(form, .toolbar-disabled) > but
 }
 body.tts-page-shell .tts-page .editor-toolbar { align-items: flex-start; }
 body.tts-page-shell .tts-page .editor-toolbar > button { height: 36px; }
+
+/* Match the rendered reference test reader, including semantic result colours. */
+.tts-test-card { background: #232323; }
+.tts-test-card :is(textarea, select) { font-size: .84rem; line-height: 1.45; }
+body.tts-page-shell .tts-test-dialog button { font-weight: 500 !important; line-height: 1.2 !important; }
+.tts-test-card .error { color: #ff9898; }
+.tts-test-card .ok { color: #9be29b; }
