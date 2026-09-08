@@ -8002,3 +8002,10 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - Found and fixed missing label-only navigation protection. Saved custom display labels now track their last persisted value; failed saves retain the warning. A newer label edit during a save is preserved and reported as unsaved instead of falsely reported saved. Newly created labels initialize the saved baseline. Key identifiers and server credential storage are unchanged.
 - Browser-mocked tests passed at 1280/390: create/clean baseline, changed-label warning, failed-save retention, concurrent newer edit, final save clears warning. No actual credentials written/read in test artifacts; all writes mocked. JavaScript syntax passed.
 - Server-only deployment verified 799 hashes and private/auth checks, preserving configuration/credentials/voices. Rollback `/var/backups/lorkhanserver-code.UkgioM`. Full API Keys and broader matrix remain active.
+
+### Player generation edge-state verification (2026-09-08)
+
+- Live Player editor browser probes at 1280/390 exercised the existing generation/status path with every POST mocked: successful generated draft, stale saved-profile result, dead job, and newer manual speech-style edit while generation was pending.
+- All passed: successful output stays unsaved with the Save Player Settings instruction; stale/dead results retain the original field; concurrent manual text is retained with explicit feedback; the generate button resets after each case and permits another attempt. No actual generation jobs, provider calls or profile saves occurred.
+- Evidence: temporary `player-generation-states.cjs`. These cases required no product changes. Pending-job resumption/timeouts, navigation behavior and the wider Player/full matrix remain separate checks; this does not claim whole-page completion.
+- Documentation only; deployed product code remains `2f7da2d`.
