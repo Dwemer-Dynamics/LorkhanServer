@@ -8799,3 +8799,56 @@ no extras/old paths. Configuration, credentials and voice file contents were
 preserved. Private-path 403, unauthenticated 401 and health probes passed. No game
 was launched or controlled. Full Core Profile settings/presets and the broader
 page matrix remain open. GitHub's server workflow stays manually disabled.
+
+
+## 2026-09-08 — Whole Core Profile settings inventory and runtime dependencies
+
+Read-only review at main `4993228`; product/runtime remains `89a01c9`.
+This expands the pending matrix rather than accepting the editor from the Rechat
+calculator-only checkpoint. `core-settings-full-review.cjs` captured actual hub
+DOM headings and field labels with every non-GET blocked. Its whole-card images
+are clipped by iframe/sticky surfaces and are NOT complete visual acceptance.
+`core-feature-review.cjs` then captured individual direct-embed feature cards;
+Dynamic Profile Fields on both servers and reference Short Term Memory were
+visually inspected. No profile, provider or game state was edited.
+
+| Reference section/control | Current native counterpart | Required implementation before acceptance |
+| --- | --- | --- |
+| Dynamic Profile Fields | Same five editable field choices | Match checkbox geometry and recheck card layout after restoring adjacent feature cards; preserve native new-NPC versus existing-NPC semantics |
+| RPG Comments: Comment Types, Trigger Chance | Installation-global policy only; no Core Profile card | Resolve the actual responding actor's Core Profile at the event decision boundary, persist scoped overrides, connect events/chance controls and presets, and verify global fallback and cooldown behavior |
+| Short Term Memory: Max Summaries (1–50) | Toggle filters recent-tier memory records; no summary count control | Port scene-summary boundaries and their relationship to the middle-term digest and verbatim history before wiring the cap; do not relabel the existing ten-item shared memory cap |
+| Language: Core Lang, Lang Llm Xtts, Max Words Limit | Max Words only under LLM heading | Add Core Profile language ownership, frozen prompt-language instruction and supported XTTS/Chatterbox language propagation; global DeepL translation is a separate output-processing policy |
+| Rechat: rounds, probability, allow actions | Controls present; calculator structure corrected | Compare initial-response versus continuation-round semantics with the coordinator; preserve zero-percent behavior rather than copying reference JavaScript's zero-to-default bug |
+| Bored Event: chance | Native global boredom delay in seconds | Add the probability decision and per-profile ownership; delay is not a probability |
+| Context: dialogue/diary/dynamic-profile history | Three native controls present | Keep current history consumers; compare count meaning/ranges and full populated/edit states |
+| Diary: prompt and cooldown | Native controls present | Recheck complete settings row paired with Combat; physical diary is not Diary In Context |
+| Combat: bark cooldown | Native global combat-bark period | Trace client event timing and responding profile, then add working per-profile ownership and matching card |
+| Quest: comment and chance | No Core Profile controls | Trace regular quest-comment support separately from the explicitly excluded AI Quest Manager; exclusion of the manager does not establish an exception for all quest commentary |
+
+Reference structure in `ui/core/tmpl/metadata_json_editor.php:88` is paired rows
+Language/Rechat, Bored Event/Context, Diary/Combat, then Quest. The feature grid
+contains Dynamic Profile Fields, RPG Comments and Short Term Memory. Native only
+has Dynamic Profile Fields and pairs LLM/Rechat then Context/Diary. Merely changing
+the LLM heading or filling the missing positions with disabled cards is not parity.
+
+Runtime evidence informing the next implementation:
+- Herika `lib/data_functions.php:4966` (`DataShortTermMemoryFor`) uses the NPC's
+  middle-term digest high-water mark, the oldest summary crossing the live history
+  boundary and a configured cap; it also sets the history crop boundary.
+- Native `prompts/PromptAssembler.php:91` maps recent/mid/long memory tiers to the
+  three toggles. `prompts/MemoryPromptSelection.php` uses textual coverage and a
+  shared ten-item limit, not Herika's scene-summary gap selection.
+- Native `lib/Infrastructure/ProductRepository.php:2034` selects scoped memory
+  records and optional per-record model summaries. Such a model summary is not,
+  by itself, a Herika scene bucket or digest boundary.
+- Native `lib/Http/Router.php:253` decides RPG comment requests from the global
+  policy before returning the event acknowledgement. Adding profile form fields
+  without changing that decision path would create inert controls.
+- `TranslationPolicy` is installation-scoped DeepL postprocessing. It must not be
+  silently reused as the Core Lang setting.
+
+Next implementation priority is the Core Profile Language section and its actual
+prompt/TTS consumers, followed by RPG profile ownership and short-term scene
+summary boundaries. These dependencies remain part of the full goal, not accepted
+product-specific exceptions. No new deployment or test pass is claimed for this
+read-only audit; no game was launched and the workflow remains disabled.
