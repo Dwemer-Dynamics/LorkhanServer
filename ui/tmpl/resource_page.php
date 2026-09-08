@@ -660,12 +660,12 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
         if($id!=='')$coreProfileOptions[$id]=(string)($coreProfileRow['label']??$id);
     }
     $coreProfileId=(string)($row['core_profile_id']??'');if($coreProfileId!==''&&!isset($coreProfileOptions[$coreProfileId]))$coreProfileOptions[$coreProfileId]=(string)($row['core_profile_label']??'Unavailable Core Profile');
-    $field=function(string$name,string$label,string$type='text',string$value='',array$options=[],string$classes='',string$help='')use($formId,$profileId,$creating):void{
+    $field=function(string$name,string$label,string$type='text',string$value='',array$options=[],string$classes='',string$help='',string$placeholder='')use($formId,$profileId,$creating):void{
         $id='npc-editor-'.substr(hash('sha256',$profileId.$name),0,14);$class='form-item'.($classes===''?'':' '.$classes);
         $required=$creating&&in_array($name,['installation_id','name'],true)?' required':'';
         $describe=$help===''?'':' aria-describedby="'.lorkhan_ui_h($id).'-help"';
         echo'<div class="'.lorkhan_ui_h($class).'"><label for="'.lorkhan_ui_h($id).'">'.lorkhan_ui_h($label).'</label>';
-        if($type==='textarea')echo'<textarea id="'.lorkhan_ui_h($id).'" name="'.lorkhan_ui_h($name).'" form="'.lorkhan_ui_h($formId).'"'.$required.$describe.'>'.lorkhan_ui_h($value).'</textarea>';
+        if($type==='textarea')echo'<textarea id="'.lorkhan_ui_h($id).'" name="'.lorkhan_ui_h($name).'" form="'.lorkhan_ui_h($formId).'"'.$required.$describe.' placeholder="'.lorkhan_ui_h($placeholder).'">'.lorkhan_ui_h($value).'</textarea>';
         elseif($type==='select'){echo'<select id="'.lorkhan_ui_h($id).'" name="'.lorkhan_ui_h($name).'" form="'.lorkhan_ui_h($formId).'"'.$required.$describe.'>';foreach($options as$optionValue=>$optionLabel)echo'<option value="'.lorkhan_ui_h($optionValue).'"'.((string)$optionValue===$value?' selected':'').'>'.lorkhan_ui_h($optionLabel).'</option>';echo'</select>';}
         elseif($type==='datalist'){$listId=$id.'-options';echo'<input id="'.lorkhan_ui_h($id).'" name="'.lorkhan_ui_h($name).'" form="'.lorkhan_ui_h($formId).'" type="text" list="'.lorkhan_ui_h($listId).'" value="'.lorkhan_ui_h($value).'"'.$describe.'><datalist id="'.lorkhan_ui_h($listId).'">';foreach($options as$optionValue=>$optionLabel)echo'<option value="'.lorkhan_ui_h(is_int($optionValue)?$optionLabel:$optionValue).'">'.lorkhan_ui_h($optionLabel).'</option>';echo'</datalist>';}
         else echo'<input id="'.lorkhan_ui_h($id).'" name="'.lorkhan_ui_h($name).'" form="'.lorkhan_ui_h($formId).'" type="'.lorkhan_ui_h($type).'" value="'.lorkhan_ui_h($value).'"'.$required.$describe.'>';
@@ -723,14 +723,14 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     }
     $field('prompt_head','Prompt head (advanced system guidance)','textarea',(string)($content['prompt_head']??''),[],'span-2');echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="roleplay" hidden>';
-    $field('core','Core','textarea',(string)($content['core']??''),[],'span-2','Core NPC description. 1–2 sentences describing the character.');
-    $field('biography','Backstory','textarea',(string)($content['biography']??''),[],'span-2','Historical facts and background information.');
-    $field('appearance','Appearance','textarea',(string)($content['appearance']??''),[],'span-2','Physical appearance. Keep it limited to character cosmetics, not equipment.');
-    $field('personality','Personality','textarea',(string)($content['personality']??''),[],'','Traits and quirks that guide tone and behavior.');
-    $field('occupation','Occupation','textarea',(string)($content['occupation']??''),[],'','Primary role or job. Include relevant guilds or factions.');
-    $field('skills','Skills','textarea',(string)($content['skills']??''),[],'','Highlight notable competencies of the NPC.');
-    $field('speech_style','Speech Style','textarea',(string)($content['speech_style']??''),[],'','How the NPC speaks their dialogue.');
-    $field('goals','Goals','textarea',(string)($content['goals']??''),[],'','General motivations and goals used during regular dialogue.');echo'</section>';
+    $field('core','Core','textarea',(string)($content['core']??''),[],'span-2','Core NPC description. 1–2 sentences describing the character.','Unchanging rules, boundaries, and core identity.');
+    $field('biography','Backstory','textarea',(string)($content['biography']??''),[],'span-2','Historical facts and background information.','Fixed background, history, and facts.');
+    $field('appearance','Appearance','textarea',(string)($content['appearance']??''),[],'span-2','Physical appearance. Keep it limited to character cosmetics, not equipment.','Physical appearance.');
+    $field('personality','Personality','textarea',(string)($content['personality']??''),[],'','Traits and quirks that guide tone and behavior.','Personality traits and speaking characteristics.');
+    $field('occupation','Occupation','textarea',(string)($content['occupation']??''),[],'','Primary role or job. Include relevant guilds or factions.','Role, job, affiliations.');
+    $field('skills','Skills','textarea',(string)($content['skills']??''),[],'','Highlight notable competencies of the NPC.','Strengths, abilities, and specialties.');
+    $field('speech_style','Speech Style','textarea',(string)($content['speech_style']??''),[],'','How the NPC speaks their dialogue.','Dialect, cadence, verbal tics.');
+    $field('goals','Goals','textarea',(string)($content['goals']??''),[],'','General motivations and goals used during regular dialogue.','Short and long-term objectives.');echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="relationships" hidden>';
     include __DIR__.'/npc_relationships.html.php';
     echo'</section>';

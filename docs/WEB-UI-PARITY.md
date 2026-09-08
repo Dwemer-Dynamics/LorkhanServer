@@ -6226,3 +6226,23 @@ screenshots. All 597 existing server checks pass. Runtime verification reports 7
 files with no mismatches, extras or old paths; health/private/auth checks pass.
 Deployment rollback: /var/backups/lorkhanserver-code.aWQIZF. No provider requests,
 NPC saves or game activity. The complete page-parity goal remains open.
+
+## NPC Roleplay controls and empty-state parity
+
+Pinned Herika NPC Roleplay has eight prose textareas. Live comparison found matching
+heights but native global theme rules overrode their font, background, foreground and
+border. Scoped Roleplay rules now use reference monospace 13.3333px/normal typography,
+neutral colours and resize behavior, leaving gold labels and other editor panels alone.
+All eight fields now carry the reference placeholder wording, including native biography
+and speech_style mappings for npc_static_bio and speechstyle. No persistence changes.
+
+Temp/npc-roleplay-proof.cjs compares every textarea's placeholder and 12 computed style
+properties at 1280/390px against the live Herika counterpart. All pass. It also captures
+shared populated and empty DOM-only fixtures and checks native unsaved edits survive
+General/Roleplay switching with zero POSTs. Inspected populated narrow and empty desktop
+pairs; the native empty placeholder was missing on the first comparison and was fixed
+and rechecked. These are control-level fixtures, not matching database content. Native
+modal width still differs (and therefore wraps text differently); full modal acceptance
+remains open. Existing 597 checks pass; 799 deployed files match, private/auth/health
+checks pass; configuration, credential and voice hashes preserved. Final rollback:
+/var/backups/lorkhanserver-code.9Efj1h. No provider requests, saves or game activity.

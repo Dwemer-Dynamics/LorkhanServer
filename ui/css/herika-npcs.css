@@ -881,3 +881,12 @@ body.view-characters [data-npc-editor-panel="roleplay"] .form-item > label{font-
 .npc-dynamic-fields > summary{cursor:pointer;color:#bc9d5a;font-size:18px;font-weight:700;margin-bottom:6px}
 .npc-dynamic-fields > summary:focus-visible{outline:2px solid #bc9d5a;outline-offset:3px}
 body.view-characters .npc-editor-panel .npc-dynamic-fields > label{font-size:14px}
+
+/* Keep roleplay prose controls consistent with the reference NPC editor. */
+body.view-characters [data-npc-editor-panel="roleplay"] textarea {
+    font: 13.3333px monospace;
+    background: #2a2a2a !important;
+    color: #e9efff !important;
+    border-color: #4a4a4a !important;
+    resize: both;
+}
