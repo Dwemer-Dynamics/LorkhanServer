@@ -230,6 +230,7 @@ for path,marker,title in [
     if path != '/LorkhanServer/ui/home.php': assert '<body class="hub-page">' in text,path
 events,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=eventlog'))
 assert events.current==1 and 'id="eventlog-app"' in text and 'data-eventlog-live' in text and 'Delete Latest 5' in text and 'Delete ALL' in text and '<table class="eventlog-table' not in text and 'data-eventlog-delete-row' not in text and all(removed not in text for removed in ['Soulgaze','AI Quest Manager','Active Quests','Background Life','data-tab="questgen"','data-tab="backgroundlife"'])
+assert text.count('data-eventlog-pagination')==1 and 'roleplay-list-footer' not in text
 for removed_tab in ['backgroundlife','questgen','quests','soulgaze']:
     removed_page,removed_text=parse(request('/LorkhanServer/ui/events-memories.php?tab='+removed_tab))
     assert removed_page.current==1 and 'id="eventlog-app"' in removed_text and 'id="journal-tab" class="tab-content active"' not in removed_text,removed_tab

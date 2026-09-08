@@ -186,10 +186,7 @@ function lorkhan_roleplay_eventlog(array $state,string $apiPath,string $csrf,boo
     foreach(($state['hidden_types']??[])as$type)echo'<button type="button" class="eventlog-hidden-chip" data-eventlog-show-type="'.lorkhan_ui_h($type).'">'.lorkhan_ui_h($type).' &times;</button>';
     echo'</span></div></div><div id="eventlog-table-container" class="roleplay-data table-responsive" data-eventlog-table>';
     lorkhan_eventlog_table($rows);
-    // Herika repeats its pager under the table so a long page never strands the control.
-    echo'</div><div class="roleplay-list-controls roleplay-list-footer"><div class="pagination-shape" data-eventlog-pagination>';
-    lorkhan_eventlog_pagination($pagination);
-    echo'</div><p class="roleplay-result-count" data-eventlog-count>'.lorkhan_ui_h($count).'</p></div>';
+    echo'</div>';
     if($scope!==[])echo'<details class="eventlog-scope"><summary>Current playthrough</summary><strong>'.lorkhan_ui_h($scope['installation_name']??'Installation').'</strong><span>'.lorkhan_ui_h($scope['playthrough_name']??'Playthrough').'</span><p>Hidden and suppressed entries remain available in immutable LORKHAN source traces.</p></details>';
     echo'</div>';
 }
