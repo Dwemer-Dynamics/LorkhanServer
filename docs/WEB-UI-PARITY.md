@@ -7296,3 +7296,33 @@ this checkpoint; deployment remains the tested `d838c87` code.
   provider call or live credential edit. Full-page embedded/empty/composition
   acceptance still needs review; neither this page nor the overall goal is marked
   complete from its component checks alone.
+
+### Distinct Configuration and Control Panel hub shells (2026-09-08)
+
+- The embedded API Keys comparison found an unrecorded shared-shell mismatch:
+  native's below-780px override changed gutters to 6px and forced 520px content.
+  Removed it for Configuration, restoring the reference viewport-filling shell.
+  API Keys iframe geometry now matches at 1280x1000 (x12/y189.234375,
+  1256x800.765625) and 390x1000 (x12/y491.859375, 366x498.140625).
+- Source/live inspection showed Control Panel must not share Configuration's flex
+  shell: its reference is a scrolling block page with `100vh - 220px` readers,
+  minimum 520px (420px for viewport heights at most 800px). Gave Control Panel a
+  scoped class and block content wrapper, copying these rules and its square
+  upper-left panel corner. At desktop, main/panel/wrapper/iframe geometry now
+  matches the reference exactly; at 390px the reader still matches 366x778px.
+  Native's additional monitoring/tool tabs account for its extra navigation row,
+  not a forced content-height or gutter override.
+- All 12 native Control Panel tabs mount and satisfy the reference reader-width
+  and height rules at 1280x1000, 390x1000 and 390x700. Inspected narrow whole-page
+  capture. These are shell checks, not a claim that every child page is complete.
+- Native API Keys retains a failed-save custom-key draft after Profiles -> API
+  Keys at both widths, with the save POST mocked. The reference actually reloads
+  this frame on reactivation (`activate` -> `reloadIframe`), confirmed by a
+  browser-memory marker and source. Native intentionally retains its established
+  draft protection to satisfy the goal's data-preservation requirement. This is
+  not reported as equivalent lifecycle behavior or a visual product exception.
+- Existing 609 checks and Control Panel PHP syntax passed. Source-only server
+  deployment preserved configuration, credentials and voices; all 799 runtime
+  hashes and private/authentication probes pass. No game launch or live writes.
+  Full page/state acceptance remains open; this checkpoint corrects both hub
+  structures rather than certifying the goal from iframe dimensions.

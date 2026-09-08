@@ -12,11 +12,10 @@
 .herika-hub-page .player-narration-panel{flex:1 1 auto;height:auto;min-height:0}
 .herika-hub-page .player-narration-panel[hidden]{display:none}
 @media(max-height:800px){.herika-hub-page .embed-wrap{min-height:420px}}
-@media(max-width:780px){
-    .herika-hub-page{height:auto;min-height:calc(100vh - var(--hub-navbar-offset));padding:0 6px 6px;overflow:visible}
-    .herika-hub-page .config-navigation{overflow:visible}
-    .herika-hub-page .tab-groups{min-width:0}
-    .herika-hub-page .content-area{flex:0 0 520px;min-height:520px;overflow:visible!important}
-    .herika-hub-page .embed-wrap{min-height:520px}
-    .herika-hub-page .player-narration-shell{min-height:520px}
-}
+/* Control Panel uses the reference's scrolling page and fixed-height readers,
+   whereas Configuration fills the remaining viewport. */
+.herika-hub-page.control-hub-page{height:auto;padding-bottom:0;overflow:visible}
+.control-hub-page .tab-content{border-top-left-radius:0}
+.control-hub-page .tab-content.active{display:block}
+.control-hub-page .embed-wrap{height:calc(100vh - 220px);min-height:520px}
+@media(max-height:800px){.control-hub-page .embed-wrap{min-height:420px}}
