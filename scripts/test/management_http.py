@@ -2263,6 +2263,19 @@ assert not any(key in narrator_preset for key in ['name','actor_identity','insta
 invalid_narrator_preset=dict(narrator_preset,unexpected='rejected')
 r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_narrator_preset))); invalid_body=r.read().decode()
 assert r.status==422 and 'invalid_narrator_profile_settings_preset' in invalid_body,(r.status,invalid_body)
+# Partial Narration presets change only supplied fields, including explicit clears.
+for schema in ['lorkhan.narrator-profile-settings.v1','lorkhan.narrator-profile-settings.v2']:
+    for personality in ['Partial narrator persona','']:
+        before_partial=json.loads(request('/LorkhanServer/manage/exports/narrator-profile-settings/'+narrator_id+'.json').read())
+        partial=dict(narrator_preset,schema=schema,settings={'personality':personality})
+        r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(partial)),accept='application/json')
+        assert r.status==200 and json.loads(r.read())['ok'] is True
+        after_partial=json.loads(request('/LorkhanServer/manage/exports/narrator-profile-settings/'+narrator_id+'.json').read())
+        assert after_partial['settings']==dict(before_partial['settings'],personality=personality)
+for settings in [{'personality':False},{'not_a_setting':True}]:
+    invalid_partial=dict(narrator_preset,settings=settings)
+    r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_partial)),accept='application/json')
+    assert r.status==422,r.read().decode()
 narrator_preset['settings']['personality']='Portable narrator persona'
 r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(narrator_preset)),accept="application/json")
 assert r.status==200 and json.loads(r.read())['ok'] is True

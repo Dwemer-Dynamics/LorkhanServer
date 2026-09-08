@@ -1246,12 +1246,19 @@ final class ManagementRouter
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['settings']??null)||$this->containsSecretKey($document))
             throw new InvalidArgumentException($error);
-        $settings=$this->validatePortableSpecialProfileSettings($document['settings'],$kind,$error,
-            $schema==='lorkhan.player-profile-settings.v2'||$schema==='lorkhan.narrator-profile-settings.v2');
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
         $profile=$kind==='player'?$this->repository->playerProfileForInstallation($installation):$this->repository->narratorProfileForInstallation($installation);
         if($profile===null)throw new InvalidArgumentException($kind.'_profile_missing');
         $content=is_array($profile['content']??null)?$profile['content']:[];
+        if($kind==='narrator'){
+            // Validate supplied fields against the complete shape, but never apply absent defaults.
+            $settings=$this->validatePortableSpecialProfileSettings(
+                array_replace($this->portableSpecialProfileSettings($content,$kind),$document['settings']),$kind,$error,true);
+            $settings=array_intersect_key($settings,$document['settings']);
+        }else{
+            $settings=$this->validatePortableSpecialProfileSettings($document['settings'],$kind,$error,
+                $schema==='lorkhan.player-profile-settings.v2');
+        }
         foreach($settings as$field=>$value){
             if($field==='latest_diary_context_enabled'){
                 if($value===null)unset($content['diary']['latest_entry_in_context']);

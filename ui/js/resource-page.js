@@ -37,7 +37,7 @@
                 || !preset.settings || typeof preset.settings !== 'object' || Array.isArray(preset.settings)) {
                 window.alert('This file is not a valid Lorkhan Narration settings export.'); return;
             }
-            if (!window.confirm(`Import ${Object.keys(preset.settings).length} Narration settings fields?\n\nThe Narrator name, identity and connector selections will be kept. Unsaved page edits will be discarded.`)) return;
+            if (!window.confirm(`Import ${Object.keys(preset.settings).length} Narration settings fields?\n\nOnly fields present in this file will change. Absent settings, the Narrator name, identity and connector selections will be kept. Unsaved page edits will be discarded.`)) return;
             opener.disabled = true;
             const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 15000);
             try {

@@ -5076,3 +5076,27 @@ actions. This checkpoint does not establish whole-page or all-page acceptance.
 
 The full management HTTP suite passed with the new AJAX response assertion.
 
+
+
+### Partial Narration imports preserve omitted fields
+
+Both native Narration preset versions now accept a subset of supported fields,
+matching the reference promise that absent settings keep their current values.
+The complete current portable shape is used only for validation; only explicitly
+supplied keys are applied to the stored content. This also prevents v1 imports
+from resetting newer cooldown/chance settings to defaults. Explicit empty text
+still clears its field. Player presets retain their existing behavior.
+
+The confirmation now states the omission behavior. Existing strict type, size,
+secret and unknown-key validation remains: unlike Herika's skip-and-report flow,
+unknown or invalid keys reject the package. That difference, empty-profile
+import/export, prompt portability and remaining Narration features are still
+open; this is not full import or page acceptance.
+
+The existing HTTP suite passed partial imports and explicit clears for both v1
+and v2, equality of every omitted exported field, and invalid/unknown rejection.
+582 unit checks and JavaScript syntax passed. A disposable browser fixture passed
+the actual file picker, confirmation, save/reload and equality of all omitted
+settings, plus preserved name/profile ID. The updated 390px screenshot was
+visually inspected; no layout changes were required. No live profile or game
+was changed for these tests.
