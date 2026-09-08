@@ -36,14 +36,20 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
         <span class="visually-hidden">Configured TTS Connectors</span>
         <?php foreach ($studioTabs as $tabKey => $tab):
             $tabPresets = $presetsForTab($tabKey);
+            $tabLabel = $tab['label'];
+            if ($tabKey === 'pockettts') {
+                $pocketPreset = $activeDriver === 'pockettts' ? $activeTts : ($tabPresets[0] ?? null);
+                $pocketMode = $pocketPreset !== null && !lorkhan_voice_can_sync($pocketPreset) ? 'audio.cpp' : 'Standard API';
+                $tabLabel .= ' ('.$pocketMode.')';
+            }
             // Fallback voices and the pronunciation dictionary apply to every connector, so both report one global status.
             $isGlobalTab = in_array($tabKey, ['fallbacks', 'pronunciations'], true);
             $isActiveProvider = !$isGlobalTab && in_array($activeDriver, $tab['drivers'], true);
             $statusClass = $isGlobalTab ? 'configured' : ($isActiveProvider ? 'connected' : ($tabPresets !== [] ? 'configured' : 'unconfigured'));
-            $statusLabel = $isGlobalTab ? 'Global' : ($isActiveProvider ? 'Active' : ($tabPresets !== [] ? 'Configured' : 'Unconfigured'));
+            $statusLabel = $isGlobalTab ? 'Global' : ($isActiveProvider ? 'Active' : ($tabPresets !== [] ? 'Configured' : 'Not configured'));
         ?>
             <a class="tab-btn tab-<?php echo lorkhan_ui_h($tabKey); ?><?php echo $activeTab === $tabKey ? ' active' : ''; ?>" href="<?php echo lorkhan_ui_h($tabUrl($tabKey)); ?>">
-                <span class="tab-label"><?php echo lorkhan_ui_h($tab['label']); ?></span>
+                <span class="tab-label"><?php echo lorkhan_ui_h($tabLabel); ?></span>
                 <span class="tab-status <?php echo lorkhan_ui_h($statusClass); ?>"><?php echo lorkhan_ui_h($statusLabel); ?></span>
             </a>
         <?php endforeach; ?>
@@ -466,10 +472,10 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
             <span class="visually-hidden">Add WAV voice samples</span>
             <form class="voice-upload-form" method="post" enctype="multipart/form-data" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>">
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="upload"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>">
-                <div class="voice-upload-field"><label for="voice-sample"><?php echo $activeTab==='omnivoice'?'Select .wav file(s) or .zip archive to import:':'Select .wav files or .zip archives to upload:'; ?></label><input id="voice-sample" name="voice_sample[]" type="file" accept="audio/wav,.wav,application/zip,.zip" multiple required></div><?php if($activeTab!=='omnivoice'): ?><details class="voice-upload-name"><summary>Custom voice name (optional)</summary><label for="voice-name">Voice name for a single WAV</label><input type="text" id="voice-name" name="voice_name" maxlength="80" placeholder="Leave blank to use the filename"><p>Leave this blank when selecting multiple files.</p></details><?php endif; ?>
+                <div class="voice-upload-field"><label for="voice-sample"><?php echo $activeTab==='omnivoice'?'Select .wav file(s) or .zip archive to import:':'Select .wav file(s) or .zip archive to upload:'; ?></label><input id="voice-sample" name="voice_sample[]" type="file" accept="audio/wav,.wav,application/zip,.zip" multiple required></div><?php if($activeTab!=='omnivoice'): ?><details class="voice-upload-name"><summary>Custom voice name (optional)</summary><label for="voice-name">Voice name for a single WAV</label><input type="text" id="voice-name" name="voice_name" maxlength="80" placeholder="Leave blank to use the filename"><p>Leave this blank when selecting multiple files.</p></details><?php endif; ?>
                 <?php if($activeTab==='omnivoice'): ?><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>"><?php endif; ?>
                 <input type="hidden" name="upload_count" value="">
-                <div class="button-group"><button class="btn-primary" type="submit"><?php echo $activeTab==='omnivoice'?'Import Voice Sample':'Upload Voice Samples'; ?></button></div>
+                <div class="button-group"><button class="btn-primary" type="submit"><?php echo $activeTab==='omnivoice'?'Import Voice Sample':'Submit'; ?></button></div>
             </form>
             <?php if($activeTab==='omnivoice'): ?><div class="requirements"><p><strong>File Requirements:</strong></p><ul style="margin:0;padding-left:20px"><li>Format: WAV voice reference sample</li><li>Filename becomes the VoiceID, such as <code>femalenord.wav</code></li><li>No transcript file is required; local STT creates the reference text</li></ul></div><?php else: ?>
             <div class="requirements"><p><strong>📋 File Requirements:</strong></p><ul><li>PCM-compatible RIFF/WAVE, up to 16 MiB per sample</li><li>Voice names use letters, numbers, spaces, underscores, plus, dot, or hyphen</li><li>A flat ZIP batch or multi-file selection may contain up to 64 WAV files and 128 MiB extracted, within the server upload limits</li><li>The whole selection is checked before saving. Existing samples are never overwritten.</li><li>Files remain outside profile JSON and browser cookies</li></ul></div><?php endif; ?>

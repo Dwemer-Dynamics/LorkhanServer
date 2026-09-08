@@ -8337,3 +8337,23 @@ transaction; private optional-key handling; actual host/WSL address discovery;
 then copy the reference panel and wire its draft validation/test/save/recap states.
 Player2 and service provisioning remain separately open. Do not claim routing or
 this endpoint alone establishes the visible page's parity.
+
+### TTS Studio embedded shell and upload controls (2026-09-08)
+
+Read-only Configuration hub captures covered STT, TTS and TTS Studio at 1280/390.
+Secret-bearing input/textarea values were cleared before capture; no non-GET calls
+occurred. Compared TTS Studio on Inworld rather than assuming both installations
+selected the same provider. Initial manual reference-frame navigation omitted
+embed=1 and added 60px padding; those `voice-hub-inworld-*` initial captures do not
+establish matching page origins. Corrected embedded captures follow after deploy.
+
+Aligned the shared upload field label and Submit control with the reference;
+OmniVoice keeps its distinct Import action. Added PocketTTS's Standard API/audio.cpp
+mode suffix using existing active/saved connector upload-capability detection.
+Missing-provider badge now says Not configured. The informational header note uses
+Lorkhan gold rather than copied orange. Native configured/active status does not
+claim provider reachability. Actual upload size/format rules, optional voice naming,
+private storage and file preservation remain unchanged. No uploads were submitted.
+
+PHP lint and 691 server checks passed. The larger provider-specific editor and
+Quickstart Setup/preset gaps remain open; these label changes do not close them.

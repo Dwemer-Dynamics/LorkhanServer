@@ -37,7 +37,7 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 }
 
 .tts-studio-page .page-subtitle { margin: 0 0 10px; color: #bbb; font-size: 1.1em; line-height: 1.6; }
-.tts-studio-page .page-note { margin: 10px 0 0; color: #f0ad4e; font-size: .9em; }
+.tts-studio-page .page-note { margin: 10px 0 0; color: #bc9d5a; font-size: .9em; }
 
 .tts-studio-page .tab-nav { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 30px; padding-bottom: 10px; border-bottom: 2px solid rgba(188, 157, 90, .2); }
 .tts-studio-page .tab-btn {
