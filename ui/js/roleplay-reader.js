@@ -5,8 +5,8 @@
     const calendarViewport = root.closest('.calendar-reader-viewport');
     // Keep date anchors inside the reader, as they are in the reference iframe.
     const alignCalendarAnchor = () => {
-        if (!calendarViewport || window.location.hash !== '#adventure-events') return;
-        const target = root.querySelector('#adventure-events');
+        if (!calendarViewport || !['#adventure-events', '#event-table'].includes(window.location.hash)) return;
+        const target = root.querySelector(window.location.hash);
         if (!target) return;
         requestAnimationFrame(() => {
             calendarViewport.scrollTop += target.getBoundingClientRect().top - calendarViewport.getBoundingClientRect().top - 200;

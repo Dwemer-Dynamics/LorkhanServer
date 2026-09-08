@@ -45,7 +45,7 @@ body .roleplay-reader .diary-audio-button{background:#bc9d5a!important;border-co
 .roleplay-reader .reader-prose{white-space:pre-wrap}
 .roleplay-reader .diary-editor-modal{font-family:'Futura CondensedLight',Arial,sans-serif}
 .roleplay-reader .calendar-event-table:has(.log-empty){min-width:0}
-.diary-log-page .calendar-event-table{table-layout:auto;border-collapse:separate;border-spacing:0;font-size:13px;margin-top:20px;border:1px solid #404040;border-radius:10px}
+.diary-log-page .calendar-event-table{scroll-margin-top:200px;table-layout:auto;border-collapse:separate;border-spacing:0;font-size:13px;margin-top:20px;border:1px solid #404040;border-radius:10px}
 .diary-log-page .diary-col-people{width:20%}
 .diary-log-page .diary-col-gamets{width:15%}
 .diary-log-page .diary-col-time{width:10%}

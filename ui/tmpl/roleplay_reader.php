@@ -170,7 +170,7 @@ function lorkhan_roleplay_reader(array $state, array $installationOptions, strin
         <p role="status" data-roleplay-maintenance-status></p>
         <div data-reader-dock><p class="reader-status" role="status" aria-live="polite" data-reader-status></p><audio controls preload="none" data-reader-audio hidden></audio></div>
         <?php if($tab==='adventure'): lorkhan_adventure_table($state['rows'],$state['date']!=='' || $state['game_date']!==''); elseif($calendar): ?>
-        <div class="calendar-event-scroll"><table class="calendar-event-table">
+        <div class="calendar-event-scroll"><table class="calendar-event-table" id="event-table">
         <colgroup><col class="diary-col-people"><col><col class="diary-col-gamets"><col class="diary-col-time"><col></colgroup>
         <tbody><tr><?php foreach(['Author','Content','Tamrielic Time','Time (UTC)','Actions'] as $label): ?><th scope="col"><?php if($label==='Tamrielic Time'): ?><a href="https://en.uesp.net/wiki/Lore:Calendar" target="_blank" rel="noopener noreferrer"><?= lorkhan_ui_h($label) ?></a><?php else: ?><?= lorkhan_ui_h($label) ?><?php endif; ?></th><?php endforeach; ?></tr>
         <?php foreach($state['rows'] as $row): ?><tr>

@@ -6567,3 +6567,20 @@ state screenshot inspected. No real diary edits or exports were performed.
 799 deployed files match, private/auth/health checks pass, configuration/credentials/
 voices preserved. Rollback: /var/backups/lorkhanserver-code.XbPCOw. No game activity.
 Full page and reader/editor acceptance remains open.
+
+## Diary day selection scroll target
+
+Diary day links now include #event-table, matching Herika diarylog.php; the native
+diary table owns that unique id and reference 200px scroll margin. Extended the
+existing calendar viewport anchor handler to an explicit two-id allowlist (Adventure
+and Diary) so fragment positioning stays inside the reader and leaves hub tabs visible.
+No changes to data selection, author navigation, exports or speech handlers.
+
+Temp/diary-day-anchor.cjs passes Regular/Tamrielic day selection and fragment reload
+at 1280/390: URL anchor and unique table target checked, selected-date empty text,
+nonzero inner scroll, entire empty table visible within reader, hub tabs visible,
+zero POSTs. Inspected the narrow Tamrielic result. calendar-scroll-proof.cjs also
+passes reference viewport height and keyboard/Adventure anchor regressions at both
+widths. 603 checks pass; 799 deployed files match and private/auth/health checks pass.
+Configuration/credential/voice contents preserved. Rollback:
+/var/backups/lorkhanserver-code.2xccO4. No game or live data changes. Full matrix remains open.
