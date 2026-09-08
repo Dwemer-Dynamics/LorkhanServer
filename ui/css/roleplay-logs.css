@@ -89,6 +89,8 @@ body .calendar-downloads .log-clear,body .roleplay-log-page .log-clear{backgroun
 /* Books follows Herika's bordered, striped datatable rather than its AI-response reader. */
 .book-log-page{display:flex;flex-direction:column;padding:10px 12px 12px}
 .book-log-intro{margin:0 0 8px;color:#bcbcbc;font-size:14px}
+.observed-books-page .book-log-intro{margin-bottom:10px;font-size:14.4px;line-height:1.45}
+.observed-books-page .log-scope{margin:12px 0 0}
 .book-log-page .log-pagination{order:4;margin-bottom:0}
 .book-log-page .log-footer{display:none}
 .book-log-page .log-table-container{max-height:700px;min-height:0;padding:0;border:1px solid #aaa;border-radius:0;background:#1a1a1a}

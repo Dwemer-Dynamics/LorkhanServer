@@ -17,6 +17,7 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
         <?php if($responses): ?><div class="roleplay-description"><strong>AI Responses:</strong>
             Complete log of AI-generated responses including the full context payload sent to the LLM. Use this to debug model behavior, prompt composition, Oghma topics, and timing.
         </div><?php else: ?><p class="book-log-intro"><?= $journal?'<strong>Morrowind Journal:</strong> Entries captured from your in-game journal.':'Books observed during your Morrowind playthrough.' ?></p><?php endif; ?>
+        <?php if($books) ob_start(); ?>
         <details class="log-scope"><summary>Filters and playthrough</summary><form method="get" class="reader-filters">
             <input type="hidden" name="tab" value="<?= lorkhan_ui_h($tab) ?>">
             <label>Installation<select name="installation_id"><?php foreach($installations as $id=>$name): ?><option value="<?= lorkhan_ui_h($id) ?>"<?= $id===$state['installation']?' selected':'' ?>><?= lorkhan_ui_h($name) ?></option><?php endforeach; ?></select></label>
@@ -24,6 +25,7 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
             <label>Search<input type="search" name="q" value="<?= lorkhan_ui_h($state['query']) ?>" maxlength="200"></label>
             <button type="submit" class="roleplay-button">Filter</button><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['q'=>'','person'=>'','date'=>'','reader_page'=>1])) ?>">Reset</a>
         </form><?php if(!$responses&&!$journal): ?><a class="roleplay-button log-export" href="<?= lorkhan_ui_h($link(['export'=>'1'])) ?>">Export Book Log</a><?php endif; ?></details>
+        <?php if($books) $bookFilters=ob_get_clean(); ?>
         <?php if($responses||$journal||$state['pages']>1): ?>
         <div class="log-pagination"><nav aria-label="Log pages"><span>Page <?= $state['page'] ?> / <?= $state['pages'] ?> (<?= $state['total'] ?> rows)</span>
             <?php if($state['page']>1): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page'=>$state['page']-1])) ?>">Previous</a><?php endif; ?>
@@ -53,6 +55,7 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
             </table>
             <?php endif; ?>
         </div>
+        <?php if($books) echo $bookFilters; ?>
         <?php if($responses): ?><nav class="log-footer log-bottom-pagination" aria-label="Bottom log pages">
             <span>Page <?= $state['page'] ?> / <?= $state['pages'] ?> (<?= $state['total'] ?> rows)</span>
             <?php if($state['page']>1): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page'=>$state['page']-1])) ?>">Previous</a><?php endif; ?>

@@ -6510,3 +6510,19 @@ remains a source-rendered browser fixture, not a claim about live captured books
 603 checks pass; 799 matching deployed files, private/auth/health checks pass, config,
 credential and voice contents preserved. Rollback: /var/backups/lorkhanserver-code.4Cpqxw.
 Whole-page placement, reader extension and full counterpart matrix remain open.
+
+## Books primary content flow
+
+Moved the existing Books filters/playthrough/export disclosure after the table in DOM
+order, so the intro leads directly to records as in Herika. Captured only the Books
+filter markup for its later output; AI Responses and Journal retain their placements.
+Matched Books intro 14.4px/1.45 typography and 10px bottom margin. Native scope controls
+remain accessible below records, not removed or classified as full parity exceptions.
+
+Temp/books-intro-gap.cjs reports exactly 11px from intro bottom to table top for both
+products at 1280/390. Populated fixture table/reader/Escape checks and live empty,
+filter, Reset flow pass with zero POSTs; inspected the final narrow filtered page.
+603 checks pass and 799 deployed files match; private/auth/health checks pass and
+configuration/credential/voice contents are preserved. Rollback:
+/var/backups/lorkhanserver-code.MPodbO. No game activity. Whole-navigation differences
+and the full page/reader counterpart matrix remain open.
