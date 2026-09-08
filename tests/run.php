@@ -2099,6 +2099,23 @@ $check($workerStatus(static fn()=>null)==='Unavailable', 'failed systemd observa
 unlink($workerFixture.'/123/cmdline'); unlink($workerFixture.'/1/comm'); unlink($workerFixture.'/lorkhanserver-worker.pid');
 rmdir($workerFixture.'/123'); rmdir($workerFixture.'/1'); rmdir($workerFixture);
 
+$omniRoot=sys_get_temp_dir().'/lorkhan-omni-languages-'.bin2hex(random_bytes(4));
+$check(\LorkhanServer\Application\OmniVoiceLanguages::available($omniRoot)===[], 'missing OmniVoice catalogue stays empty');
+mkdir($omniRoot,0700);
+try {
+    file_put_contents($omniRoot.'/en.json',json_encode(['id'=>'en','display_name'=>'English']));
+    file_put_contents($omniRoot.'/cs.json',json_encode(['omnivoice_language'=>'Czech']));
+    file_put_contents($omniRoot.'/bad.json','{');
+    file_put_contents($omniRoot.'/template.json',json_encode(['id'=>'fr','display_name'=>'REPLACE THIS']));
+    file_put_contents($omniRoot.'/invalid.json',json_encode(['id'=>'../private','display_name'=>'Private']));
+    file_put_contents($omniRoot.'/oversized.json',str_repeat(' ',65537));
+    $check(\LorkhanServer\Application\OmniVoiceLanguages::available($omniRoot)===['cs'=>'Czech (cs)','en'=>'English (en)'],
+        'OmniVoice profiles are labelled, sorted and reject malformed, placeholder, invalid and oversized entries');
+} finally {
+    foreach(['en','cs','bad','template','invalid','oversized']as$name)unlink($omniRoot.'/'.$name.'.json');
+    rmdir($omniRoot);
+}
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

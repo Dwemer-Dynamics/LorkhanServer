@@ -90,6 +90,19 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
 {
     $id = 'tts-' . $driver . '-' . $field['name'];
     $type = $field['type'];
+    if ($driver === 'omnivoice' && $field['name'] === 'language') {
+        $languages = \LorkhanServer\Application\OmniVoiceLanguages::available();
+        if ($languages !== []) {
+            $type = 'select';
+            $field['values'] = array_keys($languages);
+            $field['choice_labels'] = $languages;
+            $field['help'] = isset($languages[(string)$value])
+                ? 'Select an available local OmniVoice language profile.'
+                : 'Saved language '.(string)$value.' is not available as an OmniVoice profile. It is retained until you choose another language.';
+        } else {
+            $field['help'] = 'No OmniVoice language profiles were found in /home/dwemer/omnivoice-tts/languages.';
+        }
+    }
     ?><div class="field-block"><label for="<?php echo lorkhan_ui_h($id); ?>"><?php echo lorkhan_ui_h($field['label']); ?></label>
     <?php if ($type === 'select'): ?>
         <select id="<?php echo lorkhan_ui_h($id); ?>" name="<?php echo lorkhan_ui_h($field['name']); ?>" form="<?php echo lorkhan_ui_h($formId); ?>"<?php echo $active ? '' : ' disabled'; ?>>

@@ -5677,3 +5677,40 @@ out; the corrected data-eventlog-api probe passed. Screenshots were inspected.
 588 server checks passed; no deletion, preference write, provider or game action
 was sent. This does not establish all event operations or whole-page acceptance.
 The full matrix remains open.
+
+## OmniVoice prepared-language selector and reference Save audit
+
+Added the local prepared-profile selector using the reference language IDs and
+labels. OmniVoiceLanguages reads /home/dwemer/omnivoice-tts/languages without
+provider requests, projects only bounded labels/IDs, rejects malformed/placeholder
+and oversized files, and does not follow file symlinks. The editor retains an
+unavailable saved language and explains it rather than silently choosing another.
+An absent catalogue retains the text field and the reference empty-profile notice.
+
+The pinned reference ui/core/tts_connectors.php says Save prepares a language,
+but its create/update path in lib/core/tts_connector.class.php only persists
+connector metadata. No preparation invocation exists in those pinned paths.
+The native selector therefore does not repeat that unsupported Save promise.
+Actual service-side preparation is not established by either editor's help text;
+remaining provider workflow claims must be based on a traced implementation.
+
+The reference and native selectors each showed 18 local profiles in the browser.
+Temp/omni-languages-proof.cjs verified native language draft preservation across
+service switches. Paired desktop/narrow screenshots were inspected. Two focused
+checks in tests/run.php cover missing catalogue and valid/sorted versus malformed,
+placeholder, invalid-ID and oversized profile files. 590 checks and management
+HTTP forms passed; no native connector was saved or speech requested.
+
+Reference comparison incident: the reference create_blank GET immediately creates
+a database connector. Opening it for the comparison unintentionally created empty
+PocketTTS connector 49 (New TTS Connector 3). After verifying its identity, unchanged
+default driver/endpoint and zero assignments, Temp/omni-reference-cleanup.cjs removed
+only 49 and verified the other connector IDs were unchanged. Future reference
+comparisons must open an existing editor, not the create_blank URL. No existing
+reference connector settings or credentials were edited. The source worktree's
+pre-existing PHPUnit cache change was preserved.
+
+The earlier OmniVoice row's prepared-selector gap is addressed; the claimed
+Save-time preparation gap is superseded by this audit, not by a fabricated control.
+Language-library states, other provider controls and whole-site acceptance remain
+in the full matrix. No game interaction occurred.
