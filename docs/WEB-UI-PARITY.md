@@ -8492,3 +8492,34 @@ configuration, credential and voice contents preserved. Read-only deployed brows
 refresh selected a populated date, verified current/all CSV include the displayed
 event, switched calendar modes and checked an empty day. No game or data writes.
 Full page parity goal remains active; this does not close unrelated Diary limits.
+
+### Diaries complete calendar/author sets and ordering (2026-09-08)
+
+Reference diarylog.php:180 shows all selected-author entries newest-first; its
+calendar query at 888 shows all selected-day entries oldest-first. Neither query
+has a 20-row limit. Native had generic pagination and newest-first order for both.
+Removed the Diary-only limit/pager and matched calendar versus author ordering.
+Existing exact author identities, playthrough ownership, filters, revisions and
+soft deletion remain. Diary downloads use the same view order. Other paged readers
+are unchanged; large author histories now render all matching entries as reference.
+
+Moved the hidden Stop Reading control into the shared calendar audio dock rather
+than deleting it with the generic toolbar. The shared script requires that node
+for event registration, stopping, modal relocation and scope changes. This also
+repairs the missing hidden control after the prior Adventure toolbar removal.
+No JavaScript behavior was weakened or replaced with null-tolerant no-ops.
+
+Existing HTTP suite extended with 24 isolated diaries: full-day ascending order,
+complete-author descending order, stale page-two equivalence, no generic pager,
+one hidden stop control, and both full exports. Initial assertion counted read and
+edit triggers as separate entries; corrected to count content buttons. Full suite
+then passed (diary-day-http-2.txt), alongside PHP lint and 691 server checks.
+
+Regenerated current PHP fixture. Paired 1280/390 reader/editor modal captures and
+computed geometry completed; both narrow pairs were inspected and match apart from
+gold branding. Existing mocked delete cancel/rejection, empty/long reader scrolling,
+Escape and focus-return checks pass. Focused diary-stop-dock-proof.cjs verifies
+mocked provider failure restores Play, hides Stop, closes the modal and returns one
+Stop control to its dock with no JS errors at both widths. Its initial stale error
+text and immediate pre-close assertion were corrected to the actual message and
+completed close event before acceptance. No live diary writes or provider calls.

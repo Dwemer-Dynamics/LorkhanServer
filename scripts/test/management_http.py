@@ -1156,6 +1156,27 @@ _,adventure_other=parse(request(adventure_url.replace(adventure_scope,playthroug
 assert 'Adventure fixture' not in adventure_other
 _,adventure_empty=parse(request(adventure_url.replace('2020-12-31','1900-01-01')))
 assert 'No events found for this date.' in adventure_empty and 'data-adventure-row=' not in adventure_empty
+# Calendar diaries show a complete day oldest-first; author view shows all matches newest-first.
+subprocess.run(adventure_psql,input=f"""
+INSERT INTO lorkhan_internal.narrative_records(narrative_id,installation_id,profile_id,playthrough_id,kind,title,content,provenance,created_at)
+SELECT gen_random_uuid(),'{valid['installation_id']}','{profile_id}','{adventure_scope}','diary',
+'DiaryDayFixture '||lpad(n::text,2,'0'),'DiaryDayFixture '||lpad(n::text,2,'0'),'{{}}',to_timestamp(1609416000+n)
+FROM generate_series(1,24) n;
+""",text=True,capture_output=True,check=True)
+diary_day_path=adventure_url.replace('tab=adventure','tab=diaries')+'&q=DiaryDayFixture'
+_,diary_day_html=parse(request(diary_day_path))
+diary_day_table=re.search(r'<table class="calendar-event-table".*?</table>',diary_day_html,re.S).group(0)
+assert diary_day_table.count('class="log-content-link"')==24 and diary_day_table.index('DiaryDayFixture 01')<diary_day_table.index('DiaryDayFixture 24')
+assert 'reader-pagination' not in diary_day_html and 'class="reader-toolbar"' not in diary_day_html and diary_day_html.count('data-reader-stop')==1
+_,diary_day_stale=parse(request(diary_day_path+'&reader_page=2'))
+assert diary_day_table==re.search(r'<table class="calendar-event-table".*?</table>',diary_day_stale,re.S).group(0)
+diary_person_path=diary_day_path.replace('&date=2020-12-31','')+'&view=people&person='+profile_id
+_,diary_person_html=parse(request(diary_person_path))
+diary_person_table=re.search(r'<table class="calendar-event-table".*?</table>',diary_person_html,re.S).group(0)
+assert diary_person_table.count('class="log-content-link"')==24 and diary_person_table.index('DiaryDayFixture 24')<diary_person_table.index('DiaryDayFixture 01')
+for path,order in [(diary_day_path,range(1,25)),(diary_person_path,range(24,0,-1))]:
+    diary_rows=list(csv.DictReader(io.StringIO(request(path+'&export=1').read().decode())))
+    assert [row['Content'] for row in diary_rows]==[f'DiaryDayFixture {n:02d}' for n in order]
 subprocess.run(adventure_psql,input=f"DELETE FROM public.eventlog WHERE rowid IN (SELECT rowid FROM lorkhan_internal.eventlog_metadata WHERE playthrough_id='{adventure_scope}'); DELETE FROM lorkhan_internal.playthroughs WHERE playthrough_id='{adventure_scope}';",text=True,capture_output=True,check=True)
 empty_export=request(diary_url+'&export=1&date=1900-01-01')
 assert narrative_text not in empty_export.read().decode()
