@@ -11,9 +11,17 @@
         dialog.showModal();
         document.body.style.overflow = 'hidden';
     }));
-    root.querySelectorAll('.log-content-modal').forEach(dialog => dialog.addEventListener('close', () => {
-        document.body.style.overflow = previousOverflow;
-    }));
+    root.querySelectorAll('.log-content-modal').forEach(dialog => {
+        dialog.addEventListener('close', () => {
+            document.body.style.overflow = previousOverflow;
+        });
+        dialog.addEventListener('click', event => {
+            if (event.target !== dialog) return;
+            const bounds = dialog.getBoundingClientRect();
+            if (event.clientX < bounds.left || event.clientX > bounds.right
+                || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+        });
+    });
     root.querySelectorAll('[data-log-close]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
     root.querySelectorAll('[data-log-copy]').forEach(button => button.addEventListener('click', async () => {
         const dialog = button.closest('dialog');

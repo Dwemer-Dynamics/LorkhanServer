@@ -6606,3 +6606,21 @@ with synthetic text only for read-only style inspection; paired viewer screensho
 inspected. 603 checks and Books table/reader regressions passed. 799 deployed files
 match, private/auth/health checks pass; config/credentials/voices preserved. Rollback:
 /var/backups/lorkhanserver-code.G4JhgU. No game activity. Full page matrix remains open.
+
+## Shared reader backdrop close parity
+
+Added reference-style backdrop dismissal to the existing log dialogs. Clicks must
+land on the dialog element outside its bounding rectangle; padding/content clicks
+remain open. Existing close handling restores body scrolling for backdrop, explicit
+close and Escape. Removed the trailing blank line flagged in the previous CSS diff.
+
+Temp/log-viewer-close-proof.cjs uses fresh source-rendered Books and AI Responses
+fixtures inside their actual deployed page styles at 1280/390. Padding click, mocked
+Copy, backdrop close, focus/overflow restoration, reopening status reset and Escape
+pass with zero POSTs. The initial probe used a nonexistent native ai-response.php;
+corrected to events-memories.php?tab=responselog, then all four cases passed. Inspected
+the narrow AI prompt viewer screenshot. books-reader-proof.cjs copy failure/long text
+regression also passes. No system clipboard, real prompt or provider writes.
+603 server checks pass. 799 matching deployed files and private/auth/health checks
+pass; config/credentials/voice contents preserved. Rollback:
+/var/backups/lorkhanserver-code.PqqJbW. No game activity. Full parity matrix remains open.
