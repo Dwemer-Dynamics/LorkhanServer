@@ -197,6 +197,7 @@ final class SettingsCatalog
                 'autofill_custom_profiles_trigger' => 40,
             ],
             'rpg_comments' => ['events'=>['levelup','combat_end'],'chance_percent'=>50],
+            'bored_event' => ['chance_percent'=>50],
             'translation' => TranslationPolicy::defaults(),
             'oghma' => self::OGHMA_DEFAULTS + ['knowledge_tags' => '', 'extractor_enabled' => false],
             'context' => [

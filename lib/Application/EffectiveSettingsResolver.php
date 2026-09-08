@@ -90,6 +90,8 @@ final class EffectiveSettingsResolver
         $this->markLeaves($settings['diary'], 'default', 'settings.diary', $sources);
         $settings['memory']['short_term_max_summaries'] = 10;
         $sources['settings.memory.short_term_max_summaries'] = 'default';
+        $settings['bored_event'] = $global['bored_event'];
+        $sources['settings.bored_event.chance_percent'] = $globalSettings === [] ? 'default' : 'global';
         $settings['rpg_comments'] = $global['rpg_comments'];
         foreach (array_keys($settings['rpg_comments']) as $field) {
             $sources['settings.rpg_comments.' . $field] = $globalSettings === [] ? 'default' : 'global';
@@ -133,6 +135,7 @@ final class EffectiveSettingsResolver
         }
         if (isset($coreOverrides['diary'])) $allowedOverrides['diary'] = $coreOverrides['diary'];
         if (isset($coreOverrides['response'])) $allowedOverrides['response'] = $coreOverrides['response'];
+        if (isset($coreOverrides['bored_event'])) $allowedOverrides['bored_event'] = $coreOverrides['bored_event'];
         if (isset($coreOverrides['rpg_comments'])) $allowedOverrides['rpg_comments'] = $coreOverrides['rpg_comments'];
         $this->mergeSettings($settings, $allowedOverrides, 'core_profile', 'settings', $sources);
 
@@ -263,7 +266,7 @@ final class EffectiveSettingsResolver
         if (($content['schema'] ?? null) === SettingsCatalog::GLOBAL_SCHEMA
             && is_array($content['profile_management'] ?? null) && !array_is_list($content['profile_management'])) {
             $content['profile_management'] += $expected['profile_management'];
-            $content += ['rpg_comments'=>$expected['rpg_comments'], 'prompt'=>$expected['prompt']];
+            $content += ['bored_event'=>$expected['bored_event'], 'rpg_comments'=>$expected['rpg_comments'], 'prompt'=>$expected['prompt']];
             if(is_array($content['client']['narrator']??null)&&!array_is_list($content['client']['narrator']))
                 $content['client']['narrator'] += $expected['client']['narrator'];
         }
@@ -283,6 +286,7 @@ final class EffectiveSettingsResolver
             || $content['profile_management']['autofill_custom_profiles_trigger'] > 100) {
             throw new InvalidArgumentException('invalid_global_settings');
         }
+        self::validateBoredEvent($content['bored_event']);
         self::validateRpgComments($content['rpg_comments']);
         $content['translation'] = TranslationPolicy::validate($content['translation']);
         self::validateGlobalOghma($content['oghma']);
@@ -336,6 +340,14 @@ final class EffectiveSettingsResolver
         return self::validateGlobalSettings($document);
     }
 
+    /** Validate the overall bored opportunity chance independently of narrator routing. */
+    private static function validateBoredEvent(mixed $policy): void
+    {
+        if (!is_array($policy) || array_keys($policy) !== ['chance_percent']
+            || !is_int($policy['chance_percent']) || $policy['chance_percent'] < 0
+            || $policy['chance_percent'] > 100) throw new InvalidArgumentException('invalid_bored_event');
+    }
+
     /** @param mixed $overrides */
     public static function validateSettingsOverrides(mixed $overrides): array
     {
@@ -343,6 +355,10 @@ final class EffectiveSettingsResolver
             throw new InvalidArgumentException('invalid_settings_overrides');
         }
         $validation=$overrides;
+        if (array_key_exists('bored_event', $validation)) {
+            self::validateBoredEvent($validation['bored_event']);
+            unset($validation['bored_event']);
+        }
         if (array_key_exists('rpg_comments', $validation)) {
             self::validateRpgComments($validation['rpg_comments'], true);
             unset($validation['rpg_comments']);

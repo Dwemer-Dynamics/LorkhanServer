@@ -2201,6 +2201,20 @@ $check(array_column($pruned['history'],'_source_id')===['other']
     &&$pruned['memory']['counts']['covered_by_history']===0,
     'pruning preserves the next temporal heading and traces combined memory/history coverage accurately');
 
+$boredCore=['settings_overrides'=>['bored_event'=>['chance_percent'=>0]]];
+$boredResolved=(new EffectiveSettingsResolver())->resolve([],$boredCore,[]);
+$check($boredResolved['settings']['bored_event']['chance_percent']===0
+    &&$boredResolved['sources']['settings.bored_event.chance_percent']==='core_profile'
+    &&!isset(EffectiveSettingsResolver::controlsProjection($boredResolved)['settings']['bored_event']),
+    'bored chance preserves explicit zero and server ownership without changing strict client controls');
+$boredPreset=\LorkhanServer\Application\CoreProfilePreset::capture($boredCore);
+$check(\LorkhanServer\Application\CoreProfilePreset::apply($boredPreset,$corePresetSource)['settings_overrides']['bored_event']['chance_percent']===0,
+    'bored chance zero survives named presets');
+foreach([-1,101,'50',null] as $invalidChance){
+    try{EffectiveSettingsResolver::validateSettingsOverrides(['bored_event'=>['chance_percent'=>$invalidChance]]);$check(false,'invalid bored chance rejected');}
+    catch(InvalidArgumentException){$check(true,'invalid bored chance rejected');}
+}
+
 $combatCore=['settings_overrides'=>['behavior'=>['combat_bark_period_seconds'=>600]]];
 $combatResolved=(new EffectiveSettingsResolver())->resolve([],$combatCore,[]);
 $check($combatResolved['settings']['behavior']['combat_bark_period_seconds']===600

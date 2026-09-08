@@ -9422,3 +9422,18 @@ Implementation requirements for this pending row:
 
 No product behavior changed by this audit. This supersedes any suggestion that
 adding a generic probability to the existing selected-target timer is sufficient.
+
+
+### Bored Event server policy foundation (2026-09-08)
+
+Added server-owned `bored_event.chance_percent` (integer0-100/default50),
+normalization for older global documents, Core resolution/source tracking and
+named Core/global preset retention. Explicit zero remains zero. This policy is
+not projected into the existing strict native controls document. Existing
+server suite: 789 checks passed, including zero ownership/preset and invalid
+negative, above100, string and null cases.
+
+This is preparation, not runtime parity: no new UI card is exposed and the
+chosen-speaker request, probability consumer, narrator ordering and missed-roll
+cooldown remain to implement before deployment. NPC override editing, portable
+forms and built-in-specific values also remain pending. No game was launched.
