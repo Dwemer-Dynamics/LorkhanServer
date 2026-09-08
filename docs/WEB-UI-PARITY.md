@@ -7577,3 +7577,22 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - 613 server checks and deployment syntax validation pass. Verified all 800 runtime
   hashes and private/authentication probes; configuration, credentials and voices
   preserved. Rollback: lorkhanserver-code.quTWtd.
+
+### LLM service-switching draft comparison
+
+- Provider now appears only for OpenRouter or Custom, matching reference service
+  selection. Its draft value is retained while hidden. Choosing Custom preserves
+  the existing URL and API-key choice instead of clearing them, and keeps Custom
+  selected while editing the URL. Explicit hosted-service selection still applies
+  that service's endpoint and matching API badge without changing the model draft.
+- Compared five hosted services, Custom URL/key retention, URL editing and return
+  to OpenRouter at 1280/390 in both editors. No saves; catalogue requests mocked.
+  Browser draft checks pass. Inspected narrow Custom captures: reference overflows
+  horizontally (737px content at 390), native stacks. This is recorded divergence,
+  not whole-page parity. Custom driver/IP helpers and Player2 remain open; native
+  Player2 still requires model input and must not hide it without backend support.
+- Custom selection is an editing state; saved native endpoints are classified from
+  their URL on reload. Distinct saved Custom service identity still needs review.
+- JavaScript syntax, diff checks and 613 server checks pass. Deployed code verified
+  against all 800 runtime hashes; private/authentication probes pass and existing
+  configuration, credentials and voices are preserved.

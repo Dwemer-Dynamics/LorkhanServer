@@ -297,9 +297,10 @@
         google: 'https://ai.google.dev/', groq: 'https://console.groq.com/keys',
         nanogpt: 'https://nano-gpt.com/',
     };
+    let customServiceSelected = false;
     const updateService = () => {
         const service = driver.value === 'openai-compatible'
-            ? (Object.keys(services).find((key) => key !== 'custom' && services[key][0] === endpoint?.value) || 'custom')
+            ? (customServiceSelected ? 'custom' : Object.keys(services).find((key) => key !== 'custom' && services[key][0] === endpoint?.value) || 'custom')
             : (driver.value === 'configured' ? document.getElementById('llm_model')?.dataset.runtimeService || '' : '');
         serviceButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.llmService === service)));
         const label = document.getElementById('llm-service-label');
@@ -307,6 +308,8 @@
         if (label) label.textContent = 'Service: ' + (active?.title || (driver.value === 'mock' ? 'Deterministic mock' : 'Configured runtime'));
         const endpointRow = document.getElementById('llm_endpoint_row');
         if (endpointRow) endpointRow.hidden = driver.value !== 'openai-compatible' || service !== 'custom';
+        const providerRow = document.getElementById('llm_provider_row');
+        if (providerRow) providerRow.hidden = !['openrouter', 'custom'].includes(service);
         const signup = document.getElementById('llm-service-signup');
         if (signup) {
             signup.hidden = !signupUrls[service];
@@ -319,7 +322,7 @@
         const custom = document.getElementById('llm-service-custom');
         if (custom) custom.hidden = service !== 'custom';
     };
-    driver.addEventListener('change', () => { apply(); updateService(); });
+    driver.addEventListener('change', () => { customServiceSelected = false; apply(); updateService(); });
     endpoint?.addEventListener('input', updateService);
     apply();
     updateService();
@@ -339,12 +342,14 @@
         button.addEventListener('click', () => {
             const preset = services[button.dataset.llmService];
             if (!preset) return;
+            customServiceSelected = button.dataset.llmService === 'custom';
             driver.value = 'openai-compatible';
             apply();
             const endpoint = document.getElementById('llm_endpoint');
             const credential = document.getElementById('llm_credential');
-            if (endpoint) { endpoint.value = preset[0]; endpoint.dispatchEvent(new Event('input', {bubbles: true})); }
-            if (credential) {
+            // Custom edits the current connection, matching Herika without discarding its URL or key.
+            if (endpoint && !customServiceSelected) { endpoint.value = preset[0]; endpoint.dispatchEvent(new Event('input', {bubbles: true})); }
+            if (credential && !customServiceSelected) {
                 // Herika matches provider badge labels in the configured-first picker on explicit service changes.
                 const labels = {openrouter:['openrouter'],openai:['openai'],google:['google'],groq:['groq'],nanogpt:['nano-gpt','nanogpt']}[button.dataset.llmService] || [];
                 const matching = Array.from(credential.options).find(option => !option.disabled && option.value
