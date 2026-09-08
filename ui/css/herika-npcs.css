@@ -812,6 +812,19 @@ body .npc-relationships .npc-rel-detail-dialog input{height:40px;min-height:40px
 .npc-setting-overrides .npc-ovr-info .npc-ovr-value {background:transparent;padding:0;}
 
 /* Herika Info disclosures backed by exact OpenMW target observations. */
+body.view-characters .npc-editor-modal .npc-modal-actions .btn-cancel {
+    background:#3b3b3b!important;color:#e9efff;border:1px solid #4a4a4a;border-color:#4a4a4a!important;
+    border-radius:6px;font-size:13.12px;font-weight:600;line-height:1.2;padding:7px 12px;min-height:36px;
+}
+body.view-characters .npc-editor-modal .npc-modal-actions .btn-save {
+    background:#2f714b;border:1px solid #3b8a60;border-radius:6px;
+    color:#fff;font-size:13.12px;font-weight:700;line-height:1.2;padding:7px 12px;min-height:36px;
+}
+body.view-characters .npc-editor-modal .npc-modal-body {max-height:calc(85vh - 100px);}
+@media(max-width:700px){
+    body.view-characters .npc-editor-modal > .npc-editor-header {flex-wrap:wrap;}
+    body.view-characters .npc-editor-modal .npc-modal-actions {justify-content:flex-start;}
+}
 .npc-observed-state > details {border:1px solid #4a4a4a;border-radius:8px;padding:8px;background:#262626;}
 .npc-observed-state summary {cursor:pointer;font:700 18px "Futura CondensedLight",Arial,sans-serif;color:#bc9d5a;}
 .npc-observed-body {margin-top:8px;color:#cfd9ea;}

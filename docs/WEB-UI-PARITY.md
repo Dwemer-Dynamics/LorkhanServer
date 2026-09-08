@@ -5548,3 +5548,25 @@ The Inventory disclosure is ready to render recorded items but current capture
 is incomplete. Metadata editing needs a revisioned ownership design rather than
 rewriting immutable observations. Full catalogue, combined override/relationship
 save proof, whole modal layout and all other page-matrix gaps remain open.
+## Existing NPC modal toolbar checkpoint
+
+The reference openNpcModal path hides Manual/NPC Biographies for existing edits.
+Lorkhan now omits that duplicate strip for existing NPCs, while preserving the
+creation strip and secondary biography link. The duplicate toolbar View History
+was removed; the History category remains. Diary precedes Profile Versions as in
+Herika. Existing form routes and CSRF/revision inputs were not changed.
+
+Live reference measurements from Temp/npc-header-reference.cjs: all eight toolbar
+actions are 36px high with 13.12px Futura CondensedLight and 1.2 line height;
+Save uses weight 700 and #2f714b, secondary actions weight 600 and #3b3b3b.
+Scoped native rules now match those measurements, including overrides for shared
+submit-button coloring. Narrow headers wrap below their title instead of squeezing
+the title into a side column. Removing the strip also restores body space.
+
+Temp/npc-header-native.cjs passed against the local candidate: absent duplicate
+strip/action, eight measured button heights/backgrounds, retained History tab and
+Close behavior. Desktop 1280px and narrow 390px screenshots were inspected. No
+live NPC form was submitted. 588 server checks and management HTTP forms passed.
+The broader modal still differs in outer inset, tags/knowledge controls, tab and
+content geometry; this is progress, not whole-modal acceptance. Other matrix gaps
+remain open. No game or paid provider was used.
