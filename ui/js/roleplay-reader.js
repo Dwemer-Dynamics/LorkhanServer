@@ -142,6 +142,14 @@
     }));
     root.querySelectorAll('[data-calendar-close]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
     root.querySelectorAll('.diary-entry-modal,.diary-editor-modal').forEach(dialog => {
+        // Native dialogs target themselves for backdrop clicks, including clicks on their padding.
+        // Only coordinates outside the dialog are equivalent to Herika's backdrop target.
+        dialog.addEventListener('click', event => {
+            if (event.target !== dialog) return;
+            const bounds = dialog.getBoundingClientRect();
+            if (event.clientX < bounds.left || event.clientX > bounds.right
+                || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+        });
         dialog.addEventListener('close', () => {
             stop('');
             dock?.append(stopButton, status, audio);

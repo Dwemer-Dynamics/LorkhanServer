@@ -6818,3 +6818,30 @@ differences. It does not accept unrelated reader, calendar, deletion or other pa
 The same geometry assertions pass against deployed CSS. The existing browser-mocked
 422 check confirms blank content prevents submission, rejected edits retain the typed
 content and show their error, and Cancel closes at both widths. No live save occurred.
+
+### Diary backdrop close and audio cancellation (2026-09-08)
+
+Pinned Herika diarylog.php closes its entry and edit modals when the outer backdrop
+is clicked; closing the entry calls stopDiaryAudio, including request cancellation.
+Native dialogs previously closed only through their buttons or Escape. Added equivalent
+backdrop handling for the Diary reader/editor dialogs, using bounds checks to avoid
+treating clicks inside dialog padding as outside clicks. Closure reuses the existing
+abort/pause/release, audio-dock restoration, focus return and scroll restoration path.
+
+`Temp/diary-backdrop-proof.cjs` runs rendered fixtures in the actual native page at
+1280/390. Browser-local fetch and media mocks cover a pending speech request and an
+already playing sentence: backdrop close aborts/pauses, clears the audio source and
+reading state, and never requests the next sentence. Padding clicks keep the dialog
+open. Edit/backdrop/reopen restores saved fixture content; focus and prior body overflow
+are restored. Screenshots capture both mocked playback states, with no real POST,
+provider call, generated audio, game interaction or live diary mutation. JavaScript
+syntax and the existing 608 server checks pass.
+
+This proves the closing/cancellation interaction, not live voice generation or audio
+quality, and does not close remaining full reader presentation/data-mapping review.
+
+Deployed rerun passes at both widths. The media fixture uses a valid silent WAV and
+asserts the reading state is still active before closing (no decoder-error shortcut).
+The screenshot shows the active Stop control. Mocked editor rejection checks also pass.
+Runtime verification matches all 799 source files with no extras or legacy paths;
+private paths remain forbidden and unauthenticated sessions remain rejected.
