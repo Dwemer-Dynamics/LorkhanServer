@@ -1898,6 +1898,14 @@ foreach(['pockettts','omnivoice','chatterbox','xtts-fastapi']as$driver){
     try{$localResolver->resolve('mw_dark_elf_male','en',new \LorkhanServer\Application\CallbackCancellationToken(static fn()=>true));$check(false,'local cancellation before upload');}
     catch(\LorkhanServer\Application\OperationCancelled){$check(count($localCalls)===5,'local cancellation prevents discovery and upload');}
 }
+// Another PHP worker can delete a sample while this process retains its realpath cache.
+$removedSample=$inworldRoot.'/worker_removed.wav';
+copy($inworldRoot.'/mw_dark_elf_male.wav',$removedSample);
+realpath($removedSample);
+$removeProcess=proc_open([PHP_BINARY,'-r','exit(unlink($argv[1]) ? 0 : 1);',$removedSample],[], $removePipes);
+if(!is_resource($removeProcess)||proc_close($removeProcess)!==0)throw new RuntimeException('sample removal fixture failed');
+$check($localResolver->resolve('worker_removed','en',new NeverCancelledToken())===['speaker_wav'=>'worker_removed']
+    &&count($localCalls)===5,'deleted local sample uses the provider voice despite a stale worker realpath cache');
 $legacyCalls=[];$legacyLatents=['speaker_embedding'=>[0.1,0.2],'gpt_cond_latent'=>[[0.3,0.4]]];
 $legacyResolver=new \LorkhanServer\Application\LocalVoiceResolver('http://127.0.0.1:8999/tts_stream','xtts',$inworldRoot,'',30000,
     static function(string $url,?array $fields)use(&$legacyCalls,$legacyLatents):array{

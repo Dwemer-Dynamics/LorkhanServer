@@ -28,7 +28,10 @@ final class LocalVoiceResolver
         if(preg_match('/^[\pL\pN][\pL\pN _+.-]{0,511}$/uD',$voice)!==1)throw new RuntimeException('invalid_voice_name');
         $name=preg_replace('/\.wav$/i','',preg_replace('/\s+/u','_',$voice));
         $root=realpath($this->voiceRoot);
-        $sample=$root===false?false:realpath($root.'/'.$name.'.wav');
+        $samplePath=$root===false?'':$root.'/'.$name.'.wav';
+        // Voice Studio changes samples in other workers; do not trust this worker's cached path.
+        if($samplePath!=='')clearstatcache(true,$samplePath);
+        $sample=$samplePath===''?false:realpath($samplePath);
         if($sample!==false&&(!str_starts_with($sample,$root.DIRECTORY_SEPARATOR)||!is_file($sample)))throw new RuntimeException('invalid_voice_sample');
         // Provider-owned voices remain authoritative; only local samples require registration.
         if($sample===false&&$this->driver!=='xtts')return ['speaker_wav'=>$voice];

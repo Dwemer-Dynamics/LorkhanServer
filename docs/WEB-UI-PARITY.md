@@ -8560,3 +8560,33 @@ files match source with no extras or legacy paths. Health/private/auth checks pa
 configuration, credentials and voice contents preserved. Full ordering proof is
 the isolated 61-row HTTP dataset; no live game records were fabricated. Full goal
 remains active, including the unresolved intermittent diary audio test failure.
+
+### Diary audio intermittent failure root cause (2026-09-08)
+
+The prior opaque diary_audio_failed result is now reproduced and traced, not merely
+retried. A focused diagnostic repeated uncached diary requests against the existing
+isolated mock provider. It failed on requests 11 and 20 in separate runs with
+invalid_voice_sample at LocalVoiceResolver.php:32. Diagnostic path flags prove the
+cached realpath pointed to a file that no longer existed. The earlier voice-library
+HTTP fixture intentionally deletes HTTPBatch*.wav before the diary test. Different
+PHP workers retain positive realpath-cache entries from before that deletion,
+explaining why fresh workers passed while warm workers rejected the same voice.
+The remote provider still owns the voice and no longer needs the local sample.
+
+LocalVoiceResolver now invalidates only the candidate sample path's stat/realpath
+cache before resolving it. Missing samples take the existing provider-owned voice
+path; real files still undergo the unchanged directory containment, regular-file
+and size checks. This covers Voice Studio sample changes across PHP workers without
+weakening validation or changing voice selection, credentials or audio caching.
+
+Added eight lines to the existing unit suite: warm the sample realpath, remove the
+fixture from a child PHP process, then resolve the provider-owned voice with no
+upload. It fails with the exact original exception before the fix and passes after.
+692 server checks and PHP lint pass. All temporary diagnostic logging and repeated
+HTTP-loop edits were removed; ManagementRouter and management_http.py have no diff.
+This is backend acceptance work for diary/TTS pages, not new visual parity proof.
+Live paid-provider synthesis and in-game audio remain untested.
+
+Full management HTTP suite passed with the final code and original test flow
+(diary-stale-path-fixed-http.txt), including diary generation, cache hit/invalidation,
+author changes and subsequent page tests. No retry was needed after the fix.
