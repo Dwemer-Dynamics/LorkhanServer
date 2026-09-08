@@ -71,18 +71,26 @@ body.view-characters .npc-modal-body {
     align-items: center;
     justify-content: flex-end;
     gap: 9px;
-    margin: 0 6px 10px;
+    margin: 0 0 8px;
 }
 
 .npc-editor-meta label {
     margin: 0;
     color: rgb(188, 157, 90);
-    font-weight: 700;
+    font-weight: 400;
 }
 
-.npc-editor-meta > input {
-    width: min(260px, 50vw);
-    height: 34px;
+body.view-characters .npc-editor-meta > input {
+    width: 240px;
+    max-width: 240px;
+    flex: 0 1 240px;
+    height: 24px;
+    min-height: 24px;
+    font:12px Arial,sans-serif;
+    padding:4px 6px;
+    border:1px solid #4a4a4a;
+    border-radius:6px;
+    background:#2a2a2a;
     margin: 0;
 }
 
@@ -97,9 +105,9 @@ body.view-characters .npc-modal-body {
     width: 34px;
     height: 34px;
     place-items: center;
-    border: 1px solid #444;
-    border-radius: 6px;
-    background: #303030;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
     color: #ffd700;
     cursor: pointer;
     font-size: 20px;
@@ -112,9 +120,9 @@ body.view-characters .npc-modal-body {
     align-items: center;
     margin-bottom: 8px;
     padding: 8px;
-    border: 1px solid #3a3a3a;
+    border: 1px solid #4a4a4a;
     border-radius: 8px;
-    background: rgba(30, 30, 30, .92);
+    background: transparent;
 }
 
 .npc-profile-llms strong {
@@ -124,7 +132,7 @@ body.view-characters .npc-modal-body {
 
 .npc-profile-llms > span {
     color: #ddd;
-    font-size: 15px;
+    font-size: 18px;
     overflow-wrap: anywhere;
 }
 
@@ -812,6 +820,19 @@ body .npc-relationships .npc-rel-detail-dialog input{height:40px;min-height:40px
 .npc-setting-overrides .npc-ovr-info .npc-ovr-value {background:transparent;padding:0;}
 
 /* Herika Info disclosures backed by exact OpenMW target observations. */
+body.view-characters .npc-editor-modal {padding:30px;display:flex;flex-direction:column;}
+body.view-characters .npc-editor-modal > .npc-modal-body {
+    padding:0 5px 0 0;background:#2a2a2a;min-height:0;
+    font:18px "Futura CondensedLight",Arial,sans-serif;
+}
+body.view-characters .npc-editor-modal .npc-editor-tab {
+    font:700 13.3333px Arial,sans-serif;min-height:40px!important;
+}
+body.view-characters .npc-editor-meta > label {font-size:18px;}
+body.view-characters [data-npc-editor-panel="info"] .form-item > label {font-size:18px;}
+body.view-characters [data-npc-editor-panel="info"] textarea {background:#282828;}
+.npc-editor-favorite input:focus-visible + span {outline:2px solid #bc9d5a;outline-offset:2px;}
+@media(max-width:700px){body.view-characters .npc-editor-modal {padding:12px;}}
 body.view-characters .npc-editor-modal .npc-modal-actions .btn-cancel {
     background:#3b3b3b!important;color:#e9efff;border:1px solid #4a4a4a;border-color:#4a4a4a!important;
     border-radius:6px;font-size:13.12px;font-weight:600;line-height:1.2;padding:7px 12px;min-height:36px;

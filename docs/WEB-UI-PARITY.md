@@ -5570,3 +5570,27 @@ live NPC form was submitted. 588 server checks and management HTTP forms passed.
 The broader modal still differs in outer inset, tags/knowledge controls, tab and
 content geometry; this is progress, not whole-modal acceptance. Other matrix gaps
 remain open. No game or paid provider was used.
+
+## NPC editor content geometry checkpoint
+
+Live read-only reference modal measurements (Temp/npc-content-reference.cjs)
+confirmed a 30px outer inset; 18px Futura content; compact right-aligned Tags
+with a 240x24px, 12px Arial input; transparent 42px model summary with 210px
+label column; and 13.3333px Arial category buttons. The native editor now uses
+that composition. The knowledge link moved from the metadata row to existing
+secondary tools with installation/profile IDs preserved. Favorite remains a
+labelled keyboard-operable checkbox and has an explicit focus indicator.
+
+Category count remains six because Background Life was explicitly excluded.
+The reference row's seventh wrapped label produces 50px height; native tabs
+retain the same 40px minimum without inventing an excluded category. Narrow
+screens use a 12px inset and wrap model labels and actions. Info labels/textareas
+were corrected where shared management styles overrode the reference sizes and
+background. Creation behavior and all revisioned save routes remain unchanged.
+
+Temp/npc-content-native.cjs checked compact tag geometry, scoped knowledge URL,
+header actions, History switching and Close on the deployed candidate without
+submitting profiles. Desktop/narrow screenshots were visually inspected.
+588 existing server checks passed. The complete NPC editor, metadata ownership,
+remaining override catalogue and other page-matrix gaps are still open; no
+whole-page acceptance follows from these geometry checks. No game was touched.
