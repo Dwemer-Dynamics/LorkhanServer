@@ -1273,11 +1273,26 @@ $db->prepare("UPDATE durable_jobs SET payload=jsonb_set(payload,'{preview}','tru
 $assert($builds->enqueue($buildScope,$buildRequest,100,$buildDirection,true)['job_id']===$buildJob['job_id'],'preview retry lost its request');
 try{$builds->enqueue($buildScope,$buildRequest,100,$buildDirection);throw new RuntimeException('preview mode changed on retry');}
 catch(InvalidArgumentException $error){$assert($error->getMessage()==='relationship_build_request_conflict','unexpected preview mode conflict');}
+$assert($builds->previewStatus($buildScope,$buildJob['job_id'])['state']==='queued','preview polling did not report queued');
 $assert($buildWorker()['succeeded']===1,'relationship preview worker failed');
 $preview=$builds->draft($buildScope,$buildJob['job_id']);
 $assert($preview!==null&&count($preview['relationships'])===2&&$preview['profile_revision']>0
     &&$products->exportScope($buildScope)['relationships']===$beforePreview
     &&!str_contains(json_encode($preview),$privateBuildNote),'preview changed saved scores or copied private notes');
+$assert($builds->previewStatus($buildScope,$buildJob['job_id'])['state']==='ready','preview polling did not report ready');
+foreach(['profile','source','relationship'] as $staleCase){
+    $db->exec('SAVEPOINT preview_stale');
+    if($staleCase==='profile'){
+        $profileBefore=$products->getRevisioned('profile',$buildScope['profile_id']);
+        $products->revise('profile',$buildScope['profile_id'],$profileBefore['content'],'Concurrent editor save',$now);
+    }elseif($staleCase==='source')$db->prepare('UPDATE eventlog_metadata SET suppressed_at=clock_timestamp() WHERE projection_key=:key')
+        ->execute(['key'=>'dialogue:'.$historyDelivery['dialogue_message_id']]);
+    else $db->prepare('UPDATE relationship_records SET affinity=affinity+1 WHERE profile_id=:id')->execute(['id'=>$buildScope['profile_id']]);
+    $assert($builds->draft($buildScope,$buildJob['job_id'])===null
+        &&$builds->previewStatus($buildScope,$buildJob['job_id'])===['job_id'=>$buildJob['job_id'],'state'=>'stale'],
+        'preview exposed a stale '.$staleCase.' result');
+    $db->exec('ROLLBACK TO SAVEPOINT preview_stale');
+}
 $previewStatus=$builds->recentJobs($buildScope)[0];
 $assert($previewStatus['outcome']==='draft_ready'&&(int)$previewStatus['changed_count']===0&&(int)$previewStatus['draft_count']===2,'preview status claims committed writes');
 foreach(['installation_id','profile_id','playthrough_id'] as $previewScopeField)

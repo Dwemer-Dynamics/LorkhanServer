@@ -1850,9 +1850,15 @@ SQL);
         return (new MemoryEmbeddingRepository($this->db))->enqueueBatch($installation,$limit);
     }
 
-    public function enqueueRelationshipBuild(array $scope,string $requestId,int $limit,string $direction=''):array
+    public function enqueueRelationshipBuild(array $scope,string $requestId,int $limit,string $direction='',bool $preview=false):array
     {
-        return (new RelationshipBuildRepository($this->db))->enqueue($scope,$requestId,$limit,$direction);
+        return (new RelationshipBuildRepository($this->db))->enqueue($scope,$requestId,$limit,$direction,$preview);
+    }
+
+    /** Keep preview polling behind the same scoped repository boundary as generation. */
+    public function relationshipBuildPreviewStatus(array $scope,string $jobId):array
+    {
+        return (new RelationshipBuildRepository($this->db))->previewStatus($scope,$jobId);
     }
 
     public function enqueueRelationshipConversion(array $scope,string $requestId,string $mode):array

@@ -5799,3 +5799,31 @@ Local deployment verified 799 runtime files with no mismatches/extras/old paths,
 private routes remained protected, and configuration/credentials/voice-file hashes
 were preserved. Rollback code: /var/backups/lorkhanserver-code.8zPCiG. No game
 launch, game commands or live AI generation occurred.
+
+### Relationship preview request and status boundary
+
+Added an authenticated, CSRF-protected `forms/relationship-preview` operation for
+explicit generation and scoped status polling. It uses URL-encoded form fields
+and JSON responses, like the Player draft editor. Generation always requests
+preview mode and requires an ordinary NPC/creature/manual actor profile owned by
+the supplied installation. No caller can toggle it into immediate-apply mode.
+
+Completed draft reads now reject a newer NPC revision, changed relationship
+records, changed policy or lifecycle scope, and removed/suppressed/changed source
+history. Status returns queued/building/ready/stale/failed without raw durable-job
+payloads. A stale response contains no proposed relationship rows. Integration
+coverage checks queued/ready transitions and rejection after independent NPC,
+source-visibility and relationship edits. Existing HTTP tests exercise missing
+connectors, invalid limits/operations, unknown jobs and rejected CSRF.
+
+The editor button is still deliberately unchanged: the next step must merge
+reviewed proposals into the local rows, preserve edits made during generation,
+resolve new targets by exact identity, and submit through the shared revisioned
+Save path. This checkpoint adds the safe browser-facing boundary; it does not
+claim that the visible Build workflow has review/save parity yet.
+
+Verification: 590 server checks, browser-like management HTTP forms, integration,
+migration/durable-job tests and schema --check passed. Local deployment has 799
+matching runtime files, no extras/old paths, protected private routes and healthy
+API responses. Configuration, credentials and voice-file hashes were preserved.
+Rollback: /var/backups/lorkhanserver-code.NuDHXo. No game or live provider requests.

@@ -1258,6 +1258,16 @@ assert 'name="direction"' in build_body and 'maxlength="2000"' in build_body
 assert request(build_form['action'],'POST',dict(build_values,direction='x'*2001)).status==422
 r=request(build_form['action'],'POST',build_values); build_page,build_body=parse(r)
 assert r.status==200 and 'relationship_build_no_connector' in r.geturl() and 'role="alert"' in build_body
+# Preview uses the authenticated JSON form boundary; failures never mutate relationships.
+preview_path='/LorkhanServer/manage/forms/relationship-preview'
+preview_values=dict(build_values,operation='generate')
+r=request(preview_path,'POST',preview_values,accept='application/json')
+preview_error=json.loads(r.read())
+assert r.status==422 and preview_error['error']=='relationship_build_no_connector',(r.status,preview_error)
+assert request(preview_path,'POST',dict(preview_values,history_limit='101'),accept='application/json').status==422
+assert request(preview_path,'POST',dict(preview_values,operation='invalid'),accept='application/json').status==422
+assert request(preview_path,'POST',dict(preview_values,operation='status',job_id=str(uuid.uuid4())),accept='application/json').status==404
+assert request(preview_path,'POST',dict(preview_values,_csrf='wrong'),accept='application/json').status==401
 build_retry=next(f for f in build_page.forms if f['action'].endswith('/forms/relationship-history-build'))
 assert all(build_retry['fields'][key]==build_values[key] for key in ['installation_id','profile_id','playthrough_id','history_limit','embed'])
 assert request(build_form['action'],'POST',dict(build_values,history_limit='101')).status==422

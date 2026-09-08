@@ -357,6 +357,22 @@ final class ManagementRouter
         }
         if($domain==='global-settings-preset')return $this->namedGlobalSettingsPreset($v,$scope);
         if($domain==='core-profile-preset')return $this->namedCoreProfilePreset($v,$scope);
+        if($domain==='relationship-preview'){
+            foreach(['installation_id','profile_id','playthrough_id'] as $field)
+                if(!isset($scope[$field]))throw new InvalidArgumentException('invalid_relationship_scope');
+            $profile=$this->repository->getRevisioned('profile',$scope['profile_id']);
+            if(($profile['installation_id']??null)!==$scope['installation_id'])throw new RuntimeException('not_found');
+            $identity=$profile['actor_identity'];if(is_string($identity))$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);
+            if(!is_array($identity)||array_is_list($identity)||!in_array($identity['kind']??'actor',['actor','npc','creature'],true))throw new InvalidArgumentException('profile_not_editable');
+            $operation=$this->need($v,'operation');
+            if($operation==='status')return Response::json(200,$this->repository->relationshipBuildPreviewStatus($scope,$this->need($v,'job_id')));
+            if($operation!=='generate')throw new InvalidArgumentException('invalid_generation_operation');
+            $request=$this->need($v,'request_id');$this->uuid($request,'request_id');
+            $limit=filter_var($v['history_limit']??null,FILTER_VALIDATE_INT);
+            if($limit===false||$limit<1||$limit>100)throw new InvalidArgumentException('invalid_relationship_build_request');
+            return Response::json(202,$this->repository->enqueueRelationshipBuild($scope,$request,$limit,
+                \LorkhanServer\Application\RelationshipBuildPolicy::direction($v['direction']??''),true));
+        }
         if($domain==='player-speech-style-generate'){
             $installation=$this->need($v,'installation_id');$profileId=$this->need($v,'profile_id');
             $profile=$this->repository->getRevisioned('profile',$profileId);
@@ -2708,6 +2724,7 @@ final class ManagementRouter
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/')
         &&!(str_ends_with($r->path,'/forms/provider-revise')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/provider-test')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
+        &&!(str_ends_with($r->path,'/forms/relationship-preview')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/player-speech-style-generate')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!((str_ends_with($r->path,'/forms/global-settings-preset')||str_ends_with($r->path,'/forms/core-profile-preset')||str_ends_with($r->path,'/forms/profile-bulk-switch')||str_ends_with($r->path,'/forms/configuration-revise')||str_ends_with($r->path,'/forms/narrator-prompt-save')||str_ends_with($r->path,'/forms/narrator-profile-settings-import'))
             &&str_contains(strtolower($r->header('Accept')??''),'application/json'));}

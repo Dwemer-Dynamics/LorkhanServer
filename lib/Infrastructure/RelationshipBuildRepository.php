@@ -169,7 +169,7 @@ final class RelationshipBuildRepository
         foreach(['installation_id','profile_id','playthrough_id'] as $field)
             if(!is_string($scope[$field]??null)||!Uuid::isValid($scope[$field]))return null;
         if(!Uuid::isValid($jobId))return null;
-        $query=$this->db->prepare("SELECT r.draft,j.payload->>'profile_revision' AS profile_revision
+        $query=$this->db->prepare("SELECT r.draft,j.payload,j.payload->>'profile_revision' AS profile_revision
             FROM relationship_build_results r JOIN durable_jobs j ON j.job_id=r.job_id
             JOIN profiles p ON p.profile_id=CAST(j.payload->>'profile_id' AS uuid) AND p.deleted_at IS NULL
             JOIN playthroughs t ON t.playthrough_id=CAST(j.payload->>'playthrough_id' AS uuid) AND t.deleted_at IS NULL
@@ -178,8 +178,43 @@ final class RelationshipBuildRepository
                 AND j.payload->>'playthrough_id'=:playthrough_id");
         $query->execute(['job'=>$jobId]+array_intersect_key($scope,array_fill_keys(['installation_id','profile_id','playthrough_id'],true)));
         $row=$query->fetch();
-        return $row?['job_id'=>$jobId,'profile_revision'=>(int)$row['profile_revision'],
-            'relationships'=>json_decode($row['draft'],true,32,JSON_THROW_ON_ERROR)]:null;
+        if(!$row)return null;
+        $payload=json_decode($row['payload'],true,64,JSON_THROW_ON_ERROR);
+        // A reviewed proposal must not resurrect suppressed history or overwrite a newer editor revision.
+        try{
+            if((int)(new ProductRepository($this->db))->getRevisioned('profile',$scope['profile_id'])['current_revision']!==(int)$row['profile_revision'])return null;
+            foreach($this->scopeState($scope) as $field=>$value)if(($payload[$field]??null)!==$value)return null;
+            $policy=$this->evaluations->policy($scope['installation_id'],$scope['profile_id']);
+            if($policy===null||$policy['locked']||$policy['provider_configuration_id']==='')return null;
+            foreach($policy as $field=>$value)if(($payload[$field]??null)!==$value)return null;
+            $snapshot=$this->snapshot($scope,$payload['source_ids'],false,RelationshipBuildPolicy::direction($payload['direction']??''));
+        }catch(\InvalidArgumentException|\RuntimeException){return null;}
+        if($snapshot===null||$snapshot['source_ids']!==$payload['source_ids']
+            ||$snapshot['source_hashes']!=$payload['source_hashes']||$snapshot['targets']!=$payload['targets']
+            ||$snapshot['relationship_types']!==($payload['relationship_types']??null)
+            ||!hash_equals($snapshot['relationship_types_sha256'],(string)($payload['relationship_types_sha256']??'')))return null;
+        return ['job_id'=>$jobId,'profile_revision'=>(int)$row['profile_revision'],
+            'relationships'=>json_decode($row['draft'],true,32,JSON_THROW_ON_ERROR)];
+    }
+
+    /** Poll one preview request without exposing job payloads or unrelated jobs. */
+    public function previewStatus(array $scope,string $jobId):array
+    {
+        foreach(['installation_id','profile_id','playthrough_id'] as $field)
+            if(!is_string($scope[$field]??null)||!Uuid::isValid($scope[$field]))throw new \RuntimeException('not_found');
+        if(!Uuid::isValid($jobId))throw new \RuntimeException('not_found');
+        $query=$this->db->prepare("SELECT j.state,r.draft IS NOT NULL AS has_draft
+            FROM durable_jobs j LEFT JOIN relationship_build_results r ON r.job_id=j.job_id
+            WHERE j.job_id=:job AND j.job_type='relationship.build' AND j.payload->'preview'='true'::jsonb
+                AND j.payload->>'installation_id'=:installation_id AND j.payload->>'profile_id'=:profile_id
+                AND j.payload->>'playthrough_id'=:playthrough_id");
+        $query->execute(['job'=>$jobId]+array_intersect_key($scope,array_fill_keys(['installation_id','profile_id','playthrough_id'],true)));
+        $row=$query->fetch();if(!$row)throw new \RuntimeException('not_found');
+        if(filter_var($row['has_draft'],FILTER_VALIDATE_BOOL)){
+            $draft=$this->draft($scope,$jobId);
+            return $draft===null?['job_id'=>$jobId,'state'=>'stale']:['state'=>'ready']+$draft;
+        }
+        return ['job_id'=>$jobId,'state'=>match($row['state']){'queued'=>'queued','leased'=>'building','dead'=>'failed',default=>'stale'}];
     }
 
     /** Lock installation/session boundaries so a concurrent load or halt cannot race the final write. */
