@@ -666,6 +666,12 @@ body.profiles-page-shell:not(.embedded-page) .profile-editor-toolbar { top:64px;
 .profiles-page .profile-setting-chip input[type="checkbox"] { transform:scale(1); margin:0; accent-color:#bc9d5a; }
 .profiles-page .rechat-calculator { margin-bottom:7px; padding:8px 10px; border:1px solid #3c3c3c; border-radius:7px; background:#1d1d1d; }
 .profiles-page .rechat-calculator-title { display:flex; align-items:center; gap:7px; margin-bottom:5px; color:#bc9d5a; font-size:12px; font-weight:700; }
+/* Keep explanatory help out of the reference calculator layout. */
+.profiles-page .rechat-calculator-title { position:relative; cursor:help; }
+.profiles-page .rechat-calculator-title > [role="tooltip"] { display:none; position:absolute; left:0; top:100%; z-index:10; width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid #555; border-radius:6px; background:#222; color:#ddd; font:400 13px/1.45 Arial,sans-serif; word-spacing:normal; box-shadow:0 4px 12px #0008; }
+.profiles-page .rechat-calculator-title:hover > [role="tooltip"],
+.profiles-page .rechat-calculator-title:focus > [role="tooltip"] { display:block; }
+.profiles-page .rechat-calculator-title:focus-visible { outline:2px solid #bc9d5a; outline-offset:3px; }
 .profiles-page #rechat-calc-output { font-size:13px; line-height:1.6; }
 .profiles-page .rechat-calculator-separator { color:#4a4a4a; }
 .profiles-page .rechat-chance { font-weight:600; }
