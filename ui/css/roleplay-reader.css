@@ -34,7 +34,7 @@ body .roleplay-reader .diary-audio-button{background:#bc9d5a!important;border-co
 .roleplay-reader .diary-entry-modal::backdrop{background:#0008;backdrop-filter:blur(5px)}
 .roleplay-reader .diary-entry-modal .reader-entry{display:flex;flex-direction:column;height:100%;padding:0;margin:0;background:transparent;border:0}
 .roleplay-reader .diary-entry-modal .reader-entry>header{display:none}
-.roleplay-reader .diary-entry-modal .reader-prose{flex:1;min-height:0;margin:0;overflow-y:auto;overflow-x:hidden}
+.roleplay-reader .diary-entry-modal .reader-prose{flex:1;min-height:0;margin:0;overflow-y:auto;overflow-x:hidden;white-space:normal}
 .roleplay-reader .diary-entry-modal .reader-entry-actions{flex-shrink:0;margin:0;gap:12px;flex-wrap:nowrap;border-top:0}
 /* The reference reader exposes one toggle and status, not a second transport toolbar. */
 .roleplay-reader .diary-entry-modal audio,.roleplay-reader .diary-entry-modal [data-reader-stop]{display:none}
