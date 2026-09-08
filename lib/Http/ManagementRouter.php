@@ -203,16 +203,31 @@ final class ManagementRouter
         }
         if ($r->method === 'POST' && $path === '/api/v1/quickstart-local-llm-test') {
             $body=$this->json($r);$keys=array_keys($body);sort($keys);
-            if($r->query!==[]||$keys!==['installation_id','setup']||!is_string($body['installation_id'])
-                ||!is_array($body['setup'])||array_is_list($body['setup']))throw new InvalidArgumentException('invalid_local_llm_test_request');
+            if($r->query!==[]||!in_array($keys,[['installation_id','setup'],['api_key','installation_id','setup']],true)
+                ||!is_string($body['installation_id'])||!is_array($body['setup'])||array_is_list($body['setup']))
+                throw new InvalidArgumentException('invalid_local_llm_test_request');
+            $draftKey=array_key_exists('api_key',$body)?$body['api_key']:'';
+            if(!is_string($draftKey)||strlen($draftKey)>8192||preg_match('/[\x00-\x1F\x7F]/',$draftKey))
+                throw new InvalidArgumentException('invalid_local_llm_test_key');
+            $draftKey=trim($draftKey);
             $this->uuid($body['installation_id'],'installation_id');
             $this->repository->quickstartLocalRoutingPlan($body['installation_id']);
             $setup=\LorkhanServer\Application\QuickstartLocalLlm::normalize($body['setup']);
             if(!$this->management->allowTtsPreview($browserSession))return Response::json(429,['error'=>'local_llm_test_rate_limited']);
             try {
                 // A transient slot exercises unsaved fields without creating a connector or changing any routes.
-                $provider=ProviderFactory::dialogueForSlot($this->providerConfig,[
-                    'configuration_id'=>'00000000-0000-4000-8000-000000000001','revision'=>1,'content'=>$setup['content']]);
+                if($draftKey!==''){
+                    // Keep the unsaved key in this adapter only; never put it in config, snapshots or the credential store.
+                    $content=$setup['content'];
+                    $provider=new \LorkhanServer\Application\OpenAiCompatibleProvider(
+                        endpoint:$content['endpoint'],allowedHosts:[(string)parse_url($content['endpoint'],PHP_URL_HOST)],
+                        model:$content['model'],apiKey:$draftKey,timeoutMs:$content['timeout_ms'],
+                        options:$content['options'],allowLoopbackHttp:str_starts_with($content['endpoint'],'http://'),
+                        directConnection:true,localNetwork:true);
+                }else{
+                    $provider=ProviderFactory::dialogueForSlot($this->providerConfig,[
+                        'configuration_id'=>'00000000-0000-4000-8000-000000000001','revision'=>1,'content'=>$setup['content']]);
+                }
                 return Response::json(200,['ok'=>true,'message'=>$this->diagnoseProvider($provider)]);
             } catch(Throwable) { return Response::json(502,['error'=>'local_llm_test_failed']); }
         }

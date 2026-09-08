@@ -2199,6 +2199,22 @@ keyed_draft=json_request(draft_test_path,'POST',dict(draft_body,setup=dict(draft
 keyed_result=json.load(keyed_draft)
 assert keyed_draft.status==200 and keyed_result['ok'] and local_key not in json.dumps(keyed_result)
 assert VoiceProvider.llm_requests[-1][0].get('Authorization')=='Bearer '+local_key
+# Test accepts an unsaved key without replacing the persisted badge or changing routes.
+transient_key='unsaved-local-key-'+uuid.uuid4().hex
+transient_body=dict(draft_body,setup=dict(draft_setup,credential='badge:LORKHAN_CUSTOM_QUICKSTART_LOCAL_LLM_API_KEY'),api_key=transient_key)
+assert json_request(draft_test_path,'POST',transient_body).status==401
+transient_response=json_request(draft_test_path,'POST',transient_body,draft_csrf)
+transient_result=json.load(transient_response)
+assert transient_response.status==200 and transient_result['ok'] and transient_key not in json.dumps(transient_result)
+assert VoiceProvider.llm_requests[-1][0].get('Authorization')=='Bearer '+transient_key
+preserved_key=json_request(draft_test_path,'POST',dict(transient_body,api_key=''),draft_csrf)
+assert preserved_key.status==200 and json.load(preserved_key)['ok']
+assert VoiceProvider.llm_requests[-1][0].get('Authorization')=='Bearer '+local_key
+calls_before_invalid_key=len(VoiceProvider.llm_requests)
+for invalid_key in [None,[],42,'x'*8193,'bad\nheader']:
+    rejected=json_request(draft_test_path,'POST',dict(draft_body,api_key=invalid_key),draft_csrf)
+    assert rejected.status==422 and json.load(rejected)=={'error':'invalid_local_llm_test_key'}
+assert len(VoiceProvider.llm_requests)==calls_before_invalid_key
 unkeyed_draft=json_request(draft_test_path,'POST',draft_body,draft_csrf)
 assert unkeyed_draft.status==200 and json.load(unkeyed_draft)['ok']
 assert 'Authorization' not in VoiceProvider.llm_requests[-1][0]

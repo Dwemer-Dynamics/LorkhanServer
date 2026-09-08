@@ -8741,3 +8741,24 @@ files match with no extras/legacy paths; health/private/auth checks pass. Existi
 configuration, credentials and voices are hash-preserved. No local key was created
 in the deployed store and no provider/game was used. GitHub server workflow remains
 disabled_manually. This is backend preparation only; no new visual parity claim.
+
+### Quickstart unsaved Local LLM key testing (2026-09-08)
+
+Pinned herikaLocalLlmTestDraft uses the typed key for Test without persisting it;
+a blank value falls back to the managed connector's badge. The earlier native
+endpoint only supported saved badge references. Added optional top-level api_key
+to the authenticated local-test request, separate from its persistable setup object.
+It must be a string of at most 8192 bytes without control characters. The normalized
+local connector supplies endpoint/model/options/timeout to the existing adapter;
+the draft key exists only in that adapter, never in configuration, environment,
+snapshots or CredentialStore. Local-network URL validation and direct/no-proxy
+transport remain enabled. Empty/omitted drafts keep the existing badge resolution.
+Persistent setup still rejects embedded raw keys and unrelated request properties.
+
+Extended the existing isolated HTTP mock with unsaved-key override, secret-free
+success result, empty-draft fallback to the original stored key, unbound no-key
+behavior, null/list/number/oversize/header-injection rejection before provider calls,
+CSRF rejection and unchanged routing fingerprint. PHP lint, 692 checks and full
+management HTTP pass (quickstart-transient-key-http.txt). No new test files. No real
+keys, provider credentials or game context used. No visible UI changed: this closes
+the draft-Test credential prerequisite, not Setup preset/save or page parity.
