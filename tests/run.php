@@ -2073,6 +2073,69 @@ foreach ([null, [], ['events'=>['lockpick']], ['events'=>['sleep','sleep']], ['e
     catch (InvalidArgumentException $exception) { $check($exception->getMessage() === 'invalid_rpg_comments', 'invalid Core RPG policy rejected'); }
 }
 
+$sceneRows=[];
+foreach(range(1,12) as $index) $sceneRows[]=['id'=>'scene-'.str_pad((string)$index,2,'0',STR_PAD_LEFT),
+    'tier'=>'mid','content'=>'Scene '.$index,'provenance'=>['source'=>'memory.consolidate','source_tier'=>'recent',
+        'source_game_time_range'=>['from'=>$index*100-99.5,'to'=>$index*100+0.5]]];
+$sceneWindow=\LorkhanServer\Application\MemoryPromptSelection::sceneWindow(array_reverse($sceneRows),200.5,650.5,3);
+$check(array_column($sceneWindow,'id')===['scene-05','scene-06','scene-07'],
+    'STM picks newest capped scenes after the digest through the straddling bucket, then returns chronological order');
+$check(count(\LorkhanServer\Application\MemoryPromptSelection::sceneWindow($sceneRows,0,null))===10
+    &&count(\LorkhanServer\Application\MemoryPromptSelection::sceneWindow($sceneRows,0,null,50))===12,
+    'STM has its own default ten and maximum fifty summary window');
+$check(array_column(\LorkhanServer\Application\MemoryPromptSelection::sceneWindow($sceneRows,100.5,300.5,50),'id')===['scene-02','scene-03'],
+    'STM digest boundary is exclusive and a summary ending exactly at the history floor is included');
+$check(count(\LorkhanServer\Application\MemoryPromptSelection::sceneWindow($sceneRows,0,2000.5,50))===12,
+    'STM with no straddler retains summaries older than the live window');
+$legacyScene=$sceneRows[0];unset($legacyScene['provenance']['source_game_time_range']);
+$manualScene=$sceneRows[1];$manualScene['provenance']['source']='manual';
+$badScene=$sceneRows[2];$badScene['provenance']['source_game_time_range']=['from'=>400,'to'=>300];
+$check(\LorkhanServer\Application\MemoryPromptSelection::sceneWindow([$legacyScene,$manualScene,$badScene],0,500)===[],
+    'STM cannot assign scene boundaries to unknown-time, manual or malformed memory records');
+foreach([0,51] as $badLimit){
+    try{\LorkhanServer\Application\MemoryPromptSelection::sceneWindow($sceneRows,0,null,$badLimit);$check(false,'invalid STM limit rejected');}
+    catch(InvalidArgumentException){$check(true,'invalid STM limit rejected');}
+}
+
+$sceneCandidates=array_map(static fn(array $row):array=>$row+['text'=>$row['content']],$sceneRows);
+$sceneGeneric=[];foreach(range(1,10) as $index)$sceneGeneric[]=['id'=>'generic-'.$index,'text'=>'Other memory '.$index];
+$sceneContext=MemoryPromptSelection::selectSceneContext([...$sceneGeneric,...$sceneCandidates],'',650.5,1024,3);
+$check(count($sceneContext['texts'])===13 && array_slice(array_keys($sceneContext['texts']),-3)===['scene-05','scene-06','scene-07'],
+    'rendered STM has an independent summary quota alongside general memories');
+$check(($sceneContext['reasons']['scene-08']??'')==='outside_scene_window',
+    'scene window exclusions are recorded in retrieval reasons');
+$sceneDigest=['id'=>'digest','text'=>"Scene 5\nScene 6",'tier'=>'long'];
+$sceneContext=MemoryPromptSelection::selectSceneContext([$sceneDigest,...$sceneCandidates],'',650.5,1024,3);
+$check(array_keys($sceneContext['texts'])===['digest','scene-07'],
+    'retained digest removes only scenes whose actual text is covered');
+$sceneContext=MemoryPromptSelection::selectSceneContext([$sceneDigest,...$sceneCandidates],'',650.5,8,3);
+$check(isset($sceneContext['texts']['scene-05'],$sceneContext['texts']['scene-06'],$sceneContext['texts']['scene-07']),
+    'truncated digest cannot hide scene summaries behind a timestamp');
+$sceneContext=MemoryPromptSelection::selectSceneContext($sceneCandidates,'',null,1024,3);
+$check(array_keys($sceneContext['texts'])===['scene-10','scene-11','scene-12'],
+    'removing history recalculates the scene window without its previous upper boundary');
+$check(MemoryPromptSelection::sceneWindow([null,['provenance'=>'invalid']],0,null)===[],
+    'scene classification tolerates invalid untrusted provenance');
+
+$sceneSelection=$promptSelection;
+$sceneSelection['memory']=$sceneRows;
+$sceneSelection['history']=[['id'=>'scene-live','content'=>['kind'=>'speech','speaker'=>'Guard','text'=>'Unrelated live dialogue.','game_time'=>650.5]]];
+$sceneSelection['recent_action_results']=[];
+$sceneSelection['memory_retrieval']=['result_ids'=>[]];
+$scenePrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$sceneSelection);
+$check($scenePrompt['trace']['memory_retrieval']['result_ids']===array_column(array_slice($sceneRows,0,7),'id')
+    &&str_contains($scenePrompt['provider_input']['_assembled_prompt'],'Unrelated live dialogue.')
+    &&!str_contains($scenePrompt['provider_input']['_assembled_prompt'],'Scene 8'),
+    'real prompt assembly selects scene summaries through the live straddler without erasing unrelated history');
+$sceneSelection['effective_settings']['settings']['memory']=['short_term_enabled'=>false,'mid_term_enabled'=>true];
+$disabledScenePrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$sceneSelection);
+$check($disabledScenePrompt['trace']['memory_retrieval']['result_ids']===[],
+    'Short Term Memory switch controls recent-source scene summaries in actual prompt assembly');
+$sceneSelection['effective_settings']['settings']['memory']=['short_term_enabled'=>true,'mid_term_enabled'=>false];
+$enabledScenePrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$sceneSelection);
+$check(count($enabledScenePrompt['trace']['memory_retrieval']['result_ids'])===7,
+    'scene summaries are not incorrectly owned by the Middle Term Memory switch');
+
 $globalSettings=SettingsCatalog::globalDefaults();
 $check($globalSettings['profile_management']===['auto_lock_profile'=>true,
         'autofill_custom_profiles'=>true,'autofill_custom_profiles_trigger'=>40],

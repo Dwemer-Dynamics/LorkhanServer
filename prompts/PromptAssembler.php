@@ -88,7 +88,9 @@ final class PromptAssembler
         $responseMaxWords = (int)($selection['effective_settings']['settings']['response']['max_words']
             ?? $coreProfile['content']['settings_overrides']['response']['max_words'] ?? 0);
         $memory = array_values(array_filter($memory, static function (array $row) use ($memoryFlags): bool {
-            $flag = match ($row['tier'] ?? '') { 'recent' => 'short_term_enabled', 'mid' => 'mid_term_enabled', 'long' => 'long_term_enabled', default => '' };
+            $tier = ($row['tier'] ?? '') === 'mid' && ($row['provenance']['source'] ?? '') === 'memory.consolidate'
+                && ($row['provenance']['source_tier'] ?? '') === 'recent' ? 'recent' : ($row['tier'] ?? '');
+            $flag = match ($tier) { 'recent' => 'short_term_enabled', 'mid' => 'mid_term_enabled', 'long' => 'long_term_enabled', default => '' };
             return $flag === '' || ($memoryFlags[$flag] ?? true) === true;
         }));
         $relationships = $enabled['relationships'] ? $this->limitedSelection($selection, 'relationship') : [];
@@ -401,8 +403,12 @@ final class PromptAssembler
         }
         $relationshipXml = $this->sourceItemsXml($relationships, 'relationship');
         $memoryCandidates = array_map(fn(array $row): array => ['id' => $this->sourceId('memory', $row),
-            'text' => $this->canonical($this->sourceContent('memory', $row))], $memory);
-        $memoryState = MemoryPromptSelection::select($memoryCandidates, implode("\n", $historyText), $this->maxSourceBytes);
+            'text' => $this->canonical($this->sourceContent('memory', $row))] + $row, $memory);
+        $historyTimes = array_column($historyMessages, '_game_time');
+        $historyFloor = $historyTimes !== [] && count(array_filter($historyTimes, static fn($time): bool =>
+            is_numeric($time) && is_finite((float)$time) && $time >= 0)) === count($historyTimes)
+            ? (float)min($historyTimes) : null;
+        $memoryState = MemoryPromptSelection::selectSceneContext($memoryCandidates, implode("\n", $historyText), $historyFloor, $this->maxSourceBytes);
         $memoryXml = $memoryState['xml'];
         $actionResults = $this->sourceItemsXml($actions, 'action_result');
         $capabilities = $turn['_negotiated_capabilities'] ?? [];
@@ -443,7 +449,7 @@ final class PromptAssembler
             $sections[$optional] = '';
             $presentationSections[$optional] = '';
             if ($optional === 'conversation_context') {
-                $memoryState = MemoryPromptSelection::select($memoryCandidates, '', $this->maxSourceBytes);
+                $memoryState = MemoryPromptSelection::selectSceneContext($memoryCandidates, '', null, $this->maxSourceBytes);
                 $sections['memory_context'] = $memoryState['xml'];
                 $presentationSections['memory_context'] = $memoryState['xml'];
             }
