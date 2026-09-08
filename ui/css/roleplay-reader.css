@@ -51,8 +51,9 @@ body .roleplay-reader .diary-audio-button{background:#bc9d5a!important;border-co
 .diary-log-page .calendar-event-table th{color:#bc9d5a;background:#292929}
 .diary-log-page .calendar-event-table tbody tr:nth-child(even){background:#3a3a3a}
 .diary-log-page .calendar-event-table .log-content-link{font:inherit;color:inherit!important;white-space:normal}
-.diary-log-page .diary-row-actions{min-width:190px}
-body .diary-log-page .diary-row-actions button.roleplay-button{font-size:13.12px!important;padding:7px 12px!important;min-height:0!important;margin:0!important;line-height:18px!important}
+.diary-log-page .diary-row-actions{display:block;min-width:0}
+body .diary-log-page .diary-row-actions button.roleplay-button{display:inline-flex;font-size:13.12px!important;padding:7px 12px!important;min-height:36px!important;margin:2px!important;line-height:1.1!important;letter-spacing:.3px}
+body .diary-log-page .diary-row-actions button.danger{font-weight:500;line-height:1.2!important}
 .roleplay-reader .reader-status:empty,.roleplay-reader [data-roleplay-maintenance-status]:empty{display:none}
 /* Adventure Log follows Herika's chronological context table and speaker/location grouping. */
 .roleplay-reader .adventure-event-table{border-collapse:separate;border-spacing:0;table-layout:auto;font-size:13px;margin-top:20px;border:1px solid #404040;border-radius:10px;scroll-margin-top:200px}

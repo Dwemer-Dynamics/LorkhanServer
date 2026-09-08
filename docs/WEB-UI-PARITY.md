@@ -6449,3 +6449,23 @@ changes were discarded. Both dynamic subtree replacement and a browser-served fu
 page fixture were examined; neither proves the cause. Next investigation must isolate
 an initial server-rendered populated page from fixture/Chromium painting effects.
 No whole-modal acceptance, live data edits, provider requests or game activity claimed.
+
+## Diary table row-action layout
+
+Removed the native 190px minimum-width flex row from Diary actions. Actions now use
+normal inline wrapping as in pinned Herika diarylog.php, with matching 2px margins,
+36px minimum height, 0.3px letter spacing, and reference line heights/weights (including
+500-weight Delete). Existing Play/Edit/Delete handlers and disabled speech behavior
+are unchanged. Product gold Play styling is retained.
+
+Temp/diary-actions.cjs compares actual reference buttons with a source-rendered diary
+fixture in the deployed native shell: all three widths/heights and eight measured
+style properties match. Content differs, so table column widths are not acceptance
+proof. Temp/diary-actions-wrap.cjs constrains both action cells to the same 110px block
+only within the browser; all three wrap with matching 40px vertical pitch. Inspected
+paired crops. This controlled component proof does not establish full table parity.
+Editor required-field, intercepted failed save retaining text, and Cancel regressions
+pass at 1280/390, without real saves or provider requests. 603 server checks pass.
+799 runtime files match, private/auth/health checks pass, configuration/credential/voice
+contents preserved. Rollback: /var/backups/lorkhanserver-code.BUOh7w. No game activity.
+Whole Diary reader/editor/table acceptance and the heading paint investigation remain open.
