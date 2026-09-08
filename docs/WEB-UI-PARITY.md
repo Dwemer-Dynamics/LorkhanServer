@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `6655b8e` (retained exact scene overlap and digest-before-cap selection), following Short Term Memory card `d0ce6f4`. Client `1560dbe` remains deployed.
+Current deployed product checkpoint: `d2c8d16` (Core grouped-settings structure and return-to-top), with retained scene overlap `6655b8e` and Short Term Memory card `d0ce6f4`. Client `1560dbe` remains deployed.
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -9288,3 +9288,50 @@ boundary. Complete source-event/model-input lineage and final retained projectio
 coverage must justify that path; do not turn the conservative interim rule into a
 permanent parity exception. Continue that work and the remaining Core presentation
 sections and complete counterpart matrix. Full page parity is still not complete.
+
+
+## 2026-09-08 - Whole Core settings group structure review
+
+Product commits `c92814f`, `60c7965`, `d2c8d16`, branch `codex/web-ui-parity`, pushed
+directly to main and deployed. Claude's previously reported exhausted-usage fallback
+remains in effect for this same UI task; Codex performed this comparison and change.
+
+Actual reference/native hub review (`core-settings-order-review.txt` and
+`core-groups-style-review.txt`) confirms the shared section order already matches.
+Reference has additional Bored Event, Combat and Quest groups; native Context also
+has a Dynamic Profile history control not visible in this reference profile.
+Those are open counterpart differences, not excuses to insert empty cards or
+remove an existing supported control. Whole-editor parity is not established.
+
+The existing Language/Rechat/Context/Diary sections now use the reference bordered
+content-section container, H2 headings and profile-settings-group-card markup.
+Card padding is6px12px instead of12px; the container's border corrects desktop group
+width from412 to411px. Added the reference Back to top footer control; native behavior
+works both standalone and in the actual hub frame, honors reduced motion and does
+not submit/reset forms. Restored fuller Rechat explanatory formatting while keeping
+native continuation-count semantics explicit. The blank Diary Prompt now shows the
+reference Enter value placeholder and matching introductory help.
+
+`core-groups-ui-final.txt` verifies all four native desktop groups match reference
+411px width, H2 markup and6px12px padding; native860/390 are492/298px with no group
+overflow. Back-to-top keyboard activation moves the actual hub frame to its start,
+resets child scroll and retains an unsaved Max Words77. No page errors. All non-GET
+requests were blocked for these live visual checks. Paired Language/Rechat/Context/
+Diary desktop images were actually viewed; final native390 Rechat and final empty
+Diary field were viewed after refinements. Different help text, selected values,
+extra/missing controls and row partners still affect total heights; no whole-card
+height or whole-editor1:1 claim is made from those structural measurements.
+
+779 PHP checks, node syntax check and git diff check pass. The existing browser-like
+management HTTP suite passed after the structural/JS change; subsequent refinements
+only changed help text and a placeholder, and final PHP/browser checks passed again.
+No new test files or backend/client changes. Final rollback
+`/var/backups/lorkhanserver-code.xh0gSc`; all807 runtime files match with no extras or
+old paths, private403/unauthenticated401 and health/NPC probes pass. Configuration,
+credentials and voices preserved. No game launch/control. Workflow remains disabled.
+
+Next: implement the missing Bored Event, Combat and Quest controls with their real
+supported per-profile consumers, review Context's extra control against reference
+availability, then continue the complete counterpart matrix. Paraphrased-memory
+source coverage remains an open runtime item; it does not replace the all-page
+presentation objective. The full parity goal remains active.
