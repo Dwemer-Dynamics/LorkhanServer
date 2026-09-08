@@ -7982,3 +7982,9 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - Reference `ui/stt_connectors.php` closes the test modal on its backdrop and unloads the iframe. Native now closes only for clicks outside dialog bounds, sharing the existing cancellation/sample-reset/focus cleanup. Inside clicks are retained.
 - Live desktop/narrow probes at 1280/390 passed: mocked save followed by pending transcription, inside click, backdrop abort, sample paused/reset, opener enabled/focused, reopen and Escape abort. All saves and provider POSTs were mocked; no microphone or provider calls. JavaScript syntax passed.
 - Server-only deployment verified 800 hashes, no extra/legacy files, protected private/auth routes, and preserved configuration/credentials/voices. Rollback `/var/backups/lorkhanserver-code.KKBMx3`. Google Free STT and the wider STT/full-page matrix remain incomplete.
+
+### Standalone page inventory and obsolete placeholder removal (2026-09-08)
+
+- Compared PHP entry points declaring page titles against the complete matrix, excluding template fragments. Only shared bootstrap and the obsolete `ui/placeholder.php` were outside it. Cross-checked the current navbar, Configuration groups and all twelve Control Panel tab destinations; this is inventory evidence, not visual acceptance for their content.
+- Repository-wide search found no caller/link to `placeholder.php`. The page accepted a feature query and claimed that even live features performed no action. Removed this obsolete unlinked page; no supported feature or navigation entry was removed. Deployed URL with `feature=config.globals` now returns 404.
+- 633 server checks passed. Server-only deployment verified 799 runtime hashes, no extra/legacy files, protected private/auth routes and preserved configuration/credentials/voices. Rollback `/var/backups/lorkhanserver-code.xW2qho`. Full matrix remains active; bootstrap is not a user-facing page.
