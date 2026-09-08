@@ -7995,3 +7995,10 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - Native/reference cards now measure 576 x 136.15625 at 1280 and 318 x 136.15625 at 390. Embedded positions match. Native standalone retains its navbar (82px higher card offset versus the standalone reference without that navbar); this is documented rather than claimed as full-page equality.
 - Keyboard help visibility, viewport bounds and disabled managed-key fields passed for standalone/embedded at both widths. Password values were cleared in browser memory before captures; no credential POSTs, tests or real key edits. Narrow card screenshot inspected. Full API page/custom states remain tracked separately.
 - 633 checks passed. Server-only deployment verified 799 runtime hashes, private/auth gates and preserved configuration/credentials/voices. Rollback `/var/backups/lorkhanserver-code.0WOYzQ`.
+
+### API custom-key draft state checkpoint (2026-09-08)
+
+- New custom-key cards match reference dimensions in standalone/embedded checks: 576 x 226.625 at desktop, 318 x 226.625 narrow. Absolute positions differ with existing custom-key counts and scrolling; no full-page equality claimed from card dimensions.
+- Found and fixed missing label-only navigation protection. Saved custom display labels now track their last persisted value; failed saves retain the warning. A newer label edit during a save is preserved and reported as unsaved instead of falsely reported saved. Newly created labels initialize the saved baseline. Key identifiers and server credential storage are unchanged.
+- Browser-mocked tests passed at 1280/390: create/clean baseline, changed-label warning, failed-save retention, concurrent newer edit, final save clears warning. No actual credentials written/read in test artifacts; all writes mocked. JavaScript syntax passed.
+- Server-only deployment verified 799 hashes and private/auth checks, preserving configuration/credentials/voices. Rollback `/var/backups/lorkhanserver-code.UkgioM`. Full API Keys and broader matrix remain active.
