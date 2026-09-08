@@ -1743,7 +1743,7 @@ invalid_preset=dict(core_preset,unexpected='rejected')
 # Named presets are a catalogue, not the existing import-as-new-profile workflow.
 core_named_path='/LorkhanServer/manage/forms/core-profile-preset'
 core_named_request=lambda values: request(core_named_path,'POST',values,accept='application/json')
-core_named_values=dict(core_values,installation_id=valid['installation_id'],operation='save_new',preset_name='HTTP named Core preset',prompt='Do not capture this prompt.')
+core_named_values=dict(core_values,installation_id=valid['installation_id'],operation='save_new',preset_name='HTTP named Core preset',setting_diary_latest_entry_in_context='1',prompt='Do not capture this prompt.')
 r=core_named_request(dict(core_named_values,_csrf='wrong')); assert r.status==401,r.status
 r=core_named_request(core_named_values); named_result=json.loads(r.read()); assert r.status==200,(r.status,named_result)
 core_named_id=named_result['preset_id']
@@ -1754,13 +1754,16 @@ assert json.loads(request('/LorkhanServer/manage/exports/core-profile-settings/'
 core_named_scope={'_csrf':csrf,'installation_id':valid['installation_id'],'preset_id':core_named_id}
 r=core_named_request(dict(core_named_scope,operation='export')); named_document=json.loads(r.read()); assert r.status==200
 assert sorted(named_document)==['name','preset','schema'] and named_document['schema']=='lorkhan.named-core-preset-file.v1'
+assert named_document['preset']['settings_overrides']['diary']['latest_entry_in_context'] is True
 assert 'prompt' not in named_document['preset'] and 'llm_configuration_id' not in named_document['preset']['routing']
 core_named_overwrite=dict(core_named_values,operation='overwrite',preset_id=core_named_id,preset_revision='1',setting_response_max_words='85')
+core_named_overwrite.pop('setting_diary_latest_entry_in_context',None)
 r=core_named_request(core_named_overwrite); assert r.status==422,r.status
 r=core_named_request(dict(core_named_overwrite,confirm='Overwrite')); assert r.status==200,(r.status,r.read())
 r=core_named_request(dict(core_named_overwrite,confirm='Overwrite')); assert r.status==409,r.status
 r=core_named_request(dict(core_named_scope,operation='export')); named_document=json.loads(r.read())
 assert named_document['preset']['settings_overrides']['response']['max_words']==85
+assert named_document['preset']['settings_overrides']['diary']['latest_entry_in_context'] is False
 r=core_named_request(dict(core_named_scope,operation='import',preset_name='HTTP imported named Core preset',preset_json=json.dumps(named_document)))
 assert r.status==200,(r.status,r.read())
 bad_named_document=dict(named_document,preset=dict(named_document['preset'],routing={'llm_configuration_id':slot_id}))
@@ -1772,6 +1775,9 @@ r=core_named_request(core_named_apply); assert r.status==422,r.status
 r=core_named_request(dict(core_named_apply,confirm='Apply',preset_revision='1')); assert r.status==409,r.status
 r=core_named_request(dict(core_named_apply,confirm='Apply')); named_applied=json.loads(r.read())
 assert r.status==200 and named_applied=={'applied':True,'revision':2},(r.status,named_applied)
+named_applied_page=Page(); named_applied_page.feed(request('/LorkhanServer/ui/core/core_profiles.php?edit='+imported_core_id).read().decode())
+named_applied_form=next(f for f in named_applied_page.forms if f['action'].endswith('/forms/core-profile-save') and f['fields'].get('core_profile_id')==imported_core_id)
+assert 'setting_diary_latest_entry_in_context' not in named_applied_form['fields']
 r=core_named_request(dict(core_named_apply,confirm='Apply')); assert r.status==409,r.status
 named_target=request('/LorkhanServer/ui/core/core_profiles.php?edit='+imported_core_id).read().decode()
 assert 'name="setting_response_max_words" value="85"' in named_target and '>Do not capture this prompt.</textarea>' not in named_target

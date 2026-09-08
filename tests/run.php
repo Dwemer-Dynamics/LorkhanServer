@@ -782,6 +782,16 @@ $check($corePresetApplied['prompt']===$corePresetSource['prompt']
     &&$corePresetApplied['routing']['llm_configuration_id']===$corePresetSource['routing']['llm_configuration_id']
     &&$corePresetApplied['settings_overrides']['profile_evolution']['fields']===['skills'],
     'Applying a Core preset preserves identity-independent content and replaces field lists without leftover entries');
+$diaryPresetSource=$corePresetSource;
+$diaryPresetSource['settings_overrides']['diary']=['latest_entry_in_context'=>true];
+$diaryPreset=\LorkhanServer\Application\CoreProfilePreset::capture($diaryPresetSource);
+$check($diaryPreset['settings_overrides']['diary']['latest_entry_in_context']===true,
+    'Named Core presets capture latest diary context');
+$diaryPreset['settings_overrides']['diary']['latest_entry_in_context']=false;
+$check(\LorkhanServer\Application\CoreProfilePreset::apply($diaryPreset,$diaryPresetSource)['settings_overrides']['diary']['latest_entry_in_context']===false,
+    'Named Core preset Apply preserves an explicit disabled latest diary context switch');
+$check(\LorkhanServer\Application\CoreProfilePreset::apply($corePreset,$diaryPresetSource)['settings_overrides']['diary']['latest_entry_in_context']===true,
+    'Older named Core presets preserve latest diary context when omitted');
 foreach([array_replace($corePreset,['prompt'=>'forbidden']),
     array_replace($corePreset,['routing'=>['llm_configuration_id'=>'00000000-0000-4000-8000-000000000001']]),
     array_replace($corePreset,['settings_overrides'=>['behavior'=>['boredom'=>true]]])] as $invalidCorePreset){

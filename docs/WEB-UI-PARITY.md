@@ -7848,3 +7848,25 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - 615 checks and all 800 deployed hashes/private/auth/health probes pass. Config,
   credentials and voices preserved; rollback lorkhanserver-code.0PnZNj. No provider,
   microphone or game operations. Full parity goal remains active.
+
+### Named Core presets retain latest diary context
+
+- Catalogue audit found the implemented Latest Diary in Context control was captured
+  by the profile form but omitted by CoreProfilePreset::FIELDS. Added the same
+  latest_entry_in_context boolean to named preset capture/validation/apply. Explicit
+  false is retained; older preset documents that omit it leave current state alone.
+  Identity, prompts and connector bindings remain outside named presets.
+- Extended existing unit and management HTTP tests, without a new test file: enabled
+  capture, disabled Apply, legacy omission, Save as new/export, overwrite/export,
+  import and confirmed Apply followed by the actual reloaded checkbox state.
+- 618 server checks pass. Full management HTTP passed in named-diary-preset-http-3.txt.
+  First attempt reached the new readback but used a helper that does not understand
+  aria-labelledby; switched to the Page parser already used for this editor. Second
+  attempt failed earlier in the diary-audio fixture with 502; retained that evidence
+  separately instead of reporting it as a preset failure or ignoring it.
+- All 800 deployed runtime hashes/private/auth/health probes pass; config, credentials
+  and voices preserved. Rollback: lorkhanserver-code.shhmDB. No live providers or game
+  operations. No presentation change or new visual-completion claim in this checkpoint.
+- Built-in Default/Local LLM/Follower/Passive catalogue mapping is still incomplete:
+  pinned presets also change boredom/combat/quest policy beyond today's named preset
+  field set. Do not present a partial settings bundle as full built-in parity.
