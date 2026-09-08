@@ -147,3 +147,5 @@ body .ai-response-table [data-log-open]{white-space:nowrap}
 .log-content-modal [data-log-status]:empty{display:none}
 
 @media(max-width:700px){.response-prompt-viewer>header:has([data-log-status]:not(:empty)){flex-wrap:wrap}.response-prompt-viewer>header:has([data-log-status]:not(:empty))>div{flex-basis:100%;align-items:center}.response-prompt-viewer [data-log-status]{flex:1}.response-prompt-viewer [data-log-copy]{white-space:nowrap}}
+
+.response-prompt-viewer .prompt-meta-label{background:#1f2937;color:#e5e7eb}

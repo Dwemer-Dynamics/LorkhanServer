@@ -5145,3 +5145,25 @@ header row on narrow screens. Existing 582 checks and full HTTP suite passed.
 
 The empty-prompt state and historical connector label remain open for full reader
 acceptance. No live log was edited and no game or provider action was performed.
+
+
+### Freeze future Prompt Viewer connector labels
+
+Installation/actor connector resolution now includes the name in its server-side
+snapshot. Successful LLM attempt metadata retains that frozen name, including
+fallback connectors. Prompt Viewer reads only the recorded name and presents it
+as the reference label pill before driver/model. Older attempts without a label
+are not backfilled from mutable current configuration. No secret/provider body
+is selected for this badge.
+
+ProviderFactory initially rejected the additional snapshot field; integration
+caught the failure before publication. It now validates an optional bounded UTF-8
+name and removes it before processing provider options, while old snapshots remain
+valid. The existing fallback integration case verifies both frozen snapshot name
+and successful-attempt label. Vertical-slice and migration/durable-job suites
+passed, as did 582 unit checks. The generated schema hash-only difference was
+inspected and reverted; no schema migration is introduced.
+
+Populated three-badge and empty-prompt visual acceptance remains open. Historical
+responses with missing label evidence deliberately retain only recorded badges.
+No new live conversation, provider request or game interaction was triggered.

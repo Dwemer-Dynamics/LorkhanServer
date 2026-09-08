@@ -39,6 +39,12 @@ final class ProviderFactory
     /** Resolve a frozen connector revision without letting an explicit endpoint inherit a runtime key. */
     private static function slotSection(array $config,array $slot):array
     {
+        // The optional historical label is display metadata, never a provider option.
+        if(array_key_exists('name',$slot)){
+            if(!is_string($slot['name'])||strlen($slot['name'])>256||!mb_check_encoding($slot['name'],'UTF-8'))
+                throw new RuntimeException('Provider slot snapshot is invalid.');
+            unset($slot['name']);
+        }
         $keys=array_keys($slot);sort($keys);
         if($keys!==['configuration_id','content','revision']
             ||!is_string($slot['configuration_id'])

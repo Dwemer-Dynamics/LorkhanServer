@@ -267,6 +267,7 @@ final class TurnProcessJobHandler implements JobHandler
                 $message['request_id'],$message['turn_id'],$job['job_id'],inputBytes:strlen($message['payload']['input']['text']),
                 metadata:['mode'=>$providerName,'job'=>true,'fallback'=>$route['fallback'],
                     'configuration_id'=>$snapshot['configuration_id']??null,'configuration_revision'=>$snapshot['revision']??null,
+                    'configuration_name'=>$snapshot['name']??null,
                     'model'=>$snapshot['content']['model']??null]);
             try{
                 $result=$provider instanceof StreamingProvider

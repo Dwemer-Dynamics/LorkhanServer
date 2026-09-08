@@ -1260,7 +1260,7 @@ final class ProductRepository
 
     public function connectorForInstallation(string $installationId,string $kind):?array
     {
-        $statement=$this->db->prepare('SELECT c.configuration_id,c.current_revision AS revision,r.content FROM installation_provider_selections s JOIN configuration_sets c ON c.configuration_id=s.configuration_id AND c.installation_id=s.installation_id AND c.kind=s.provider_kind JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE s.installation_id=:installation AND s.provider_kind=:kind AND c.deleted_at IS NULL');
+        $statement=$this->db->prepare('SELECT c.configuration_id,c.name,c.current_revision AS revision,r.content FROM installation_provider_selections s JOIN configuration_sets c ON c.configuration_id=s.configuration_id AND c.installation_id=s.installation_id AND c.kind=s.provider_kind JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE s.installation_id=:installation AND s.provider_kind=:kind AND c.deleted_at IS NULL');
         $statement->execute(['installation'=>$installationId,'kind'=>$kind]);$row=$statement->fetch();
         if(!$row)return null;$row['revision']=(int)$row['revision'];$row['content']=$this->json($row['content']);return$row;
     }
@@ -1276,7 +1276,7 @@ final class ProductRepository
         $field=$routingField??$allowed[0];if(!in_array($field,$allowed,true))throw new RuntimeException('invalid_connector_route');
         $configurationId=trim((string)($routing[$field]??''));
         if($configurationId==='')return null;
-        $statement=$this->db->prepare('SELECT c.configuration_id,c.current_revision AS revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.configuration_id=:configuration AND c.installation_id=:installation AND c.kind=:kind AND c.deleted_at IS NULL');
+        $statement=$this->db->prepare('SELECT c.configuration_id,c.name,c.current_revision AS revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.configuration_id=:configuration AND c.installation_id=:installation AND c.kind=:kind AND c.deleted_at IS NULL');
         $statement->execute(['configuration'=>$configurationId,'installation'=>$installationId,'kind'=>$kind]);$row=$statement->fetch();
         if(!$row)return null;$row['revision']=(int)$row['revision'];$row['content']=$this->json($row['content']);return$row;
     }

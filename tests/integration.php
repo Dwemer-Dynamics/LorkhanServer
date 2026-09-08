@@ -2037,6 +2037,8 @@ $fallbackSnapshot=json_decode((string)$fallbackSnapshotStatement->fetchColumn(),
 $assert($status===202&&!isset($fallbackSnapshot['message']['_provider_configuration'])
     &&($fallbackSnapshot['message']['_fallback_provider_configuration']['configuration_id']??null)===$fallbackModelSlot['configuration_id'],
     'accepted turn did not freeze the Core Profile fallback connector');
+$assert(($fallbackSnapshot['message']['_fallback_provider_configuration']['name']??null)==='Profile fallback mock',
+    'accepted fallback snapshot lost its historical connector label');
 $fallbackWorkerStats=$runTurnWorker($failingProvider);
 $assert($fallbackWorkerStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],
     'explicit Core Profile fallback did not complete the durable turn');
@@ -2049,6 +2051,8 @@ $fallbackAttempts=$db->query("SELECT state,metadata->>'fallback' AS fallback FRO
     .$db->quote($fallbackTurn['turn_id'])." ORDER BY started_at,provider_attempt_id")->fetchAll();
 $assert($fallbackAttempts===[['state'=>'failed','fallback'=>'false'],['state'=>'succeeded','fallback'=>'true']],
     'profile fallback attempts were not recorded as one primary failure and one fallback success');
+$recordedLabel=$db->query("SELECT metadata->>'configuration_name' FROM provider_attempts WHERE state='succeeded' AND turn_id=".$db->quote($fallbackTurn['turn_id']))->fetchColumn();
+$assert($recordedLabel==='Profile fallback mock','successful fallback attempt lost its frozen connector label');
 $products->selectModelSlot(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],'fast',$now);
 
 // Exercise the lower group bounds through the same durable provider/TTS pipeline.
