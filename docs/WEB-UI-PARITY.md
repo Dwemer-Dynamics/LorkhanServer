@@ -5261,3 +5261,25 @@ the message is visible. Hide/reload/unhide passed again after the change.
 
 PHP lint, JavaScript syntax and diff checks passed. This is actual saved-filter
 fixture proof; no delete, game command or provider operation was invoked.
+
+
+### Diary primary toolbar and calendar side inset
+
+Fresh read-only 1280/390 captures reviewed Adventure Log, Diaries and Books in
+both live servers. Native Diaries had a fourth Create / Generate Entry action
+in the primary download/delete row. Moved that native tool into the existing
+Filters and playthrough disclosure, retaining the same narrative_manager route.
+The primary row now contains the reference three actions. Calendar readers use
+the reference ten-pixel side inset instead of the generic reader's twenty pixels.
+Other readers and generation behavior are unchanged.
+
+Deployed-template browser checks at both widths verified two download links plus
+the delete control, the tool hidden initially, and the same accessible tool link
+after expanding secondary controls. Both screenshots were visually inspected.
+PHP lint and diff checks passed. No generation/delete/provider action occurred.
+
+The current native Books view is empty while Herika is populated; this fresh
+comparison does not replace the separately recorded populated Books fixtures.
+Adventure narrow navigation remains usable with full month label, unlike the
+reference's clipped live narrow header; preserve readability rather than copy
+that clipping defect. Full matrix acceptance remains open.

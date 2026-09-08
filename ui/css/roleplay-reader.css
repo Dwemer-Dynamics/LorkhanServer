@@ -76,3 +76,6 @@ body .diary-people-item:hover,body .diary-people-item.active{border-color:#bc9d5
 .diary-people-item:focus-visible{outline:2px solid #bc9d5a;outline-offset:2px}
 .diary-people-count{background:#bc9d5a;color:#141414;padding:4px 8px;border-radius:4px;font-size:14px;font-weight:bold}
 .diary-book-link{max-width:400px;margin:12px auto 0;display:flex;justify-content:center;text-align:center}
+
+/* Match the reference calendar's ten-pixel side inset without narrowing other readers. */
+.roleplay-reader.calendar-log-page{padding-left:10px;padding-right:10px}
