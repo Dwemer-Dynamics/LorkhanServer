@@ -851,6 +851,9 @@ foreach(['builtin:default'=>[75,100,50,0,2,50,true,false],
     'builtin:follower'=>[100,150,100,0,4,60,true,true],
     'builtin:passive'=>[75,100,50,0,1,10,false,false]] as $builtin=>$expected){
     $applied=\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn($builtin,$corePresetSource);
+    $rpgChance=['builtin:default'=>50,'builtin:local_llm'=>0,'builtin:follower'=>75,'builtin:passive'=>20][$builtin];
+    $check($applied['settings_overrides']['rpg_comments']===['events'=>['sleep'],'chance_percent'=>$rpgChance],
+        'Built-in Core presets match CHIM RPG probabilities without replacing event choices');
     $settings=$applied['settings_overrides'];
     $check([$settings['memory']['recent_turn_limit'],$settings['diary']['context_turn_limit'],
         $settings['profile_evolution']['history_limit'],$settings['response']['max_words'],
