@@ -236,3 +236,14 @@ body .ai-response-page .log-page-actions .roleplay-button{
 body .roleplay-log-page:not(.book-log-page) :is(.log-pagination nav,.log-bottom-pagination) .roleplay-button{margin:5px;padding:7px 12px;font-weight:500;font-size:15px;min-height:0;letter-spacing:.3px}
 body .roleplay-log-page:not(.book-log-page) .log-pagination nav .roleplay-button{line-height:1.2}
 body .roleplay-log-page:not(.book-log-page) .log-bottom-pagination .roleplay-button{line-height:1.5}
+
+/* Prompt Viewer header and metadata follow the reference, retaining semantic close/copy buttons. */
+.roleplay-log-page .response-prompt-viewer>header{gap:normal}
+.roleplay-log-page .response-prompt-viewer h2{font:26px/1.2 MagicCards,sans-serif}
+.roleplay-log-page .response-prompt-viewer>header>div{display:block}
+body .roleplay-log-page .response-prompt-viewer [data-log-copy]{display:inline-flex;font-weight:500}
+body .roleplay-log-page .response-prompt-viewer [data-log-close]{float:right;display:block;margin:0!important;padding:0!important;min-height:0;font:700 28px/1.5 "Futura CondensedLight",Arial,sans-serif!important;letter-spacing:normal}
+.response-prompt-viewer .prompt-meta{padding:3px 8px;border-radius:999px;font-size:13px}
+.response-prompt-viewer .prompt-meta-driver{background:#111827;color:#93c5fd}
+.response-prompt-viewer .prompt-meta-model{background:#0f172a;color:#cbd5e1}
+body .roleplay-log-page .response-prompt-viewer [data-log-copy]{letter-spacing:.3px}

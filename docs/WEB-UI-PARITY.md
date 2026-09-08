@@ -6959,3 +6959,27 @@ above, not the remaining full page matrix or unequal live response contents.
 
 Deployed last-page comparisons match at all three widths; all 799 runtime files
 match source. Deployment preserved configuration, credentials and voice files.
+
+### Prompt Viewer header and metadata correction (2026-09-08)
+
+Compared identical short system messages and label/driver/model metadata in the native
+rendered PHP fixture and the reference's existing reader DOM. The native header had a
+24px title with normal line height, an extra 12px gap, and generic padded close-button
+styles, causing a 74px header at 390px where Herika has 42px. It now uses the reference
+26px/1.2 title, inline copy and floated multiplication-sign close control with 28px/1.5
+type and no button padding. Kept the semantic accessible close button. Copy weight and
+letter spacing match; branding colors remain native gold.
+
+Metadata now carries label/driver/model classes, 3px vertical padding, 13px type and
+separate reference neutral colors instead of one generic blue chip. Identical content
+checks at 1280/390 show matching header/title/close dimensions and message positions.
+Narrow screenshots show the title on one line. Body prose remains escaped plain text.
+Temp/prompt-matched-interaction.cjs verifies browser-mocked clipboard success/failure,
+literal script text copying, visible failure help and Escape closure. No OS clipboard,
+provider, database mutation or game interaction. PHP syntax and 608 checks pass.
+
+Copy feedback still uses the native accessible status instead of Herika's temporary
+button-label feedback; this is a remaining interaction difference, not declared parity.
+
+Deployed fixture/clipboard checks pass at both widths. Runtime verification matches
+all 799 source files, with persistent configuration, credentials and voices preserved.
