@@ -463,6 +463,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
                                 <section class="llm-advanced-panel">
                                     <div class="llm-group-heading"><span>Advanced LLM Settings Override</span><?php echo lorkhan_ui_feature_badge('config.llm.advanced', true); ?></div>
+                                    <small class="llm-advanced-hint">If a value is left empty, the API provider's recommended default will be used.</small>
                                     <div class="llm-option-grid">
                                         <?php foreach (LORKHAN_LLM_SAMPLING_FIELDS as $field) lorkhan_llm_number_field($field, $options, $formId, !$isMock); ?>
                                     </div>

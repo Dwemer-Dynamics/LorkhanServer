@@ -301,7 +301,8 @@ body.llm-page-shell > main.llm-page {
     background: transparent;
 }
 
-.llm-page .llm-advanced-panel > .llm-group-heading { margin-top: 0; }
+.llm-page .llm-advanced-panel > .llm-group-heading { margin-top: 0; margin-bottom: 4px; }
+.llm-page .llm-advanced-hint { display: block; margin-bottom: 8px; color: #9fb1c9; font-size: 13px; }
 
 /* Inherited Herika controls that LORKHAN does not implement, grouped and clearly inert. */
 .llm-page .llm-legacy-panel {
@@ -343,7 +344,7 @@ body.llm-page-shell > main.llm-page {
 /* Keep Herika's 220px label column, but reserve readable inputs in narrower editor columns. */
 .llm-page .llm-sampling-field { display: grid; grid-template-columns: minmax(0, min(220px, calc(100% - 112px))) minmax(0, 1fr); gap: 12px; align-items: center; }
 .llm-page .llm-option-control { min-width: 0; }
-.llm-page .llm-option-control input[type="range"] { display: block; width: 100%; margin: 0; padding: 0; min-height: 18px; accent-color: #bc9d5a; }
+.llm-page .llm-option-control input[type="range"] { appearance: none; -webkit-appearance: none; display: inline-block; width: 100%; height: 8px; min-height: 0; margin: 2px 2px 5px; padding: 0; border: 0; border-radius: 4px; background: #4a4a4a; accent-color: #bc9d5a; }
 .llm-page .llm-option-control input[type="number"] { margin-top: 6px; }
 .llm-page .llm-boolean-field { display: grid; grid-template-columns: minmax(0, 1fr) 100px; align-items: center; gap: 8px; }
 .llm-page .llm-boolean-field select { margin: 0; padding: 6px 8px; }
@@ -474,3 +475,7 @@ body.llm-page-shell main.llm-page .llm-editor-toolbar button.llm-test-button:hov
 #llm-test-dialog p { font:16px Arial,Helvetica,sans-serif; margin:1em 0; color:inherit; }
 #llm-test-dialog:has(.llm-test-loading:not([hidden])) { background:#0e1624; }
 #llm-test-dialog:has(.llm-test-loading:not([hidden])) .llm-test-viewport { opacity:0; }
+
+/* Match the reference range geometry while retaining Lorkhan gold. */
+.llm-page .llm-option-control input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #bc9d5a; cursor: pointer; }
+.llm-page .llm-option-control input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: #bc9d5a; cursor: pointer; }

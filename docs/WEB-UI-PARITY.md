@@ -7560,3 +7560,20 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
   diff checks and 613 server checks. Verified 800 deployed runtime hashes and
   private/authentication probes; configuration, credentials and voices unchanged.
   Rollback: lorkhanserver-code.kCEIBW. Full provider/editor acceptance remains open.
+
+### Full LLM editor comparison correction
+
+- A fresh full-page capture exposed an error in the previous checkpoint: Herika's
+  partial editor omits the advanced hint, but its full editor includes it. Verified
+  both branches in pinned source 529364c. Restored the full-editor wording and its
+  heading/hint margins; the previous paragraph-removal parity claim is superseded.
+- Copied the reference 8px rounded range track and 16px circular thumb geometry,
+  retaining gold instead of blue. The prior native browser track was bordered and
+  partially filled. This change is scoped to the LLM editor, not global controls.
+- Inspected full-page native/reference captures with password fields scrubbed and
+  writes blocked. Re-ran advanced interactions at 1280/390; all checks pass with
+  no connector saves or provider calls. Full provider switching acceptance remains
+  open, as do other matrix items; this is not whole-page acceptance.
+- 613 server checks and deployment syntax validation pass. Verified all 800 runtime
+  hashes and private/authentication probes; configuration, credentials and voices
+  preserved. Rollback: lorkhanserver-code.quTWtd.
