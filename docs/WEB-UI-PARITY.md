@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `21904d4` (cross-worker voice sample path refresh).
+Current deployed product checkpoint: `409452f` (local voice refresh controls and PocketTTS mode).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -8619,3 +8619,12 @@ acceptance. No saved connector, local voice, provider or game state was changed.
 This does not claim whole-cache parity: connector disclosure, populated row actions,
 provider error/batch views and remaining service sections still require review.
 PHP lint, 692 checks and full management HTTP passed (voice-refresh-http.txt).
+
+Deployed 409452f; rollback /var/backups/lorkhanserver-code.ShZY1w. All 803 runtime
+files match source with no extras/legacy paths; health/private/auth checks pass.
+Configuration, credentials and voice hashes are preserved. Fresh deployed populated
+PocketTTS cache screenshots inspected at 1280/390 show audio.cpp and the retained
+local sample grid. Standard API refresh acceptance uses an isolated current-template
+fixture and mock POST, not a changed live connector. Final PHP lint and 692 checks
+pass; full HTTP preceded the final batch-description-only wording change.
+No game launched or controlled. Full parity goal remains active.
