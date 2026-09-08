@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `deb775f` (Quickstart local credential foundation).
+Current deployed product checkpoint: `ed83397` (Quickstart transient key testing).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -8762,3 +8762,9 @@ CSRF rejection and unchanged routing fingerprint. PHP lint, 692 checks and full
 management HTTP pass (quickstart-transient-key-http.txt). No new test files. No real
 keys, provider credentials or game context used. No visible UI changed: this closes
 the draft-Test credential prerequisite, not Setup preset/save or page parity.
+
+Deployed ed83397; rollback /var/backups/lorkhanserver-code.YpFjN4. All 803 runtime
+files match, with no extra/legacy files. Health/private/auth checks pass; existing
+configuration, credential and voice hashes are preserved. No production key tests,
+provider calls or game control performed. Full presentation goal remains active,
+with Quickstart Setup/Local LLM UI and coordinated preset save still incomplete.
