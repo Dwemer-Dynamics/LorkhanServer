@@ -160,7 +160,7 @@ $sections = [
             ['boredom', 'Boredom Events', '&#x1F4AC;', 'boolean', $settings['behavior']['boredom'], 'Allow an active nearby NPC to make a brief spontaneous remark after the dialogue lane has been idle.', []],
             ['boredom_delay_seconds', 'Boredom Delay', '&#x23F3;', 'integer', $settings['behavior']['boredom_delay_seconds'], 'Idle seconds before a boredom event can start. Each event restarts this timer.', ['min' => 30, 'max' => 86400]],
             ['combat_barks', 'Combat Barks', '&#x2694;&#xFE0F;', 'boolean', $settings['behavior']['combat_barks'], 'Allow a managed NPC in combat to deliver a short urgent bark while the dialogue lane is idle.', []],
-            ['combat_bark_period_seconds', 'Combat Bark Period', '&#x23F1;&#xFE0F;', 'integer', $settings['behavior']['combat_bark_period_seconds'], 'Minimum seconds between automatic combat barks.', ['min' => 5, 'max' => 300]],
+            ['combat_bark_period_seconds', 'Combat Bark Period', '&#x23F1;&#xFE0F;', 'integer', $settings['behavior']['combat_bark_period_seconds'], 'Minimum seconds between automatic combat barks.', ['min' => 5, 'max' => 600]],
         ],
         'Translation' => [
             ['translation_provider', 'Provider', '&#x1F310;', 'select', $translationPolicy['provider'], 'Server-only NPC output translation. None leaves NPC output untranslated; DeepL uses the server-held DeepL key and the account endpoint below.', ['values' => ['none' => 'None', 'deepl' => 'DeepL'], 'feature' => 'config.globals.translation', 'live' => true, 'control' => 'provider']],

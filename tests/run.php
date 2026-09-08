@@ -2201,6 +2201,21 @@ $check(array_column($pruned['history'],'_source_id')===['other']
     &&$pruned['memory']['counts']['covered_by_history']===0,
     'pruning preserves the next temporal heading and traces combined memory/history coverage accurately');
 
+$combatCore=['settings_overrides'=>['behavior'=>['combat_bark_period_seconds'=>600]]];
+$combatResolved=(new EffectiveSettingsResolver())->resolve([],$combatCore,[]);
+$check($combatResolved['settings']['behavior']['combat_bark_period_seconds']===600
+    &&$combatResolved['sources']['settings.behavior.combat_bark_period_seconds']==='core_profile'
+    &&EffectiveSettingsResolver::controlsProjection($combatResolved)['settings']['behavior']['combat_bark_period_seconds']===600
+    &&$combatResolved['settings']['behavior']['combat_barks']===false,
+    'Core combat cooldown reaches native controls without enabling global combat barks');
+$combatPreset=\LorkhanServer\Application\CoreProfilePreset::capture($combatCore);
+$check(\LorkhanServer\Application\CoreProfilePreset::apply($combatPreset,$corePresetSource)['settings_overrides']['behavior']['combat_bark_period_seconds']===600,
+    'combat cooldown survives named presets');
+$check(EffectiveSettingsResolver::validateSettingsOverrides(['behavior'=>['combat_bark_period_seconds'=>5]])['behavior']['combat_bark_period_seconds']===5,
+    'existing five-second combat cooldown values remain valid');
+try{EffectiveSettingsResolver::validateSettingsOverrides(['behavior'=>['combat_bark_period_seconds'=>601]]);$check(false,'combat cooldown above range rejected');}
+catch(InvalidArgumentException){$check(true,'combat cooldown above range rejected');}
+
 $globalSettings=SettingsCatalog::globalDefaults();
 $check($globalSettings['profile_management']===['auto_lock_profile'=>true,
         'autofill_custom_profiles'=>true,'autofill_custom_profiles_trigger'=>40],

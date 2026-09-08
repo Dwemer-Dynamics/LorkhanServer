@@ -154,7 +154,7 @@ final class SettingsCatalog
         'behavior.rechat_probability_percent' => [0, 100],
         'behavior.end_conversation_cooldown_seconds' => [0, 300],
         'behavior.boredom_delay_seconds' => [30, 86400],
-        'behavior.combat_bark_period_seconds' => [5, 300],
+        'behavior.combat_bark_period_seconds' => [5, 600],
         'narrator.welcome_cooldown_minutes' => [1, 1440],
         'narrator.random_chance_percent' => [1, 100],
         'narrator.random_cooldown_rounds' => [0, 10],
