@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
       row.className = 'eventlog-empty';
       const empty = document.createElement('td');
       empty.colSpan = 7;
-      empty.textContent = 'No roleplay events have been recorded yet.';
+      empty.textContent = 'No events match the current playthrough and filters.';
       row.appendChild(empty);
       body.appendChild(row);
     } else {

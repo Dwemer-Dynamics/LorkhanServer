@@ -5242,3 +5242,22 @@ match the intended distinction at both widths; the selected narrow screenshot
 was visually inspected. Scope disclosure and native context-preservation wording
 remain. Saved-filter and empty-state comparisons are not claimed by this check.
 CSS diff checks passed; no backend/protocol change.
+
+
+### Events saved-filter and empty-state proof
+
+Used a disposable PostgreSQL/HTTP fixture with one synthetic chat projection and
+its own profile/playthrough. Production UI saved the chat hide filter, reloaded
+with its chip intact, showed an empty result, then removed the chip and restored
+the original escaped event. No live hide preferences or event data changed.
+
+This exposed two defects: empty results incorrectly said no events had ever been
+recorded, and the centered message was outside the narrow viewport because the
+empty table retained a 980px minimum. Server and refreshed-client renderers now
+say no events match the current playthrough and filters. Empty-only tables drop
+the minimum width and hide irrelevant column headers; populated tables retain
+their normal structure. The final 390px screenshot was visually inspected and
+the message is visible. Hide/reload/unhide passed again after the change.
+
+PHP lint, JavaScript syntax and diff checks passed. This is actual saved-filter
+fixture proof; no delete, game command or provider operation was invoked.

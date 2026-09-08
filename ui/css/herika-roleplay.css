@@ -74,3 +74,8 @@ body .events-memories-page .eventlog-row-delete { min-height: 24px !important; p
 body #eventlog-app [data-eventlog-pagination] button:not(.active),body #eventlog-app [data-eventlog-live].active{background:#bc9d5a!important;color:#171717!important;border-color:#9d8045!important;font-weight:normal}
 body #eventlog-app [data-eventlog-pagination] button.active{background:#3a3a3a!important;color:#fff!important;border-color:#555!important;font-weight:normal}
 #eventlog-app [data-eventlog-pagination]{flex-wrap:wrap}
+
+/* Keep the empty result visible instead of centering it in a wide off-screen table. */
+#eventlog-app .eventlog-table:has(.eventlog-empty){min-width:0;width:100%}
+#eventlog-app .eventlog-table:has(.eventlog-empty) thead{display:none}
+#eventlog-app .eventlog-table .eventlog-empty td{width:auto;min-width:0;padding:20px;text-align:center;white-space:normal}
