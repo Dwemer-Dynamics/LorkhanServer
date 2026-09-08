@@ -7947,3 +7947,10 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - Native clipboard-mock checks at both widths passed: exact multiline literal text, success feedback, close/reopen reset, denied-copy alert, Escape and focus returned to opener. No provider/production POSTs or real clipboard writes. Initial probes were corrected for normal whitespace handling and asynchronous alert dismissal; no product change was needed.
 - Evidence: temporary `response-reader-compare.cjs`, `response-reader-copy-proof.cjs`, and paired `response-reader-{ref,native}-{1280,390}.png`. This verifies the normalized single-message reader, not all live metadata/multimessage or raw-unavailable states. The separate 1px table offset and full matrix remain open.
 - Documentation-only checkpoint; runtime remains `32fafda`, with no new deployment required.
+
+### AI Responses equivalent-frame correction and multi-role reader (2026-09-08)
+
+- Corrected the earlier 1px table-offset finding: the comparison used reference `#responselog-tab` (with border) against native `.roleplay-log-page` (inside its bordered tab). Comparing equivalent `.tab-content` frames proves matching table Y: 155.25 at 1280 and 308.75 at 390, populated and empty. No product CSS compensation is appropriate. This supersedes earlier notes listing the offset as unfinished work.
+- Extended the actual-reader normalized fixture to SYSTEM/USER/ASSISTANT, connector label/driver/model badges and long text. Both modals measure 1152 x 594.46875 at desktop and 351 x 900 at narrow; message geometry and metadata wrapping match. Paired narrow screenshots inspected. Fixture text and metadata were browser-only; no persisted/provider data altered.
+- Evidence: `response-frame-matched.cjs`, `response-reader-multi.cjs` and `response-reader-multi-{ref,native}-{1280,390}.png`. Raw-unavailable, all retained-message variants and full embedded acceptance remain distinct checks. Existing clipboard/Escape/focus evidence remains valid.
+- Documentation only; deployed product code remains `32fafda`. Full page matrix remains active.
