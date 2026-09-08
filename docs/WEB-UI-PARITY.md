@@ -7976,3 +7976,9 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - Live desktop/narrow browser probes at 1280/390 passed: inside click stays open, backdrop closes during a mocked pending preview and signals abort, no audio src remains, focus returns to Test, reopen resets and Escape still closes. All POSTs were browser-mocked/blocked; no real provider calls. JavaScript syntax check passed.
 - Azure automatic Validmoods remains a separate missing feature: current provider only consumes fixedMood; response mood transport across streamed/queued speech must precede an active automatic-style control. Existing save-before-testing behavior matches the reference and was not changed.
 - Server-only deployment verified 800 matching runtime files and private/auth checks; configuration/credentials/voices preserved. Rollback `/var/backups/lorkhanserver-code.7Ir9Wt`. This closes the backdrop interaction gap, not whole TTS-page parity.
+
+### STT Test backdrop close parity (2026-09-08)
+
+- Reference `ui/stt_connectors.php` closes the test modal on its backdrop and unloads the iframe. Native now closes only for clicks outside dialog bounds, sharing the existing cancellation/sample-reset/focus cleanup. Inside clicks are retained.
+- Live desktop/narrow probes at 1280/390 passed: mocked save followed by pending transcription, inside click, backdrop abort, sample paused/reset, opener enabled/focused, reopen and Escape abort. All saves and provider POSTs were mocked; no microphone or provider calls. JavaScript syntax passed.
+- Server-only deployment verified 800 hashes, no extra/legacy files, protected private/auth routes, and preserved configuration/credentials/voices. Rollback `/var/backups/lorkhanserver-code.KKBMx3`. Google Free STT and the wider STT/full-page matrix remain incomplete.
