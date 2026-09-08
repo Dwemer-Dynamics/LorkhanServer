@@ -30,8 +30,7 @@ function lorkhan_adventure_table(array $rows, bool $dateSelected = true): void
     <div class="calendar-event-scroll" tabindex="0" role="region" aria-label="Adventure events">
         <table class="calendar-event-table adventure-event-table" id="adventure-events">
             <colgroup><col class="col-context"><col class="col-people"><col class="col-gamets"><col class="col-time"></colgroup>
-            <thead><tr><th scope="col">Context</th><th scope="col">Nearby People</th><th scope="col"><a href="https://en.uesp.net/wiki/Lore:Calendar" target="_blank" rel="noopener noreferrer">Tamrielic Time</a></th><th scope="col">Time (UTC)</th></tr></thead>
-            <tbody>
+            <tbody><tr><th scope="col">Context</th><th scope="col">Nearby People</th><th scope="col"><a href="https://en.uesp.net/wiki/Lore:Calendar" target="_blank" rel="noopener noreferrer">Tamrielic Time</a></th><th scope="col">Time (UTC)</th></tr>
             <?php foreach ($rows as $row): $entry = lorkhan_adventure_record($row);
                 if ($previousLocation !== $entry['location']): ?>
                 <tr class="location-change-row"><td colspan="4"><?= $previousLocation === null ? 'Current Location: ' : 'Location Change: ' ?><?= lorkhan_ui_h($entry['location'] !== '' ? $entry['location'] : 'Not recorded') ?></td></tr>

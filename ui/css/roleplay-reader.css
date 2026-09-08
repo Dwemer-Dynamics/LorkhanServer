@@ -55,13 +55,12 @@ body .roleplay-reader .diary-audio-button{background:#bc9d5a!important;border-co
 body .diary-log-page .diary-row-actions button.roleplay-button{font-size:13.12px!important;padding:7px 12px!important;min-height:0!important;margin:0!important;line-height:18px!important}
 .roleplay-reader .reader-status:empty,.roleplay-reader [data-roleplay-maintenance-status]:empty{display:none}
 /* Adventure Log follows Herika's chronological context table and speaker/location grouping. */
-.roleplay-reader .adventure-event-table{table-layout:auto;font-size:13px;margin-top:20px;border:1px solid #404040;border-radius:10px;scroll-margin-top:200px}
+.roleplay-reader .adventure-event-table{border-collapse:separate;border-spacing:0;table-layout:auto;font-size:13px;margin-top:20px;border:1px solid #404040;border-radius:10px;scroll-margin-top:200px}
 .roleplay-reader .adventure-event-table th,.roleplay-reader .adventure-event-table td{padding:9px 10px;border:1px solid #343434;vertical-align:middle;color:#e0e0e0}
 .roleplay-reader .adventure-event-table th{background:#292929;color:#bc9d5a}
 .roleplay-reader .adventure-event-table .col-context{width:55%}.roleplay-reader .adventure-event-table .col-people{width:20%}.roleplay-reader .adventure-event-table .col-gamets{width:15%}.roleplay-reader .adventure-event-table .col-time{width:10%}
 body #adventure-tab .adventure-event-table th:first-child,.roleplay-reader .adventure-event-table th:first-child{width:55%}
 .roleplay-reader .adventure-event-table th:nth-child(2){width:20%}
-body .roleplay-reader table.adventure-event-table tbody tr.speaker-even{background:#202020!important}body .roleplay-reader table.adventure-event-table tbody tr.speaker-odd{background:#232323!important}
 .roleplay-reader .adventure-event-table .location-change-row td{background:#34495e;color:#ecf0f1;font-weight:bold;text-align:left;padding:9px 10px}
 .roleplay-reader .adventure-event-table .log-empty{text-align:center;padding:20px}
 .roleplay-reader .calendar-event-scroll:focus-visible{outline:2px solid #bc9d5a;outline-offset:2px}

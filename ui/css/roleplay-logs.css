@@ -197,7 +197,7 @@ body .calendar-log-page:not(.diary-log-page) .calendar-downloads :is(a,button){m
 .calendar-log-page .reader-heading h1>span{font:inherit;line-height:inherit}
 .calendar-log-page .calendar-navigation{font-family:"Futura CondensedLight",Arial,sans-serif}
 .calendar-log-page .calendar-navigation span{font-weight:400}
-#adventure-tab .calendar-navigation a{font-weight:500;line-height:1.2;margin:5px}
+#adventure-tab .calendar-navigation a{letter-spacing:.3px;font-weight:500;line-height:1.2;margin:5px}
 #diaries-tab .calendar-navigation a{font-weight:600}
 @media(max-width:480px){.calendar-log-page .reader-heading h1{font-size:24px}}
 

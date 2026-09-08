@@ -6334,3 +6334,27 @@ are preserved. Rollback /var/backups/lorkhanserver-code.EQf2op. No game activity
 
 This corrects a concrete false-negative in prior component checks. Full populated/empty
 page acceptance and the remaining matrix are still open, including narrow calendar layout.
+
+## Adventure reader table structure and row backgrounds
+
+Fresh populated comparison found collapsed native borders and forced speaker-band
+backgrounds diverging from Herika's deployed table. Moved the header row into the same
+tbody composition as the reference (retaining th scope attributes), switched to separate
+borders with zero spacing, and removed the overriding speaker background rules so the
+shared alternating-row theme applies. Location dividers and speaker metadata remain.
+Adventure month navigation also now carries the reference 0.3px letter spacing.
+
+Temp/adventure-table-proof.cjs places identical synthetic text/rows in both real page
+shells and verifies all column widths, borders, padding and row backgrounds at 1280px.
+Inspected the paired table screenshots. Mouse is outside the table to avoid mistaking
+hover colour for a stripe. Live adventure-current-proof.cjs passes selected-day entries,
+current/full CSV containing the displayed event, calendar mode switches and empty date;
+it captures current desktop/narrow readers without writes. The initial audit used an
+incorrect nested-table selector; corrected to the actual table ID before comparison.
+603 existing checks pass. Deployment has 799 matching files, no extras/old paths and
+passing private/auth/health checks; config/credential/voice hashes preserved. Rollback:
+/var/backups/lorkhanserver-code.h6BgiN. No live data mutations, provider calls or game use.
+
+Still open: native filter/pagination placement, reference frame versus native page
+scrolling, narrow table layout and the complete remaining page matrix. Table geometry
+and row-state parity are not whole-page acceptance.
