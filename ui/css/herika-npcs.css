@@ -772,3 +772,41 @@ dialog.npc-rel-detail-dialog{font-size:15px;max-height:90vh;padding:20px}
 body .npc-relationships .npc-rel-detail-dialog input,body .npc-relationships .npc-rel-detail-dialog textarea{background:#181818!important;font-size:13.44px!important;padding:8px!important;line-height:1.45!important}
 body .npc-relationships .npc-rel-detail-dialog input{height:40px;min-height:40px}
 .npc-rel-detail-dialog>label:first-of-type{margin-top:0}
+
+/* Herika NPC override rows and chooser, scoped to native typed drafts. */
+.npc-ovr-container {display:flex;flex-direction:column;gap:12px;border:1px solid #4a4a4a;border-radius:8px;padding:12px;background:#262626;margin-bottom:12px;}
+.npc-ovr-title {font-size:16px;color:#bc9d5a;}
+.npc-ovr-list {display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
+.npc-ovr-item {display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;background:#2a2a2a;border:1px solid #4a4a4a;border-radius:6px;padding:10px;}
+.npc-ovr-item > span {font-size:20px;}
+.npc-ovr-info {display:flex;flex-direction:column;gap:2px;min-width:0;}
+.npc-ovr-info strong {color:#e9efff;font-size:14px;}
+.npc-ovr-info .npc-ovr-value {color:#9fb1c9;font:13px monospace;overflow-wrap:anywhere;}
+.npc-ovr-actions {display:flex;gap:6px;}
+.npc-ovr-empty {color:#9fb1c9;text-align:center;padding:20px;font-style:italic;}
+.npc-setting-overrides button {padding:4px 8px;border-radius:4px;border:1px solid #4a4a4a;background:#3a3a3a;color:#e9efff;cursor:pointer;}
+.npc-setting-overrides button:hover {background:#4a4a4a;}
+.npc-setting-overrides button.danger {background:#5a2a2a;border-color:#7a3a3a;}
+.npc-setting-overrides button.npc-ovr-add {width:100%;padding:8px 12px;background:#bc9d5a;color:#111;font-weight:700;border-radius:6px;}
+.npc-ovr-container summary {cursor:pointer;color:#9fb1c9;font-size:13px;}
+.npc-ovr-container details textarea {font-family:monospace;min-height:160px;}
+.npc-ovr-container [role=status] {margin:0;color:#9fb1c9;}
+.npc-ovr-container .error {color:#ff9898;}
+.npc-ovr-dialog {padding:0;width:min(600px,90vw);max-height:80vh;box-sizing:border-box;background:#2a2a2a;color:#e9efff;border:1px solid #4a4a4a;border-radius:10px;}
+.npc-ovr-dialog::backdrop {background:rgba(0,0,0,.65);}
+.npc-ovr-dialog header,.npc-ovr-dialog footer {padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #4a4a4a;}
+.npc-ovr-dialog header strong {font-size:18px;color:#bc9d5a;}
+.npc-ovr-dialog footer {border-top:1px solid #4a4a4a;border-bottom:0;}
+.npc-ovr-body {padding:14px;overflow-y:auto;max-height:55vh;}
+.npc-ovr-options {display:flex;flex-direction:column;gap:8px;}
+.npc-ovr-options button {text-align:left;padding:10px;}
+.npc-setting-overrides :is(input,select,textarea) {box-sizing:border-box;max-width:100%;}
+.npc-setting-overrides [hidden] {display:none!important;}
+.npc-setting-overrides :is(button,input,select,textarea,summary):focus-visible {outline:2px solid #bc9d5a;outline-offset:2px;}
+@media(max-width:480px){.npc-ovr-item{grid-template-columns:auto minmax(0,1fr);}.npc-ovr-actions{grid-column:2;}.npc-ovr-dialog footer .npc-ovr-add{width:auto;}}
+
+/* Shared management button rules must not erase the counterpart's primary/danger treatments. */
+.npc-setting-overrides .npc-ovr-container button.npc-ovr-add,
+.npc-setting-overrides .npc-ovr-dialog button.npc-ovr-add {background:#bc9d5a!important;color:#111!important;}
+.npc-setting-overrides .npc-ovr-actions button.danger {background:#5a2a2a!important;border-color:#7a3a3a!important;}
+.npc-setting-overrides .npc-ovr-info .npc-ovr-value {background:transparent;padding:0;}
