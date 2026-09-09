@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Latest checkpoint: visible Quickstart Setup / Local LLM cards and transactional form wiring (see the final dated section). Narrator quest grounding is deployed at server `75984dc` / client `b133b4b`; the client is unchanged by this UI checkpoint.
+Latest presentation checkpoint: shared context labels and appearance grouping (de38f77); see the final dated sections for remaining ownership differences. Quickstart Setup / Local LLM cards, all-Core preset application, memory switches and network helpers are implemented. Narrator quest grounding is deployed at server `75984dc` / client `b133b4b`; the client is unchanged by this UI checkpoint.
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -40,8 +40,8 @@ Lorkhan's Journal remains an OpenMW-specific entry.
 
 Quickstart MiniMe Service is implemented, including its bounded reachability probe.
 Managed Local LLM persistence, routing API and partial built-in profile application
-are implemented, but do not establish the missing visible Setup/Local LLM workflow.
-Complete built-in preset semantics, Setup and Player2 remain open. Do not present
+and the visible Setup/Local LLM workflow are implemented; see the dated checks below.
+Remaining connector availability gates, Player2 and complete page closure remain open. Do not present
 partial or unwired controls as completed counterparts.
 
 Evidence is recorded in the dated checkpoints below. Current API Keys review uses
@@ -9869,3 +9869,30 @@ particular, npc_current_state currently gates the target NPC's entire actorState
 replace it with activity/condition toggles until reference actor ownership and
 existing saved false behavior are traced. No dummy controls were added to mimic
 the reference's card count. Overall page-by-page parity remains incomplete.
+### Context ownership audit and release exceptions (2026-09-08)
+
+Source inspection at reference 529364c4 establishes the following next work.
+This is source evidence, not browser or game acceptance.
+
+| Reference control | Authoritative source | Lorkhan mapping / required action |
+| --- | --- | --- |
+| equipment | lib/data_functions.php buildDynamicBiography reads FOLLOWER_CONF HERIKA_NAME metadata | Speaking NPC equipment; native targetState is the responder snapshot, not automatically the CHIM dialogue target. Existing shared player/NPC switch is not full ownership parity. |
+| target_equipment | lib/data_functions.php lines 7500-7537 separately resolves DIALOGUE_TARGET through NpcMaster | Trace actual recipient identity for directed/rechat turns before introducing the selector. Do not label playerState as the recipient for every turn. |
+| activity | lib/data_functions.php line 7297 emits activity from speaker metadata | Separate the actual activity consumer from npc_current_state master gating. |
+| condition | lib/data_functions.php lines 7425-7432 emits condition | Native observed stats already provide health/magicka/fatigue. Gate condition independently without suppressing equipment or identity. |
+| storyline_starring | lib/data_functions.php reads sneq_quests for extended_data starring_in_quest | EXCLUDED: belongs to the explicitly excluded AI Quest Manager, not ordinary observed Morrowind journal updates. |
+| quest_topics | same quest builder reads quest_data topics/giver for the starring NPC | EXCLUDED for the same release boundary. Do not add an inert card or reintroduce the quest manager. |
+
+Reference defect found: lib/settings.php uses current_activity/current_condition
+as catalog IDs, while buildDynamicBiography emits activity/condition XML tags.
+processor/misc.php chimApplyPromptContextOptionsToSystemPrompt passes catalog IDs
+directly to chimRemovePromptXmlBlock. Consequently that path does not remove the
+emitted tags when these selectors are disabled. Match the visible labels and
+intended independent behavior in Lorkhan; do not reproduce this mismatch.
+
+Before removing npc_current_state, preserve the legacy false snapshot semantics:
+it currently suppresses all target actorStateXml, including identity, equipment,
+inventory and magic, while player state bypasses it. A two-boolean replacement
+alone would expose data previously excluded. Keep this conversion explicit and
+covered with existing prompt fixtures, including frozen snapshots and presets.
+No runtime changes or new validation claims in this audit checkpoint.
