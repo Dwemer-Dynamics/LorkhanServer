@@ -10169,3 +10169,37 @@ proof of that specific metadata path). Reference angry-volume/dazed-rate behavio
 also remains to audit. These are not recorded as product exclusions. Other page
 matrix gaps, cumulative NPC digest and profile/context work remain open. GitHub
 server workflow stays manually disabled. No game launched or controlled.
+
+### All-provider field audit and Service ordering (2026-09-08)
+
+Readonly deployed editor audit switched every reference service and compared visible
+field labels, help, control types and choice lists (tts-all-fields-audit.cjs/txt).
+Service now preserves the exact 17 shared reference driver IDs in reference order;
+additional existing supported drivers follow in Others. No driver removed or renamed,
+and no saved connector altered. tts-service-order-proof.cjs checks actual deployed
+reference/native option ID ordering. PHP lint and 889 server checks pass; deployment
+preserved configuration, credentials and voices; 811 runtime hashes match.
+
+Concrete remaining provider discrepancies (not product exclusions):
+- Zonos lacks Dynamic Tones and Cached Voice Path controls; language/model defaults
+  currently add en/default ahead of reference choices. Pitch/rate/CFG ranges and
+  help differ. Trace reference emotion request generation and protected cache
+  ownership before adding functional controls; never expose arbitrary local paths.
+- Mimic3 lacks the visible Volume field. Reference tts/tts-mimic3.php's active
+  TTS_IN_USE GET path ignores volume; only ttsMimicOld SSML reads it. Thus this is a
+  presentation mismatch, not evidence of missing active reference volume behavior.
+  Do not add a silently inert setting or claim real volume parity from a field.
+- OmniVoice language lists match here, but automatic preparation-on-save is still
+  different from selecting an already available local profile.
+- XTTS FastAPI display label differs from reference XTTS; additional native XTTS
+  driver must remain distinguishable if label alignment is made.
+- Chatterbox/XTTS/ElevenLabs boolean rows contain a hidden reference INPUT before
+  the visible SELECT; the raw first-control difference alone is not a visual gap.
+- Inworld optional workspace routing and Azure advanced endpoint help describe
+  actual native behavior; Deepgram reference help says Model for Bitrate, which
+  must not be copied as misleading help. xVASynth Morrowind example is intentional.
+
+API Badge choices reflect different saved records, not a layout mismatch. Extra
+revision/default/advanced editor surfaces still require their own interaction and
+placement review; this audit does not declare the whole connector editor complete.
+All broader matrix gaps remain active. No provider calls or game controls used.

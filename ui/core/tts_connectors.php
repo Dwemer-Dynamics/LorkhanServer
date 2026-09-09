@@ -74,7 +74,11 @@ if ($selected !== null && $mode === 'edit') {
         SpeechPreviewCatalog::narratorVoice($narrator));
 }
 $recommendedDrivers = array_intersect(['pockettts', 'chatterbox', 'xtts-fastapi', 'inworld', 'cartesia', 'omnivoice'], array_keys($drivers));
-$driverGroups = ['Recommended' => $recommendedDrivers, 'Others' => array_diff(array_keys($drivers), $recommendedDrivers)];
+// Match Herika's shared service order, retaining additional supported drivers at the end.
+$otherDrivers = array_intersect(['piper-tts', 'xvasynth', 'melotts', 'mimic3', 'azure', '11labs',
+    'openai', 'kokoro', 'koboldcpp', 'zonos_gradio', 'deepgram'], array_keys($drivers));
+$driverGroups = ['Recommended' => $recommendedDrivers, 'Others' => array_merge($otherDrivers,
+    array_diff(array_keys($drivers), $recommendedDrivers, $otherDrivers))];
 
 /** Keep the same submitted URL field when cloud endpoints move into advanced settings. */
 function lorkhan_tts_endpoint_field(array $content, array $defaults, string $formId): void
