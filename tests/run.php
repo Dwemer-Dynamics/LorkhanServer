@@ -855,6 +855,9 @@ foreach(['builtin:default'=>[75,100,50,0,2,50,true,false],
     $check($applied['settings_overrides']['rpg_comments']===['events'=>['sleep'],'chance_percent'=>$rpgChance],
         'Built-in Core presets match CHIM RPG probabilities without replacing event choices');
     $settings=$applied['settings_overrides'];
+    $autonomyExpected=['builtin:default'=>[30,30],'builtin:local_llm'=>[30,100],'builtin:follower'=>[50,20],'builtin:passive'=>[5,120]][$builtin];
+    $check([$settings['bored_event']['chance_percent'],$settings['behavior']['combat_bark_period_seconds']]===$autonomyExpected,
+        $builtin.' matches reference bored probability and combat cooldown');
     $check([$settings['memory']['recent_turn_limit'],$settings['diary']['context_turn_limit'],
         $settings['profile_evolution']['history_limit'],$settings['response']['max_words'],
         $settings['behavior']['rechat_max_depth'],$settings['behavior']['rechat_probability_percent'],

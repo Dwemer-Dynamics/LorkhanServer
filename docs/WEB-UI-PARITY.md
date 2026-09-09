@@ -9469,3 +9469,15 @@ Still pending for full Bored Event parity: built-in-specific probabilities, NPC
 override editor ownership, in-game setting exposure, rolemaster/director topic
 generation, whole-Core layout and actual in-game acceptance. This checkpoint
 does not close those items or the full-page goal.
+
+
+### Built-in bored/combat preset values (2026-09-08)
+
+Compared current reference `lib/core/settings_presets.php` default/local runtime
+values and follower/passive overrides. Native built-ins now apply matching
+Bored Event Chance / Combat Bark Cooldown pairs: Default30/30, LocalLLM30/100,
+Follower50/20, Passive5/120 (percent/seconds). Existing profiles are not rewritten;
+these are applied only by choosing a preset. Global enable switches remain
+unchanged. Extended the existing four-preset test loop; 793 server checks pass.
+This closes the built-in bored/combat values gap, not quest comments, physical
+diary or Quickstart presentation. No game launched or controlled.
