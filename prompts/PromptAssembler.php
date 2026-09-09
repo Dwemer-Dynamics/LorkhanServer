@@ -365,7 +365,7 @@ final class PromptAssembler
         $npc .= $this->characterXml($turn, $roleplayProfile, $actorName, $details, $itemBlacklist, $magicBlacklist);
         foreach ($latestDiary as $entry) $npc .= $this->xmlTag('latest_diary_entry', $this->truncateUtf8($this->sourceContent('latest_diary', $entry), min($this->maxSourceBytes, self::SECTIONS['latest_diary']['bytes'])));
         $core = $coreProfile === null ? '' : $this->fieldText($coreProfile['content'] ?? [], ['prompt']);
-        if ($core !== '') $npc .= $this->xmlTag('core_profile_instructions', $core);
+        if ($details['npc_group'] && $core !== '') $npc .= $this->xmlTag('core_profile_instructions', $core);
         $instruction = $this->fieldText($prompt['content'] ?? [], ['instruction', 'prompt', 'default_prompt', 'custom_prompt']);
         if ($instruction !== '') $npc .= $this->xmlTag('roleplay_prompt', $instruction);
         if ($speechStylePrompt !== '') $npc .= $this->xmlTag('speech_style_instructions', $speechStylePrompt);

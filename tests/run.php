@@ -1134,6 +1134,16 @@ foreach ([true,false] as $legacyState) {
     $groupsPrompt=(new PromptAssembler(16384,1024))->assemble($groupsTurn,$groupsSelection)['provider_input']['_assembled_prompt'];
     $check(str_contains($groupsPrompt,'UniqueFaction')===$legacyState,'legacy current-state choice retains faction visibility');
 }
+$groupSelection=$promptSelection;
+$groupSelection['core_profile']=['core_profile_id'=>'group-profile','revision'=>1,'content'=>['prompt'=>'UniqueCoreGroupInstructions','settings_overrides'=>[]]];
+$groupSelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
+foreach ([true,false,null] as $includeGroup) {
+    if ($includeGroup===null) unset($groupSelection['effective_settings']['context']['details']['npc_group']);
+    else $groupSelection['effective_settings']['context']['details']['npc_group']=$includeGroup;
+    $groupPrompt=(new PromptAssembler(16384,1024))->assemble($contextTurn,$groupSelection)['provider_input']['_assembled_prompt'];
+    $check(str_contains($groupPrompt,'UniqueCoreGroupInstructions')===($includeGroup!==false),'group selector gates Core prompt and preserves legacy inclusion');
+    $check(str_contains($groupPrompt,'Fargoth'),'group selector never removes character identity');
+}
 $inventorySelection=$promptSelection;
 $inventorySelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
 $inventorySelection['effective_settings']['context']['details']['npc_inventory']=false;

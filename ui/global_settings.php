@@ -77,6 +77,7 @@ $contextGroups = [
         'npc_rpg_skills' => ['<rpg_skills>', 'RPG-style skill proficiencies and levels.'],
         'npc_speech_style' => ['<speech_style>', 'Speaking style and communication habits.'],
         'npc_goals' => ['<goals>', 'Current ambitions, motivations, and long-term aims.'],
+        'npc_group' => ['<group>', 'Profile-level group membership prompt fragment.'],
         'npc_moods' => ['Allowed Moods & Emotes', 'Allowed moods and emotes from the speaker profile.'],
         'npc_notes' => ['Notes', 'Additional notes from the speaker profile.'],
         'npc_race_gender' => ['Race & Gender', 'The speaker’s race and gender.'],

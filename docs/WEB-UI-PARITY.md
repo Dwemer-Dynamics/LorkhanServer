@@ -9973,3 +9973,29 @@ Herika resolves description-backed display names; native output currently uses
 observed TES3 record IDs. This is a remaining implementation task, not a permanent
 product exception. Lower-row memory/group and native extra controls also remain
 open, alongside the larger page matrix. Goal active.
+### Core profile group prompt selector (2026-09-08)
+
+Reference main.php lines 2385-2386 wraps PROFILE_PROMPT in group; core_profiles.class.php
+sets it from the Core profile prompt field. Native already consumes that field as
+core_profile_instructions. Added the matching group card and an independent gate
+on that existing content without replacing prompts or connector ownership. Legacy
+settings retain inclusion; Default enables it and Local disables it. The first
+three Character rows remain aligned; lower rows still differ.
+
+868 checks pass, including enabled/disabled/legacy Core text and preserved identity.
+HTTP forms now verify 39 unique context controls; full integration, 173-relation
+inventory, migrations and durable jobs pass (coregroup-context-http.txt and
+coregroup-context-integration.txt). Read-only coregroup-context-proof.cjs exercises
+mouse/keyboard at 1280/390. Both desktop Character groups and native narrow capture
+were inspected; matching label/help and card structure, not full-group closure.
+Narrow element capture has the documented fixed-navbar overlap. All 811 deployed
+runtime hashes match; private 403/unpaired 401; configuration/voices preserved.
+No game or live-provider calls.
+
+Important remaining mapping: middle_term_memory is NOT solely Background Life.
+Reference main.php lines 2394-2403 reads the latest NPC extended_data digest, excluding
+Narrator. service/processors/middleterm/cmd/generate.php accumulates it from scoped
+memory_summary records plus prior digest. Native scene selection/model summaries
+are not automatically the same artifact. Keep this requirement OPEN; do not omit
+its card as an excluded feature or alias it to all memory retrieval. Faction
+names/descriptions and native extra controls also remain open. Goal active.
