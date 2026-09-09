@@ -87,7 +87,8 @@ final class SettingsCatalog
         'npc_relationships_notes' => true,
         'npc_race_gender' => true,
         'npc_current_state' => true,
-        'npc_equipment_inventory' => true,
+        'npc_equipment' => true,
+        'npc_inventory' => true,
         'npc_magic_effects' => false,
         'nearby_actor_summary' => true,
         'nearby_actor_personality' => true,
@@ -230,6 +231,19 @@ final class SettingsCatalog
     public static function contextDetailDefaults(): array
     {
         return self::CONTEXT_DETAIL_DEFAULTS;
+    }
+
+    /** Preserve the old combined setting in saved documents, presets and frozen prompt snapshots. */
+    public static function normalizeContextDetails(array $details):array
+    {
+        if(array_key_exists('npc_equipment_inventory',$details)){
+            $legacy=$details['npc_equipment_inventory'];
+            if(!is_bool($legacy)||array_key_exists('npc_equipment',$details)||array_key_exists('npc_inventory',$details))
+                throw new \InvalidArgumentException('invalid_global_settings');
+            unset($details['npc_equipment_inventory']);
+            $details['npc_equipment']=$legacy;$details['npc_inventory']=$legacy;
+        }
+        return $details;
     }
 
     public static function eventTypes(): array

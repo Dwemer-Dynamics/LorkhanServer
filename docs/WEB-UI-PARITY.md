@@ -9805,3 +9805,40 @@ Remaining: native equipment/inventory is one switch while reference separates
 them; other character/general/appearance fields and connector availability remain
 open, alongside Player2 and complete Quickstart/all-page closure. This shared
 mapping is progress, not complete context parity.
+
+
+### Separate equipment and inventory context controls (2026-09-08)
+
+Replaced the combined checkbox with independent `<equipment>` and `<inventory>`
+cards, using the reference labels/descriptions and existing context-card geometry.
+Prompt assembly now gates equipped items and inventory independently for player
+and target NPC state. Quickstart Local keeps equipment and omits inventory;
+Default enables both.
+
+Saved global documents, named presets and frozen prompt snapshots using the old
+combined key are normalized to both new booleans with the same value. Ambiguous
+mixed old/new documents are rejected. Already-open legacy forms retain their
+combined checked behavior; new saves use only the two canonical fields. No live
+configuration rewrite or database migration required.
+
+Evidence: 828 checks pass, including all four checkbox combinations for actual
+player/NPC prompt text and legacy false snapshots/documents/presets. Full HTTP
+suite passes (`context-split-http-2.txt`), with the exact context control count
+updated from 33 to 34 and Local/Default independent values checked. Integration,
+173-relation inventory, migrations and durable jobs pass
+(`context-split-integration.txt`).
+
+`context-split-proof.cjs` opens Context & Knowledge on both deployed servers at
+1280/390, checks independent mouse/keyboard states without saving, then captures
+matching equipment-on/inventory-off states. Reference desktop and final native
+desktop/mobile images were inspected. The two cards match in text and structure;
+the complete Appearance / State group still differs and remains OPEN. Initial
+reference captures timed out because its role=tab Context panel was hidden; the
+final proof explicitly selects that tab. No inferred visual success from those
+failed captures.
+
+All 811 runtime hashes match source; private routes 403, unpaired session 401,
+configuration/credentials/voices preserved. No provider call, private browser save
+or game launch/control. Remaining appearance work includes separate activity and
+condition, target equipment, spell/effect choices and other context fields, plus
+Player2 and whole-page closure. The overall goal remains active.

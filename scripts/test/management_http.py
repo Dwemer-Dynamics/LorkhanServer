@@ -1288,7 +1288,7 @@ assert '<option value="https://api-free.deepl.com/v2/translate" selected>Free ac
 assert 'translates NPC subtitles and speech audio' in body and not any(name in body for name in ['translation_player_audio','translation_save_player_text','translation_player_source_language','translation_player_target_language'])
 translation_values=dict(values,translation_provider='deepl',translation_text='1')
 context_names=re.findall(r'name="(context_(?:section|detail)_[a-z_]+)"',body)
-assert len(context_names)==len(set(context_names))==33
+assert len(context_names)==len(set(context_names))==34
 assert all(title in body for title in ['Top-Level Sections','Character Subsections','Appearance / State Subsections','Nearby Actor Details','Nearby Item Details'])
 assert all(len(re.findall(r'name="'+field+r'"',body))==1 for field in ['memory_summary_enabled','memory_summary_connector','oghma_configuration_id','oghma_extractor_enabled','relationship_enabled','relationship_configuration_id'])
 context_values=dict(values); context_values.pop('context_section_world',None); context_values.pop('context_detail_npc_summary',None)
@@ -2962,6 +2962,7 @@ assert not qs_local_export['memory_policies']['summary']['enabled'] and not qs_l
 assert qs_global['profile_management']['autofill_custom_profiles'] is False
 assert qs_global['relationship']=={'enabled':False,'update_chance_percent':0}
 assert qs_global['context']['ground_items_descriptions_only'] and qs_global['context']['inventory_items_descriptions_only']
+assert qs_global['context']['details']['npc_equipment'] and not qs_global['context']['details']['npc_inventory']
 assert not qs_global['context']['sections']['points_of_interest'] and not qs_global['context']['details']['nearby_actor_summary']
 assert qs_global['context']['details']['nearby_actor_activity'] and qs_global['context']['details']['group_duplicate_items']
 r=request(qs_form['action'],'POST',dict(fields,_csrf=csrf,settings_preset='builtin:default')); body=r.read().decode()
@@ -2970,6 +2971,7 @@ qs_default=json.load(request('/LorkhanServer/manage/exports/global-settings/'+gl
 assert qs_default['profile_management']['autofill_custom_profiles'] is True
 assert qs_default['relationship']=={'enabled':True,'update_chance_percent':50}
 assert not qs_default['context']['ground_items_descriptions_only'] and not qs_default['context']['inventory_items_descriptions_only']
+assert qs_default['context']['details']['npc_equipment'] and qs_default['context']['details']['npc_inventory']
 assert qs_default['context']['sections']['points_of_interest'] and qs_default['context']['details']['nearby_actor_summary']
 assert qs_default['context']['details']['item_descriptions'] and not qs_default['context']['details']['group_duplicate_items']
 assert qs_default['system_routing']==qs_global['system_routing']

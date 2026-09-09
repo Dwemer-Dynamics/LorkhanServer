@@ -80,7 +80,8 @@ $contextGroups = [
     ]],
     'Appearance / State Subsections' => ['details', [
         'npc_current_state' => ['Current State', 'Observed activity, disposition and health.'],
-        'npc_equipment_inventory' => ['Equipment & Inventory', 'Equipment and inventory within current state.'],
+        'npc_equipment' => ['<equipment>', 'Currently equipped gear and worn items.'],
+        'npc_inventory' => ['<inventory>', 'Inventory listing.'],
         'npc_magic_effects' => ['Magic & Effects', 'Observed spells and active effects within current state.'],
     ]],
     'Nearby Actor Details' => ['details', [

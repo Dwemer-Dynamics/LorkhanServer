@@ -54,6 +54,8 @@ final class GlobalSettingsPreset
             'nearby_actor_occupation','nearby_actor_equipment','item_descriptions'] as $detail)$settings['context']['details'][$detail]=!$local;
         $settings['context']['details']['nearby_actor_activity']=true;
         $settings['context']['details']['group_duplicate_items']=$local;
+        $settings['context']['details']['npc_equipment']=true;
+        $settings['context']['details']['npc_inventory']=!$local;
         return EffectiveSettingsResolver::validateGlobalSettings($settings);
     }
 
@@ -77,6 +79,7 @@ final class GlobalSettingsPreset
         // Older presets retain the original disabled behavior for added Context controls.
         if (is_array($preset['settings']['context'] ?? null)) {
             $preset['settings']['context'] += ['prompt_timestamp' => false, 'ground_items_descriptions_only' => false, 'inventory_items_descriptions_only' => false];
+            if(is_array($preset['settings']['context']['details']??null))$preset['settings']['context']['details']=SettingsCatalog::normalizeContextDetails($preset['settings']['context']['details']);
         }
         $candidate = array_replace($settings, array_intersect_key($preset['settings'], array_flip(self::SECTIONS)));
         $candidate['client']['behavior'] = array_replace($settings['client']['behavior'], $preset['settings']['client']['behavior'] ?? []);

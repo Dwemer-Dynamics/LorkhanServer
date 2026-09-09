@@ -79,6 +79,7 @@ final class PromptAssembler
 
         $contextPolicy = is_array($selection['effective_settings']['context'] ?? null)
             ? $selection['effective_settings']['context'] : SettingsCatalog::globalDefaults()['context'];
+        $contextPolicy['details']=SettingsCatalog::normalizeContextDetails($contextPolicy['details']);
         $enabled = $contextPolicy['sections'];
         $history = $enabled['conversation_history'] ? $this->limitedSelection($selection, 'history') : [];
         $memory = array_slice($this->selectedList($selection, array_key_exists('memory_candidates', $selection) ? 'memory_candidates' : 'memory'), 0, 500);
@@ -599,7 +600,7 @@ final class PromptAssembler
         $state = is_array(($turn['payload']['context']['targetState'] ?? null))
             ? $turn['payload']['context']['targetState'] : [];
         $stateXml = $details['npc_current_state'] ? $this->actorStateXml($state, ['activity', 'disposition', 'health', 'health_percent'],
-            $details['npc_equipment_inventory'], $details['npc_magic_effects'], $itemBlacklist, $magicBlacklist) : '';
+            $details['npc_equipment'], $details['npc_inventory'], $details['npc_magic_effects'], $itemBlacklist, $magicBlacklist) : '';
         if ($stateXml !== '') $xml .= '<current_state>' . $stateXml . '</current_state>';
         return '<character>' . $xml . '</character>';
     }
@@ -632,7 +633,7 @@ final class PromptAssembler
             $state['inventory'] = $turn['payload']['context']['inventory'] ?? [];
         }
         $stateXml = $this->actorStateXml($state, ['race', 'class', 'level', 'health', 'health_percent'],
-            $details['npc_equipment_inventory'], $details['npc_magic_effects'], $itemBlacklist, $magicBlacklist);
+            $details['npc_equipment'], $details['npc_inventory'], $details['npc_magic_effects'], $itemBlacklist, $magicBlacklist);
         if ($stateXml !== '') $xml .= '<current_state>' . $stateXml . '</current_state>';
         return $xml;
     }
@@ -662,7 +663,7 @@ final class PromptAssembler
     }
 
     /** Render actor state as semantic XML rather than embedding OpenMW state JSON. */
-    private function actorStateXml(array $state, array $scalarKeys, bool $includeItems, bool $includeMagic, array $itemBlacklist, array $magicBlacklist): string
+    private function actorStateXml(array $state, array $scalarKeys, bool $includeEquipment, bool $includeInventory, bool $includeMagic, array $itemBlacklist, array $magicBlacklist): string
     {
         $xml = $this->knownFieldsXml($state, $scalarKeys);
         $identity = $state['identity'] ?? null;
@@ -680,7 +681,8 @@ final class PromptAssembler
                 if ($summary !== []) $xml .= $this->xmlTag($name, implode(', ', $summary));
             }
         }
-        if ($includeItems) foreach (['equipment'=>'equipment','inventory'=>'inventory'] as $field=>$tag) {
+        foreach (['equipment'=>'equipment','inventory'=>'inventory'] as $field=>$tag) {
+            if($field==='equipment'?!$includeEquipment:!$includeInventory)continue;
             $items = $this->contextItems($state[$field] ?? []);
             $itemsXml = '';
             foreach (array_slice($items, 0, 48) as $item) {

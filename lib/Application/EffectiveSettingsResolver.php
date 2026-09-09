@@ -442,6 +442,7 @@ final class EffectiveSettingsResolver
         self::assertExactKeys($context, $expected, 'invalid_global_settings');
         if (!is_bool($context['prompt_timestamp']) || !is_bool($context['ground_items_descriptions_only']) || !is_bool($context['inventory_items_descriptions_only'])) throw new InvalidArgumentException('invalid_global_settings');
         foreach (['sections', 'details'] as $group) {
+            if($group==='details'&&is_array($context[$group]))$context[$group]=SettingsCatalog::normalizeContextDetails($context[$group]);
             self::assertExactKeys($context[$group], $expected[$group], 'invalid_global_settings');
             foreach ($context[$group] as $value) if (!is_bool($value)) throw new InvalidArgumentException('invalid_global_settings');
         }

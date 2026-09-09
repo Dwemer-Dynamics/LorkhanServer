@@ -2272,6 +2272,9 @@ final class ManagementRouter
         ];
         foreach(SettingsCatalog::contextSectionDefaults()as$key=>$default)$content['context']['sections'][$key]=isset($values['context_section_'.$key]);
         foreach(SettingsCatalog::contextDetailDefaults()as$key=>$default)$content['context']['details'][$key]=isset($values['context_detail_'.$key]);
+        if(isset($values['context_detail_npc_equipment_inventory'])&&!isset($values['context_detail_npc_equipment'])&&!isset($values['context_detail_npc_inventory'])){
+            $content['context']['details']['npc_equipment']=true;$content['context']['details']['npc_inventory']=true;
+        }
         $content['context']['prompt_timestamp'] = isset($values['context_prompt_timestamp']);
         $content['context']['ground_items_descriptions_only'] = isset($values['context_ground_items_descriptions_only']);
         $content['context']['inventory_items_descriptions_only'] = isset($values['context_inventory_items_descriptions_only']);

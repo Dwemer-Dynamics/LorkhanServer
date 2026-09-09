@@ -1065,9 +1065,25 @@ $check(str_contains($filteredInventoryPrompt,'Native Inventory Ring x3') && !str
 $filteredInventoryTurn['payload']['context']['inventory']['items'][0]['count']=6;
 $filteredInventoryPrompt=(new PromptAssembler(16384,1024))->assemble($filteredInventoryTurn,$filteredInventorySelection)['provider_input']['_assembled_prompt'];
 $check(!str_contains($filteredInventoryPrompt,'Native Inventory Ring'), 'inventory descriptions-only matches Herika omission of stacks larger than five');
+$splitTurn=$inventoryTurn;
+$splitTurn['payload']['context']['playerState']['equipment']=[['record_id'=>'player_equipment','display_name'=>'Player Equipped Boots']];
+$splitTurn['payload']['context']['targetState']=['equipment'=>[['record_id'=>'npc_equipment','display_name'=>'NPC Equipped Boots']], 'inventory'=>[['record_id'=>'npc_inventory','display_name'=>'NPC Inventory Coin']]];
+$splitSelection=$promptSelection;
+$splitSelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
+foreach([[true,true],[true,false],[false,true],[false,false]] as [$equipment,$inventory]){
+    $splitSelection['effective_settings']['context']['details']['npc_equipment']=$equipment;
+    $splitSelection['effective_settings']['context']['details']['npc_inventory']=$inventory;
+    $splitPrompt=(new PromptAssembler(16384,1024))->assemble($splitTurn,$splitSelection)['provider_input']['_assembled_prompt'];
+    $check(str_contains($splitPrompt,'Player Equipped Boots')===$equipment&&str_contains($splitPrompt,'NPC Equipped Boots')===$equipment
+        &&str_contains($splitPrompt,'Native Inventory Ring')===$inventory&&str_contains($splitPrompt,'NPC Inventory Coin')===$inventory,'equipment and inventory toggle independently for player and NPC');
+}
+unset($splitSelection['effective_settings']['context']['details']['npc_equipment'],$splitSelection['effective_settings']['context']['details']['npc_inventory']);
+$splitSelection['effective_settings']['context']['details']['npc_equipment_inventory']=false;
+$splitPrompt=(new PromptAssembler(16384,1024))->assemble($splitTurn,$splitSelection)['provider_input']['_assembled_prompt'];
+$check(!str_contains($splitPrompt,'Player Equipped Boots')&&!str_contains($splitPrompt,'NPC Inventory Coin'),'frozen legacy prompt snapshots retain their combined disabled selection');
 $inventorySelection=$promptSelection;
 $inventorySelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
-$inventorySelection['effective_settings']['context']['details']['npc_equipment_inventory']=false;
+$inventorySelection['effective_settings']['context']['details']['npc_inventory']=false;
 $inventoryPrompt=(new PromptAssembler(16384,1024))->assemble($inventoryTurn,$inventorySelection)['provider_input']['_assembled_prompt'];
 $check(!str_contains($inventoryPrompt,'Native Inventory Ring'), 'inventory context selection also gates the native top-level inventory lane');
 $inventoryTurn['payload']['context']['playerState']['inventory']=[];
@@ -2537,6 +2553,17 @@ $check(!$quickMemory['summary']['enabled']&&!$quickMemory['embedding']['enabled'
 $missingSummary=['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''];
 $quickMemory=\LorkhanServer\Application\GlobalSettingsPreset::builtInMemory('builtin:default',$missingSummary,\LorkhanServer\Application\MemoryEmbeddingPolicy::defaults(),'00000000-0000-4000-8000-000000000099');
 $check($quickMemory['summary']['provider_configuration_id']==='00000000-0000-4000-8000-000000000099'&&$quickMemory['embedding']['endpoint']==='http://127.0.0.1:8082','Default fills only missing Fast model and local MiniMe bindings');
+foreach([true,false] as $legacyItems){
+    $legacyGlobal=$presetCurrent;
+    unset($legacyGlobal['context']['details']['npc_equipment'],$legacyGlobal['context']['details']['npc_inventory']);
+    $legacyGlobal['context']['details']['npc_equipment_inventory']=$legacyItems;
+    $normalizedGlobal=\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($legacyGlobal);
+    $check($normalizedGlobal['context']['details']['npc_equipment']===$legacyItems&&$normalizedGlobal['context']['details']['npc_inventory']===$legacyItems&&!isset($normalizedGlobal['context']['details']['npc_equipment_inventory']),'legacy global item selection expands without changing its meaning');
+    $legacyNamed=\LorkhanServer\Application\GlobalSettingsPreset::capture($presetCurrent,$presetSummary,$presetEmbedding);
+    $legacyNamed['settings']['context']=$legacyGlobal['context'];
+    $legacyResult=\LorkhanServer\Application\GlobalSettingsPreset::apply($legacyNamed,$presetCurrent,$presetSummary,$presetEmbedding);
+    $check($legacyResult['settings']['context']['details']['npc_equipment']===$legacyItems&&$legacyResult['settings']['context']['details']['npc_inventory']===$legacyItems,'legacy named presets retain both item selections');
+}
 $namedDefault = \LorkhanServer\Application\GlobalSettingsPreset::defaults();
 $legacyPreset = $namedDefault;
 unset($legacyPreset['settings']['context']['prompt_timestamp']);
