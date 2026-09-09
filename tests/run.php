@@ -2166,6 +2166,15 @@ $zonosPreset=['kind'=>'tts_provider','content'=>['driver'=>'zonos_gradio','endpo
     'model'=>'Zyphra/Zonos-v0.1-hybrid','voice'=>'default','language'=>'en-US','timeout_ms'=>30000,'options'=>[]]];
 $check(ProviderFactory::speechForPreset(['voice_storage_path'=>$voiceRoot],$zonosPreset) instanceof ZonosGradioSpeechProvider,
     'Zonos selected connector builds its bounded Gradio job adapter');
+$zonosDefaults=ConnectorCatalog::defaults('tts_provider','zonos_gradio');
+$check($zonosDefaults['model']==='Zyphra/Zonos-v0.1-hybrid'&&$zonosDefaults['language']==='en-us',
+    'New Zonos connectors use the reference model and language instead of placeholder IDs');
+$zonosPitch=array_column(ConnectorCatalog::optionFields('tts_provider','zonos_gradio'),null,'name')['pitch_std'];
+$zonosPreset['content']['options']=['pitch_std'=>300];
+$zonosAdapter=ProviderFactory::speechForPreset(['voice_storage_path'=>$voiceRoot],$zonosPreset);
+$check($zonosPitch['maximum']===300.0
+    &&(new ReflectionMethod($zonosAdapter,'number'))->invoke($zonosAdapter,'pitch_std',45,0,300)===300,
+    'Zonos catalog and generation accept the reference upper pitch limit');
 rmdir($voiceRoot);
 $xvaPreset=['kind'=>'tts_provider','content'=>['driver'=>'xvasynth','endpoint'=>'http://127.0.0.1:8999',
     'model'=>'default','voice'=>'default','language'=>'en-US','timeout_ms'=>30000,'options'=>[]]];

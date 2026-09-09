@@ -68,7 +68,7 @@ $fieldHelp = [
     'melotts'=>['language'=>'Language Model. Should be EN if using default installation','option__speed'=>'Speech Speed'],
     'mimic3'=>['option__rate'=>'Voice speed'],
     'zonos_gradio'=>['language'=>'Language','model'=>'Model to use.',
-        'option__pitch_std'=>'Pitch standard deviation [0-200]',
+        'option__pitch_std'=>'Pitch standard deviation [0-300]',
         'option__speaking_rate'=>'Speaking rate. Higher is faster. [1-40]',
         'option__cfg_scale'=>'CFG scale. Controls how closely the audio matches the sample voice. Higher numbers will be a closer match. [0-20]'],
     'piper-tts'=>[

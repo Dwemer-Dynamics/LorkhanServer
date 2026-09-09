@@ -61,7 +61,7 @@ final class ZonosGradioSpeechProvider implements SpeechProvider
         $data = [$this->model !== '' ? $this->model : 'Zyphra/Zonos-v0.1-hybrid', $text, $language,
             ['meta' => ['_type' => 'gradio.FileData'], 'mime_type' => 'audio/wav', 'orig_name' => basename($realSample),
                 'path' => $remotePath, 'url' => $this->baseUrl . '/gradio_api/file=' . rawurlencode($remotePath)], null,
-            ...$emotions, 0.7, 24000, $this->number('pitch_std', 45, 0, 200),
+            ...$emotions, 0.7, 24000, $this->number('pitch_std', 45, 0, 300),
             $this->number('speaking_rate', 14.6, 1, 40), 4, false,
             $this->number('cfg_scale', 4.5, 0, 20), 0, 0, 0, 0.5, 0.4, 0, 420, true, ['emotion']];
         $queued = $this->request('/gradio_api/call/generate_audio', json_encode(['data' => $data], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),

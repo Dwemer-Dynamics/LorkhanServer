@@ -10203,3 +10203,31 @@ API Badge choices reflect different saved records, not a layout mismatch. Extra
 revision/default/advanced editor surfaces still require their own interaction and
 placement review; this audit does not declare the whole connector editor complete.
 All broader matrix gaps remain active. No provider calls or game controls used.
+
+### Zonos defaults and pitch checkpoint (2026-09-08)
+
+Corrected new-connector defaults from literal model default/language en to
+Zyphra/Zonos-v0.1-hybrid/en-us, matching reference conf/conf.sample.php and active
+provider fallback values. The live reference's unsaved provider-switch DOM instead
+selects its first options (transformer/af); this is not evidence those are configured
+runtime defaults. Saved native values remain unchanged and remain selectable.
+Expanded pitch_std maximum from 200 to 300 consistently in catalog, request builder
+and displayed help. Other existing numeric bounds are preserved pending the full
+Zonos editor/runtime alignment; this is not full Zonos parity.
+
+891 checks pass including reference defaults and upper pitch acceptance. Both
+1280 and 390 actual rendered editors inspected using zonos-fields-proof.cjs and
+zonos-narrow-proof.cjs (temporary screenshots tts-fields[-narrow]-zonos_gradio-*).
+Native selectors no longer add invalid placeholder defaults. Missing Dynamic
+Tones and Cached Voice Path still shift the grid; do not count these views as
+complete. Deployment preserved settings/credentials/voices and all 811 runtime
+files match; no live generation, saved connector changes or game control.
+
+Next Zonos dependency: native generation currently fills all eight emotion values
+with 0.05. Reference getZonosEmotions reads eight bounded response_tone values,
+then applies mood mapping. Native has neither the dynamic_tones configuration nor
+response_tone contract/metadata yet. Cached-sample support also needs scoped
+sample identity/hash and endpoint ownership before exposing its reference field;
+current native uploads every synthesis. Both paths must be implemented with the
+controls, not represented by inert UI or declared product exceptions.
+Full management HTTP suite passed (zonos-default-http.txt); no paid provider test.
