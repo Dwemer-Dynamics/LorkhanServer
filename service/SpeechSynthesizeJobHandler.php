@@ -65,6 +65,10 @@ final class SpeechSynthesizeJobHandler implements JobHandler
             $provider instanceof OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
         $context=$this->products?->speechContext((string)$dialogue['installation_id'],
             (string)$dialogue['playthrough_id'],(array)$dialogue['speaker'],$preset)??[];
+        if (isset($payload['mood'])) {
+            if (!is_string($payload['mood']) || strlen($payload['mood']) > 64 || !mb_check_encoding($payload['mood'],'UTF-8')) throw new \InvalidArgumentException('invalid_speech_mood');
+            $context['mood']=$payload['mood'];
+        }
         $context=SpeechLanguage::context($context,$preset,$payload['tts_language']??null);
         $pronunciationContext=$this->products?->ttsPronunciationContext((string)$dialogue['installation_id'],
             (string)$dialogue['playthrough_id'],(array)$dialogue['speaker'])??[];

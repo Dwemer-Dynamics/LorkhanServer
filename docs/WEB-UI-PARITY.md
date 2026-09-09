@@ -10115,3 +10115,22 @@ new dialogue table column, but DialoguePlanner/normalizer and streamed delivery
 must preserve it first. Do not conflate player-selected input mood with NPC mood.
 Remaining reference emote normalization, end-to-end mock proof and deployment are
 part of the same unfinished Azure work. No private settings or game changes.
+### Optional NPC mood through queued speech (2026-09-08, not deployed)
+
+DialoguePlanner now validates and retains optional bounded mood text separately
+from speech. CanonicalResponseNormalizer places it in the existing allowed line
+metadata. Queued speech payloads retain it, and SpeechSynthesizeJobHandler validates
+and passes it into the provider context. No database or public protocol migration.
+878 checks pass, including canonical protocol validation, unchanged speech text and
+malformed/oversize mood rejection. Full integration, 173-relation inventory,
+migrations and durable jobs pass (azure-propagation-integration.txt).
+
+Still incomplete: OpenAiCompatibleProvider currently validates text-only utterances;
+its response schema/contract must accept optional mood, and streaming callbacks
+must carry the correct utterance's mood before speech starts. The text-only
+StreamingDialogueText API cannot simply attach the last mood found in the whole
+buffer: one network chunk can contain multiple utterances with different moods.
+Preserve ownership while splitting sentences, including translated/narration paths.
+Current tests do not prove that end-to-end mood path yet. Azure editor browser
+persistence/visual proof and reference normalization remain pending. Not deployed;
+no live settings/provider/game changes. Whole goal remains active.

@@ -57,7 +57,7 @@ final class CanonicalResponseNormalizer
                 'rechat_target_identity' => $rechatTarget,
                 'final_response_line' => $index === array_key_last($utterances),
                 'metadata' => ['rechat_depth' => $rechatDepth,
-                    'speech_enabled' => ($utterance['speech_enabled'] ?? true) !== false, 'source' => 'provider'],
+                    'speech_enabled' => ($utterance['speech_enabled'] ?? true) !== false, 'source' => 'provider'] + array_intersect_key($utterance, ['mood'=>true]),
             ];
         }
         if (is_array($providerResult['action'] ?? null)) {

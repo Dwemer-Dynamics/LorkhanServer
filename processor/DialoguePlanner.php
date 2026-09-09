@@ -78,10 +78,16 @@ final class DialoguePlanner
                     throw new DomainException('provider_invalid_output');
                 $variants[$field]=$value;
             }
+            $mood = [];
+            if (array_key_exists('mood', $candidate)) {
+                if (!is_string($candidate['mood']) || strlen($candidate['mood']) > 64 || !mb_check_encoding($candidate['mood'], 'UTF-8'))
+                    throw new DomainException('provider_invalid_output');
+                $mood = ['mood' => trim($candidate['mood'])];
+            }
             $utterances[] = ['speaker' => $speaker, 'addressee' => $addressee,
                 'audience' => array_values($eligible), 'text' => $text,
                 'speech_enabled'=>($candidate['speech_enabled']??true)!==false,
-                'index' => $index + 1, 'count' => count($raw)]+$variants+SpeechLanguage::payload($candidate['tts_language']??null);
+                'index' => $index + 1, 'count' => count($raw)]+$variants+$mood+SpeechLanguage::payload($candidate['tts_language']??null);
         }
         return $utterances;
     }

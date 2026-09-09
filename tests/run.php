@@ -1568,6 +1568,13 @@ $check($canonicalResult['request_id']===$canonicalTurn['request_id']&&$canonical
     &&$canonicalResult['lines'][0]['text']==='You found my engraved ring—thank you!'
     &&$canonicalResult['lines'][1]['command_args']===['distance=192'],
     'provider result normalizes once into ordered UTF-8 response lines with full correlation');
+$moodCanonical=(new CanonicalResponseNormalizer())->normalize($canonicalTurn,['utterances'=>[['text'=>'Quiet words.','mood'=>'whispering']]]);
+$validator->validate($moodCanonical,'lorkhan.response.v1');
+$check($moodCanonical['lines'][0]['metadata']['mood']==='whispering'&&$moodCanonical['lines'][0]['tts_text']==='Quiet words.','NPC mood reaches canonical metadata without entering spoken text');
+foreach ([['nested'],str_repeat('x',65)] as $badMood) {
+    try {(new DialoguePlanner())->plan($canonicalTurn,['utterances'=>[['text'=>'Quiet words.','mood'=>$badMood]]]);$check(false,'invalid dialogue mood rejected');}
+    catch (DomainException) {$check(true,'invalid dialogue mood rejected');}
+}
 $translatedCanonical=(new CanonicalResponseNormalizer())->normalize($canonicalTurn,['utterances'=>[[
     'text'=>'Original history','_history_text'=>'Translated history','_subtitle'=>'Translated subtitle',
     '_tts_text'=>'Translated speech']]]);
