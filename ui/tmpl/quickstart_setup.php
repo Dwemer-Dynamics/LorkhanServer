@@ -5,6 +5,7 @@ $localKeyLocked=!$keyStoreReady||($keyStatuses[\LorkhanServer\Application\Quicks
 $localNetwork=\LorkhanServer\Application\QuickstartLocalLlm::networkIps();
 ?>
 <section class="qs-section qs-profile-section" id="qs_settings_preset_section" data-local-test="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/quickstart-local-llm-test">
+    <input type="hidden" name="setup_fingerprint" value="<?= lorkhan_ui_h($localPlan['fingerprint']??'') ?>">
     <h2 class="qs-section-title">Setup</h2>
     <div class="form-group qs-field qs-settings-preset">
         <fieldset class="qs-preset-fieldset" aria-describedby="qs_settings_preset_desc">
@@ -15,11 +16,10 @@ $localNetwork=\LorkhanServer\Application\QuickstartLocalLlm::networkIps();
             <?php endforeach; ?>
             </div>
         </fieldset>
-        <p class="qs-preset-desc" id="qs_settings_preset_desc" role="status" aria-live="polite">Default Core Profile settings. Your selected connectors are kept.</p>
+        <p class="qs-preset-desc" id="qs_settings_preset_desc" role="status" aria-live="polite">Default settings for all Core Profiles in this installation. Connector assignments are kept unless changed below.</p>
     </div>
     <fieldset class="qs-local-llm" id="qs_local_llm_panel" hidden disabled>
         <div class="qs-local-llm-head"><h3 class="qs-local-llm-title">Local LLM Setup</h3></div>
-        <input type="hidden" name="local_fingerprint" value="<?= lorkhan_ui_h($localPlan['fingerprint']??'') ?>">
         <input type="hidden" name="local_key_configured" value="<?= $localKeyConfigured?'1':'0' ?>">
         <div class="qs-local-llm-grid">
             <div class="qs-local-llm-field"><label for="qs-local-server">Server type</label><select class="form-control" id="qs-local-server" name="local_server">
@@ -47,6 +47,6 @@ $localNetwork=\LorkhanServer\Application\QuickstartLocalLlm::networkIps();
             <div class="qs-local-llm-field qs-local-llm-field-wide"><label class="qs-local-llm-check"><input type="checkbox" name="local_disable_streaming"<?= ($localContent['options']['stream']??true)===false?' checked':'' ?>> Disable streaming</label><small class="form-text">Off by default. Turn on only if your server returns broken or empty streamed replies.</small></div>
         </div></details>
         <div class="qs-local-llm-test"><button type="button" class="btn-primary qs-mini-btn qs-test-btn" id="qs_test_local_llm">Test connection</button><div class="qs-status qs-local-llm-status" id="qs_local_llm_status" role="status" aria-live="polite" hidden></div></div>
-        <p class="form-text">Saving updates the selected Core Profile, default NPC and Narrator model routes. NPC-specific overrides and your current in-game slot stay unchanged. Global behavior settings are not reset by this setup.</p>
+        <p class="form-text">Saving applies this preset to all Core Profiles in this installation and updates the selected Core Profile, default NPC and Narrator model routes. NPC-specific overrides and your current in-game slot stay unchanged. Global behavior settings are not reset by this setup.</p>
     </fieldset>
 </section>

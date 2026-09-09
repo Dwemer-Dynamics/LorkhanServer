@@ -77,7 +77,7 @@ if($products->quickstartLocalLlmForInstallation($installationId)!==null)throw ne
 try{
     $products->transaction(function()use($products,$installationId,$localSetup):void{
         $now='2026-09-08T12:03:00Z';
-        $base=['routing'=>[], 'settings_overrides'=>[]];
+        $base=['schema'=>'lorkhan.core-profile.v1','prompt'=>'Preserve this Core prompt.','routing'=>[], 'settings_overrides'=>[]];
         $default=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Default fixture','default_npc'=>true,'content'=>$base],$now);
         $narratorCore=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Narrator fixture','content'=>$base],$now);
         $other=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Unrelated fixture','content'=>$base],$now);
@@ -105,6 +105,24 @@ try{
         }
         $summary=$products->memorySummaryPolicyForInstallation($installationId)['content'];
         if($summary['enabled']!==false||$summary['provider_configuration_id']!==$saved['configuration_id'])throw new RuntimeException('summary route or enabled state changed incorrectly');
+        // Setup presets affect every Core, not just the profiles used for default routing.
+        $presetPlan=$products->quickstartLocalRoutingPlan($installationId);$beforePreset=[];
+        foreach($presetPlan['preset_profiles'] as $target)$beforePreset[$target['core_profile_id']]=$products->getRevisioned('core_profile',$target['core_profile_id']);
+        $afterPreset=$products->applyQuickstartCorePreset($installationId,'builtin:local_llm',$presetPlan['fingerprint'],$now);
+        foreach($beforePreset as $id=>$before){
+            $after=$products->getRevisioned('core_profile',$id);
+            if((int)$after['current_revision']!==(int)$before['current_revision']+1||$after['content']['settings_overrides']['response']['max_words']!==60
+                ||$after['content']['settings_overrides']['memory']['recent_turn_limit']!==20)throw new RuntimeException('Quickstart did not apply the preset to every Core');
+            if($after['content']['prompt']!==$before['content']['prompt'])throw new RuntimeException('Quickstart preset replaced Core prompt ownership');
+            foreach($before['content']['routing']??[] as $field=>$value)if(str_ends_with($field,'configuration_id')&&($after['content']['routing'][$field]??null)!==$value)throw new RuntimeException('Quickstart preset changed a connector binding');
+        }
+        // A later edit to a non-default Core also invalidates the loaded Setup snapshot.
+        $edited=$products->getRevisioned('core_profile',$other['core_profile_id']);
+        $products->revise('core_profile',$other['core_profile_id'],$edited['content'],'Concurrent editor',$now,(int)$edited['current_revision']);
+        $currentPlan=$products->quickstartLocalRoutingPlan($installationId);
+        try{$products->applyQuickstartCorePreset($installationId,'builtin:default',$afterPreset['fingerprint'],$now);throw new RuntimeException('stale non-default Core preset accepted');}
+        catch(RuntimeException $error){if($error->getMessage()!=='revision_conflict')throw$error;}
+        if($products->quickstartLocalRoutingPlan($installationId)!==$currentPlan)throw new RuntimeException('rejected preset changed profiles');
         throw new RuntimeException('rollback-local-routing-fixture');
     });
 }catch(RuntimeException $error){if($error->getMessage()!=='rollback-local-routing-fixture')throw$error;}

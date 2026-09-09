@@ -124,7 +124,7 @@ final class ProductRepository
         });
     }
 
-    /** Snapshot exactly which default profiles and policy revisions an explicit Local LLM setup would change. */
+    /** Snapshot dialogue routes and every Core preset target; stale Quickstart pages cannot overwrite later edits. */
     public function quickstartLocalRoutingPlan(string $installation):array
     {
         $query=$this->db->prepare("SELECT c.core_profile_id,c.label,c.current_revision FROM core_profiles c WHERE c.installation_id=:installation AND c.deleted_at IS NULL AND (c.default_npc=true OR EXISTS(SELECT 1 FROM profiles p WHERE p.installation_id=c.installation_id AND p.core_profile_id=c.core_profile_id AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='narrator')) ORDER BY c.core_profile_id");
@@ -136,11 +136,34 @@ final class ProductRepository
         $query=$this->db->prepare("SELECT profile_id,core_profile_id,current_revision FROM profiles WHERE installation_id=:installation AND deleted_at IS NULL AND actor_identity->>'kind'='narrator' ORDER BY profile_id");
         $query->execute(['installation'=>$installation]);$narrators=$query->fetchAll();
         $managed=$this->quickstartLocalLlmForInstallation($installation);$global=$this->globalSettingsForInstallation($installation);$summary=$this->memorySummaryPolicyForInstallation($installation);
-        $plan=['installation_id'=>$installation,'core_profiles'=>$cores,'narrators'=>$narrators,
+        $query=$this->db->prepare('SELECT core_profile_id,current_revision FROM core_profiles WHERE installation_id=:installation AND deleted_at IS NULL ORDER BY core_profile_id');
+        $query->execute(['installation'=>$installation]);$presetProfiles=$query->fetchAll();
+        $plan=['installation_id'=>$installation,'core_profiles'=>$cores,'preset_profiles'=>$presetProfiles,'narrators'=>$narrators,
             'connector_id'=>$managed['configuration_id']??null,'connector_revision'=>(int)($managed['connector']['current_revision']??0),
             'global_id'=>$global['configuration_id']??null,'global_revision'=>(int)($global['current_revision']??0),
             'summary_id'=>$summary['configuration_id']??null,'summary_revision'=>(int)($summary['current_revision']??0)];
         return $plan+['fingerprint'=>hash('sha256',json_encode($plan,JSON_THROW_ON_ERROR))];
+    }
+
+    /** Quickstart's built-in changes all installation Core Profiles, preserving their identities and routes. */
+    public function applyQuickstartCorePreset(string $installation,string $preset,string $fingerprint,string $now):array
+    {
+        if(!in_array($preset,['builtin:default','builtin:local_llm'],true))throw new InvalidArgumentException('invalid_quickstart_preset');
+        return $this->transaction(function()use($installation,$preset,$fingerprint,$now):array{
+            $lock=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:installation FOR UPDATE');
+            $lock->execute(['installation'=>$installation]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
+            $lock=$this->db->prepare('SELECT core_profile_id FROM core_profiles WHERE installation_id=:installation AND deleted_at IS NULL ORDER BY core_profile_id FOR UPDATE');
+            $lock->execute(['installation'=>$installation]);$lock->fetchAll();
+            $plan=$this->quickstartLocalRoutingPlan($installation);
+            if(!hash_equals($plan['fingerprint'],$fingerprint))throw new RuntimeException('revision_conflict');
+            if($plan['preset_profiles']===[])throw new RuntimeException('default_core_profile_required');
+            foreach($plan['preset_profiles'] as $target){
+                $profile=$this->getRevisioned('core_profile',$target['core_profile_id']);
+                $content=\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn($preset,$profile['content']);
+                $this->revise('core_profile',$target['core_profile_id'],$content,'Quickstart Core Profile preset',$now,(int)$target['current_revision']);
+            }
+            return $this->quickstartLocalRoutingPlan($installation);
+        });
     }
 
     /** Apply managed connector and default dialogue/background routes atomically; leave NPC overrides and live slots alone. */

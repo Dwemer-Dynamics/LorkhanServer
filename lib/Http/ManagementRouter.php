@@ -2449,6 +2449,11 @@ final class ManagementRouter
             if((int)$profile['current_revision']!==$expected)throw new RuntimeException('revision_conflict');
             $preset=$values['settings_preset']??'';
             if(!in_array($preset,['','builtin:default','builtin:local_llm'],true))throw new InvalidArgumentException('invalid_quickstart_preset');
+            $presetPlan=null;
+            if($preset!==''){
+                $presetPlan=$this->repository->applyQuickstartCorePreset($installation,$preset,$this->need($values,'setup_fingerprint'),gmdate(DATE_ATOM));
+                ++$expected;$profile=$this->repository->getRevisioned('core_profile',$id);
+            }
             $local=$preset==='builtin:local_llm';$localId=null;
             if($local){
                 $timeout=filter_var($values['local_timeout']??null,FILTER_VALIDATE_INT);
@@ -2458,14 +2463,13 @@ final class ManagementRouter
                     'timeout_seconds'=>$timeout,'disable_streaming'=>isset($values['local_disable_streaming'])];
                 // The optional key is flushed through the private key endpoint before submitting this form.
                 if(($values['local_key_configured']??'')==='1')$setup['credential']='badge:'.\LorkhanServer\Application\QuickstartLocalLlm::CREDENTIAL;
-                $saved=$this->repository->applyQuickstartLocalLlm($installation,$setup,$this->need($values,'local_fingerprint'),gmdate(DATE_ATOM));
+                $saved=$this->repository->applyQuickstartLocalLlm($installation,$setup,$presetPlan['fingerprint'],gmdate(DATE_ATOM));
                 $localId=$saved['configuration_id'];
                 $profile=$this->repository->getRevisioned('core_profile',$id);
                 if(in_array($id,array_column($saved['routing_plan']['core_profiles'],'core_profile_id'),true))++$expected;
                 if((int)$profile['current_revision']!==$expected)throw new RuntimeException('revision_conflict');
             }
             $content=$profile['content'];
-            if($preset!=='')$content=\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn($preset,$content);
             foreach(['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id']as$field){
                 $connector=$localId??$this->need($values,$field);$this->uuid($connector,$field);
                 $row=$this->repository->getRevisioned('provider',$connector);

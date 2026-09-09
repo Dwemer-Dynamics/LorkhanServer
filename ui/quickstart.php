@@ -110,7 +110,7 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
             <label>Core Profile<select name="core_profile_id"><option value="">Installation default</option><?php foreach($profiles as$row): ?><option value="<?php echo lorkhan_ui_h($row['core_profile_id']); ?>"<?php echo $selectedId===$row['core_profile_id']?' selected':''; ?>><?php echo lorkhan_ui_h($row['label']??$row['name']); ?></option><?php endforeach; ?></select></label>
             <button type="submit" class="btn-base">Load Profile</button>
         </form>
-        <p>Only the selected Core Profile's model and TTS routes change. NPC-specific overrides stay in place.</p>
+        <p>Setup presets apply to all Core Profiles in this installation. Connector selections below apply to this profile; Local LLM also updates default NPC and Narrator routes. NPC-specific overrides stay in place.</p>
         <a class="btn-base" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/core_profiles.php">Manage Profiles</a>
     </details>
 </div></main>

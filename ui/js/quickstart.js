@@ -128,8 +128,8 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
         models.forEach(select=>{select.disabled=local;});
         save.disabled=local?!form.elements.core_profile_id.value:initialDisabled;
         section.querySelector('#qs_settings_preset_desc').textContent=local?
-            'Shorter Core Profile context and replies for a local model. Configure its endpoint below.':
-            'Default Core Profile settings. Your selected connectors are kept.';
+            'Shorter context and replies for all Core Profiles in this installation. Configure the local model below.':
+            'Default settings for all Core Profiles in this installation. Connector assignments are kept unless changed below.';
         models[0]?.closest('.qs-section').querySelector('.qs-connector-grid').toggleAttribute('hidden',local);
         form.querySelector('[data-local-recap]').hidden=!local;
         form.querySelectorAll('[data-local-model]').forEach(e=>{e.textContent=form.elements.local_model.value||'Enter a model name';});

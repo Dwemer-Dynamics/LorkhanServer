@@ -9673,3 +9673,41 @@ routes and 401 unpaired session; configuration/credentials/voice content retaine
 This closes the address-shortcut gap in the preceding checkpoint, not the full
 Quickstart row. Global preset behavior, all default profile effects, Player2,
 recap/general connector details and empty provisioning remain open.
+
+
+### Quickstart Core preset scope (2026-09-08)
+
+Current reference `chimSettingsPresetApplyProfiles` iterates every Core Profile,
+not only the selected/default route targets. Native Setup now applies its existing
+Default or Local LLM Core preset to every non-deleted Core in the selected
+installation. This corrects the narrower scope introduced with the visible panel.
+Connector assignments and prompts remain owned by each profile; separate local
+routing still targets the selected/default NPC/Narrator profiles. NPC overrides
+are not rewritten. Global built-in behavior remains an explicit separate gap.
+
+The Quickstart snapshot now includes all Core IDs/revisions. Both Default and
+Local submit it outside the disabled Local fieldset. Applying locks the scoped
+profiles, checks that fingerprint, then composes the preset revisions with the
+existing connector and player transaction. A non-default Core edited after page
+load invalidates the save. Failed later validation rolls back every preset
+revision. Scope copy on the cards and profile selection explains the broader
+operation before Save. Older open pages without the new fingerprint must reload.
+
+Evidence: 808 checks and PHP/JS syntax pass; full HTTP suite passes
+(`quickstart-core-preset-http.txt`). Existing integration fixture expanded to prove
+all three Core targets, retained prompt/connector ownership, concurrent non-default
+edit rejection and unchanged state after rejection. That fixture now uses the
+valid Core document schema rather than the old route-only stub. Full integration,
+173-relation inventory, migration and durable-job suite pass
+(`quickstart-core-preset-integration-2.txt`).
+
+Deployed browser proof `quickstart-core-preset-proof.cjs` compares Default/Local at
+1280/390 and checks keyboard selection, address helpers, mocked connection
+failure/success and the actual Save button payload's new fingerprint. Native
+Default desktop and Local mobile scope text were visually inspected. No private
+browser saves or live provider calls. All 811 deployed files match source; no
+extra/old paths, private routes 403 and unpaired session 401. No game launch.
+
+Remaining Quickstart work: global built-in switches/context, Player2 and its lock
+states, recap/general connectors, empty provisioning and full final page closure.
+The all-pages goal remains active.
