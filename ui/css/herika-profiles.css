@@ -1742,3 +1742,7 @@ body.profile-rules-open {
 
 .profiles-page .profile-settings-columns .setting-control textarea { min-height:88px; line-height:1.45; }
 .profiles-page .connector-option-card .setting-desc { min-height:32px; }
+
+/* Preserve the reference Quest toggle's inline baseline and bottom spacing. */
+.profiles-page .profile-quest-settings .profile-inline-toggle { display:block; width:100%; margin:0 0 6px; }
+.profiles-page .profile-quest-settings .profile-inline-toggle input { display:inline-block; width:16px; height:16px; margin:0 6px 0 0; transform:scale(1.6); }

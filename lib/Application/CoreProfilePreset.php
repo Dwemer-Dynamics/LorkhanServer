@@ -38,6 +38,7 @@ final class CoreProfilePreset
                 'response'=>['max_words'=>$words],
                 'rpg_comments'=>['chance_percent'=>$rpgChance],
                 'bored_event'=>['chance_percent'=>$boredChance],
+                'quest_comments'=>['enabled'=>$automatic],
                 'memory'=>['recent_turn_limit'=>$history,'mid_term_enabled'=>$automatic],
                 'behavior'=>['rechat'=>true,'rechat_max_depth'=>$depth,'rechat_probability_percent'=>$probability,'rechat_allow_actions'=>$actions,'combat_bark_period_seconds'=>$combatCooldown],
                 'diary'=>['context_turn_limit'=>$diaryHistory,'automatic_enabled'=>$automatic,

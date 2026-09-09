@@ -1750,7 +1750,7 @@ assert 'name="setting_diary_automatic_enabled"' in core_body and 'name="setting_
 assert 'Create a physical in-game diary that can be read.' not in core_body
 core_form=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
 core_values=dict(core_form['fields'],_csrf=csrf,tts_configuration_id=tts_id,llm_configuration_id=slot_id,llm_fast_configuration_id=slot_id,
-    setting_bored_event_chance_percent='0',setting_behavior_combat_bark_period_seconds='600',setting_behavior_rechat='1',setting_behavior_rechat_max_depth='5',setting_behavior_rechat_probability_percent='65',setting_behavior_rechat_allow_actions='1',
+    quest_comments_present='1',setting_quest_comments_chance_percent='25',setting_bored_event_chance_percent='0',setting_behavior_combat_bark_period_seconds='600',setting_behavior_rechat='1',setting_behavior_rechat_max_depth='5',setting_behavior_rechat_probability_percent='65',setting_behavior_rechat_allow_actions='1',
     setting_memory_recent_turn_limit='24',setting_memory_short_term_max_summaries='37',setting_response_max_words='60',setting_response_core_lang='de',setting_response_lang_llm_xtts='1',diary_generation_configuration_id=slot_id,
     setting_diary_enabled='1',setting_diary_automatic_enabled='1',setting_diary_automatic_wait_enabled='1',
     setting_diary_automatic_interval_seconds='10',setting_diary_context_turn_limit='150',
@@ -1771,6 +1771,8 @@ assert core_saved['fields']['setting_behavior_rechat']=='1' and core_saved['fiel
 assert core_saved['fields']['setting_memory_recent_turn_limit']=='24',core_saved
 assert core_saved['fields']['setting_behavior_combat_bark_period_seconds']=='600'
 assert core_saved['fields']['setting_bored_event_chance_percent']=='0'
+assert core_saved['fields']['setting_quest_comments_chance_percent']=='25'
+assert request(core_form['action'],'POST',dict(core_values,setting_quest_comments_chance_percent='30')).status==422
 assert request(core_form['action'],'POST',dict(core_values,setting_bored_event_chance_percent='101')).status==422
 assert request(core_form['action'],'POST',dict(core_values,setting_behavior_combat_bark_period_seconds='601')).status==422
 assert core_saved['fields']['setting_memory_short_term_max_summaries']=='37'
@@ -1877,6 +1879,7 @@ assert imported_form['fields']['setting_rpg_comments_chance_percent']=='0'
 assert imported_form['fields']['setting_memory_short_term_max_summaries']=='37'
 assert imported_form['fields']['setting_behavior_combat_bark_period_seconds']=='600'
 assert imported_form['fields']['setting_bored_event_chance_percent']=='0'
+assert imported_form['fields']['setting_quest_comments_chance_percent']=='25'
 assert all('name="profile_rpg_events[]" value="'+event+'" checked' not in body for event in ['levelup','combat_end','sleep','wait'])
 assert imported_form['fields']['profile_evolution_enabled']=='1'
 assert all('value="'+field+'" checked' in body for field in ['occupation','skills'])
@@ -2699,7 +2702,7 @@ assert r.status==422,(r.status,body)
 # Copy-to-all is a confirmed, CSRF-protected exact-field write; stale sources cannot overwrite newer work.
 copy_body=request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
 copy_revision=int(re.search(r'data-profile-copy-revision="(\d+)"',copy_body).group(1))
-assert len(re.findall(r'data-profile-copy-setting="',copy_body))==13
+assert len(re.findall(r'data-profile-copy-setting="',copy_body))==15
 copy_path='/LorkhanServer/manage/api/v1/core-profile-copy-setting'
 copy_values={'core_profile_id':core_edit.group(1),'revision':copy_revision,'setting':'response.max_words','value':37,'confirm':'Copy to all'}
 assert json_request(copy_path,'POST',copy_values).status==401

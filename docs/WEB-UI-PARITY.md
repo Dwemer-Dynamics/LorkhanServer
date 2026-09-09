@@ -9522,3 +9522,40 @@ Core Quest switch/chance selector. Source/update text must reach the resulting
 comment prompt; do not substitute a generic journal-changed message.
 Built-in enabled values and portable forms must follow the completed consumer.
 No deployment or game launch for this preparation checkpoint.
+
+
+### Core Quest controls and journal commentary checkpoint (2026-09-08)
+
+Client `3e7d95f`: closed quest_event request with the actual changed journal text,
+known stage only, frozen NPC/session/generation and single-consumption callback.
+Existing narrator quest routing keeps precedence when enabled; otherwise an
+eligible selected NPC uses its Core Quest Comment policy. Busy/no-target cases
+do not synthesize a substitute speaker. Observations are persisted as quest
+events even when Core commentary is disabled; comment prompts are not counted
+as player speech and cannot request actions.
+
+Core editor now contains the reference Quest group, Quest Comment switch and
+10/25/50/75/100% selector, Copy to all, portable settings and named preset support.
+Follower enables the switch; Default/LocalLLM/Passive disable it, preserving the
+existing chance. Help text states the actual independent narrator routing.
+
+Evidence: 800 PHP checks, 72 Lua checks, Windows engine build and native/Beast
+tests passed. Management HTTP save/import25 and reject30 passed; full database
+integration verified enabled100, disabled, stable retries and exact quest text
+in eventlog when commentary is disabled. Migration/durable checks passed.
+Protocol tooling verified103 files/38schemas/65fixtures without jsonschema.
+
+Actual hub reference/native desktop width411/padding6px12; native860/390 width
+492/298. Paired desktop screenshots inspected, then measured and corrected the
+checkbox's reference inline baseline, margin and transform. Final desktop and
+native390 off75 screenshots inspected. All chance choices, off-state value
+retention, Copy cancellation and mocked409 with numeric75 passed at all widths
+(`quest-card-ui-final.txt`). No private profile writes were used in browser proof.
+
+Client deployed executable+3Lua files with hashes verified and Config preserved;
+rollback local Temp `lorkhan-quest-rollback-d86vvzwf`. Server810 runtime files
+matched, no extra/old paths, private403/unpaired401 checks passed. No game launched.
+
+Still open: end-to-end in-game acceptance, narrator's changed-text prompt parity,
+NPC quest override exposure, broader speaker-selection behavior and full Core
+editor comparison. This does not close physical diaries or other matrix rows.

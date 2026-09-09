@@ -14,7 +14,7 @@
         opener = button;
         pending = {core_profile_id: form.elements.namedItem('core_profile_id').value,
             revision: Number(form.dataset.profileCopyRevision), setting: button.dataset.profileCopySetting,
-            value: control.type === 'checkbox' ? control.checked : control.type === 'number' ? control.valueAsNumber : control.value,
+            value: control.type === 'checkbox' ? control.checked : control.type === 'number' ? control.valueAsNumber : control.dataset.valueType === 'integer' ? Number(control.value) : control.value,
             confirm: 'Copy to all'};
         document.getElementById('profile-copy-description').textContent = `Copy “${button.dataset.profileCopyLabel}” from this profile to all Core Profiles in this installation? Only this setting will be saved. Other settings and unsaved edits will not change.`;
         result.hidden = true;

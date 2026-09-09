@@ -884,6 +884,28 @@ try {
     $assert($boredStatus===202&&($boredAccepted['comment_requested']??null)===false,'Bored Core zero suppresses a new opportunity');
 } finally { $db->rollBack(); }
 
+// Quest observations remain persisted even when Core commentary is disabled.
+$db->beginTransaction();
+try {
+    $questCore=$products->getRevisioned('core_profile',$autoProfile['core_profile_id']);
+    $questContent=$questCore['content'];$questContent['settings_overrides']['quest_comments']=['enabled'=>true,'chance_percent'=>100];
+    $products->revise('core_profile',$questCore['core_profile_id'],$questContent,'Quest Core fixture',$now);
+    $questData=$autoProfileData;$questData['type']='quest_event';$questData['request_id']=$newUuid(68201);
+    $questData['payload']=['responder'=>$autoTarget,'game_time'=>120,'text'=>'Quest mq_test, stage 20: Actual observed objective.'];
+    [$questStatus,$questAccepted]=$call($router,'POST',$base.'/gamedata',$headers($questData['request_id']),[],$questData);
+    $assert($questStatus===202&&($questAccepted['comment_requested']??null)===true,'Quest enabled Core100 requests a comment');
+    $questContent['settings_overrides']['quest_comments']['enabled']=false;
+    $products->revise('core_profile',$questCore['core_profile_id'],$questContent,'Quest Core disabled',$now);
+    [$questStatus,$questAccepted]=$call($router,'POST',$base.'/gamedata',$headers($questData['request_id']),[],$questData);
+    $assert($questStatus===202&&($questAccepted['comment_requested']??null)===true,'Quest retry preserves original decision');
+    $questData['request_id']=$newUuid(68202);
+    [$questStatus,$questAccepted]=$call($router,'POST',$base.'/gamedata',$headers($questData['request_id']),[],$questData);
+    $assert($questStatus===202&&($questAccepted['comment_requested']??null)===false,'Quest disabled Core suppresses new commentary');
+    $questLog=$db->prepare('SELECT e.data FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.request_id=:request AND e.type=\'quest\'');
+    $questLog->execute(['request'=>$questData['request_id']]);
+    $assert($questLog->fetchColumn()===$questData['payload']['text'],'Quest source text remains in eventlog when commentary is disabled');
+} finally { $db->rollBack(); }
+
 $backfillTarget=$autoTarget;$backfillTarget['record_id']='profile_backfill_sentinel';
 $backfillTarget['display_name']='Profile Backfill Sentinel';$backfillTarget['refnum']['index']=6100;
 $backfillProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,

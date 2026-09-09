@@ -1297,7 +1297,8 @@ final class ManagementRouter
     private function portableCoreProfileOverrides(array $overrides):array
     {
         $overrides=EffectiveSettingsResolver::validateSettingsOverrides($overrides);$diary=DiaryGenerationPolicy::defaults();
-        return (isset($overrides['bored_event']) ? ['bored_event'=>$overrides['bored_event']] : [])
+        return (isset($overrides['quest_comments']) ? ['quest_comments'=>$overrides['quest_comments']] : [])
+            + (isset($overrides['bored_event']) ? ['bored_event'=>$overrides['bored_event']] : [])
             + (isset($overrides['rpg_comments']) ? ['rpg_comments'=>$overrides['rpg_comments']] : [])
             + (isset($overrides['profile_evolution']) ? ['profile_evolution'=>$overrides['profile_evolution']] : []) + ['response'=>['max_words'=>(int)($overrides['response']['max_words']??0),'core_lang'=>(string)($overrides['response']['core_lang']??''),'lang_llm_xtts'=>($overrides['response']['lang_llm_xtts']??false)===true],
             'behavior'=>['rechat'=>($overrides['behavior']['rechat']??false)===true,
@@ -2204,6 +2205,11 @@ final class ManagementRouter
                 'prompt'=>trim((string)($values['setting_diary_prompt']??DiaryGenerationPolicy::defaults()['prompt']))],
         ];
 
+        if (isset($values['quest_comments_present'])) {
+            $overrides['quest_comments']=['enabled'=>isset($values['setting_quest_comments_enabled']),
+                'chance_percent'=>$number($values,'setting_quest_comments_chance_percent',10)];
+            EffectiveSettingsResolver::validateSettingsOverrides(['quest_comments'=>$overrides['quest_comments']]);
+        }
         if (isset($values['setting_bored_event_chance_percent'])) {
             $overrides['bored_event']=['chance_percent'=>$number($values,'setting_bored_event_chance_percent',50)];
             EffectiveSettingsResolver::validateSettingsOverrides(['bored_event'=>$overrides['bored_event']]);

@@ -184,7 +184,7 @@ final class Router
                 $rechatActions=$source==='lorkhan_rechat'
                     &&($m['payload']['context']['rechat']['allow_actions']??false)===true;
                 $providerInput['_allowed_action_definitions'] = ($source==='lorkhan_rechat'&&!$rechatActions)
-                    ||in_array($source,['lorkhan_auto_greeting','lorkhan_auto_boredom','lorkhan_auto_combat_bark','lorkhan_rpg_event'],true)
+                    ||in_array($source,['lorkhan_auto_greeting','lorkhan_auto_boredom','lorkhan_auto_combat_bark','lorkhan_rpg_event','lorkhan_quest_event'],true)
                     ||str_starts_with((string)$source,'lorkhan_narrator_')
                     ||($source==='lorkhan_action_followup'&&!($m['_action_continuation']['allow_action']??false))
                     ?[]:$this->repository->allowedPromptActions($m['session_id'],$m['generation']);
@@ -248,13 +248,14 @@ final class Router
                                     (string)$message['playthrough_id'],(string)$message['session_id']);
                         }
                         $extra=[];
-                        if($message['type']==='bored_event'){
+                        if(in_array($message['type'],['bored_event','quest_event'],true)){
                             if($this->products===null)throw new ApiException(503,'provider_unavailable','Profile policy unavailable.',true);
                             $effective=$this->products->effectiveSettingsForActor((string)$message['installation_id'],
                                 (string)$message['playthrough_id'],$message['payload']['responder']);
                             // One stable roll per persisted opportunity, before client-side narrator routing.
                             $roll=hexdec(substr(hash('sha256',(string)$message['request_id']),0,6))%100;
-                            $extra['comment_requested']=$roll<$effective['settings']['bored_event']['chance_percent'];
+                            $policy=$effective['settings'][$message['type']==='quest_event'?'quest_comments':'bored_event'];
+                            $extra['comment_requested']=($message['type']!=='quest_event'||$policy['enabled'])&&$roll<$policy['chance_percent'];
                         }
                         if($message['type']==='rpg_event'){
                             $global=$this->products?->globalSettingsForInstallation((string)$message['installation_id'])['content']??[];

@@ -865,7 +865,8 @@ foreach(['builtin:default'=>[75,100,50,0,2,50,true,false],
         &&$settings['memory']['mid_term_enabled']===$expected[7]
         &&$settings['diary']['automatic_enabled']===$expected[7]
         &&$settings['diary']['automatic_wait_enabled']===$expected[7]
-        &&$settings['diary']['latest_entry_in_context']===$expected[7],$builtin.' shared profile values match reference');
+        &&$settings['diary']['latest_entry_in_context']===$expected[7]
+        &&$settings['quest_comments']['enabled']===$expected[7],$builtin.' shared profile values match reference');
     $check($applied['prompt']===$corePresetSource['prompt']
         &&$applied['routing']['llm_configuration_id']===$corePresetSource['routing']['llm_configuration_id']
         &&$settings['profile_evolution']['fields']===$corePresetSource['settings_overrides']['profile_evolution']['fields']
