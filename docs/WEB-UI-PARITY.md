@@ -10315,3 +10315,30 @@ Synthetic population was browser DOM only, not production cache or saved setting
 Deployed; 811 runtime hashes match; private settings/credentials/voices preserved.
 No game control. Remaining Zonos review: read-only cache interaction, rate/CFG
 bounds/help and lower advanced/revision surfaces. Broader page matrix remains open.
+
+### Core Profile identity card structural correction (2026-09-08)
+
+Moved Effective Core Profile settings and sources below the edit form so Profile
+Core follows the preset toolbar as in Herika. Diagnostics and revision history
+remain available; no setting removed or form input renamed. Restored Name help,
+Slot help/title and Profile Prompt help, reference compact identity label/hint
+spacing, and 1.25 checkbox scaling. Shared subtitle now describes core identity
+and runtime options. Slot text says Optional slot 1-4: do not claim the CHIM
+Settings Wheel shortcut is implemented. The current client Interact profile list
+selects actor_profile IDs; this is not proof of Core slot assignment parity.
+
+906 checks and full management HTTP suite pass (core-identity-unit.txt and
+core-identity-http.txt). Final CSS/help corrections followed by deployed browser
+inspection and exact 811-file runtime hash verification. 1280 actual selected
+editor views inspected; Profile Core is no longer displaced by diagnostics.
+390 focused views compared: reference embedded layout clips its right editor to
+a narrow column, while native stacks it. Do not reproduce reference overflow.
+Browser actions were read-only, no save/provider calls; existing profile data and
+private runtime files preserved. Temporary evidence: core-current-audit,
+core-editor-audit, core-editor-top-proof, core-identity-focused-proof.
+
+Still open: extra Long Term Memory/Conversation grouping, diary toggle mapping
+and missing Physical Diary capability, full connector summaries and inline editors,
+metadata/override composition, and the complete Core editor interaction audit.
+This first-card correction does not establish complete Core Profiles parity.
+Whole page goal remains active; no game launched or controlled.

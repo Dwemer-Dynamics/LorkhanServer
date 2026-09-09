@@ -191,11 +191,11 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($selected['core_profile_id']); ?>">
                         <div class="profile-editor-toolbar"><div><div class="profile-editor-toolbar-label">Editing Profile</div><div class="profile-editor-toolbar-name"><?php echo lorkhan_ui_h($selected['label']); ?></div></div><div class="profile-editor-actions"><span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span><button type="submit" class="btn-save">Save All</button></div></div>
                         <?php include __DIR__ . '/tmpl/core_profile_presets.php'; ?>
-                        <?php lorkhan_ui_effective_settings_summary($effectiveCoreSettings, 'Effective Core Profile settings and sources'); ?>
                         <?php include __DIR__ . '/tmpl/core_profile_fields.php'; ?>
                         <div class="connector-card profile-revision-card"><div class="connector-title">Revision Note</div><label>Change reason<input name="change_reason" required maxlength="512" value="Management Core Profile update"></label></div>
                     </form>
 
+                        <?php lorkhan_ui_effective_settings_summary($effectiveCoreSettings, 'Effective Core Profile settings and sources'); ?>
                     <details class="connector-card profile-history"><summary>Revision History</summary>
                         <?php $history = is_array($selected['revisions'] ?? null) ? $selected['revisions'] : []; lorkhan_ui_table($history, 'No revisions.'); ?>
                         <?php $earlier = array_values(array_filter($history, static fn(array $revision): bool => (int) ($revision['revision'] ?? 0) !== (int) $selected['current_revision'])); if ($earlier !== []): ?>

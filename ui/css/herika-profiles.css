@@ -404,6 +404,16 @@ body.profiles-page-shell:not(.embedded-page) .profile-editor-toolbar { top:64px;
     margin: 0;
 }
 
+.profiles-page .profile-core-compact-field > label {
+    margin-bottom: 3px;
+    line-height: 1.25;
+}
+
+.profiles-page .profile-core-compact-field > small.hint {
+    margin-top: 3px;
+    line-height: 1.3;
+}
+
 .profiles-page label {
     display: block;
     margin-bottom: 6px;
@@ -535,6 +545,12 @@ body.profiles-page-shell:not(.embedded-page) .profile-editor-toolbar { top:64px;
     align-items: center;
     gap: 7px;
     white-space: nowrap;
+}
+
+.profiles-page .profile-toggle-card input[type="checkbox"],
+.profiles-page .profile-default-card input[type="checkbox"] {
+    transform: scale(1.25);
+    cursor: pointer;
 }
 
 .profiles-page .profile-inherit-select {
