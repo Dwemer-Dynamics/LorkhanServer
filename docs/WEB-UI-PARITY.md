@@ -9575,3 +9575,21 @@ Native browser1280/390 verified choice-to-boolean switching, raw JSON rejection
 and removal without writes; both populated screenshots inspected. All810
 deployed runtime files match; private/access checks passed. This closes the
 NPC quest-override exposure gap, not whole-editor visual parity. No game launch.
+
+
+### Observed quest text in narrator and NPC prompts (2026-09-08)
+
+Client `b133b4b` shares the bounded complete-line formatter with narrator quest
+candidates, retaining the text through the queue and context request. Server
+PromptAssembler now preserves that observation beside the configured narrator
+instruction. Also added the missing NPC quest automatic cue so the quest update
+is scene context rather than player speech. Existing narrator templates without
+an observed quest marker remain unchanged.
+
+72 Lua checks and803 server checks pass, including retained journal text, bounded
+queue input and custom narrator instruction preservation. Full integration and
+migration/durable checks passed. Four Lua deployment hashes match, Config stays
+unchanged, rollback local Temp `lorkhan-narrator-quest-rollback-vt0524yi`. All810
+server runtime hashes and private/access probes passed. No engine rebuild or
+game launch. Actual in-game acceptance and broader narrator speaker-selection
+parity remain unverified; no whole-page completion claim.

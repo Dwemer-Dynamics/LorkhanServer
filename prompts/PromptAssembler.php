@@ -1014,9 +1014,18 @@ final class PromptAssembler
             $custom = $turn['_narrator_event_prompts'][$narratorKey] ?? null;
             $instruction = is_string($custom) && trim($custom) !== '' ? $custom
                 : NarratorEventPrompts::definitions()[$narratorKey]['default_prompt'];
-            return strtr($instruction, ['{PLAYER_NAME}' => $playerName]);
+            $instruction=strtr($instruction, ['{PLAYER_NAME}' => $playerName]);
+            $input=(string)($turn['payload']['input']['text']??'');
+            $marker="[Narrator:quest]\n";
+            if(($turn['payload']['ui_source']??'')==='lorkhan_narrator_quest'&&str_starts_with($input,$marker)){
+                $observation=trim(mb_substr(substr($input,strlen($marker)),0,8192,'UTF-8'));
+                if($observation!=='')$instruction.="\n[Observed journal update]\n".$observation
+                    ."\nComment on this observed update. It is scene context, not player speech; do not invent additional objectives.";
+            }
+            return $instruction;
         }
         $automaticCue = match ($turn['payload']['ui_source'] ?? null) {
+            'lorkhan_quest_event' => 'Make one brief in-character comment about this observed journal update: '.(string)($turn['payload']['input']['text']??'').'. This is scene context, not spoken player dialogue. Do not invent additional objectives.',
             'lorkhan_rpg_event' => 'Make one brief in-character comment about this observed game event: '.(string)($turn['payload']['input']['text']??'').'. This is scene context, not spoken player dialogue. Do not invent additional events.',
             'lorkhan_auto_greeting' => "Automatic greeting for {$actorName}. Address {$playerName} with one brief, natural greeting that fits your character and the current situation.",
             'lorkhan_auto_boredom' => "Automatic idle remark for {$actorName}. Make one brief, spontaneous in-character observation about the current situation. Address {$playerName} only when it feels natural.",

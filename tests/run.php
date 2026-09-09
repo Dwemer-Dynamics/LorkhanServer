@@ -933,6 +933,17 @@ foreach (\LorkhanServer\Application\NarratorEventPrompts::SOURCES as $source => 
     $messages = $assembler->assemble($narratorTurn, $promptSelection)['provider_input']['_messages'];
     $check($messages[array_key_last($messages)]['content'] === 'Observe the scene for Nerevarine, without inventing events.', $key.' applies the frozen custom instruction');
 }
+foreach(['lorkhan_narrator_quest','lorkhan_quest_event'] as $questSource){
+    $groundedQuest=$promptTurn;$groundedQuest['payload']['ui_source']=$questSource;
+    $groundedQuest['payload']['input']['text']=($questSource==='lorkhan_narrator_quest'?"[Narrator:quest]\n":'[Quest update] ').'Quest mq_test, stage 20: Find the missing package.';
+    $groundedQuest['_narrator_event_prompts']=[\LorkhanServer\Application\NarratorEventPrompts::SOURCES['lorkhan_narrator_quest']=>'Observe the quest for {PLAYER_NAME}.'];
+    $questMessages=$assembler->assemble($groundedQuest,$promptSelection)['provider_input']['_messages'];
+    $questFinal=$questMessages[array_key_last($questMessages)]['content'];
+    $check(str_contains($questFinal,'Quest mq_test, stage 20: Find the missing package.')
+        &&str_contains($questFinal,'scene context, not')&&!str_contains($questFinal,'Nerevarine: [Quest update]')
+        &&($questSource!=='lorkhan_narrator_quest'||str_contains($questFinal,'Observe the quest for Nerevarine.')),
+        $questSource.' retains actual journal text as scene context');
+}
 foreach (['Narrator'=>'narrator','NPC'=>'npc','Text Only'=>'npc','Disabled'=>''] as $mode=>$suffix) {
     $inlineTurn=$promptTurn;$inlineTurn['_narrator_profile']['content']['enabled']=true;
     $inlineTurn['_narrator_profile']['content']['inline_narration_mode']=$mode;
