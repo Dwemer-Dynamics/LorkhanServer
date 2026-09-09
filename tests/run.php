@@ -561,6 +561,12 @@ foreach ([['whispering',['whispering'],'','whispering'],['angry',['whispering'],
     $xml=new DOMDocument();$xml->loadXML($body);
     $check($xml->getElementsByTagNameNS('https://www.w3.org/2001/mstts','express-as')->item(0)->getAttribute('style')===$expected && $xml->documentElement->textContent==='Safe <text>','Azure mood allowlist and fixed override preserve escaped text');
 }
+$azureMoodContent=ConnectorCatalog::validate('tts_provider',ConnectorCatalog::defaults('tts_provider','azure')+['driver'=>'azure','options'=>['validMoods'=>['whispering','dazed']]]);
+$check($azureMoodContent['options']['validMoods']===['whispering','dazed'],'Azure valid moods preserve the configured selection array');
+foreach (['whispering',['invalid-style'],[['nested']]] as $badMoods) {
+    try { ConnectorCatalog::validate('tts_provider',ConnectorCatalog::defaults('tts_provider','azure')+['driver'=>'azure','options'=>['validMoods'=>$badMoods]]);$check(false,'invalid Azure mood array rejected'); }
+    catch (InvalidArgumentException) {$check(true,'invalid Azure mood array rejected');}
+}
 foreach ([['openai','instructions',str_repeat('x',4097)],['openai','instructions',['invalid']],
     ['azure','region','eastus/../../evil'],['azure','rate',0],['azure','volume',101],['azure','fixedMood',[]],
     ['deepgram','bitrate',22050],['deepgram','bitrate','32000'],

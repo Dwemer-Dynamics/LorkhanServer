@@ -170,7 +170,7 @@ final class ConnectorCatalog
         'kokoro'=>[['speed','Speed','number',0.25,4.0]],
         'deepgram'=>[['bitrate','Bitrate','integer',8000,48000]],
         'azure'=>[['fixedMood','Fixedmood','string'],['region','Region','string'],
-            ['volume','Volume','integer',0,100],['rate','Rate','number',0.5,2.0],['countour','Countour','string']],
+            ['volume','Volume','integer',0,100],['rate','Rate','number',0.5,2.0],['countour','Countour','string'],['validMoods','Validmoods','multiselect',['angry','chat','cheerful','customerservice','empathetic','excited','friendly','hopeful','narration-professional','newscast-casual','newscast-formal','sad','shouting','terrified','unfriendly','whispering','default','dazed']]],
         '11labs'=>[['optimize_streaming_latency','Optimize Streaming Latency','integer',0,4],
             ['stability','Stability','number',0.0,1.0],['similarity_boost','Similarity Boost','number',0.0,1.0],
             ['style','Style','number',0.0,1.0],['speed','Speed','number',0.25,4.0],
@@ -274,7 +274,7 @@ final class ConnectorCatalog
         // Validate newly exposed controls on every ingress, including JSON imports and API revisions.
         $typedFields = $kind === 'tts_provider' ? match ($driver) {
             'openai'=>['instructions'], 'kokoro'=>['speed'],
-            'azure'=>['fixedMood','region','volume','rate','countour'],
+            'azure'=>['fixedMood','region','volume','rate','countour','validMoods'],
             'deepgram'=>['bitrate'],
             'chatterbox','xtts-fastapi'=>['paralinguistic_tags_enabled','paralinguistic_tags_prompt','paralinguistic_tags_list'],
             '11labs'=>['optimize_streaming_latency','speed','apply_text_normalization','apply_language_text_normalization','v3_audio_tags'],
@@ -287,6 +287,7 @@ final class ConnectorCatalog
             $valid = match ($field['type']) {
                 'longstring'=>is_string($value) && strlen($value) <= $field['maxlength'] && mb_check_encoding($value, 'UTF-8'),
                 'string'=>is_string($value) && strlen($value) <= 512 && mb_check_encoding($value, 'UTF-8'),
+                'multiselect'=>is_array($value) && array_is_list($value) && count($value)<=count($field['values']) && count(array_filter($value, static fn($entry): bool => !is_string($entry) || !in_array($entry,$field['values'],true)))===0,
                 'select'=>is_string($value) && in_array($value, $field['values'], true),
                 'boolean'=>is_bool($value),
                 'integer'=>is_int($value) && $value >= $field['minimum'] && $value <= $field['maximum'],
@@ -343,7 +344,7 @@ final class ConnectorCatalog
             ['paralinguistic_tags_list','Paralinguistic Tags List','string'],
         ]);
         foreach($rows as$row){$field=['name'=>$row[0],'label'=>$row[1],'type'=>$row[2]];
-            if($row[2]==='select')$field['values']=$row[3];elseif($row[2]==='longstring')$field['maxlength']=$row[3];elseif(in_array($row[2],['number','integer'],true)){$field['minimum']=$row[3];$field['maximum']=$row[4];}
+            if(in_array($row[2],['select','multiselect'],true))$field['values']=$row[3];elseif($row[2]==='longstring')$field['maxlength']=$row[3];elseif(in_array($row[2],['number','integer'],true)){$field['minimum']=$row[3];$field['maximum']=$row[4];}
             $result[]=$field;}
         return$result;
     }

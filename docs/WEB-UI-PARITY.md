@@ -10095,3 +10095,23 @@ not editor completion: catalog/form multi-select, worker mood metadata propagati
 full reference emote normalization and final browser/persistence checks remain.
 Do not expose or mark the Validmoods card complete until those paths are wired.
 Not deployed in isolation; runtime remains the last fully verified baseline.
+### Azure Validmoods form source (2026-09-08, not deployed)
+
+Added the matching 18-option multi-select to the provider template and its catalog.
+Options were read from the live reference meta__azure__validMoods select: angry,
+chat, cheerful, customerservice, empathetic, excited, friendly, hopeful,
+narration-professional, newscast-casual, newscast-formal, sad, shouting, terrified,
+unfriendly, whispering, default, dazed. The reference uses multiple with default
+browser size. Form parsing accepts bounded arrays and removes duplicates; JSON
+connector validation rejects scalar/nested/unknown choices. Inactive provider
+controls retain the existing disabled-draft behavior.
+
+875 checks pass, including exact selected-array retention and invalid input cases.
+Existing full management HTTP suite passes (azure-selector-http.txt); a focused
+multi-select save/reload browser assertion and final visual comparison remain.
+The template is not deployed yet: speech workers do not currently preserve mood
+metadata. Repository speech job payloads can carry the optional mood without a
+new dialogue table column, but DialoguePlanner/normalizer and streamed delivery
+must preserve it first. Do not conflate player-selected input mood with NPC mood.
+Remaining reference emote normalization, end-to-end mock proof and deployment are
+part of the same unfinished Azure work. No private settings or game changes.

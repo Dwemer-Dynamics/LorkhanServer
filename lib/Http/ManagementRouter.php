@@ -1028,6 +1028,12 @@ final class ManagementRouter
         }
         if(isset($values['option_fields_present']))foreach(ConnectorCatalog::optionFields($kind,$driver)as$field){
             $name=(string)$field['name'];$key='option__'.$name;$type=(string)$field['type'];
+            if($type==='multiselect'){
+                $selected=$values[$key]??[];
+                if(!is_array($selected)||!array_is_list($selected)||count($selected)>count($field['values']))throw new InvalidArgumentException('invalid_connector_option_'.$name);
+                foreach($selected as$value)if(!is_string($value)||!in_array($value,$field['values'],true))throw new InvalidArgumentException('invalid_connector_option_'.$name);
+                $options[$name]=array_values(array_unique($selected));continue;
+            }
             if($type==='boolean'){
                 $boolean=filter_var($values[$key]??false,FILTER_VALIDATE_BOOLEAN,FILTER_NULL_ON_FAILURE);
                 if($boolean===null)throw new InvalidArgumentException('invalid_connector_option_'.$name);

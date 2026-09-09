@@ -16,7 +16,7 @@ $primaryFields = [
     'piper-tts'=>['option__length_scale','option__noise_scale','option__noise_w_scale','option__speaker','option__speaker_id'],
     'xvasynth'=>['language','option__model_type','option__version','option__game','option__pace','option__waveglow_path','option__vocoder','option__distro'],
     'zonos_gradio'=>['language','model','option__pitch_std','option__speaking_rate','option__cfg_scale'],
-    'deepgram'=>['option__bitrate'], 'azure'=>['option__fixedMood','option__region','option__volume','option__rate','option__countour'], 'kokoro'=>['option__speed'], 'koboldcpp'=>[],
+    'deepgram'=>['option__bitrate'], 'azure'=>['option__fixedMood','option__region','option__volume','option__rate','option__countour','option__validMoods'], 'kokoro'=>['option__speed'], 'koboldcpp'=>[],
 ];
 $providerTitles = ['inworld'=>'Inworld TTS','cartesia'=>'Cartesia TTS','openai'=>'OpenAI TTS',
     '11labs'=>'ElevenLabs Text-To-Speech','azure'=>'Azure Text-To-Speech','deepgram'=>'Deepgram TTS',
@@ -104,7 +104,11 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
         }
     }
     ?><div class="field-block"><label for="<?php echo lorkhan_ui_h($id); ?>"><?php echo lorkhan_ui_h($field['label']); ?></label>
-    <?php if ($type === 'select'): ?>
+    <?php if ($type === 'multiselect'): ?>
+        <select multiple id="<?= lorkhan_ui_h($id) ?>" name="<?= lorkhan_ui_h($field['name']) ?>[]" form="<?= lorkhan_ui_h($formId) ?>"<?= $active ? '' : ' disabled' ?>>
+            <?php foreach ($field['values'] as $choice): ?><option value="<?= lorkhan_ui_h($choice) ?>"<?= is_array($value) && in_array($choice,$value,true) ? ' selected' : '' ?>><?= lorkhan_ui_h($choice) ?></option><?php endforeach; ?>
+        </select>
+    <?php elseif ($type === 'select'): ?>
         <select id="<?php echo lorkhan_ui_h($id); ?>" name="<?php echo lorkhan_ui_h($field['name']); ?>" form="<?php echo lorkhan_ui_h($formId); ?>"<?php echo $active ? '' : ' disabled'; ?>>
             <?php $choices = $field['values']; if (!in_array((string)$value, $choices, true)) array_unshift($choices, (string)$value); ?>
             <?php foreach ($choices as $choice): ?><option value="<?php echo lorkhan_ui_h($choice); ?>"<?php echo (string)$value === $choice ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($choice === '' ? 'Connector default' : ($field['choice_labels'][$choice] ?? $choice)); ?></option><?php endforeach; ?>
