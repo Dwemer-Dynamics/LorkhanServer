@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `6c90f7e` (Combat card and Core cooldown ownership), with grouped settings `d2c8d16`, retained scene overlap `6655b8e` and Short Term Memory card `d0ce6f4`. Client `a7fceb0` is deployed with the matching 600-second range.
+Latest checkpoint: visible Quickstart Setup / Local LLM cards and transactional form wiring (see the final dated section). Narrator quest grounding is deployed at server `75984dc` / client `b133b4b`; the client is unchanged by this UI checkpoint.
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -9593,3 +9593,55 @@ unchanged, rollback local Temp `lorkhan-narrator-quest-rollback-vt0524yi`. All81
 server runtime hashes and private/access probes passed. No engine rebuild or
 game launch. Actual in-game acceptance and broader narrator speaker-selection
 parity remain unverified; no whole-page completion claim.
+
+
+### Quickstart visible Setup and Local LLM form (2026-09-08)
+
+Reference `529364c`, `ui/quickstart.php` Setup sibling section and its scoped CSS.
+Added the Default / Local LLM radio cards, nested server/model/URL editor, scope
+cards, Advanced key/timeout/streaming controls, connection test and four local
+model recap cards. Used the counterpart's actual structures and rules, with gold
+branding. The existing protected key endpoint never echoes a saved key. Hidden
+Local controls are disabled; returning to Local preserves drafts. Server-type
+selection changes the draft port while retaining the entered host and path.
+
+Save now composes the managed connector/default routing transaction with the
+selected Core built-in, selected speech routes and player rename. A stale Core,
+routing fingerprint or player revision rolls back database changes. Optional key
+storage remains the pre-existing separate private autosave, not part of database
+rollback. Default affects the selected Core settings; it does not reset global
+behavior. Local 'all' additionally routes existing supported background consumers.
+Descriptions explicitly state this current scope.
+
+Tests caught and fixed the required `badge:` prefix for the private credential
+reference. Browser submission also exposed an existing all-empty key queue race:
+requestSubmit was called during the original submit event's microtask checkpoint
+and was suppressed by Chrome. Yielding one task before resubmission fixes it.
+
+Evidence:
+- 803 server checks and PHP/JavaScript syntax checks pass.
+- Existing management HTTP suite passes (`quickstart-setup-http-2.txt`): invalid
+  timeout, stale player rollback, full save/reload of model/timeout/scope/streaming,
+  and stale form rejection. Updated its existing HTML parser to honor checked
+  radio buttons. No new test file.
+- Integration vertical slice, 173-relation inventory, migrations and durable job
+  checks pass (`quickstart-setup-integration.txt`).
+- `quickstart-setup-proof.cjs` compares reference/native Default and expanded Local
+  at 1280 and 390. Actual deployed controls exercise both test failure and success
+  using mocked responses, keyboard arrow selection, retained drafts, model recaps,
+  and full Save button submission/payload using a mocked form receipt. No live
+  provider or private settings writes. MiniMe automatic POST was blocked.
+- Default and expanded desktop images and expanded mobile images were inspected.
+  Section widths match (980 desktop / 370 mobile); native has explicit routing
+  scope help and a loopback warning. Sticky nav overlays the top of both mobile
+  element captures; these are control-layout evidence, not whole-page screenshots.
+- Deployed runtime has 811 files with exact source hashes, no extra/old paths;
+  private routes 403, unpaired session 401. Private config, credentials and voice
+  contents preserved. No game launched or controlled.
+
+Still OPEN, not product exceptions: global built-in behavior preset application,
+Core preset effects on all counterpart default profiles, Windows/WSL address
+shortcuts, Player2 switching/lock states, exact recap text/general connectors,
+empty-installation provisioning and final complete Quickstart/hub comparison.
+The new controls are working progress; this does not close Quickstart or the
+all-pages goal. GitHub server workflow remains disabled.

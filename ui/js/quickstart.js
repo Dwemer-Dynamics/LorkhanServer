@@ -33,9 +33,9 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
     function saveKey(field){
         const operation=queue.then(async()=>{
             const input=field.querySelector('[data-key-input]');
-            if(input.disabled||!input.value.trim())return;
+            if(input.matches(':disabled')||!input.value.trim())return;
             const value=input.value,status=field.querySelector('[data-key-status]');
-            status.textContent='Saving...';
+            status.hidden=false;status.textContent='Saving...';
             const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),10000);
             let failureMessage='';
             try{
@@ -51,6 +51,7 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
                 const unchanged=input.value===value;
                 if(unchanged){input.value='';input.type='password';field.querySelector('[data-key-unhide]').textContent='Unhide';}
                 input.placeholder='Configured - leave blank to keep';status.textContent=unchanged?'Saved.':'Previous value saved. New value has not been saved yet.';
+                if(field.dataset.quickKey==='local_llm')form.elements.local_key_configured.value='1';
             }catch(error){
                 status.textContent=error.name==='AbortError'?'Save timed out. Your pasted key is kept for retry.':
                     failureMessage||'Could not save the key. Your pasted value is kept for retry.';
@@ -79,6 +80,9 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
         fields.forEach(field=>{field.querySelector('[data-key-input]').readOnly=true;});
         try{
             for(const field of fields)await saveKey(field);
+            // An all-empty key queue resolves in the original submit event's microtask checkpoint.
+            // Wait for that event to finish; browsers suppress requestSubmit while it is still firing.
+            await new Promise(resolve=>setTimeout(resolve,0));
             button.disabled=false;
             try{allowSubmit=true;form.requestSubmit();}finally{allowSubmit=false;}
         }catch(failure){error.textContent=failure.message;}
@@ -106,4 +110,63 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
     }
     if(section.dataset.minimeInstallation)probe();
     else{status.textContent='Select an installation to check MiniMe.';}
+})();
+
+// Local setup remains a draft until the existing transactional Quickstart form is saved.
+(() => {
+    const section=document.querySelector('[data-local-test]');
+    if(!section)return;
+    const form=section.closest('form'),panel=section.querySelector('#qs_local_llm_panel');
+    const server=form.elements.local_server,url=form.elements.local_endpoint;
+    const status=section.querySelector('#qs_local_llm_status'),test=section.querySelector('#qs_test_local_llm');
+    const models=[...form.querySelectorAll('[data-model-select]')];
+    const save=form.querySelector('.qs-save-btn'),initialDisabled=save.disabled;
+    let testing=false;
+    function update(){
+        const local=form.elements.settings_preset.value==='builtin:local_llm';
+        panel.hidden=!local;panel.disabled=!local;
+        models.forEach(select=>{select.disabled=local;});
+        save.disabled=local?!form.elements.core_profile_id.value:initialDisabled;
+        section.querySelector('#qs_settings_preset_desc').textContent=local?
+            'Shorter Core Profile context and replies for a local model. Configure its endpoint below.':
+            'Default Core Profile settings. Your selected connectors are kept.';
+        models[0]?.closest('.qs-section').querySelector('.qs-connector-grid').toggleAttribute('hidden',local);
+        form.querySelector('[data-local-recap]').hidden=!local;
+        form.querySelectorAll('[data-local-model]').forEach(e=>{e.textContent=form.elements.local_model.value||'Enter a model name';});
+        form.querySelectorAll('[data-local-endpoint]').forEach(e=>{e.textContent=url.value;});
+        form.querySelector('[data-default-required]')?.toggleAttribute('hidden',local&&!!form.elements.core_profile_id.value);
+        test.disabled=testing;
+        try{section.querySelector('#qs-local-loopback').hidden=!['localhost','127.0.0.1','[::1]'].includes(new URL(url.value).hostname);}
+        catch{section.querySelector('#qs-local-loopback').hidden=true;}
+    }
+    form.querySelectorAll('[name="settings_preset"]').forEach(radio=>radio.addEventListener('change',update));
+    url.addEventListener('input',update);
+    form.elements.local_model.addEventListener('input',update);
+    server.addEventListener('change',()=>{
+        const port=server.selectedOptions[0].dataset.port;
+        if(port){try{const endpoint=new URL(url.value);endpoint.port=port;url.value=endpoint.href;}catch{}}
+        update();
+    });
+    test.addEventListener('click',async()=>{
+        if(testing)return;
+        for(const input of panel.querySelectorAll('input,select'))if(!input.reportValidity())return;
+        testing=true;test.disabled=true;status.hidden=false;status.className='qs-status qs-local-llm-status pending';status.textContent='Testing connection...';
+        const setup={server_type:server.value,scope:form.elements.local_scope.value,endpoint:url.value.trim(),
+            model:form.elements.local_model.value.trim(),timeout_seconds:Number(form.elements.local_timeout.value),
+            disable_streaming:form.elements.local_disable_streaming.checked};
+        if(form.elements.local_key_configured.value==='1')setup.credential='badge:LORKHAN_CUSTOM_QUICKSTART_LOCAL_LLM_API_KEY';
+        const payload={installation_id:form.elements.installation_id.value,setup};
+        const draft=panel.querySelector('[data-key-input]').value.trim();
+        if(draft)payload.api_key=draft;
+        try{
+            const response=await fetch(section.dataset.localTest,{method:'POST',credentials:'same-origin',
+                headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-Token':form.elements._csrf.value},
+                body:JSON.stringify(payload),signal:AbortSignal.timeout((setup.timeout_seconds+5)*1000)});
+            const result=await response.json();
+            if(!response.ok||result.ok!==true)throw new Error(response.status===429?'Please wait before testing again.':'Connection failed. Check the endpoint, model and server logs.');
+            status.className='qs-status qs-local-llm-status ok';status.textContent=result.message||'Connection successful.';
+        }catch(error){status.className='qs-status qs-local-llm-status err';status.textContent=error.name==='TimeoutError'?'Connection test timed out.':error.message||'Connection test failed.';}
+        finally{testing=false;test.disabled=false;}
+    });
+    update();
 })();

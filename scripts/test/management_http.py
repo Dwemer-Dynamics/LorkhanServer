@@ -109,7 +109,7 @@ class Page(html.parser.HTMLParser):
     def handle_starttag(self,tag,attrs):
         a=dict(attrs)
         if self.external_form and a.get('form')==self.external_form and a.get('name') and 'disabled' not in a:
-            if tag=='input' and (a.get('type')!='checkbox' or 'checked' in a): self.external_fields[a['name']]=a.get('value','')
+            if tag=='input' and (a.get('type') not in ('checkbox','radio') or 'checked' in a): self.external_fields[a['name']]=a.get('value','')
             if tag=='select': self.external_select=a['name']
             if tag=='textarea': self.external_textarea=a['name']; self.external_fields[a['name']]=''
         if tag=='option' and self.external_select and (self.external_select not in self.external_fields or 'selected' in a):
@@ -122,7 +122,7 @@ class Page(html.parser.HTMLParser):
             self.nav.append(a['href'])
             if 'dropdown-item' in a.get('class','').split(): self.current+=a.get('aria-current')=='page'
         if tag=='form': self.form={'id':a.get('id',''),'action':a.get('action',''),'method':a.get('method','get'),'fields':{}}; self.forms.append(self.form)
-        if self.form is not None and tag=='input' and a.get('name') and 'disabled' not in a and (a.get('type')!='checkbox' or 'checked' in a): self.form['fields'][a['name']]=a.get('value','')
+        if self.form is not None and tag=='input' and a.get('name') and 'disabled' not in a and (a.get('type') not in ('checkbox','radio') or 'checked' in a): self.form['fields'][a['name']]=a.get('value','')
         if self.form is not None and tag=='input' and a.get('type')=='checkbox' and a.get('name') and 'checked' in a:
             self.form.setdefault('checked',{}).setdefault(a['name'],[]).append(a.get('value',''))
         if self.form is not None and tag=='select' and a.get('name') and 'disabled' not in a: self.select_name=a['name']
@@ -2936,4 +2936,23 @@ stale_local=json_request(local_path,'POST',local_body,csrf_token=csrf)
 assert stale_local.status==409,(stale_local.status,stale_local.read())
 reloaded_plan=json.loads(request(local_path+'?installation_id='+valid['installation_id']).read())['routing_plan']
 assert reloaded_plan==saved_local_body['routing_plan']
+# The visible Local setup participates in the same player/profile transaction.
+qs_page,qs_body=parse(request('/LorkhanServer/ui/quickstart.php?installation_id='+valid['installation_id']))
+qs_form=next(f for f in qs_page.forms if f['action'].endswith('/forms/quickstart-save'))
+qs_values=dict(qs_form['fields'],_csrf=csrf,settings_preset='builtin:local_llm',local_model='form-local-model',local_timeout='45',local_scope='all',local_disable_streaming='1')
+assert 'Local LLM Setup' in qs_body and 'Test connection' in qs_body
+before_plan=json.load(request(local_path+'?installation_id='+valid['installation_id']))
+r=request(qs_form['action'],'POST',dict(qs_values,local_timeout='121')); failure=r.read().decode()
+assert r.status==422,(r.status,failure)
+assert json.load(request(local_path+'?installation_id='+valid['installation_id']))==before_plan
+r=request(qs_form['action'],'POST',dict(qs_values,player_revision='1')); failure=r.read().decode()
+assert r.status in (409,422),(r.status,failure)
+assert json.load(request(local_path+'?installation_id='+valid['installation_id']))==before_plan
+r=request(qs_form['action'],'POST',qs_values); saved=r.read().decode()
+assert r.status==200 and 'Quickstart settings saved.' in saved,(r.status,saved)
+reloaded,reloaded_body=parse(request('/LorkhanServer/ui/quickstart.php?installation_id='+valid['installation_id']))
+fields=next(f['fields'] for f in reloaded.forms if f['action'].endswith('/forms/quickstart-save'))
+assert fields['local_model']=='form-local-model' and fields['local_timeout']=='45' and fields['local_scope']=='all'
+assert fields['local_disable_streaming']==''
+r=request(qs_form['action'],'POST',qs_values); assert r.status==409,(r.status,r.read())
 print('browser-like management HTTP forms passed')

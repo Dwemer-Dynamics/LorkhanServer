@@ -22,6 +22,9 @@ foreach(['tts_provider'=>$tts,'stt_provider'=>$stt]as$kind=>$rows)foreach($rows 
     if(filter_var($row['active']??false,FILTER_VALIDATE_BOOL))$active[$kind]=$row['configuration_id'];
 $ready=$selected!==null&&$llms!==[];
 $player=$installationId===''?null:$productRepository->playerProfileForInstallation($installationId);
+$localState=$installationId===''?null:$productRepository->quickstartLocalLlmForInstallation($installationId);
+$localContent=$localState['connector']['content']??[];
+$localPlan=$installationId===''?null:$productRepository->quickstartLocalRoutingPlan($installationId);
 $keyStatuses=[];$keyStoreReady=true;
 try{foreach((new \LorkhanServer\Application\CredentialStore((string)$config['credential_storage_path']))->statuses()as$status)$keyStatuses[$status['variable']]=$status;}
 catch(Throwable){$keyStoreReady=false;}
@@ -60,6 +63,7 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
             <?php lorkhan_quickstart_key('openrouter','OpenRouter','https://openrouter.ai/keys',$keyStatuses['LORKHAN_LLM_API_KEY']??[],$keyStoreReady); ?>
             <p class="form-text">Updates the server-wide OpenRouter API badge. Direct connectors using a different API badge keep their own key selection.</p>
         </section>
+        <?php include __DIR__.'/tmpl/quickstart_setup.php'; ?>
         <section class="qs-section" id="qs_minime_section" data-minime-endpoint="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/quickstart-minime" data-minime-installation="<?= lorkhan_ui_h($installationId) ?>" data-minime-csrf="<?= lorkhan_ui_h($csrf) ?>">
             <h2 class="qs-section-title">MiniMe Service</h2>
             <div class="form-group qs-field"><small class="form-text">Checks if MiniMe is reachable at the saved endpoint or the local default. No game text is sent.</small>
@@ -93,10 +97,11 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
                 <select name="<?php echo $field; ?>" id="qs-<?php echo $field; ?>" class="form-control" required data-model-select><option value="">Choose a model</option><?php foreach($llms as$row): ?><option value="<?php echo lorkhan_ui_h($row['configuration_id']); ?>" data-model="<?php echo lorkhan_ui_h($row['content']['model']??''); ?>"<?php echo ($routing[$field]??'')===$row['configuration_id']?' selected':''; ?>><?php echo lorkhan_ui_h($row['name']); ?></option><?php endforeach; ?></select>
                 <div class="qs-model" data-model-recap><?php echo lorkhan_ui_h($model); ?></div>
             </div><?php endforeach; ?></div>
+            <div class="qs-connector-grid" data-local-recap hidden><?php foreach(['🕹️ Standard','🏃 Fast','💪 Powerful','🧪 Experimental'] as $label): ?><div class="qs-connector-card"><strong><?= $label ?></strong><div class="qs-model" data-local-model></div><small class="form-text" data-local-endpoint></small></div><?php endforeach; ?></div>
             <p class="form-text">These are your saved connectors. <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/llm_connectors.php">Configure Models</a> · <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/api_keys.php">API Keys</a></p>
         </section>
         <p class="form-text">MiniMe and automatic summary settings are in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/config_hub.php?tab=globals">Global Settings</a>. The MiniMe check only tests reachability; it does not enable summaries or generate embeddings.</p>
-        <?php if(!$ready): ?><p class="quickstart-notice">Create a Core Profile and at least one LLM connector before saving Quickstart.</p><?php endif; ?>
+        <?php if(!$ready): ?><p class="quickstart-notice" data-default-required>Create a Core Profile and at least one LLM connector before saving Quickstart, or choose Local LLM to create its connector.</p><?php endif; ?>
         <div class="qs-actions"><span data-dirty-indicator hidden>Unsaved changes</span><span role="alert" data-quickstart-error></span><button type="submit" class="btn-primary qs-save-btn" aria-describedby="qs-profile-scope"<?php echo !$ready?' disabled':''; ?>>Save and Continue</button></div>
     </form>
     <details class="qs-section qs-profile-scope"><summary id="qs-profile-scope">Profile selection: <?php echo lorkhan_ui_h($selected['label']??$selected['name']??'Not configured'); ?></summary>

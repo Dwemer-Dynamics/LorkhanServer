@@ -2446,9 +2446,28 @@ final class ManagementRouter
         return$this->repository->transaction(function()use($values,$installation,$id,$expected):array{
             $profile=$this->repository->getRevisioned('core_profile',$id);
             if($profile['installation_id']!==$installation)throw new InvalidArgumentException('invalid_core_profile');
+            if((int)$profile['current_revision']!==$expected)throw new RuntimeException('revision_conflict');
+            $preset=$values['settings_preset']??'';
+            if(!in_array($preset,['','builtin:default','builtin:local_llm'],true))throw new InvalidArgumentException('invalid_quickstart_preset');
+            $local=$preset==='builtin:local_llm';$localId=null;
+            if($local){
+                $timeout=filter_var($values['local_timeout']??null,FILTER_VALIDATE_INT);
+                if($timeout===false)throw new InvalidArgumentException('invalid_local_llm_setup');
+                $setup=['server_type'=>$this->need($values,'local_server'),'scope'=>$this->need($values,'local_scope'),
+                    'endpoint'=>$this->need($values,'local_endpoint'),'model'=>$this->need($values,'local_model'),
+                    'timeout_seconds'=>$timeout,'disable_streaming'=>isset($values['local_disable_streaming'])];
+                // The optional key is flushed through the private key endpoint before submitting this form.
+                if(($values['local_key_configured']??'')==='1')$setup['credential']='badge:'.\LorkhanServer\Application\QuickstartLocalLlm::CREDENTIAL;
+                $saved=$this->repository->applyQuickstartLocalLlm($installation,$setup,$this->need($values,'local_fingerprint'),gmdate(DATE_ATOM));
+                $localId=$saved['configuration_id'];
+                $profile=$this->repository->getRevisioned('core_profile',$id);
+                if(in_array($id,array_column($saved['routing_plan']['core_profiles'],'core_profile_id'),true))++$expected;
+                if((int)$profile['current_revision']!==$expected)throw new RuntimeException('revision_conflict');
+            }
             $content=$profile['content'];
+            if($preset!=='')$content=\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn($preset,$content);
             foreach(['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id']as$field){
-                $connector=$this->need($values,$field);$this->uuid($connector,$field);
+                $connector=$localId??$this->need($values,$field);$this->uuid($connector,$field);
                 $row=$this->repository->getRevisioned('provider',$connector);
                 if($row['installation_id']!==$installation)throw new InvalidArgumentException('invalid_provider');
                 $content['routing'][$field]=$connector;
