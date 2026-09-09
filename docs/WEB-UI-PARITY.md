@@ -9500,3 +9500,25 @@ core_profiles.php filters through chimPrismaProfileSyncableMetadataKeys. Therefo
 the live omission does not establish that the feature is unsupported by Herika.
 Lorkhan retains the working control; no field was deleted to force a screenshot
 height. The full Context rendering difference remains explicitly open.
+
+
+### Quest Comment policy foundation (2026-09-08)
+
+Current reference Core editor exposes QUEST_COMMENT plus discrete chance choices
+10/25/50/75/100. Lorkhan's existing journal signature scan sends only narrator
+event candidates; it is not a per-Core NPC quest-comment consumer.
+
+Added separate server-owned `quest_comments` policy (enabled false, chance10),
+Core inheritance/source ownership, strict discrete-choice validation, older
+global document normalization, and named Core/global preset retention. Explicit
+false overrides global true. It is intentionally absent from strict client
+controls and no UI is exposed yet. 800 server checks passed, including policy
+ownership, preset false/25 retention and invalid0/101/string/null rejection.
+
+Next: bind a bounded journal update to its actual NPC responder, persist the
+observation independently of commentary, prevent initial-load and repeated
+signature comments, preserve narrator routing/cooldowns, and connect the actual
+Core Quest switch/chance selector. Source/update text must reach the resulting
+comment prompt; do not substitute a generic journal-changed message.
+Built-in enabled values and portable forms must follow the completed consumer.
+No deployment or game launch for this preparation checkpoint.

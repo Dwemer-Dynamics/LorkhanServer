@@ -90,6 +90,9 @@ final class EffectiveSettingsResolver
         $this->markLeaves($settings['diary'], 'default', 'settings.diary', $sources);
         $settings['memory']['short_term_max_summaries'] = 10;
         $sources['settings.memory.short_term_max_summaries'] = 'default';
+        $settings['quest_comments'] = $global['quest_comments'];
+        foreach (array_keys($settings['quest_comments']) as $field)
+            $sources['settings.quest_comments.' . $field] = $globalSettings === [] ? 'default' : 'global';
         $settings['bored_event'] = $global['bored_event'];
         $sources['settings.bored_event.chance_percent'] = $globalSettings === [] ? 'default' : 'global';
         $settings['rpg_comments'] = $global['rpg_comments'];
@@ -135,6 +138,7 @@ final class EffectiveSettingsResolver
         }
         if (isset($coreOverrides['diary'])) $allowedOverrides['diary'] = $coreOverrides['diary'];
         if (isset($coreOverrides['response'])) $allowedOverrides['response'] = $coreOverrides['response'];
+        if (isset($coreOverrides['quest_comments'])) $allowedOverrides['quest_comments'] = $coreOverrides['quest_comments'];
         if (isset($coreOverrides['bored_event'])) $allowedOverrides['bored_event'] = $coreOverrides['bored_event'];
         if (isset($coreOverrides['rpg_comments'])) $allowedOverrides['rpg_comments'] = $coreOverrides['rpg_comments'];
         $this->mergeSettings($settings, $allowedOverrides, 'core_profile', 'settings', $sources);
@@ -266,7 +270,7 @@ final class EffectiveSettingsResolver
         if (($content['schema'] ?? null) === SettingsCatalog::GLOBAL_SCHEMA
             && is_array($content['profile_management'] ?? null) && !array_is_list($content['profile_management'])) {
             $content['profile_management'] += $expected['profile_management'];
-            $content += ['bored_event'=>$expected['bored_event'], 'rpg_comments'=>$expected['rpg_comments'], 'prompt'=>$expected['prompt']];
+            $content += ['quest_comments'=>$expected['quest_comments'], 'bored_event'=>$expected['bored_event'], 'rpg_comments'=>$expected['rpg_comments'], 'prompt'=>$expected['prompt']];
             if(is_array($content['client']['narrator']??null)&&!array_is_list($content['client']['narrator']))
                 $content['client']['narrator'] += $expected['client']['narrator'];
         }
@@ -286,6 +290,7 @@ final class EffectiveSettingsResolver
             || $content['profile_management']['autofill_custom_profiles_trigger'] > 100) {
             throw new InvalidArgumentException('invalid_global_settings');
         }
+        self::validateQuestComments($content['quest_comments']);
         self::validateBoredEvent($content['bored_event']);
         self::validateRpgComments($content['rpg_comments']);
         $content['translation'] = TranslationPolicy::validate($content['translation']);
@@ -340,6 +345,19 @@ final class EffectiveSettingsResolver
         return self::validateGlobalSettings($document);
     }
 
+    /** Keep Core quest comments separate from narrator routing and its cooldown policy. */
+    private static function validateQuestComments(mixed $policy, bool $partial = false): void
+    {
+        if (!is_array($policy) || array_is_list($policy)
+            || array_diff(array_keys($policy), ['enabled','chance_percent']) !== [])
+            throw new InvalidArgumentException('invalid_quest_comments');
+        if (!$partial && count($policy) !== 2) throw new InvalidArgumentException('invalid_quest_comments');
+        if (array_key_exists('enabled', $policy) && !is_bool($policy['enabled']))
+            throw new InvalidArgumentException('invalid_quest_comments');
+        if (array_key_exists('chance_percent', $policy) && !in_array($policy['chance_percent'], [10,25,50,75,100], true))
+            throw new InvalidArgumentException('invalid_quest_comments');
+    }
+
     /** Validate the overall bored opportunity chance independently of narrator routing. */
     private static function validateBoredEvent(mixed $policy): void
     {
@@ -355,6 +373,10 @@ final class EffectiveSettingsResolver
             throw new InvalidArgumentException('invalid_settings_overrides');
         }
         $validation=$overrides;
+        if (array_key_exists('quest_comments', $validation)) {
+            self::validateQuestComments($validation['quest_comments'], true);
+            unset($validation['quest_comments']);
+        }
         if (array_key_exists('bored_event', $validation)) {
             self::validateBoredEvent($validation['bored_event']);
             unset($validation['bored_event']);

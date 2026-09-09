@@ -2204,6 +2204,21 @@ $check(array_column($pruned['history'],'_source_id')===['other']
     &&$pruned['memory']['counts']['covered_by_history']===0,
     'pruning preserves the next temporal heading and traces combined memory/history coverage accurately');
 
+$questCore=['settings_overrides'=>['quest_comments'=>['enabled'=>false,'chance_percent'=>25]]];
+$questGlobal=SettingsCatalog::globalDefaults();$questGlobal['quest_comments']['enabled']=true;
+$questResolved=(new EffectiveSettingsResolver())->resolve($questGlobal,$questCore,[]);
+$check($questResolved['settings']['quest_comments']===['enabled'=>false,'chance_percent'=>25]
+    &&$questResolved['sources']['settings.quest_comments.enabled']==='core_profile'
+    &&!isset(EffectiveSettingsResolver::controlsProjection($questResolved)['settings']['quest_comments']),
+    'Core Quest Comment disabled overrides global enable without changing narrator controls');
+$questPreset=\LorkhanServer\Application\CoreProfilePreset::capture($questCore);
+$check(\LorkhanServer\Application\CoreProfilePreset::apply($questPreset,$corePresetSource)['settings_overrides']['quest_comments']===['enabled'=>false,'chance_percent'=>25],
+    'Quest Comment false and selected chance survive named presets');
+foreach([0,101,'25',null] as $invalidChance){
+    try{EffectiveSettingsResolver::validateSettingsOverrides(['quest_comments'=>['chance_percent'=>$invalidChance]]);$check(false,'invalid quest chance rejected');}
+    catch(InvalidArgumentException){$check(true,'invalid quest chance rejected');}
+}
+
 $boredCore=['settings_overrides'=>['bored_event'=>['chance_percent'=>0]]];
 $boredResolved=(new EffectiveSettingsResolver())->resolve([],$boredCore,[]);
 $check($boredResolved['settings']['bored_event']['chance_percent']===0

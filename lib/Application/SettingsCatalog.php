@@ -199,6 +199,7 @@ final class SettingsCatalog
             ],
             'rpg_comments' => ['events'=>['levelup','combat_end'],'chance_percent'=>50],
             'bored_event' => ['chance_percent'=>50],
+            'quest_comments' => ['enabled'=>false,'chance_percent'=>10],
             'translation' => TranslationPolicy::defaults(),
             'oghma' => self::OGHMA_DEFAULTS + ['knowledge_tags' => '', 'extractor_enabled' => false],
             'context' => [

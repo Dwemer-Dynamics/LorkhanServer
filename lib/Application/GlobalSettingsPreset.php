@@ -9,7 +9,7 @@ use InvalidArgumentException;
 /** Named presets contain only editable global values, never connector bindings or service addresses. */
 final class GlobalSettingsPreset
 {
-    private const SECTIONS = ['prompt', 'profile_management', 'rpg_comments', 'bored_event', 'oghma', 'context', 'relationship'];
+    private const SECTIONS = ['prompt', 'profile_management', 'rpg_comments', 'bored_event', 'quest_comments', 'oghma', 'context', 'relationship'];
     private const BEHAVIOR = ['auto_greeting', 'boredom', 'boredom_delay_seconds', 'combat_barks',
         'combat_bark_period_seconds', 'rechat_mode', 'rechat_strict_targeting', 'open_rechat',
         'rechat_allow_actions', 'end_conversation_cooldown_seconds'];
