@@ -862,6 +862,28 @@ try {
     $assert($rpgStatus===202&&($rpgAccepted['comment_requested']??null)===true,'Legacy player-only RPG observations retain the global policy');
 } finally { $db->rollBack(); }
 
+// Bored opportunities use the actual responder and retain the original decision on retry.
+$db->beginTransaction();
+try {
+    $boredGlobal=$products->globalSettingsForInstallation($installationId);
+    $boredGlobalContent=$boredGlobal['content'];$boredGlobalContent['bored_event']=['chance_percent'=>0];
+    $products->revise('global_settings',$boredGlobal['configuration_id'],$boredGlobalContent,'Bored global fixture',$now);
+    $boredCore=$products->getRevisioned('core_profile',$autoProfile['core_profile_id']);
+    $boredContent=$boredCore['content'];$boredContent['settings_overrides']['bored_event']=['chance_percent'=>100];
+    $products->revise('core_profile',$boredCore['core_profile_id'],$boredContent,'Bored Core fixture',$now);
+    $boredData=$autoProfileData;$boredData['type']='bored_event';$boredData['request_id']=$newUuid(68101);
+    $boredData['payload']=['responder'=>$autoTarget,'game_time'=>120];
+    [$boredStatus,$boredAccepted]=$call($router,'POST',$base.'/gamedata',$headers($boredData['request_id']),[],$boredData);
+    $assert($boredStatus===202&&($boredAccepted['comment_requested']??null)===true,'Bored responder Core 100 overrides global zero');
+    $boredContent['settings_overrides']['bored_event']['chance_percent']=0;
+    $products->revise('core_profile',$boredCore['core_profile_id'],$boredContent,'Bored Core zero',$now);
+    [$boredStatus,$boredAccepted]=$call($router,'POST',$base.'/gamedata',$headers($boredData['request_id']),[],$boredData);
+    $assert($boredStatus===202&&($boredAccepted['comment_requested']??null)===true,'Bored retry retains original decision');
+    $boredData['request_id']=$newUuid(68102);
+    [$boredStatus,$boredAccepted]=$call($router,'POST',$base.'/gamedata',$headers($boredData['request_id']),[],$boredData);
+    $assert($boredStatus===202&&($boredAccepted['comment_requested']??null)===false,'Bored Core zero suppresses a new opportunity');
+} finally { $db->rollBack(); }
+
 $backfillTarget=$autoTarget;$backfillTarget['record_id']='profile_backfill_sentinel';
 $backfillTarget['display_name']='Profile Backfill Sentinel';$backfillTarget['refnum']['index']=6100;
 $backfillProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,

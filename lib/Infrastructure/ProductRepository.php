@@ -437,7 +437,7 @@ final class ProductRepository
         $id = $input['core_profile_id'] ?? null;
         $setting = $input['setting'] ?? null;
         $revision = $input['revision'] ?? null;
-        $allowed = ['response.max_words', 'response.core_lang', 'response.lang_llm_xtts', 'behavior.rechat_max_depth', 'behavior.rechat_probability_percent',
+        $allowed = ['bored_event.chance_percent', 'response.max_words', 'response.core_lang', 'response.lang_llm_xtts', 'behavior.rechat_max_depth', 'behavior.rechat_probability_percent',
             'profile_evolution.history_limit', 'behavior.rechat_allow_actions', 'behavior.combat_bark_period_seconds', 'memory.recent_turn_limit', 'diary.context_turn_limit',
             'diary.automatic_interval_seconds', 'diary.prompt'];
         if (!is_string($id) || !Uuid::isValid($id) || !is_string($setting) || !in_array($setting, $allowed, true)

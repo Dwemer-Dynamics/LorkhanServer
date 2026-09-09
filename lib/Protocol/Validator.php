@@ -142,7 +142,7 @@ final class Validator
             'runtime_generation','observed_at','game','type','payload']);
         $type=$message['type']??null;
         if(($message['schema']??null)!=='lorkhan.gamedata.v1'||($message['game']??null)!=='tes3'
-            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue','rpg_event','journal'],true)
+            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue','rpg_event','bored_event','journal'],true)
             ||!is_int($message['generation'])||$message['generation']<1
             ||$message['generation']>9_007_199_254_740_991||!is_int($message['runtime_generation'])
             ||$message['runtime_generation']<1||$message['runtime_generation']>9_007_199_254_740_991)
@@ -167,6 +167,14 @@ final class Validator
                 ksort($entry);$key=json_encode($entry,JSON_THROW_ON_ERROR);
                 if(isset($seen[$key]))throw new ValidationException('invalid_schema');$seen[$key]=true;
             }
+            return;
+        }
+        if($type==='bored_event'){
+            $this->keys($payload,['responder','game_time']);$this->identity($payload['responder']??null);
+            if(($payload['responder']['kind']??null)!=='npc'
+                ||(!is_int($payload['game_time']??null)&&!is_float($payload['game_time']??null))
+                ||!is_finite((float)$payload['game_time'])||$payload['game_time']<0
+                ||$payload['game_time']>9_007_199_254_740_991)throw new ValidationException('invalid_schema');
             return;
         }
         if($type==='rpg_event'){

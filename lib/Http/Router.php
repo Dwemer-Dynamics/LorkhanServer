@@ -248,6 +248,14 @@ final class Router
                                     (string)$message['playthrough_id'],(string)$message['session_id']);
                         }
                         $extra=[];
+                        if($message['type']==='bored_event'){
+                            if($this->products===null)throw new ApiException(503,'provider_unavailable','Profile policy unavailable.',true);
+                            $effective=$this->products->effectiveSettingsForActor((string)$message['installation_id'],
+                                (string)$message['playthrough_id'],$message['payload']['responder']);
+                            // One stable roll per persisted opportunity, before client-side narrator routing.
+                            $roll=hexdec(substr(hash('sha256',(string)$message['request_id']),0,6))%100;
+                            $extra['comment_requested']=$roll<$effective['settings']['bored_event']['chance_percent'];
+                        }
                         if($message['type']==='rpg_event'){
                             $global=$this->products?->globalSettingsForInstallation((string)$message['installation_id'])['content']??[];
                             $policy=$global['rpg_comments']??SettingsCatalog::globalDefaults()['rpg_comments'];

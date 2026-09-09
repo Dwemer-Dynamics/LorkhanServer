@@ -9437,3 +9437,35 @@ This is preparation, not runtime parity: no new UI card is exposed and the
 chosen-speaker request, probability consumer, narrator ordering and missed-roll
 cooldown remain to implement before deployment. NPC override editing, portable
 forms and built-in-specific values also remain pending. No game was launched.
+
+
+### Bored Event card and chosen-speaker request (2026-09-08)
+
+Client `832e287` implements a closed bored_event request with an NPC responder,
+server policy reply, idle opportunity reset, 30-second pending timeout, per-
+opportunity binding, session/generation guards and single-consumption handling.
+Overall chance is evaluated before the existing narrator routing probability.
+Core card is now in the reference Bored Event group before Context, with 0-100
+slider/number, Copy to all, saved zero and portable import/export support.
+
+Proof: 789 PHP checks; 70 Lua tests; Windows engine build and native/Beast tests;
+management HTTP save0/reject101/import0; database-backed integration proves Core
+100 overrides global0, Core0 suppresses new opportunities, and retries preserve
+the first decision. Full migration/durable checks passed. Schema tooling passed
+102 files/38 schemas/64 fixtures without installed jsonschema.
+
+Actual hub comparison: reference/native desktop width411 and padding6px12;
+native860/390 width492/298, range endpoints, keyboard, invalid101 and Copy cancel
+passed. Desktop screenshots inspected. The initial sleeping icon was corrected
+to the reference gear. Reference text about CHIM MCM is omitted because this
+control is not exposed in Lorkhan's in-game editor yet. Card heights differ due
+to the remaining adjacent Context controls; full Core parity remains open.
+
+Local client deployment verified executable plus3Lua hashes, preserved Config,
+backup `lorkhan-bored-rollback-k962qbfa` in local Temp. Server809 runtime files
+matched with private403/unpaired401 checks. No game launched or controlled.
+
+Still pending for full Bored Event parity: built-in-specific probabilities, NPC
+override editor ownership, in-game setting exposure, rolemaster/director topic
+generation, whole-Core layout and actual in-game acceptance. This checkpoint
+does not close those items or the full-page goal.
