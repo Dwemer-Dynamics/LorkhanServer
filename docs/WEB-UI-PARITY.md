@@ -25,7 +25,7 @@ only the listed states, not completion of every page or feature.
 | Events | Initial/live Record controls match; duplicate bottom pager removed to match the reference; empty-to-live reconstruction, page change and stopped refresh checked | Whole-table metrics and populated/empty views reviewed; hide/unhide/retry and deletion cancel/failure/success mocked at both widths; reference has no inline event editor |
 | AI Responses | Populated and empty table geometry compared at 1280/390; refreshed empty cells match 38.6875px height and 9px/10px padding | Multirole and empty reader geometry, copy/failure/close and escaped-text wrapping verified; cleanup cancel/failure/reload and populated/empty CSV verified; 61-row multi-page export and exact escaped-prompt round trip verified |
 | Adventure Log | Actual hub populated columns match; empty-date cells now use reference padding and 39.1875px height | Complete-day table and stale-page links now match; selected/latest/all downloads, calendar switching and empty dates rechecked; leap/non-leap and month/year boundary combinations now verified |
-| Diaries | Actual hub populated columns match; empty-date row padding corrected; reader whitespace and editor geometry compared at both widths | Complete day/author sets and corresponding ascending/descending order verified; paired reader/editor refreshed; provider audio acceptance and remaining cache cases |
+| Diaries | Actual hub populated columns match; empty-date row padding corrected; reader whitespace and editor geometry compared at both widths | Complete day/author sets and corresponding ascending/descending order verified; paired reader/editor refreshed; mock playback/cancellation and cache hit/invalidation are covered; live-provider acceptance remains separate from presentation proof |
 | Books | Populated typography and columns compared; missing empty-result panel restored and checked at both widths | Game-time/numeric ordering, 150/1 pagination, filtered/empty results and full export checked with 151 isolated rows; observed-book runtime capture remains unverified |
 | API Keys | Standalone and actual hub preset geometry compared at 1280/390; Custom Keys empty/live and matched draft states inspected; failed-save and pending-save draft retention rechecked with mocks | Content-only shell corrected and deployed; live-provider acceptance remains untested |
 
@@ -96,15 +96,15 @@ do not use an exception to excuse a generic substitute layout.
   production records and speech providers were not used as test data.
 - Global Settings includes Prompt Head / Emote Moods with saved global defaults,
   NPC overrides, portable export/import and a persistent named-preset toolbar.
-  The Local LLM built-in and Herika's preset effects on NPC profiles remain pending,
-  not accepted product exceptions. The Global Connector test dialog is implemented.
+  The Local LLM built-in now applies to all Core profiles; remaining connector
+  availability and Player2 behavior are still pending, not accepted product exceptions. The Global Connector test dialog is implemented.
 
 ## Complete page matrix
 
 | Lorkhan page | Herika counterpart | Current status |
 | --- | --- | --- |
 | `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty and desktop/narrow layout reviewed. Latest-diary author audio is wired, with populated-template playback/error checks; live-provider acceptance remains open |
-| `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; MiniMe Service and its bounded reachability probe implemented; visible Setup/Local LLM, service provisioning and Player2 still pending |
+| `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; MiniMe Service and its bounded reachability probe implemented; visible Setup/Local LLM, all-Core presets and network helpers implemented; remaining connector availability, service provisioning and Player2 still pending |
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. Remaining children and full embedded interactions still pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Other Context event controls and profile-affecting built-ins remain open; see the dated checkpoints |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; scrolling slot summary, linked assigned slots and toolbar spacing aligned. Presets and additional profile fields remain |
@@ -125,7 +125,7 @@ do not use an exception to excuse a generic substitute layout.
 | `events-memories.php` | Same path | Events note, striped table, record heading, pagination/filter layout and recorded calendar dates corrected; populated live view and AJAX pagination verified |
 | Roleplay `memory` tab | Herika Memories | Summary-only table, status/settings strip, scoped sync/delete, Tamrielic dates and compact editor implemented; 67 populated live summaries, empty fixture, Cancel/focus and narrow advanced tools checked |
 | Roleplay `responselog` tab | Herika AI Responses | Whole-turn log, prompt dialog, topics, scoped export and protected clean-log workflow implemented; populated live table, multirole/empty prompt reader, clipboard success/refusal, Escape/focus and actual-template escaped-text wrapping checked; cleanup cancel/failure/reload and 49-row/empty CSV verified; 61-row multi-page export and exact escaped-prompt round trip verified |
-| Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, export and bulk delete retained. Full-content rows now use separate Play/Edit/Delete actions; dedicated content editor and paper reader replace combined Read/Edit. Desktop/narrow populated/empty and reader controls compared. Author-voice playback and private entry caching are implemented and mock-tested; live-provider and remaining cache invalidation acceptance remain open. |
+| Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, export and bulk delete retained. Full-content rows now use separate Play/Edit/Delete actions; dedicated content editor and paper reader replace combined Read/Edit. Desktop/narrow populated/empty and reader controls compared. Author-voice playback and private entry caching are implemented and mock-tested, including text/author/language invalidation and deleted-entry rejection. Live-provider acceptance remains untested. |
 | Roleplay `books` tab | Herika Books | Full-content striped table, game/UTC/TS columns and content dialog implemented; populated long/short fixtures, escaped content reader, filtered empty panel, desktop/narrow and computed neutral header typography compared; shared-theme overrides and forced minimum width removed |
 | `diary_book.php` | Same path | Printable chronological parchment book and author-list link implemented; scoped IDs, escaped text, desktop/narrow populated comparisons and print/PDF checks passed (see Diary authors and printable book checkpoint) |
 | Roleplay `adventure` tab | Herika Adventure Log | Chronological context/people/game-time/UTC rows, location dividers, contiguous speaker bands and counterpart CSV formatting implemented. Desktop/narrow populated, empty and long fixtures compared; date-selection, selected/latest-day and full exports checked. Full checks and 744-file deployment passed; live populated calendar/table verified. Native dates and complete OpenMW cell names retained. Month navigation now uses measured reference rules, including its narrow-screen clipping limitation; see source-parity checkpoint below. |
@@ -10034,3 +10034,25 @@ Required coherent implementation before this counterpart can close:
 This audit changes the next implementation from a checkbox alias to a complete
 bounded digest path. No product code or runtime changed in this checkpoint; the
 verified deployed baseline remains 8c8c21a. Goal and digest row remain OPEN.
+
+### Priority diary acceptance refresh (2026-09-08)
+
+Reran diary-backdrop-proof.cjs against the current deployed code at 1280/390.
+Pending and playing closes passed: abort pending fetch, pause/release audio, clear
+reading state, restore opener focus/body scrolling, and retain the dialog on
+padding clicks. Editor backdrop cancellation discards its unsaved fixture text.
+The driver reports zero real POST requests and mocks fetch/media only in its page.
+Both freshly captured playing-state screenshots were inspected. This revalidates
+the native reader states, not a new entire-reference comparison.
+
+Current scripts/test/management_http.py lines 1063-1095 include cache miss/hit,
+changed diary text, changed author, changed language, and deleted-entry refusal.
+These ran in the current passing coregroup-context-http.txt suite; its coverage
+supersedes the matrix's stale remaining-cache assertion. The old Temp file named
+diary-cache-invalidation-tests.cjs is an editing script, not a standalone test;
+it was inspected but NOT executed. No duplicate test insertion was performed.
+
+Updated stale primary rows accordingly. Live paid TTS and observed in-game book
+capture remain untested runtime limits, not evidence for or against page geometry.
+No runtime code changed or redeployment was needed in this checkpoint. Whole-goal
+completion remains unproven; outstanding configuration/editor rows remain open.
