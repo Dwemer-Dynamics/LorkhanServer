@@ -10056,3 +10056,31 @@ Updated stale primary rows accordingly. Live paid TTS and observed in-game book
 capture remain untested runtime limits, not evidence for or against page geometry.
 No runtime code changed or redeployment was needed in this checkpoint. Whole-goal
 completion remains unproven; outstanding configuration/editor rows remain open.
+
+### TTS editor provider-field audit (2026-09-08)
+
+Read-only live comparison used tts-current-audit.cjs and tts-fields-audit.cjs.
+All non-GET traffic was blocked; password fields were cleared before capture.
+Inworld reference/native full desktop images were inspected: shared action, name,
+service, badge, fallback and provider grids align. Saved list lengths, names, model
+choices and workspace values differ; they were not changed. Native collapsed
+advanced/revision sections remain separate operational extensions, not evidence
+that every provider editor is complete.
+
+Switching services only in browser produced these visible-label sequences:
+- OpenAI both: Name, Service, API Badge, Fallback Male, Fallback Female, Model Id,
+  Instructions. There is no missing separate emotion checkbox in this reference.
+- Azure reference: the shared fields, Fixedmood, Region, Volume, Rate, Countour,
+  Validmoods. Native lacks Validmoods; the other visible labels/order match.
+
+Concrete remaining Azure implementation: reference tts-azure.php parses the first
+mood, filters through validMoods, falls back to default, then lets fixedMood override
+it when constructing SSML. Native CloudSpeechConnectorProvider currently supports
+only fixedMood. Add the matching multi-select with catalog validation, saved array
+round trips, and actual per-utterance mood propagation before claiming this row
+complete. Do not add an inert dropdown or assume a fixed mood is equivalent.
+OpenAI dynamic emotion instructions are likewise a request-side question, not a
+missing visible field. Current UI labels alone do not prove runtime provider parity.
+
+No product code, saved settings, live-provider request or deployment changed in
+this audit. Existing 8c8c21a runtime remains the baseline. Full goal remains open.
