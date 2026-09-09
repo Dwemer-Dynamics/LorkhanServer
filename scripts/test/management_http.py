@@ -2955,4 +2955,16 @@ fields=next(f['fields'] for f in reloaded.forms if f['action'].endswith('/forms/
 assert fields['local_model']=='form-local-model' and fields['local_timeout']=='45' and fields['local_scope']=='all'
 assert fields['local_disable_streaming']==''
 r=request(qs_form['action'],'POST',qs_values); assert r.status==409,(r.status,r.read())
+# The saved Local preset also updates supported global consumers, then Default restores them.
+qs_global=json.load(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json'))['settings']
+assert qs_global['profile_management']['autofill_custom_profiles'] is False
+assert qs_global['relationship']=={'enabled':False,'update_chance_percent':0}
+assert qs_global['context']['ground_items_descriptions_only'] and qs_global['context']['inventory_items_descriptions_only']
+r=request(qs_form['action'],'POST',dict(fields,_csrf=csrf,settings_preset='builtin:default')); body=r.read().decode()
+assert r.status==200 and 'Quickstart settings saved.' in body,(r.status,body)
+qs_default=json.load(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json'))['settings']
+assert qs_default['profile_management']['autofill_custom_profiles'] is True
+assert qs_default['relationship']=={'enabled':True,'update_chance_percent':50}
+assert not qs_default['context']['ground_items_descriptions_only'] and not qs_default['context']['inventory_items_descriptions_only']
+assert qs_default['system_routing']==qs_global['system_routing']
 print('browser-like management HTTP forms passed')

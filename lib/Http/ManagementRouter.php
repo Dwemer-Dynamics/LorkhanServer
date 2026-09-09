@@ -2453,6 +2453,14 @@ final class ManagementRouter
             if($preset!==''){
                 $presetPlan=$this->repository->applyQuickstartCorePreset($installation,$preset,$this->need($values,'setup_fingerprint'),gmdate(DATE_ATOM));
                 ++$expected;$profile=$this->repository->getRevisioned('core_profile',$id);
+                $stored=$this->repository->globalSettingsForInstallation($installation);
+                $settings=EffectiveSettingsResolver::globalDocument($stored['content']??[],
+                    $this->repository->oghmaSettings($installation),$this->repository->translationPolicyForInstallation($installation)['content'],
+                    $this->repository->profileAutoLockEnabled($installation));
+                $settings=\LorkhanServer\Application\GlobalSettingsPreset::applyBuiltIn($preset,$settings);
+                if($stored===null)$this->service->createRevisioned('global_settings',['installation_id'=>$installation,'name'=>'Global Settings','content'=>$settings]);
+                else $this->service->revise('global_settings',$stored['configuration_id'],$settings,'Quickstart global preset',(int)$stored['current_revision']);
+                $presetPlan=$this->repository->quickstartLocalRoutingPlan($installation);
             }
             $local=$preset==='builtin:local_llm';$localId=null;
             if($local){

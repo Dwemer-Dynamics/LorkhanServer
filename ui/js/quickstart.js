@@ -129,7 +129,7 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
         save.disabled=local?!form.elements.core_profile_id.value:initialDisabled;
         section.querySelector('#qs_settings_preset_desc').textContent=local?
             'Shorter context and replies for all Core Profiles in this installation. Configure the local model below.':
-            'Default settings for all Core Profiles in this installation. Connector assignments are kept unless changed below.';
+            'Default settings for all Core Profiles, with automatic profile backfill and relationship updates enabled.';
         models[0]?.closest('.qs-section').querySelector('.qs-connector-grid').toggleAttribute('hidden',local);
         form.querySelector('[data-local-recap]').hidden=!local;
         form.querySelectorAll('[data-local-model]').forEach(e=>{e.textContent=form.elements.local_model.value||'Enter a model name';});

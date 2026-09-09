@@ -9711,3 +9711,36 @@ extra/old paths, private routes 403 and unpaired session 401. No game launch.
 Remaining Quickstart work: global built-in switches/context, Player2 and its lock
 states, recap/general connectors, empty provisioning and full final page closure.
 The all-pages goal remains active.
+
+
+### Quickstart shared global preset switches (2026-09-08)
+
+Ported the existing native consumers that map directly to reference Default /
+Local built-ins: automatic profile backfill on/off, relationship updates on/off
+with 50/0 percent chance, timestamp headings off for both, and ground/inventory
+item descriptions-only off/on. The new shared GlobalSettingsPreset method retains
+all connector bindings, blacklists, endpoints and unrelated client controls.
+Quickstart saves these global values in the same transaction as all Core presets,
+local routing and player changes. Existing global rows are locked before checking
+the Setup fingerprint. No unrelated sidecar documents are created or rewritten.
+
+UI scope copy states Default enables profile backfill and relationship updates;
+Local explains what it disables. No deployed private configuration was changed
+merely by opening the page or deploying this code.
+
+Evidence: 813 checks pass, including Local/Default values and preservation checks.
+The existing HTTP suite verifies saved Local globals, a subsequent Default save,
+and retained system routing (`quickstart-global-http.txt`). Full integration,
+173-relation inventory, migration and durable-job checks pass
+(`quickstart-global-integration.txt`). Deployed browser counterpart checks at
+1280/390 pass (`quickstart-global-proof.txt`); Default desktop and Local mobile
+copy was visually inspected. Provider tests and Save receipts are mocked in that
+browser proof; actual saves are confined to the disposable HTTP test database.
+All 811 runtime hashes match, private routes remain 403, unpaired session 401,
+and private configuration/credentials/voices are preserved. No game launched.
+
+This closes only those shared global switches. Memory summary/embedding defaults
+still require native provisioning (the validators require an actual connector
+and MiniMe endpoint), not blindly enabling an unbound policy. Full context preset
+selection, missing connector-availability switches, Player2 and final complete
+Quickstart comparison remain open. Excluded release features are not reintroduced.

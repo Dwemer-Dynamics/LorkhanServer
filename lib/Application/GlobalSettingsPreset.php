@@ -36,6 +36,20 @@ final class GlobalSettingsPreset
             MemoryEmbeddingPolicy::defaults());
     }
 
+    /** Apply the shared built-in global switches without replacing addresses, connector routes or user blacklists. */
+    public static function applyBuiltIn(string $id,array $settings):array
+    {
+        if(!in_array($id,['builtin:default','builtin:local_llm'],true))throw new InvalidArgumentException('invalid_quickstart_preset');
+        $settings=EffectiveSettingsResolver::validateGlobalSettings($settings);$local=$id==='builtin:local_llm';
+        $settings['profile_management']['autofill_custom_profiles']=!$local;
+        $settings['relationship']['enabled']=!$local;
+        $settings['relationship']['update_chance_percent']=$local?0:50;
+        $settings['context']['prompt_timestamp']=false;
+        $settings['context']['ground_items_descriptions_only']=$local;
+        $settings['context']['inventory_items_descriptions_only']=$local;
+        return EffectiveSettingsResolver::validateGlobalSettings($settings);
+    }
+
     /** Merge against current settings so presets cannot silently reset hidden controls or routing. */
     public static function apply(array $preset, array $settings, array $summary, array $embedding): array
     {

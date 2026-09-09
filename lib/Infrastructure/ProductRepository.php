@@ -154,6 +154,8 @@ final class ProductRepository
             $lock->execute(['installation'=>$installation]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
             $lock=$this->db->prepare('SELECT core_profile_id FROM core_profiles WHERE installation_id=:installation AND deleted_at IS NULL ORDER BY core_profile_id FOR UPDATE');
             $lock->execute(['installation'=>$installation]);$lock->fetchAll();
+            $lock=$this->db->prepare("SELECT configuration_id FROM configuration_sets WHERE installation_id=:installation AND deleted_at IS NULL AND kind='global_settings' ORDER BY configuration_id FOR UPDATE");
+            $lock->execute(['installation'=>$installation]);$lock->fetchAll();
             $plan=$this->quickstartLocalRoutingPlan($installation);
             if(!hash_equals($plan['fingerprint'],$fingerprint))throw new RuntimeException('revision_conflict');
             if($plan['preset_profiles']===[])throw new RuntimeException('default_core_profile_required');
