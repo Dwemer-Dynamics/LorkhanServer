@@ -10231,3 +10231,22 @@ sample identity/hash and endpoint ownership before exposing its reference field;
 current native uploads every synthesis. Both paths must be implemented with the
 controls, not represented by inert UI or declared product exceptions.
 Full management HTTP suite passed (zonos-default-http.txt); no paid provider test.
+
+### Zonos mood fallback runtime foundation (2026-09-08)
+
+Zonos now consumes the existing speech context mood rather than always passing
+8 x 0.05 to Gradio. Mapping derives from reference getZonosEmotions, retaining its
+emotion order, aliases, first pipe-separated mood, and absent/unknown/whispered
+fallback behavior. Bounded UTF-8 mood validation occurs before uploads. The existing
+streamed/queued mood path supplies this context; no new public schema or UI field.
+
+893 server checks pass. A readonly isolated extraction of reference
+getZonosEmotions (no reference bootstrap or provider execution) matched native
+results for all 49 switch aliases plus five edge cases: 54 exact vector comparisons
+in zonos-mood-differential.php. Local deployment preserves private data; verifier
+reports 811 matching runtime files. No live Gradio synthesis or game validation.
+
+This is the default mood-derived foundation for the still-missing Dynamic Tones
+control, not implementation of model-provided eight-value tones. That configuration,
+response contract, per-utterance streaming metadata and cached-sample editor remain
+open. Page layout has not changed in this checkpoint. Whole parity goal is active.

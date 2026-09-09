@@ -2175,6 +2175,15 @@ $zonosAdapter=ProviderFactory::speechForPreset(['voice_storage_path'=>$voiceRoot
 $check($zonosPitch['maximum']===300.0
     &&(new ReflectionMethod($zonosAdapter,'number'))->invoke($zonosAdapter,'pitch_std',45,0,300)===300,
     'Zonos catalog and generation accept the reference upper pitch limit');
+$zonosMood=new ReflectionMethod(ZonosGradioSpeechProvider::class,'moodEmotions');
+$check($zonosMood->invoke(null,'furious | happy')===[0.05,0.05,0.05,0.05,0.05,0.8,0.05,0.2]
+    &&$zonosMood->invoke(null,'mocking')===[0.4,0.05,0.05,0.05,0.05,0.05,0.4,0.2]
+    &&$zonosMood->invoke(null,'calm')===[0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0],
+    'Zonos mood aliases and primary mood map to the reference emotion vector order');
+$check($zonosMood->invoke(null,null)===array_fill(0,8,0.05)
+    &&$zonosMood->invoke(null,'whispering')===array_fill(0,8,0.05)
+    &&$zonosMood->invoke(null,'unknown')===array_fill(0,8,0.05),
+    'Zonos absent, whispered and unknown moods retain reference fallback values');
 rmdir($voiceRoot);
 $xvaPreset=['kind'=>'tts_provider','content'=>['driver'=>'xvasynth','endpoint'=>'http://127.0.0.1:8999',
     'model'=>'default','voice'=>'default','language'=>'en-US','timeout_ms'=>30000,'options'=>[]]];

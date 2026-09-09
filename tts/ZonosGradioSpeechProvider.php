@@ -45,6 +45,7 @@ final class ZonosGradioSpeechProvider implements SpeechProvider
         $language = trim((string) ($context['language'] ?? $this->language));
         if ($text === '' || mb_strlen($text) > 4096 || preg_match('/^[A-Za-z0-9][A-Za-z0-9_. -]{0,127}$/D', $voice) !== 1
             || $language === '' || strlen($language) > 35) throw new RuntimeException('provider_invalid_input');
+        $emotions = self::moodEmotions($context['mood'] ?? null);
         $samplePath = $this->voiceRoot . DIRECTORY_SEPARATOR . $voice . (str_ends_with(strtolower($voice), '.wav') ? '' : '.wav');
         $realRoot = realpath($this->voiceRoot);
         $realSample = realpath($samplePath);
@@ -57,7 +58,6 @@ final class ZonosGradioSpeechProvider implements SpeechProvider
         $remotePath = is_array($uploaded) && is_string($uploaded[0] ?? null) ? $uploaded[0] : '';
         if ($remotePath === '' || strlen($remotePath) > 2048 || str_contains($remotePath, "\0")) throw new RuntimeException('provider_invalid_output');
 
-        $emotions = array_fill(0, 8, 0.05);
         $data = [$this->model !== '' ? $this->model : 'Zyphra/Zonos-v0.1-hybrid', $text, $language,
             ['meta' => ['_type' => 'gradio.FileData'], 'mime_type' => 'audio/wav', 'orig_name' => basename($realSample),
                 'path' => $remotePath, 'url' => $this->baseUrl . '/gradio_api/file=' . rawurlencode($remotePath)], null,
@@ -89,6 +89,33 @@ final class ZonosGradioSpeechProvider implements SpeechProvider
         $bytes = $this->request('/gradio_api/file=' . rawurlencode($generatedPath), null, ['Accept: audio/wav'], $cancellation);
         $duration = OpenAiCompatibleSpeechProvider::wavDurationMs($bytes);
         return ['bytes' => $bytes, 'codec' => 'wav', 'mime_type' => 'audio/wav', 'duration_ms' => $duration];
+    }
+
+    /** Match Herika's getZonosEmotions mood fallback in Gradio's eight-value order. */
+    private static function moodEmotions(mixed $mood): array
+    {
+        $emotions = array_fill(0, 8, 0.05);
+        if ($mood === null || $mood === '' || $mood === 'default') return $emotions;
+        if (!is_string($mood) || strlen($mood) > 64 || !mb_check_encoding($mood, 'UTF-8')) {
+            throw new RuntimeException('provider_invalid_input');
+        }
+        $primary = strtolower(trim(explode('|', $mood, 2)[0]));
+        // happiness, sadness, disgust, fear, surprise, anger, other, neutral.
+        $overrides = match ($primary) {
+            'happy','cheerful','joyful','excited','playful','amused' => [0=>0.8,7=>0.2],
+            'sad','melancholy','depressed','gloomy','sorrowful' => [1=>0.8,7=>0.2],
+            'disgusted','repulsed','revolted' => [2=>0.8,7=>0.2],
+            'fearful','scared','terrified','anxious','nervous' => [3=>0.8,7=>0.2],
+            'surprised','shocked','astonished','amazed' => [4=>0.8,7=>0.2],
+            'angry','furious','irritated','annoyed','enraged' => [5=>0.8,7=>0.2],
+            'sarcastic','sardonic','mocking','teasing','smug','smirking' => [0=>0.4,6=>0.4,7=>0.2],
+            'neutral','default','calm' => [0=>0.0,1=>0.0,2=>0.0,3=>0.0,4=>0.0,5=>0.0,6=>0.0,7=>1.0],
+            'seductive','sexy','flirtatious','lovely' => [0=>0.5,6=>0.3,7=>0.2],
+            'assertive','confident','determined' => [6=>0.4,7=>0.6],
+            'kindly','gentle','compassionate' => [0=>0.4,7=>0.6],
+            default => [],
+        };
+        return array_replace($emotions, $overrides);
     }
 
     /** Execute one same-origin Gradio request with bounded redirects, output, timeout, and cancellation. */
