@@ -14,6 +14,11 @@ final class StreamingDialogueText
     private string $visible = '';
     private string $emitted = '';
     private int $chunkCount = 0;
+    private array $spans = [];
+    private array $chunkMoods = [];
+
+    /** Mood metadata for each text chunk returned by the latest push. */
+    public function chunkMoods(): array { return $this->chunkMoods; }
 
     /** @return list<string> */
     public function push(string $contentDelta, bool $final = false): array
@@ -25,6 +30,7 @@ final class StreamingDialogueText
         }
 
         $chunks = [];
+        $this->chunkMoods = [];
         while ($this->chunkCount < self::MAX_CHUNKS) {
             $pending = substr($this->visible, strlen($this->emitted));
             if ($pending === '') break;
@@ -37,14 +43,23 @@ final class StreamingDialogueText
                     if($candidate>=self::MIN_CHUNK_BYTES){$flushBytes=$candidate;break;}
                 }
             }
+            // Keep utterance boundaries even when a network chunk contains several short texts.
+            if ($this->chunkCount < self::MAX_CHUNKS - 1) foreach ($this->spans as $span) {
+                $boundary = $span['start'] - strlen($this->emitted);
+                if ($boundary > 0 && ($flushBytes === 0 || $boundary < $flushBytes)) { $flushBytes = $boundary; break; }
+            }
             if ($flushBytes === 0 && $final) $flushBytes = strlen($pending);
             if ($flushBytes === 0) break;
             $chunk = substr($pending, 0, $flushBytes);
             if (!mb_check_encoding($chunk, 'UTF-8')) break;
+            $moods = [];
+            foreach ($this->spans as $span) if ($span['end'] > strlen($this->emitted) && $span['start'] < strlen($this->emitted) + $flushBytes)
+                $moods[] = $span['mood'];
+            $mood = $moods !== [] && count(array_unique($moods, SORT_REGULAR)) === 1 ? $moods[0] : null;
             $this->emitted .= $chunk;
             ++$this->chunkCount;
             $chunk=preg_replace('/\s+/u',' ',trim($chunk))??trim($chunk);
-            if($chunk!=='')$chunks[]=$chunk;
+            if($chunk!=='') { $chunks[]=$chunk; $this->chunkMoods[]=$mood; }
         }
         return $chunks;
     }
@@ -52,6 +67,7 @@ final class StreamingDialogueText
     private function extractVisibleText(string $json): string
     {
         $visible = '';
+        $this->spans = [];
         $offset = 0;
         while (preg_match('/(?<!\\\\)"text"\s*:\s*"/u', $json, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
             $start = $match[0][1] + strlen($match[0][0]);
@@ -74,7 +90,13 @@ final class StreamingDialogueText
             }
             try {
                 $decoded = json_decode('"' . $raw . '"', true, 8, JSON_THROW_ON_ERROR);
-                if (is_string($decoded)) $visible .= ($visible === '' ? '' : "\n") . $decoded;
+                if (is_string($decoded)) {
+                    $prefix = substr($json, $offset, $match[0][1] - $offset);
+                    $mood = preg_match('/\{\s*"mood"\s*:\s*"([a-zA-Z -]{0,64})"\s*,\s*$/D', $prefix, $moodMatch) === 1 ? trim($moodMatch[1]) : null;
+                    $startOffset = strlen($visible) + ($visible === '' ? 0 : 1);
+                    $visible .= ($visible === '' ? '' : "\n") . $decoded;
+                    $this->spans[] = ['start'=>$startOffset, 'end'=>strlen($visible), 'mood'=>$mood];
+                }
             } catch (\JsonException) {
                 // Wait for a later chunk that completes the JSON escape or string.
             }

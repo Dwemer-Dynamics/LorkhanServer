@@ -837,8 +837,11 @@ r=request('/LorkhanServer/manage/forms/connector-revise','POST',bad_tts_values);
 
 azure_values=dict(inworld_form['fields'],_csrf=csrf,driver='azure',option__region='eastus',
     option__fixedMood='angry',option__volume='20',option__rate='1.25',option__countour='(11%, +15%)')
+azure_values['option__validMoods[]']=['angry','whispering']
 r=request('/LorkhanServer/manage/forms/connector-revise','POST',azure_values); assert r.status==200
-azure_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id))
+azure_page,azure_html=parse(request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id))
+azure_moods=re.search(r'<select multiple[^>]*name="option__validMoods\[\]"[^>]*>(.*?)</select>',azure_html,re.S).group(1)
+assert re.findall(r'<option value="([^"]+)" selected>',azure_moods)==['angry','whispering']
 azure_form=next(f for f in azure_page.forms if f['action'].endswith('/forms/connector-revise'))
 assert azure_form['fields']['endpoint']=='https://eastus.tts.speech.microsoft.com'
 assert azure_form['fields']['option__fixedMood']=='angry' and azure_form['fields']['option__countour']=='(11%, +15%)'

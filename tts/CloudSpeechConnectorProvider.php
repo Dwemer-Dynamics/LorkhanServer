@@ -227,7 +227,7 @@ final class CloudSpeechConnectorProvider implements SpeechProvider
                 throw new RuntimeException('provider_invalid_input');
             if ($validMoods === []) $validMoods = ['angry','cheerful','assistant','calm','embarrassed','excited','lyrical','sad','shouting','whispering','terrified'];
             // CHIM chooses the first mood token, then applies its allowlist before SSML escaping.
-            $mood = strtolower(trim(explode(',', $context['mood'], 2)[0]));
+            $mood = $this->firstAzureMood($context['mood']);
             $style = in_array($mood, $validMoods, true) ? $mood : 'default';
         }
         if ($style !== '') $speech = '<mstts:express-as style="' . htmlspecialchars($style, ENT_XML1 | ENT_QUOTES, 'UTF-8')
@@ -238,6 +238,30 @@ final class CloudSpeechConnectorProvider implements SpeechProvider
         return [$url, $xml, ['Ocp-Apim-Subscription-Key: ' . $this->apiKey,
             'Content-Type: application/ssml+xml', 'X-Microsoft-OutputFormat: riff-24khz-16bit-mono-pcm',
             'User-Agent: LorkhanServer', 'Accept: audio/wav']];
+    }
+
+    /** Match CHIM emote token aliases and combined moods before applying Azure's allowlist. */
+    private function firstAzureMood(string $raw): string
+    {
+        $defaults=['sassy','assertive','sexy','smug','kindly','lovely','seductive','sarcastic','smirking','amused','irritated','playful','neutral','teasing','desperate','scared','pleading','sad','happy','angry','drunk','shy','surprised'];
+        $aliases=['sardonic'=>'sarcastic','mocking'=>'sarcastic','default'=>'neutral','distressed'=>'scared','assisting'=>''];
+        $known=array_merge($defaults,array_keys($aliases));
+        usort($known,static fn($a,$b)=>strlen($b)<=>strlen($a));
+        foreach (preg_split('/[\r\n,|]+/',$raw) ?: [] as $token) {
+            $token=strtolower(trim($token));if($token==='')continue;
+            $compact=preg_replace('/[^a-z]/','',$token);
+            foreach ([$token,$compact] as $candidate) {
+                if(in_array($candidate,$defaults,true))return $candidate;
+                if(array_key_exists($candidate,$aliases)) { if($aliases[$candidate]!=='')return $aliases[$candidate]; continue 2; }
+            }
+            preg_match_all('/'.implode('|',$known).'/',$compact,$matches);
+            if(($matches[0]??[])!==[]&&implode('',$matches[0])===$compact) {
+                foreach($matches[0]as$part){$mood=$aliases[$part]??$part;if($mood!=='')return$mood;}
+                continue;
+            }
+            return $token;
+        }
+        return 'default';
     }
 
     /** Decode connectors that envelope audio and retain validated WAV bytes for every driver. */

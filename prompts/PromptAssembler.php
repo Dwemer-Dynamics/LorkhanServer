@@ -320,7 +320,7 @@ final class PromptAssembler
         int $sceneLimit,
     ): array {
         $outputContract = 'Return one JSON object with exactly two keys: "utterances" and "action". '
-            . '"utterances" must be a JSON array of one to four objects. Each utterance object must have exactly one key named "text", '
+            . '"utterances" must be a JSON array of one to four objects. Each utterance object must have "text" and may have an optional "mood" before "text" (a short speech style such as whispering or angry), '
             . 'and "text" must be a non-empty string. Never return utterances as strings. "action" is null or a supported name and parameters object. '
             . 'Do not add prose outside JSON.';
         if ($llmSpeechLanguage) {

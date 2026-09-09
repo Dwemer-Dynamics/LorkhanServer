@@ -455,6 +455,13 @@ $check(implode(' ',$streamChunks)==='Hello there, traveler. Welcome to Balmora!'
     'streaming dialogue exposes only decoded utterance text in bounded deltas');
 $check($streamChunks===['Hello there, traveler.','Welcome to Balmora!'],
     'streaming dialogue releases complete CHIM-style sentence chunks without blank subtitle lines');
+$moodStream=new StreamingDialogueText();
+$moodChunks=$moodStream->push('{"utterances":[{"mood":"whispering","text":"Quiet words."},{"mood":"angry","text":"Louder words!"}],"action":null}',true);
+$check($moodChunks===['Quiet words.','Louder words!']&&$moodStream->chunkMoods()===['whispering','angry'],'streamed mood stays with each short utterance in one network chunk');
+$partialMoodStream=new StreamingDialogueText();
+$check($partialMoodStream->push('{"utterances":[{"mood":"whis')===[],'incomplete mood prefix emits no speech');
+$partialMoodChunks=$partialMoodStream->push('pering","text":"This sentence is long enough to play now. ');
+$check(count($partialMoodChunks)===1&&$partialMoodStream->chunkMoods()===['whispering'],'known mood prefix preserves first-sentence streaming before closing JSON');
 $prefilledStream=new StreamingDialogueText();
 $check($prefilledStream->push('[{"text":"The first sentence arrives immediately. More words')===['The first sentence arrives immediately.'],
     'assistant continuation streams its first complete sentence without waiting for the closing JSON');
@@ -561,6 +568,9 @@ foreach ([['whispering',['whispering'],'','whispering'],['angry',['whispering'],
     $xml=new DOMDocument();$xml->loadXML($body);
     $check($xml->getElementsByTagNameNS('https://www.w3.org/2001/mstts','express-as')->item(0)->getAttribute('style')===$expected && $xml->documentElement->textContent==='Safe <text>','Azure mood allowlist and fixed override preserve escaped text');
 }
+$azureMoodNormalizer=new ReflectionMethod($azureMoodProvider,'firstAzureMood');
+foreach (['mocking'=>'sarcastic','assisting|ANGRY'=>'angry','happy sad'=>'happy','whispering,angry'=>'whispering','distressed'=>'scared'] as $rawMood=>$expectedMood)
+    $check($azureMoodNormalizer->invoke($azureMoodProvider,$rawMood)===$expectedMood,'Azure emote normalization matches reference aliases and first effective token');
 $azureMoodContent=ConnectorCatalog::validate('tts_provider',ConnectorCatalog::defaults('tts_provider','azure')+['driver'=>'azure','options'=>['validMoods'=>['whispering','dazed']]]);
 $check($azureMoodContent['options']['validMoods']===['whispering','dazed'],'Azure valid moods preserve the configured selection array');
 foreach (['whispering',['invalid-style'],[['nested']]] as $badMoods) {
@@ -1227,11 +1237,18 @@ $providerMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invo
     ['_prompt'=>$assembled['provider_input']]);
 $check(array_column($providerMessages,'role')===array_column($assembled['provider_input']['_messages'],'role')
     &&str_contains($providerMessages[0]['content'],'- **Action Contract:**')
-    &&str_contains($providerMessages[0]['content'],'exactly one key named "text"')
+    &&str_contains($providerMessages[0]['content'],'may have an optional "mood" before "text"')
     &&strpos($providerMessages[0]['content'],'- **Action Contract:**')<strpos($providerMessages[0]['content'],'## Current Turn')
     &&str_starts_with($providerMessages[0]['content'],'# Roleplay Context'),
     'OpenAI-compatible provider sends frozen split messages with compact Markdown prompt context');
 $validateProviderResult=new ReflectionMethod($actionProvider,'validateResultShape');
+$validateProviderResult->invoke($actionProvider,['utterances'=>[['mood'=>'whispering','text'=>'Quiet words.']],'action'=>null]);
+$check(true,'provider response contract accepts mood before text');
+foreach ([['mood'=>null,'text'=>'Words.'],['text'=>'Words.','mood'=>'angry']] as $badUtterance) {
+    try {$validateProviderResult->invoke($actionProvider,['utterances'=>[$badUtterance],'action'=>null]);$check(false,'invalid or late mood rejected before provider success');}
+    catch (RuntimeException) {$check(true,'invalid or late mood rejected before provider success');}
+}
+
 $policy = new ActionPolicyValidator();
 $actionDefinitions = [];
 foreach (['inspect.report'=>0, 'ai.follow'=>1, 'ai.stop'=>1, 'item.use'=>2] as $name=>$tier) {

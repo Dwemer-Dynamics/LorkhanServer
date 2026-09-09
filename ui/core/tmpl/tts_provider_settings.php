@@ -63,7 +63,8 @@ $fieldHelp = [
     'deepgram'=>['option__bitrate'=>'Output sample rate (Hz): 8000, 16000, 24000, 32000 or 48000.'],
     'azure'=>['option__fixedMood'=>'Force mood (voice style)',
         'option__region'=>'Region location of your API key. Leave blank to use the advanced endpoint.',
-        'option__volume'=>'Volume', 'option__rate'=>'Talk speed', 'option__countour'=>'Voice contour'],
+        'option__volume'=>'Volume', 'option__rate'=>'Talk speed', 'option__countour'=>'Voice contour',
+        'option__validMoods'=>'Allowed voice styles'],
     'melotts'=>['language'=>'Language Model. Should be EN if using default installation','option__speed'=>'Speech Speed'],
     'mimic3'=>['option__rate'=>'Voice speed'],
     'zonos_gradio'=>['language'=>'Language','model'=>'Model to use.',
@@ -162,6 +163,7 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
     if (in_array($providerDriver,['chatterbox','xtts-fastapi'],true)) $values += [
         'option__paralinguistic_tags_list'=>\LorkhanServer\Application\ParalinguisticSpeech::DEFAULT_TAGS];
     if ($providerDriver === 'inworld') $values += ['option__temperature'=>1.0,'option__speed'=>1.0];
+    if ($providerDriver === 'azure' && (!$activeDriver || $creating)) $values += ['option__validMoods'=>['whispering','default','dazed']];
     if ($providerDriver === 'cartesia') $values += ['option__speed'=>'normal'];
     if ($providerDriver === 'kokoro') $values += ['option__speed'=>1.0];
     if ($providerDriver === 'deepgram' && (!$activeDriver || $creating)) $values += ['option__bitrate'=>32000];

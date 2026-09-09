@@ -64,14 +64,14 @@ final class TurnProcessJobHandler implements JobHandler
             $policy=$this->translationPolicy($message);
             $streamedDialogues=[];$pendingInlineSpeech=null;
             $streamSpeech=$this->canStreamSpeech($message,$policy);
-            $progress = function (string $delta, ?string $language=null) use ($message, $fence, $policy, $job, $heartbeat, $streamSpeech,
+            $progress = function (string $delta, ?string $language=null, ?string $mood=null) use ($message, $fence, $policy, $job, $heartbeat, $streamSpeech,
                 &$streamedDialogues,&$pendingInlineSpeech): void {
                 if($policy['content']['translate_text'])return;
                 if($delta==='')return;
                 $this->repository->appendDialogueDelta($message,$delta,$fence);
                 if(!$streamSpeech||count($streamedDialogues)>=DialoguePlanner::MAX_UTTERANCES)return;
                 $index=count($streamedDialogues)+1;
-                $dialogue=$this->repository->appendStreamedDialogue($message,$delta,$fence,$index)+SpeechLanguage::payload($language);
+                $dialogue=$this->repository->appendStreamedDialogue($message,$delta,$fence,$index)+SpeechLanguage::payload($language)+($mood===null?[]:['mood'=>$mood]);
                 $streamedDialogues[]=$dialogue;
                 if($index===1){
                     if(!$this->synthesizeStreamedDialogue($message,$dialogue,$fence,$job,$heartbeat,1))$pendingInlineSpeech=$dialogue;
@@ -146,6 +146,7 @@ final class TurnProcessJobHandler implements JobHandler
             if($provider===null)return false;
             $context=$this->products?->speechContext((string)$message['installation_id'],
                 (string)$message['playthrough_id'],(array)$dialogue['speaker'],$preset)??[];
+            $context+=array_intersect_key($dialogue,['mood'=>true]);
             $context=SpeechLanguage::context($context,$preset,$dialogue['tts_language']??null);
             $pronunciationContext=$this->products?->ttsPronunciationContext((string)$message['installation_id'],
                 (string)$message['playthrough_id'],(array)$dialogue['speaker'])??[];
@@ -192,7 +193,7 @@ final class TurnProcessJobHandler implements JobHandler
         $streamedText=preg_replace('/\s+/u',' ',trim(implode("\n",array_column($streamedDialogues,'text'))));
         if($finalText!==$streamedText)throw new DomainException('provider_invalid_output');
         $utterances=[];
-        foreach($streamedDialogues as$dialogue)$utterances[]=['text'=>$dialogue['text']]+SpeechLanguage::payload($dialogue['tts_language']??null);
+        foreach($streamedDialogues as$dialogue)$utterances[]=['text'=>$dialogue['text']]+array_intersect_key($dialogue,['mood'=>true])+SpeechLanguage::payload($dialogue['tts_language']??null);
         return['utterances'=>$utterances,'action'=>$result['action']??null];
     }
 
@@ -218,7 +219,7 @@ final class TurnProcessJobHandler implements JobHandler
         $planned=(new DialoguePlanner())->plan($message,$result);$clean=[];
         foreach($planned as$utterance)$clean[]=['speaker'=>$utterance['speaker'],'addressee'=>$utterance['addressee'],
             'text'=>$utterance['text'],'speech_enabled'=>$utterance['speech_enabled'],
-            '_history_text'=>$utterance['_history_text'],'_subtitle'=>$utterance['_subtitle'],'_tts_text'=>$utterance['_tts_text']]+SpeechLanguage::payload($utterance['tts_language']??null);
+            '_history_text'=>$utterance['_history_text'],'_subtitle'=>$utterance['_subtitle'],'_tts_text'=>$utterance['_tts_text']]+array_intersect_key($utterance,['mood'=>true])+SpeechLanguage::payload($utterance['tts_language']??null);
         $content=$policy['content'];$enabled=$content['translate_text']||$content['translate_audio'];
         if(!$enabled)return['utterances'=>$clean,'action'=>$result['action']??null];
 

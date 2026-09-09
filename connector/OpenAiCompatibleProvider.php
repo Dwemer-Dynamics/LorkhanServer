@@ -117,7 +117,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
                 if(is_array($event['usage']??null))$usage=$event['usage'];
                 if (!is_string($delta)) throw new RuntimeException('provider_unavailable');
                 $content .= $delta;
-                foreach ($visible->push($delta) as $text) $onDialogueDelta($text, $languageEnabled?SpeechLanguage::fromJsonPrefix(str_starts_with(ltrim($content),'{')?$content:$prefix.$content):null);
+                foreach ($visible->push($delta) as $index => $text) $onDialogueDelta($text, $languageEnabled?SpeechLanguage::fromJsonPrefix(str_starts_with(ltrim($content),'{')?$content:$prefix.$content):null, $visible->chunkMoods()[$index] ?? null);
             }
         };
         $multi = curl_multi_init();
@@ -173,7 +173,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             $this->reportedUsage['cost_usd']=(float)$usage['cost'];
         }
         if (!is_string($content) || $content === '') throw new RuntimeException('provider_invalid_output');
-        foreach ($visible->push('', true) as $text) $onDialogueDelta($text, $languageEnabled?SpeechLanguage::fromJsonPrefix(str_starts_with(ltrim($content),'{')?$content:$prefix.$content):null);
+        foreach ($visible->push('', true) as $index => $text) $onDialogueDelta($text, $languageEnabled?SpeechLanguage::fromJsonPrefix(str_starts_with(ltrim($content),'{')?$content:$prefix.$content):null, $visible->chunkMoods()[$index] ?? null);
         $result = $this->decodeStructuredContent($content, $prefix);
         $language=$languageEnabled?SpeechLanguage::normalize($result['language']??null):null;
         if($languageEnabled)unset($result['language']);
@@ -237,7 +237,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         $properties = ($turn['_prompt']['_llm_tts_language']??false)===true ? ['language'=>['type'=>'string','enum'=>SpeechLanguage::CODES]] : [];
         return LlmConnector::objectSchema($properties + [
             'utterances'=>['type'=>'array', 'minItems'=>1, 'maxItems'=>4,
-                'items'=>LlmConnector::objectSchema(['text'=>['type'=>'string', 'minLength'=>1, 'maxLength'=>4096]])],
+                'items'=>['anyOf'=>[LlmConnector::objectSchema(['text'=>['type'=>'string', 'minLength'=>1, 'maxLength'=>4096]]), LlmConnector::objectSchema(['mood'=>['type'=>'string','maxLength'=>64,'pattern'=>'^[a-zA-Z -]*$'],'text'=>['type'=>'string','minLength'=>1,'maxLength'=>4096]])]]],
             'action'=>count($actions) === 1 ? $actions[0] : ['anyOf'=>$actions],
         ]);
     }
@@ -255,9 +255,10 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         }
         $totalBytes = 0;
         foreach ($utterances as $utterance) {
-            if (!is_array($utterance) || array_is_list($utterance) || array_keys($utterance) !== ['text']) {
+            if (!is_array($utterance) || array_is_list($utterance) || !in_array(array_keys($utterance), [['text'],['mood','text']], true)) {
                 throw new RuntimeException('provider_invalid_output');
             }
+            if (array_key_exists('mood',$utterance) && (!is_string($utterance['mood']) || !preg_match('/^[a-zA-Z -]{0,64}$/D',$utterance['mood']))) throw new RuntimeException('provider_invalid_output');
             $text = $utterance['text'];
             if (!is_string($text) || trim($text) === '' || !mb_check_encoding($text, 'UTF-8')
                 || mb_strlen($text, 'UTF-8') > 4096 || strlen($text) > 16_384) {

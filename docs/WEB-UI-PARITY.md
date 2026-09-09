@@ -10134,3 +10134,38 @@ Preserve ownership while splitting sentences, including translated/narration pat
 Current tests do not prove that end-to-end mood path yet. Azure editor browser
 persistence/visual proof and reference normalization remain pending. Not deployed;
 no live settings/provider/game changes. Whole goal remains active.
+### Azure Validmoods rendered and deployed checkpoint (2026-09-08)
+
+Supersedes the preceding not-deployed notes for this Azure change chain.
+The optional model response contract accepts mood before text; sentence streaming
+keeps mood ownership across multiple utterances in one network chunk. Queued,
+inline and translated dialogue paths retain that metadata. Azure normalizes the
+reference aliases and applies its valid-mood selection without altering text.
+Text-only responses remain accepted. At the bounded 32-chunk aggregation limit,
+a chunk covering different moods omits mood rather than applying the wrong one.
+Narrator splits do not inherit the NPC's mood.
+
+Azure editor comparison: matching visible field order, 18 options, multiple-select,
+new-provider defaults whispering/default/dazed, and Allowed voice styles help.
+Readonly reference/native comparisons at 1280 and 390 pixels exercised two-choice
+selection, provider switch away/back, focus, and no horizontal overflow. Inspected
+azure-final-1280-native.png and both azure-final-390 screenshots against the
+reference; branding and stored connector content differ as expected. Existing
+advanced/revision sections remain separate broader matrix work, not a declaration
+that the entire connector editor is identical. No real connector saves or paid
+provider calls were made against either deployed installation.
+
+Evidence: 889 server checks; final integration vertical slice, 173-relation schema
+inventory, migrations and durable jobs; full management HTTP suite including actual
+isolated Azure two-choice save/reload. Logs: azure-stream-final-integration.txt,
+azure-stream-final-http.txt; browser driver azure-final-proof.cjs (temporary local
+artifacts). Final help-only edit followed by 889 checks and rendered comparison.
+Deployment completed with configuration/credential/voice hashes preserved; verifier
+reports 811 files, zero mismatches/extras/old paths and expected access protections.
+
+Remaining runtime evidence: no live LLM schema acceptance or paid Azure audio test;
+focused full worker mood capture is still outstanding (general integration is not
+proof of that specific metadata path). Reference angry-volume/dazed-rate behavior
+also remains to audit. These are not recorded as product exclusions. Other page
+matrix gaps, cumulative NPC digest and profile/context work remain open. GitHub
+server workflow stays manually disabled. No game launched or controlled.
