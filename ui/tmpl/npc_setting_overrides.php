@@ -2,6 +2,7 @@
 declare(strict_types=1);
 // Current rows and modal structure derive from Herika's NPC override_editor.php.
 $overrideLabels = [
+    'bored_event.chance_percent'=>'Bored Event Chance',
     'behavior.rechat'=>'Rechat', 'behavior.rechat_max_depth'=>'Rechat Rounds',
     'behavior.rechat_probability_percent'=>'Rechat Probability', 'behavior.rechat_allow_actions'=>'Rechat Actions',
     'memory.recent_turn_limit'=>'Context History', 'memory.short_term_enabled'=>'Short Term Memory',

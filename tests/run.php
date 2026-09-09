@@ -2210,6 +2210,10 @@ $check($boredResolved['settings']['bored_event']['chance_percent']===0
     &&$boredResolved['sources']['settings.bored_event.chance_percent']==='core_profile'
     &&!isset(EffectiveSettingsResolver::controlsProjection($boredResolved)['settings']['bored_event']),
     'bored chance preserves explicit zero and server ownership without changing strict client controls');
+$boredNpc=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['bored_event'=>['chance_percent'=>100]]],$boredCore);
+$check($boredNpc['settings']['bored_event']['chance_percent']===0
+    &&$boredNpc['sources']['settings.bored_event.chance_percent']==='npc',
+    'NPC bored zero overrides Core 100 without changing narrator chance');
 $boredPreset=\LorkhanServer\Application\CoreProfilePreset::capture($boredCore);
 $check(\LorkhanServer\Application\CoreProfilePreset::apply($boredPreset,$corePresetSource)['settings_overrides']['bored_event']['chance_percent']===0,
     'bored chance zero survives named presets');

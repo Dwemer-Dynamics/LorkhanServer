@@ -1963,7 +1963,7 @@ assert len(VoiceProvider.llm_requests)==provider_calls_before_routing_save # Sav
 assert not any(field in saved_routing['fields'] for field in ['profile_generation_configuration_id','relationship_configuration_id','diary_generation_configuration_id','setting_relationship_locked'])
 
 # Explicit NPC overrides round-trip through the existing revisioned profile save.
-npc_overrides={'behavior':{'rechat':False,'rechat_probability_percent':0},'memory':{'recent_turn_limit':3},'response':{'max_words':17}}
+npc_overrides={'bored_event':{'chance_percent':0},'behavior':{'rechat':False,'rechat_probability_percent':0},'memory':{'recent_turn_limit':3},'response':{'max_words':17}}
 for submitted in [npc_overrides, None, {}]:
     override_values=dict(saved_routing['fields'],_csrf=csrf,change_reason='NPC overrides HTTP')
     if submitted is not None: override_values['npc_settings_overrides_json']=json.dumps(submitted)
@@ -1972,7 +1972,7 @@ for submitted in [npc_overrides, None, {}]:
     saved_routing=next(f for f in override_page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==routing_profile_id)
     saved_routing_content=json.loads(saved_routing['fields']['base_content_json'])
     assert saved_routing_content.get('settings_overrides',{})==(npc_overrides if submitted is None else submitted),saved_routing_content
-for invalid_override in [{'behavior':{'rechat':'false'}},{'memory':{'recent_turn_limit':0}},{'response':{'max_words':10001}},{'narrator':{'enabled':True}}]:
+for invalid_override in [{'bored_event':{'chance_percent':101}},{'behavior':{'rechat':'false'}},{'memory':{'recent_turn_limit':0}},{'response':{'max_words':10001}},{'narrator':{'enabled':True}}]:
     r=request(saved_routing['action'],'POST',dict(saved_routing['fields'],_csrf=csrf,npc_settings_overrides_json=json.dumps(invalid_override),biography='MUST NOT SAVE'))
     assert r.status==422,(r.status,r.read().decode())
     unchanged_page,_=parse(request('/LorkhanServer/ui/core/npc_master.php'))

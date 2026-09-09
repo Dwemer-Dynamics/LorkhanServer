@@ -154,6 +154,7 @@ final class SettingsCatalog
         'behavior.rechat_probability_percent' => [0, 100],
         'behavior.end_conversation_cooldown_seconds' => [0, 300],
         'behavior.boredom_delay_seconds' => [30, 86400],
+        'bored_event.chance_percent' => [0, 100],
         'behavior.combat_bark_period_seconds' => [5, 600],
         'narrator.welcome_cooldown_minutes' => [1, 1440],
         'narrator.random_chance_percent' => [1, 100],
@@ -274,6 +275,7 @@ final class SettingsCatalog
     public static function npcOverrideFields(): array
     {
         return [
+            'bored_event' => ['chance_percent'],
             'behavior' => ['rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_allow_actions'],
             'memory' => ['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled'],
             'response' => ['max_words'],

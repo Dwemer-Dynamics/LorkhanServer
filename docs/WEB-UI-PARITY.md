@@ -9481,3 +9481,22 @@ these are applied only by choosing a preset. Global enable switches remain
 unchanged. Extended the existing four-preset test loop; 793 server checks pass.
 This closes the built-in bored/combat values gap, not quest comments, physical
 diary or Quickstart presentation. No game launched or controlled.
+
+
+### NPC Bored Event override and Context audit (2026-09-08)
+
+NPC override catalog now exposes Bored Event Chance as integer0-100. The same
+resolver consumed by the bound-actor request applies NPC0 over Core100. Removing
+the override restores inheritance; ordinary saves preserve it. 794 server checks
+and the existing management HTTP suite passed (save0, ordinary save, remove,
+reject101). Native browser add/edit/cancel/remove tests passed1280/390 without
+private writes; populated screenshots inspected at both widths. All809 deployed
+server files match with private/access checks unchanged. Whole NPC editor visual
+parity remains open; this is proof for the new supported override only.
+
+The Context height audit confirmed that reference metadata_json_editor.php
+includes CONTEXT_HISTORY_DYNAMIC_PROFILE in its intended Context group, but
+core_profiles.php filters through chimPrismaProfileSyncableMetadataKeys. Therefore
+the live omission does not establish that the feature is unsupported by Herika.
+Lorkhan retains the working control; no field was deleted to force a screenshot
+height. The full Context rendering difference remains explicitly open.
