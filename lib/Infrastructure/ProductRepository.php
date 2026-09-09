@@ -3039,7 +3039,7 @@ SQL);
             'configuration_id'=>$speechConnector['configuration_id'],'revision'=>$speechConnector['revision'],
             'driver'=>$speechConnector['content']['driver']??'',
             'options'=>array_intersect_key((array)($speechConnector['content']['options']??[]),array_flip([
-                'paralinguistic_tags_enabled','paralinguistic_tags_prompt','paralinguistic_tags_list']))];
+                'paralinguistic_tags_enabled','paralinguistic_tags_prompt','paralinguistic_tags_list','dynamic_tones']))];
         $narratorProfile=$this->narratorProfileForInstallation($turn['installation_id']);
         $promptKeys=[];
         $eventKey=\LorkhanServer\Application\NarratorEventPrompts::SOURCES[$turn['payload']['ui_source']??'']??null;

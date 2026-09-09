@@ -10250,3 +10250,37 @@ This is the default mood-derived foundation for the still-missing Dynamic Tones
 control, not implementation of model-provided eight-value tones. That configuration,
 response contract, per-utterance streaming metadata and cached-sample editor remain
 open. Page layout has not changed in this checkpoint. Whole parity goal is active.
+
+### Zonos Dynamic Tones control and delivery (2026-09-08)
+
+Added the typed dynamic_tones boolean and matching Dynamic Tones grid position
+between Model/Language and Pitch Std. Default Disabled preserves mood-only behavior.
+The selected actor connector's safe speech_style snapshot includes this flag;
+enabled Zonos adds a bounded eight-value tones instruction. Optional tones precede
+mood/text in the model schema and validator; text-only responses remain valid.
+No change to public game schemas or spoken text. Internal per-utterance vectors
+are validated, retained through planning, translation, streaming reconciliation,
+inline speech context and queued speech payloads. Zonos consumes them only when
+its option is enabled and applies reference mood overrides afterward.
+
+Streaming extracts the complete tones prefix before emitting a first sentence.
+Multiple utterances in one network chunk retain independent vectors; the bounded
+final aggregate omits mixed vectors instead of assigning the wrong one. Validation
+rejects extra/missing keys, strings, non-finite and out-of-range values. No fabricated
+provider controls and no paid model/audio call.
+
+Evidence: 904 server checks including on/off prompt instructions, schema acceptance,
+invalid vectors, first-sentence prefix streaming, mixed utterance ownership and
+planner text separation. Full integration vertical slice/173-relation inventory/
+migrations/durable jobs passed (zonos-tones-integration.txt). Full management HTTP
+suite passed including isolated dynamic_tones=true and pitch=300 save/reload
+(zonos-tones-http.txt). Ref/native 1280/390 screenshots refreshed and inspected:
+Dynamic Tones restores the missing grid row. Help omits the misleading reference
+Default profile only clause because native connectors bind per profile.
+
+Deployed with existing private settings/credential/voice hashes preserved; all 811
+runtime files match. Existing saved Inworld configuration unchanged. No game launch.
+Remaining: cached voice state/control, rate/CFG range differences, lower advanced/
+revision surfaces, and the wider page matrix. Real LLM/Gradio acceptance and a
+focused durable-worker tone capture remain unverified; general integration and
+unit metadata tests do not substitute for those specific runtime checks. Goal active.

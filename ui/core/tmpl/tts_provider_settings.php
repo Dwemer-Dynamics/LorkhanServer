@@ -15,7 +15,7 @@ $primaryFields = [
     'melotts'=>['language','option__speed'], 'mimic3'=>['option__rate'],
     'piper-tts'=>['option__length_scale','option__noise_scale','option__noise_w_scale','option__speaker','option__speaker_id'],
     'xvasynth'=>['language','option__model_type','option__version','option__game','option__pace','option__waveglow_path','option__vocoder','option__distro'],
-    'zonos_gradio'=>['language','model','option__pitch_std','option__speaking_rate','option__cfg_scale'],
+    'zonos_gradio'=>['language','model','option__dynamic_tones','option__pitch_std','option__speaking_rate','option__cfg_scale'],
     'deepgram'=>['option__bitrate'], 'azure'=>['option__fixedMood','option__region','option__volume','option__rate','option__countour','option__validMoods'], 'kokoro'=>['option__speed'], 'koboldcpp'=>[],
 ];
 $providerTitles = ['inworld'=>'Inworld TTS','cartesia'=>'Cartesia TTS','openai'=>'OpenAI TTS',
@@ -68,6 +68,7 @@ $fieldHelp = [
     'melotts'=>['language'=>'Language Model. Should be EN if using default installation','option__speed'=>'Speech Speed'],
     'mimic3'=>['option__rate'=>'Voice speed'],
     'zonos_gradio'=>['language'=>'Language','model'=>'Model to use.',
+        'option__dynamic_tones'=>'Enhance emotional quality by requesting values from the LLM. If disabled, emotions follow the LLM-selected mood.',
         'option__pitch_std'=>'Pitch standard deviation [0-300]',
         'option__speaking_rate'=>'Speaking rate. Higher is faster. [1-40]',
         'option__cfg_scale'=>'CFG scale. Controls how closely the audio matches the sample voice. Higher numbers will be a closer match. [0-20]'],

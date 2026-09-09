@@ -12,6 +12,7 @@ use RuntimeException;
 /** Runs the Zonos Gradio upload, queued generation, and WAV download flow for one voice sample. */
 final class ZonosGradioSpeechProvider implements SpeechProvider
 {
+    public const TONES = ['happiness','sadness','disgust','fear','surprise','anger','other','neutral'];
     private readonly string $baseUrl;
     private readonly string $host;
     private readonly bool $allowLoopbackHttp;
@@ -45,7 +46,8 @@ final class ZonosGradioSpeechProvider implements SpeechProvider
         $language = trim((string) ($context['language'] ?? $this->language));
         if ($text === '' || mb_strlen($text) > 4096 || preg_match('/^[A-Za-z0-9][A-Za-z0-9_. -]{0,127}$/D', $voice) !== 1
             || $language === '' || strlen($language) > 35) throw new RuntimeException('provider_invalid_input');
-        $emotions = self::moodEmotions($context['mood'] ?? null);
+        $emotions = self::moodEmotions($context['mood'] ?? null,
+            ($this->options['dynamic_tones'] ?? false) === true ? ($context['tones'] ?? null) : null);
         $samplePath = $this->voiceRoot . DIRECTORY_SEPARATOR . $voice . (str_ends_with(strtolower($voice), '.wav') ? '' : '.wav');
         $realRoot = realpath($this->voiceRoot);
         $realSample = realpath($samplePath);
@@ -92,9 +94,9 @@ final class ZonosGradioSpeechProvider implements SpeechProvider
     }
 
     /** Match Herika's getZonosEmotions mood fallback in Gradio's eight-value order. */
-    private static function moodEmotions(mixed $mood): array
+    private static function moodEmotions(mixed $mood, mixed $tones = null): array
     {
-        $emotions = array_fill(0, 8, 0.05);
+        $emotions = $tones === null ? array_fill(0, 8, 0.05) : array_values(self::validateTones($tones));
         if ($mood === null || $mood === '' || $mood === 'default') return $emotions;
         if (!is_string($mood) || strlen($mood) > 64 || !mb_check_encoding($mood, 'UTF-8')) {
             throw new RuntimeException('provider_invalid_input');
@@ -116,6 +118,23 @@ final class ZonosGradioSpeechProvider implements SpeechProvider
             default => [],
         };
         return array_replace($emotions, $overrides);
+    }
+
+    /** Validate internal per-utterance tones before passing them between model and speech jobs. */
+    public static function validateTones(mixed $tones): array
+    {
+        if (!is_array($tones) || array_is_list($tones) || count($tones) !== count(self::TONES)) {
+            throw new RuntimeException('provider_invalid_output');
+        }
+        $result = [];
+        foreach (self::TONES as $name) {
+            $value = $tones[$name] ?? null;
+            if ((!is_int($value) && !is_float($value)) || !is_finite((float)$value) || $value < 0 || $value > 1) {
+                throw new RuntimeException('provider_invalid_output');
+            }
+            $result[$name] = $value;
+        }
+        return $result;
     }
 
     /** Execute one same-origin Gradio request with bounded redirects, output, timeout, and cancellation. */

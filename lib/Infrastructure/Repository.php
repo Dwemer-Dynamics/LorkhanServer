@@ -583,7 +583,7 @@ final class Repository
             $this->db->prepare("INSERT INTO durable_jobs (job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) "
                 . "VALUES (:job,'speech.synthesize',1,:key,CAST(:payload AS jsonb),3,90) ON CONFLICT (job_type,idempotency_key) DO NOTHING")
                 ->execute(['job'=>Uuid::v4(),'key'=>'speech:'.$id,
-                    'payload'=>$this->encode(['dialogue_message_id'=>$id,'tts_text'=>$text]+array_intersect_key($dialogue,['mood'=>true])+SpeechLanguage::payload($dialogue['tts_language']??null))]);
+                    'payload'=>$this->encode(['dialogue_message_id'=>$id,'tts_text'=>$text]+array_intersect_key($dialogue,['mood'=>true,'tones'=>true])+SpeechLanguage::payload($dialogue['tts_language']??null))]);
         });
     }
 
@@ -689,7 +689,7 @@ final class Repository
                     $this->db->prepare("INSERT INTO durable_jobs (job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) "
                         . "VALUES (:job,'speech.synthesize',1,:key,CAST(:payload AS jsonb),3,90) ON CONFLICT (job_type,idempotency_key) DO NOTHING")
                         ->execute(['job'=>Uuid::v4(),'key'=>'speech:'.$dialogue['message_id'],
-                            'payload'=>$this->encode(['dialogue_message_id'=>$dialogue['message_id'],'tts_text'=>$line['tts_text']]+array_intersect_key($utterance,['mood'=>true])+SpeechLanguage::payload($utterance['tts_language']??null))]);
+                            'payload'=>$this->encode(['dialogue_message_id'=>$dialogue['message_id'],'tts_text'=>$line['tts_text']]+array_intersect_key($utterance,['mood'=>true,'tones'=>true])+SpeechLanguage::payload($utterance['tts_language']??null))]);
                 }
                 $currentSpeech = $speech[$index] ?? ($index === 0 && isset($speech['media_id']) ? $speech : null);
                 if ($currentSpeech !== null) {

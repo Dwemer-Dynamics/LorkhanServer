@@ -156,7 +156,9 @@ final class PromptAssembler
             $systemBudget,
             $contextPolicy,
             $selection['effective_settings']['prompt'] ?? SettingsCatalog::globalDefaults()['prompt'],
-            ParalinguisticSpeech::prompt($speechStyle),
+            ParalinguisticSpeech::prompt($speechStyle) . (($speechStyle['driver'] ?? '') === 'zonos_gradio' && ($speechStyle['options']['dynamic_tones'] ?? false) === true
+                ? '
+Return a tones object before mood and text in every utterance. Include all eight numeric values from 0 to 1: happiness, sadness, disgust, fear, surprise, anger, other, neutral. Tones describe delivery and must not be spoken.' : ''),
             $responseMaxWords,
             (string)($selection['effective_settings']['settings']['response']['core_lang'] ?? $coreProfile['content']['settings_overrides']['response']['core_lang'] ?? ''),
             $llmSpeechLanguage,
@@ -321,7 +323,7 @@ final class PromptAssembler
     ): array {
         $outputContract = 'Return one JSON object with exactly two keys: "utterances" and "action". '
             . '"utterances" must be a JSON array of one to four objects. Each utterance object must have "text" and may have an optional "mood" before "text" (a short speech style such as whispering or angry), '
-            . 'and "text" must be a non-empty string. Never return utterances as strings. "action" is null or a supported name and parameters object. '
+            . 'An optional "tones" object may precede mood/text when speech style instructions request it; otherwise omit it. "text" must be a non-empty string. Never return utterances as strings. "action" is null or a supported name and parameters object. '
             . 'Do not add prose outside JSON.';
         if ($llmSpeechLanguage) {
             $outputContract = str_replace('exactly two keys: "utterances" and "action"', 'exactly three keys: "language", "utterances" and "action"', $outputContract);

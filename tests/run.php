@@ -794,6 +794,13 @@ $tagPrompt=(new PromptAssembler())->assemble($promptTurn,$tagSelection);
 $check(str_contains($tagPrompt['provider_input']['_assembled_prompt'],'Use [sigh] sparingly.'),'selected expressive speech instructions reach the bounded system prompt');
 $tagSelection['speech_style']['options']['paralinguistic_tags_enabled']=false;
 $check(!str_contains((new PromptAssembler())->assemble($promptTurn,$tagSelection)['provider_input']['_assembled_prompt'],'Use [sigh] sparingly.'),'disabled expressive speech instructions are omitted');
+$toneSelection=$promptSelection;
+$toneSelection['speech_style']=['installation_id'=>$promptTurn['installation_id'],'driver'=>'zonos_gradio','options'=>['dynamic_tones'=>true]];
+$check(str_contains((new PromptAssembler())->assemble($promptTurn,$toneSelection)['provider_input']['_assembled_prompt'],'Return a tones object before mood and text'),
+    'Selected Zonos Dynamic Tones requests bounded emotion values in the prompt');
+$toneSelection['speech_style']['options']['dynamic_tones']=false;
+$check(!str_contains((new PromptAssembler())->assemble($promptTurn,$toneSelection)['provider_input']['_assembled_prompt'],'Return a tones object before mood and text'),
+    'Disabled Dynamic Tones does not request emotion values');
 foreach ([
     [[], '[SIGH] Hello [unknown].'],
     [['paralinguistic_tags_enabled'=>true,'paralinguistic_tags_list'=>'[sigh]'], '[SIGH] Hello .'],
@@ -2176,6 +2183,31 @@ $check($zonosPitch['maximum']===300.0
     &&(new ReflectionMethod($zonosAdapter,'number'))->invoke($zonosAdapter,'pitch_std',45,0,300)===300,
     'Zonos catalog and generation accept the reference upper pitch limit');
 $zonosMood=new ReflectionMethod(ZonosGradioSpeechProvider::class,'moodEmotions');
+$tones=array_fill_keys(ZonosGradioSpeechProvider::TONES,0.1);$tones['anger']=0.7;
+$check($zonosMood->invoke(null,null,$tones)===[0.1,0.1,0.1,0.1,0.1,0.7,0.1,0.1]
+    &&$zonosMood->invoke(null,'calm',$tones)===[0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0],
+    'Dynamic Zonos tones retain the reference mood override precedence');
+foreach ([$tones+['extra'=>0.1],array_replace($tones,['anger'=>1.1]),array_replace($tones,['anger'=>'0.7'])] as $invalidTones) {
+    try { ZonosGradioSpeechProvider::validateTones($invalidTones); $check(false,'Invalid dynamic tones rejected'); }
+    catch (RuntimeException) { $check(true,'Invalid dynamic tones rejected'); }
+}
+$toneStream=new StreamingDialogueText();
+$tonePrefix='{"utterances":[{"tones":'.json_encode($tones).',"mood":"angry","text":"';
+$check($toneStream->push($tonePrefix)===[],'Tone metadata alone never produces spoken text');
+$firstToneSentence=$toneStream->push('This is the first complete sentence. ');
+$check($firstToneSentence===['This is the first complete sentence.']
+    &&$toneStream->chunkTones()===[$tones]&&$toneStream->chunkMoods()===['angry'],
+    'First sentence receives tones before the response JSON finishes');
+$twoToneStream=new StreamingDialogueText();$quietTones=array_replace($tones,['anger'=>0.0]);
+$twoToneText=$twoToneStream->push(json_encode(['utterances'=>[
+    ['tones'=>$tones,'text'=>'First.'],['tones'=>$quietTones,'text'=>'Second.']],'action'=>null],JSON_PRESERVE_ZERO_FRACTION),true);
+$check($twoToneText===['First.','Second.']&&$twoToneStream->chunkTones()===[$tones,$quietTones],
+    'Multiple utterances in one network chunk retain independent tone vectors');
+$validateProviderResult->invoke($actionProvider,['utterances'=>[['tones'=>$tones,'mood'=>'angry','text'=>'Words.']],'action'=>null]);
+$check(true,'Provider contract accepts bounded tones before mood and text');
+$tonePlan=(new DialoguePlanner())->plan($canonicalTurn,['utterances'=>[['tones'=>$tones,'text'=>'Words.']]]);
+$check($tonePlan[0]['tones']===$tones&&$tonePlan[0]['text']==='Words.',
+    'Dialogue planning retains internal tones without adding them to speech text');
 $check($zonosMood->invoke(null,'furious | happy')===[0.05,0.05,0.05,0.05,0.05,0.8,0.05,0.2]
     &&$zonosMood->invoke(null,'mocking')===[0.4,0.05,0.05,0.05,0.05,0.05,0.4,0.2]
     &&$zonosMood->invoke(null,'calm')===[0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0],

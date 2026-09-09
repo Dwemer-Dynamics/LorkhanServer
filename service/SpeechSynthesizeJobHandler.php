@@ -69,6 +69,7 @@ final class SpeechSynthesizeJobHandler implements JobHandler
             if (!is_string($payload['mood']) || strlen($payload['mood']) > 64 || !mb_check_encoding($payload['mood'],'UTF-8')) throw new \InvalidArgumentException('invalid_speech_mood');
             $context['mood']=$payload['mood'];
         }
+        if (array_key_exists('tones',$payload)) $context['tones']=ZonosGradioSpeechProvider::validateTones($payload['tones']);
         $context=SpeechLanguage::context($context,$preset,$payload['tts_language']??null);
         $pronunciationContext=$this->products?->ttsPronunciationContext((string)$dialogue['installation_id'],
             (string)$dialogue['playthrough_id'],(array)$dialogue['speaker'])??[];

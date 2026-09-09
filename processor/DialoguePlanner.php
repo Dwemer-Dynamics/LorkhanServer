@@ -78,11 +78,11 @@ final class DialoguePlanner
                     throw new DomainException('provider_invalid_output');
                 $variants[$field]=$value;
             }
-            $mood = [];
+            $mood = array_key_exists('tones',$candidate) ? ['tones'=>ZonosGradioSpeechProvider::validateTones($candidate['tones'])] : [];
             if (array_key_exists('mood', $candidate)) {
                 if (!is_string($candidate['mood']) || strlen($candidate['mood']) > 64 || !mb_check_encoding($candidate['mood'], 'UTF-8'))
                     throw new DomainException('provider_invalid_output');
-                $mood = ['mood' => trim($candidate['mood'])];
+                $mood += ['mood' => trim($candidate['mood'])];
             }
             $utterances[] = ['speaker' => $speaker, 'addressee' => $addressee,
                 'audience' => array_values($eligible), 'text' => $text,

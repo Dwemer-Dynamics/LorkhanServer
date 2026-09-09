@@ -16,6 +16,10 @@ final class StreamingDialogueText
     private int $chunkCount = 0;
     private array $spans = [];
     private array $chunkMoods = [];
+    private array $chunkTones = [];
+
+    /** Validated tones parallel to the chunks returned by the latest push. */
+    public function chunkTones(): array { return $this->chunkTones; }
 
     /** Mood metadata for each text chunk returned by the latest push. */
     public function chunkMoods(): array { return $this->chunkMoods; }
@@ -31,6 +35,7 @@ final class StreamingDialogueText
 
         $chunks = [];
         $this->chunkMoods = [];
+        $this->chunkTones = [];
         while ($this->chunkCount < self::MAX_CHUNKS) {
             $pending = substr($this->visible, strlen($this->emitted));
             if ($pending === '') break;
@@ -56,10 +61,14 @@ final class StreamingDialogueText
             foreach ($this->spans as $span) if ($span['end'] > strlen($this->emitted) && $span['start'] < strlen($this->emitted) + $flushBytes)
                 $moods[] = $span['mood'];
             $mood = $moods !== [] && count(array_unique($moods, SORT_REGULAR)) === 1 ? $moods[0] : null;
+            $tones = [];
+            foreach ($this->spans as $span) if ($span['end'] > strlen($this->emitted) && $span['start'] < strlen($this->emitted) + $flushBytes)
+                $tones[] = $span['tones'];
+            $tone = $tones !== [] && count(array_unique($tones, SORT_REGULAR)) === 1 ? $tones[0] : null;
             $this->emitted .= $chunk;
             ++$this->chunkCount;
             $chunk=preg_replace('/\s+/u',' ',trim($chunk))??trim($chunk);
-            if($chunk!=='') { $chunks[]=$chunk; $this->chunkMoods[]=$mood; }
+            if($chunk!=='') { $chunks[]=$chunk; $this->chunkMoods[]=$mood; $this->chunkTones[]=$tone; }
         }
         return $chunks;
     }
@@ -92,10 +101,14 @@ final class StreamingDialogueText
                 $decoded = json_decode('"' . $raw . '"', true, 8, JSON_THROW_ON_ERROR);
                 if (is_string($decoded)) {
                     $prefix = substr($json, $offset, $match[0][1] - $offset);
-                    $mood = preg_match('/\{\s*"mood"\s*:\s*"([a-zA-Z -]{0,64})"\s*,\s*$/D', $prefix, $moodMatch) === 1 ? trim($moodMatch[1]) : null;
+                    $mood = null; $tones = null;
+                    if (preg_match('/\{\s*(?:"tones"\s*:\s*(\{[^{}]*\})\s*,\s*)?(?:"mood"\s*:\s*"([a-zA-Z -]{0,64})"\s*,\s*)?$/D', $prefix, $metadata) === 1) {
+                        if (($metadata[1] ?? '') !== '') $tones = ZonosGradioSpeechProvider::validateTones(json_decode($metadata[1],true,4,JSON_THROW_ON_ERROR));
+                        if (isset($metadata[2])) $mood = trim($metadata[2]);
+                    }
                     $startOffset = strlen($visible) + ($visible === '' ? 0 : 1);
                     $visible .= ($visible === '' ? '' : "\n") . $decoded;
-                    $this->spans[] = ['start'=>$startOffset, 'end'=>strlen($visible), 'mood'=>$mood];
+                    $this->spans[] = ['start'=>$startOffset, 'end'=>strlen($visible), 'mood'=>$mood, 'tones'=>$tones];
                 }
             } catch (\JsonException) {
                 // Wait for a later chunk that completes the JSON escape or string.
