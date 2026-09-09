@@ -78,6 +78,7 @@ final class SettingsCatalog
 
     private const CONTEXT_DETAIL_DEFAULTS = [
         'npc_summary' => true,
+        'npc_groups' => true,
         'npc_personality' => true,
         'npc_appearance' => true,
         'npc_occupation' => true,
@@ -255,6 +256,7 @@ final class SettingsCatalog
         }
         // Older documents never emitted observed RPG skills; retain that omission.
         if (!array_key_exists('npc_rpg_skills', $details)) $details['npc_rpg_skills'] = false;
+        if (!array_key_exists('npc_groups', $details)) $details['npc_groups'] = $details['npc_current_state'] ?? true;
         return $details;
     }
 

@@ -1288,7 +1288,7 @@ assert '<option value="https://api-free.deepl.com/v2/translate" selected>Free ac
 assert 'translates NPC subtitles and speech audio' in body and not any(name in body for name in ['translation_player_audio','translation_save_player_text','translation_player_source_language','translation_player_target_language'])
 translation_values=dict(values,translation_provider='deepl',translation_text='1')
 context_names=re.findall(r'name="(context_(?:section|detail)_[a-z_]+)"',body)
-assert len(context_names)==len(set(context_names))==37
+assert len(context_names)==len(set(context_names))==38
 assert all(title in body for title in ['Top-Level Sections','Character Subsections','Appearance / State Subsections','Nearby Actor Details','Nearby Item Details'])
 assert all(len(re.findall(r'name="'+field+r'"',body))==1 for field in ['memory_summary_enabled','memory_summary_connector','oghma_configuration_id','oghma_extractor_enabled','relationship_enabled','relationship_configuration_id'])
 context_values=dict(values); context_values.pop('context_section_world',None); context_values.pop('context_detail_npc_summary',None)

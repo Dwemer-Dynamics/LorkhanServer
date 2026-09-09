@@ -69,6 +69,7 @@ $contextGroups = [
     ]],
     'Character Subsections' => ['details', [
         'npc_summary' => ['<basic_summary>', 'Core background summary or short biography.'],
+        'npc_groups' => ['<groups>', 'Faction membership summary inside the character sheet.'],
         'npc_personality' => ['<personality>', 'Behavioral traits, psychology, and temperament.'],
         'npc_relationships' => ['<relationships>', 'Named relationships and relevant social ties.'],
         'npc_occupation' => ['<occupation>', 'Job, societal role, or current profession.'],

@@ -599,6 +599,20 @@ final class PromptAssembler
         }
         $state = is_array(($turn['payload']['context']['targetState'] ?? null))
             ? $turn['payload']['context']['targetState'] : [];
+        if ($details['npc_groups']) {
+            // TES3 faction IDs are authoritative; never invent descriptions for missing catalog entries.
+            $factionNames = [];
+            $primary = $state['identity']['primary_faction'] ?? null;
+            if (is_string($primary) && trim($primary) !== '') $factionNames[mb_strtolower(trim($primary))] = mb_substr(trim($primary), 0, 256);
+            foreach (array_slice(is_array($state['factions'] ?? null) ? $state['factions'] : [], 0, 64) as $faction) {
+                if (!is_array($faction) || (isset($faction['rank']) && is_numeric($faction['rank']) && (float)$faction['rank'] < 0)) continue;
+                $id = $faction['id'] ?? null;
+                if (is_string($id) && trim($id) !== '') $factionNames[mb_strtolower(trim($id))] = mb_substr(trim($id), 0, 256);
+            }
+            if ($factionNames !== []) $xml .= $this->xmlTag('groups', implode(', ', array_values($factionNames)));
+        }
+        // The groups selector owns the responder faction, not the player's separate identity.
+        if (is_array($state['identity'] ?? null)) unset($state['identity']['primary_faction']);
         if ($details['npc_rpg_skills'] && is_array($state['skills'] ?? null)) {
             // Mirror Herika's proficiency bands using the observed TES3 skill catalog.
             $categories = [

@@ -1119,6 +1119,21 @@ foreach (['builtin:default'=>true,'builtin:local_llm'=>false] as $presetId=>$inc
     $skillPrompt=(new PromptAssembler(16384,1024))->assemble($skillTurn,$skillSelection)['provider_input']['_assembled_prompt'];
     $check(str_contains($skillPrompt,'Long Blade (Adept)')===$includeSkills,'built-in context preset controls real observed RPG skill output');
 }
+$groupsTurn=$contextTurn;
+$groupsTurn['payload']['context']['targetState']=['identity'=>['primary_faction'=>'UniqueFaction'], 'factions'=>[['id'=>'UniqueFaction','rank'=>1],['id'=>'OtherFaction','rank'=>0],['id'=>'DepartedFaction','rank'=>-1]]];
+$groupsSelection=$promptSelection;
+$groupsSelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
+$groupsPrompt=(new PromptAssembler(16384,1024))->assemble($groupsTurn,$groupsSelection)['provider_input']['_assembled_prompt'];
+$check(substr_count($groupsPrompt,'UniqueFaction')===1 && str_contains($groupsPrompt,'OtherFaction') && !str_contains($groupsPrompt,'DepartedFaction'),'groups deduplicates primary faction and omits negative membership ranks');
+$groupsSelection['effective_settings']['context']['details']['npc_groups']=false;
+$groupsPrompt=(new PromptAssembler(16384,1024))->assemble($groupsTurn,$groupsSelection)['provider_input']['_assembled_prompt'];
+$check(!str_contains($groupsPrompt,'UniqueFaction')&&!str_contains($groupsPrompt,'OtherFaction'),'disabled groups does not leak responder primary faction through actor state');
+foreach ([true,false] as $legacyState) {
+    unset($groupsSelection['effective_settings']['context']['details']['npc_groups']);
+    $groupsSelection['effective_settings']['context']['details']['npc_current_state']=$legacyState;
+    $groupsPrompt=(new PromptAssembler(16384,1024))->assemble($groupsTurn,$groupsSelection)['provider_input']['_assembled_prompt'];
+    $check(str_contains($groupsPrompt,'UniqueFaction')===$legacyState,'legacy current-state choice retains faction visibility');
+}
 $inventorySelection=$promptSelection;
 $inventorySelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
 $inventorySelection['effective_settings']['context']['details']['npc_inventory']=false;

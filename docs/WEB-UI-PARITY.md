@@ -9948,3 +9948,28 @@ All 811 deployed runtime hashes match; private routes 403, unpaired API 401;
 configuration, credentials and voices preserved. No game or live-provider calls.
 Character group remains OPEN for faction and memory/group consumers and native
 extra controls; quest-manager fields remain release exclusions. Goal still active.
+### Faction membership selector (2026-09-08)
+
+Added groups after basic_summary with the exact reference label/help. The first
+three desktop Character rows now have the same controls and order. Observed TES3
+faction IDs are bounded/deduplicated and negative membership ranks omitted. The
+responder primary faction is removed from generic current_state output, so disabling
+groups does not leak it there. The player's separate identity is unchanged.
+Legacy documents derive groups visibility from their current-state choice; enabled
+legacy state now includes all observed memberships, not only the primary faction.
+Default preset enables groups; Local disables it. No private settings rewrite.
+
+862 checks pass with duplicate/negative-rank cases, disabled-primary leak protection
+and legacy visibility. HTTP forms (38 unique context controls), full integration,
+173-relation inventory, migrations and durable jobs pass (groups-context-http.txt,
+groups-context-integration.txt). Read-only groups-context-proof.cjs exercises the
+checkbox with mouse/keyboard at 1280/390. Both desktop groups and native narrow
+capture were inspected. No horizontal overflow; narrow element capture retains
+the previously documented fixed-header overlap and is not full-page proof.
+
+Deployment preserves private data and all 811 runtime hashes match; private 403,
+unpaired 401. No game or live-provider calls. Faction CONTENT parity remains OPEN:
+Herika resolves description-backed display names; native output currently uses
+observed TES3 record IDs. This is a remaining implementation task, not a permanent
+product exception. Lower-row memory/group and native extra controls also remain
+open, alongside the larger page matrix. Goal active.
