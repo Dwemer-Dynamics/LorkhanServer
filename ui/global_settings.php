@@ -73,6 +73,7 @@ $contextGroups = [
         'npc_relationships' => ['<relationships>', 'Named relationships and relevant social ties.'],
         'npc_occupation' => ['<occupation>', 'Job, societal role, or current profession.'],
         'npc_skills' => ['<skills>', 'Narrative skills, talents, and expertise.'],
+        'npc_rpg_skills' => ['<rpg_skills>', 'RPG-style skill proficiencies and levels.'],
         'npc_speech_style' => ['<speech_style>', 'Speaking style and communication habits.'],
         'npc_goals' => ['<goals>', 'Current ambitions, motivations, and long-term aims.'],
         'npc_moods' => ['Allowed Moods & Emotes', 'Allowed moods and emotes from the speaker profile.'],

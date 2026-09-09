@@ -1101,6 +1101,24 @@ foreach ([true,false] as $legacyEnabled) {
     foreach (['UniqueMoodToken','UniqueGoalToken','UniqueRelationshipToken','UniqueNotesToken'] as $candidate)
         $check(str_contains($rendered,$candidate)===$legacyEnabled,'legacy frozen profile selections retain combined values');
 }
+$skillTurn=$contextTurn;
+$skillTurn['payload']['context']['targetState']['skills']=['longblade'=>['base'=>49,'modified'=>50], 'block'=>['base'=>24], 'spear'=>['base'=>25], 'alchemy'=>['base'=>75], 'sneak'=>['base'=>100], 'unknown'=>['base'=>100], 'security'=>['base'=>'bad']];
+$skillSelection=$promptSelection;
+$skillSelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
+$skillPrompt=(new PromptAssembler(16384,1024))->assemble($skillTurn,$skillSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($skillPrompt,'Long Blade (Adept)') && str_contains($skillPrompt,'Block (Novice)') && str_contains($skillPrompt,'Spear (Apprentice)') && str_contains($skillPrompt,'Alchemy (Expert)') && str_contains($skillPrompt,'Sneak (Master)'),'observed TES3 skills use Herika proficiency bands and modified skill values');
+$check(!str_contains($skillPrompt,'Unknown (Master)')&&!str_contains($skillPrompt,'Security ('),'unknown and malformed observed skills are omitted');
+foreach ([false,null] as $enabled) {
+    if ($enabled===null) unset($skillSelection['effective_settings']['context']['details']['npc_rpg_skills']);
+    else $skillSelection['effective_settings']['context']['details']['npc_rpg_skills']=$enabled;
+    $skillPrompt=(new PromptAssembler(16384,1024))->assemble($skillTurn,$skillSelection)['provider_input']['_assembled_prompt'];
+    $check(!str_contains($skillPrompt,'Long Blade (Adept)'),'disabled or legacy RPG skill selection preserves omitted observed skills');
+}
+foreach (['builtin:default'=>true,'builtin:local_llm'=>false] as $presetId=>$includeSkills) {
+    $skillSelection['effective_settings']['context']=\LorkhanServer\Application\GlobalSettingsPreset::applyBuiltIn($presetId,\LorkhanServer\Application\SettingsCatalog::globalDefaults())['context'];
+    $skillPrompt=(new PromptAssembler(16384,1024))->assemble($skillTurn,$skillSelection)['provider_input']['_assembled_prompt'];
+    $check(str_contains($skillPrompt,'Long Blade (Adept)')===$includeSkills,'built-in context preset controls real observed RPG skill output');
+}
 $inventorySelection=$promptSelection;
 $inventorySelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
 $inventorySelection['effective_settings']['context']['details']['npc_inventory']=false;

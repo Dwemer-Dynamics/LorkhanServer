@@ -599,6 +599,28 @@ final class PromptAssembler
         }
         $state = is_array(($turn['payload']['context']['targetState'] ?? null))
             ? $turn['payload']['context']['targetState'] : [];
+        if ($details['npc_rpg_skills'] && is_array($state['skills'] ?? null)) {
+            // Mirror Herika's proficiency bands using the observed TES3 skill catalog.
+            $categories = [
+                'Combat' => ['block'=>'Block','armorer'=>'Armorer','mediumarmor'=>'Medium Armor','heavyarmor'=>'Heavy Armor','bluntweapon'=>'Blunt Weapon','longblade'=>'Long Blade','axe'=>'Axe','spear'=>'Spear','athletics'=>'Athletics'],
+                'Magic' => ['enchant'=>'Enchant','destruction'=>'Destruction','alteration'=>'Alteration','illusion'=>'Illusion','conjuration'=>'Conjuration','mysticism'=>'Mysticism','restoration'=>'Restoration','alchemy'=>'Alchemy','unarmored'=>'Unarmored'],
+                'Stealth' => ['security'=>'Security','sneak'=>'Sneak','acrobatics'=>'Acrobatics','lightarmor'=>'Light Armor','shortblade'=>'Short Blade','marksman'=>'Marksman','mercantile'=>'Mercantile','speechcraft'=>'Speechcraft','handtohand'=>'Hand-to-hand'],
+            ];
+            $skillsXml = '';
+            foreach ($categories as $category => $skills) {
+                $entries = [];
+                foreach ($skills as $key => $label) {
+                    $observed = $state['skills'][$key] ?? null;
+                    if (!is_array($observed)) continue;
+                    $value = $observed['modified'] ?? $observed['base'] ?? null;
+                    if ((!is_int($value) && !is_float($value)) || !is_finite((float)$value)) continue;
+                    $level = match (true) { $value >= 100 => 'Master', $value >= 75 => 'Expert', $value >= 50 => 'Adept', $value >= 25 => 'Apprentice', default => 'Novice' };
+                    $entries[] = $label . ' (' . $level . ')';
+                }
+                if ($entries !== []) $skillsXml .= $this->xmlTag(strtolower($category), implode(', ', $entries));
+            }
+            if ($skillsXml !== '') $xml .= '<rpg_skills>' . $skillsXml . '</rpg_skills>';
+        }
         $stateXml = $details['npc_current_state'] ? $this->actorStateXml($state, ['activity', 'disposition', 'health', 'health_percent'],
             $details['npc_equipment'], $details['npc_inventory'], $details['npc_magic_effects'], $itemBlacklist, $magicBlacklist) : '';
         if ($stateXml !== '') $xml .= '<current_state>' . $stateXml . '</current_state>';

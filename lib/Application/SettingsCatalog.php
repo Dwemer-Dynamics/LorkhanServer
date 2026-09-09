@@ -82,6 +82,7 @@ final class SettingsCatalog
         'npc_appearance' => true,
         'npc_occupation' => true,
         'npc_skills' => true,
+        'npc_rpg_skills' => true,
         'npc_speech_style' => true,
         'npc_moods' => true,
         'npc_goals' => true,
@@ -252,6 +253,8 @@ final class SettingsCatalog
             $details[$first] = $details[$second] = $details[$old];
             unset($details[$old]);
         }
+        // Older documents never emitted observed RPG skills; retain that omission.
+        if (!array_key_exists('npc_rpg_skills', $details)) $details['npc_rpg_skills'] = false;
         return $details;
     }
 

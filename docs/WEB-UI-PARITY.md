@@ -9920,3 +9920,31 @@ hashes match and private/unpaired access checks remain 403/401. No game or provi
 calls. HTTP form suite passed before the additional mixed-selection persistence
 assertion; final result is recorded below after that assertion is run.
 Final mixed-selection save/reload HTTP assertion passes (profile-context-http-final.txt).
+
+### Observed RPG Skills context card (2026-09-08)
+
+Added the reference rpg_skills card after narrative skills, with matching label and
+help. The OpenMW adapter already sends all 27 TES3 skills as base/modified values;
+PromptAssembler now renders this selected speaker context using the reference
+Novice/Apprentice/Adept/Expert/Master thresholds (25/50/75/100). Categories and names
+use TES3 Combat/Magic/Stealth skills instead of Skyrim-only skills. Values are
+allowlisted, finite numeric observations only; no invented skills or empty section.
+
+Default preset enables this independent card; Local disables it. Legacy documents,
+presets and frozen snapshots lacking the field normalize to false, retaining the
+previous omission of observed skills. No live saved-settings rewrite. The existing
+narrative skills selector remains independent.
+
+858 checks pass, including all proficiency bands, modified-over-base precedence,
+unknown/malformed omission, legacy/disabled output and actual Default/Local prompt
+content. HTTP forms (37 unique context controls), integration, 173-relation inventory,
+migrations and durable jobs pass: rpg-context-http.txt and rpg-context-integration.txt.
+Read-only rpg-context-proof.cjs checks keyboard/mouse at 1280/390. Both desktop
+Character groups and native narrow capture were inspected; shared card wording and
+structure match, while full-group placement still differs due to missing controls.
+Fixed-header overlap in the narrow element capture is not whole-page proof.
+
+All 811 deployed runtime hashes match; private routes 403, unpaired API 401;
+configuration, credentials and voices preserved. No game or live-provider calls.
+Character group remains OPEN for faction and memory/group consumers and native
+extra controls; quest-manager fields remain release exclusions. Goal still active.
