@@ -9842,3 +9842,30 @@ configuration/credentials/voices preserved. No provider call, private browser sa
 or game launch/control. Remaining appearance work includes separate activity and
 condition, target equipment, spell/effect choices and other context fields, plus
 Player2 and whole-page closure. The overall goal remains active.
+
+### Context group placement and shared wording (2026-09-08)
+
+Moved the existing appearance selector to the first card in Appearance / State,
+matching the reference grouping. Shared Character, Nearby Actor and Nearby Item
+labels and descriptions now use the reference wording. Equipment precedes activity
+in Nearby Actor Details. All 34 canonical controls retain their values and save
+behavior; this checkpoint changes presentation only.
+
+Evidence: PHP lint and 828 server checks pass; management HTTP forms pass
+(context-labels-http.txt). context-labels-proof.cjs checks 1280/390 layouts and
+independent equipment/inventory mouse and keyboard states without saving. Desktop
+Character and Appearance captures were inspected, along with both Nearby Item
+captures and the native mobile Character capture. Nearby Item card geometry and
+wording match; its saved checked values differ between installations. The mobile
+element capture has the fixed navbar over its first heading and is not evidence
+of full-page visual closure. No horizontal overflow was reported by the driver.
+All 811 deployed file hashes match; private routes return 403 and unpaired API
+requests return 401. No private settings save, provider request or game control.
+
+Character and Appearance groups remain OPEN: combined mood/goals and relationship
+controls and missing reference fields still need actual consumer mapping. In
+particular, npc_current_state currently gates the target NPC's entire actorStateXml
+(including items and magic), while player state bypasses that master gate. Do not
+replace it with activity/condition toggles until reference actor ownership and
+existing saved false behavior are traced. No dummy controls were added to mimic
+the reference's card count. Overall page-by-page parity remains incomplete.
