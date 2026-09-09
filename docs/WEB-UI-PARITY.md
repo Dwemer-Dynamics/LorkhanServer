@@ -9559,3 +9559,19 @@ matched, no extra/old paths, private403/unpaired401 checks passed. No game launc
 Still open: end-to-end in-game acceptance, narrator's changed-text prompt parity,
 NPC quest override exposure, broader speaker-selection behavior and full Core
 editor comparison. This does not close physical diaries or other matrix rows.
+
+
+### NPC Quest override choices (2026-09-08)
+
+NPC settings now expose Quest Comment and Quest Comment Chance using the same
+resolver consumed by quest_event. Explicit NPC false overrides Core true. The
+chance picker offers only10/25/50/75/100, stores integers and displays percent
+labels; returning to a boolean field rebuilds On/Off options correctly. Removing
+the leaves restores Core inheritance. Raw JSON rejects non-choice values.
+
+801 server checks passed; existing HTTP suite verified false/25 round-trip,
+ordinary-save preservation, removal, invalid30 and string-false rejection.
+Native browser1280/390 verified choice-to-boolean switching, raw JSON rejection
+and removal without writes; both populated screenshots inspected. All810
+deployed runtime files match; private/access checks passed. This closes the
+NPC quest-override exposure gap, not whole-editor visual parity. No game launch.

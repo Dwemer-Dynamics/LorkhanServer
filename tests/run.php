@@ -2212,6 +2212,10 @@ $check($questResolved['settings']['quest_comments']===['enabled'=>false,'chance_
     &&$questResolved['sources']['settings.quest_comments.enabled']==='core_profile'
     &&!isset(EffectiveSettingsResolver::controlsProjection($questResolved)['settings']['quest_comments']),
     'Core Quest Comment disabled overrides global enable without changing narrator controls');
+$questNpc=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['quest_comments'=>['enabled'=>true,'chance_percent'=>100]]],$questCore);
+$check($questNpc['settings']['quest_comments']===['enabled'=>false,'chance_percent'=>25]
+    &&$questNpc['sources']['settings.quest_comments.enabled']==='npc',
+    'NPC Quest Comment false overrides Core true and retains discrete chance');
 $questPreset=\LorkhanServer\Application\CoreProfilePreset::capture($questCore);
 $check(\LorkhanServer\Application\CoreProfilePreset::apply($questPreset,$corePresetSource)['settings_overrides']['quest_comments']===['enabled'=>false,'chance_percent'=>25],
     'Quest Comment false and selected chance survive named presets');

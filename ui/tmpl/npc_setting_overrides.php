@@ -2,6 +2,7 @@
 declare(strict_types=1);
 // Current rows and modal structure derive from Herika's NPC override_editor.php.
 $overrideLabels = [
+    'quest_comments.enabled'=>'Quest Comment', 'quest_comments.chance_percent'=>'Quest Comment Chance',
     'bored_event.chance_percent'=>'Bored Event Chance',
     'behavior.rechat'=>'Rechat', 'behavior.rechat_max_depth'=>'Rechat Rounds',
     'behavior.rechat_probability_percent'=>'Rechat Probability', 'behavior.rechat_allow_actions'=>'Rechat Actions',
@@ -17,6 +18,8 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
         $default=$effectiveSettings['settings'][$section][$key]
             ?? \LorkhanServer\Application\SettingsCatalog::clientDefaults()[$section][$key] ?? ($range?0:true);
         $overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>$range?'integer':'boolean','range'=>$range,'value'=>$default];
+        if($path==='quest_comments.chance_percent')$overrideCatalog[$path]=[
+            'label'=>$overrideLabels[$path],'type'=>'choice','choices'=>[10,25,50,75,100],'value'=>$default];
         if(array_key_exists($key,$content['settings_overrides'][$section]??[]))$overrideValues[$section][$key]=$content['settings_overrides'][$section][$key];
     }
 }
