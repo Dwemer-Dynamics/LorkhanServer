@@ -2216,7 +2216,18 @@ $check($zonosMood->invoke(null,null)===array_fill(0,8,0.05)
     &&$zonosMood->invoke(null,'whispering')===array_fill(0,8,0.05)
     &&$zonosMood->invoke(null,'unknown')===array_fill(0,8,0.05),
     'Zonos absent, whispered and unknown moods retain reference fallback values');
-rmdir($voiceRoot);
+$cacheSample=$voiceRoot.'/cache-test.wav';file_put_contents($cacheSample,str_repeat('a',44));
+$cacheLocation=new ReflectionMethod(ZonosGradioSpeechProvider::class,'cacheFile');
+$cachePath=$cacheLocation->invoke(null,$voiceRoot,'http://127.0.0.1:8999','cache-test');
+mkdir(dirname($cachePath));file_put_contents($cachePath,json_encode(['path'=>'/tmp/gradio/sample.wav']));
+$check(ZonosGradioSpeechProvider::cachedVoicePath($voiceRoot,'http://127.0.0.1:8999/','cache-test')==='/tmp/gradio/sample.wav'
+    &&ZonosGradioSpeechProvider::cachedVoicePath($voiceRoot,'http://127.0.0.1:9000','cache-test')===''
+    &&ZonosGradioSpeechProvider::cachedVoicePath($voiceRoot,'http://127.0.0.1:8999','../cache-test')==='',
+    'Zonos upload cache is scoped to the endpoint and confined sample identity');
+file_put_contents($cacheSample,str_repeat('b',44));
+$check(ZonosGradioSpeechProvider::cachedVoicePath($voiceRoot,'http://127.0.0.1:8999','cache-test')==='',
+    'Replacing a voice sample invalidates its Zonos upload cache');
+unlink($cachePath);rmdir(dirname($cachePath));unlink($cacheSample);rmdir($voiceRoot);
 $xvaPreset=['kind'=>'tts_provider','content'=>['driver'=>'xvasynth','endpoint'=>'http://127.0.0.1:8999',
     'model'=>'default','voice'=>'default','language'=>'en-US','timeout_ms'=>30000,'options'=>[]]];
 $check(ProviderFactory::speechForPreset([],$xvaPreset) instanceof XvaSynthSpeechProvider,

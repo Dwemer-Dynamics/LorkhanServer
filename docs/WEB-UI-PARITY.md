@@ -10284,3 +10284,34 @@ Remaining: cached voice state/control, rate/CFG range differences, lower advance
 revision surfaces, and the wider page matrix. Real LLM/Gradio acceptance and a
 focused durable-worker tone capture remain unverified; general integration and
 unit metadata tests do not substitute for those specific runtime checks. Goal active.
+
+### Zonos cached upload and field checkpoint (2026-09-08)
+
+Added automatic private upload records keyed by endpoint, sample basename and
+SHA-256 sample bytes. Reuse checks the remote file with HEAD; expired/unavailable
+cached files re-upload. Sample changes and endpoint changes do not reuse an old
+record. Atomic best-effort writes avoid blocking valid speech on cache write failure;
+concurrent uploads can duplicate work but cannot share an unrelated sample key.
+Records live in the existing protected voice root's .zonos-cache directory. No
+remote deletion, arbitrary local path input, credential access or saved profile edit.
+
+Cached Voice Path now appears after Cfg Scale, restoring every reference Zonos
+field label/order. Its value comes from the selected connector default sample's
+actual upload record; NPC samples retain independent records. It is read-only,
+not the reference's freely editable config string. This interaction difference
+and whether a safe explicit clear action is needed remain in the editor review;
+not declared a completed product exception. No fake populated state persisted.
+
+906 server checks pass, including cache key confinement and sample/endpoint
+invalidation. Full management HTTP suite passes (zonos-cache-http.txt).
+Temporary zonos-cache-probe.py runs an isolated localhost fake Gradio and four
+actual provider synthesis calls: first upload, reuse, changed-sample upload,
+expired-remote upload. Three uploads/two HEADs and valid 100ms WAV outputs verified;
+also checks all eight Dynamic Tones values in real outgoing JSON. No paid service.
+1280/390 empty fields and 390 synthetic populated reference/native screenshots
+inspected (zonos-fields-proof, zonos-narrow-proof, zonos-cache-populated-proof).
+Synthetic population was browser DOM only, not production cache or saved settings.
+
+Deployed; 811 runtime hashes match; private settings/credentials/voices preserved.
+No game control. Remaining Zonos review: read-only cache interaction, rate/CFG
+bounds/help and lower advanced/revision surfaces. Broader page matrix remains open.

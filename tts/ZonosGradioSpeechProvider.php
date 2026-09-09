@@ -55,10 +55,33 @@ final class ZonosGradioSpeechProvider implements SpeechProvider
             || !is_file($realSample) || filesize($realSample) < 44 || filesize($realSample) > 16_777_216) {
             throw new RuntimeException('provider_voice_sample_missing');
         }
-        $upload = $this->request('/gradio_api/upload', ['files' => new CURLFile($realSample, 'audio/wav', basename($realSample))], [], $cancellation);
-        $uploaded = json_decode($upload, true);
-        $remotePath = is_array($uploaded) && is_string($uploaded[0] ?? null) ? $uploaded[0] : '';
-        if ($remotePath === '' || strlen($remotePath) > 2048 || str_contains($remotePath, "\0")) throw new RuntimeException('provider_invalid_output');
+        $remotePath = self::cachedVoicePath($this->voiceRoot, $this->baseUrl, $voice);
+        if ($remotePath !== '') {
+            try {
+                $this->request('/gradio_api/file=' . rawurlencode($remotePath), null, [], $cancellation, true);
+            } catch (OperationCancelled $error) { throw $error;
+            } catch (RuntimeException) { $remotePath = ''; }
+        }
+        if ($remotePath === '') {
+            $upload = $this->request('/gradio_api/upload', ['files' => new CURLFile($realSample, 'audio/wav', basename($realSample))], [], $cancellation);
+            $uploaded = json_decode($upload, true);
+            $remotePath = is_array($uploaded) && is_string($uploaded[0] ?? null) ? $uploaded[0] : '';
+            if ($remotePath === '' || strlen($remotePath) > 2048 || str_contains($remotePath, "\0")) throw new RuntimeException('provider_invalid_output');
+            // Cache failure must not prevent otherwise valid speech. Atomic replacement tolerates concurrent uploads.
+            $cacheFile = self::cacheFile($this->voiceRoot, $this->baseUrl, $voice);
+            if ($cacheFile !== null) {
+                $directory = dirname($cacheFile);
+                if (!is_dir($directory)) @mkdir($directory, 0770);
+                if (is_dir($directory) && !is_link($directory)) {
+                    $temporary = @tempnam($directory, '.upload-');
+                    if ($temporary !== false) {
+                        if (@file_put_contents($temporary, json_encode(['path'=>$remotePath], JSON_THROW_ON_ERROR)) !== false
+                            && @chmod($temporary, 0660)) @rename($temporary, $cacheFile);
+                        if (is_file($temporary)) @unlink($temporary);
+                    }
+                }
+            }
+        }
 
         $data = [$this->model !== '' ? $this->model : 'Zyphra/Zonos-v0.1-hybrid', $text, $language,
             ['meta' => ['_type' => 'gradio.FileData'], 'mime_type' => 'audio/wav', 'orig_name' => basename($realSample),
@@ -137,13 +160,36 @@ final class ZonosGradioSpeechProvider implements SpeechProvider
         return $result;
     }
 
+    /** Read upload state for the current sample without creating files or contacting a provider. */
+    public static function cachedVoicePath(string $root, string $endpoint, string $voice): string
+    {
+        $file = self::cacheFile($root, $endpoint, $voice);
+        if ($file === null || !is_file($file) || is_link($file) || filesize($file) > 4096) return '';
+        $value = json_decode((string)@file_get_contents($file), true);
+        $path = is_array($value) ? ($value['path'] ?? null) : null;
+        return is_string($path) && strlen($path) <= 2048 && !str_contains($path, "\0") ? $path : '';
+    }
+
+    /** Bind a private upload record to endpoint, sample identity and current sample bytes. */
+    private static function cacheFile(string $root, string $endpoint, string $voice): ?string
+    {
+        $root = realpath($root);
+        if ($root === false || preg_match('/^[A-Za-z0-9][A-Za-z0-9_. -]{0,127}$/D', $voice) !== 1) return null;
+        $sample = realpath($root . DIRECTORY_SEPARATOR . $voice . (str_ends_with(strtolower($voice), '.wav') ? '' : '.wav'));
+        if ($sample === false || !str_starts_with($sample, $root . DIRECTORY_SEPARATOR) || !is_file($sample)
+            || filesize($sample) < 44 || filesize($sample) > 16_777_216 || is_link($root . '/.zonos-cache')) return null;
+        $digest = hash_file('sha256', $sample);
+        if ($digest === false) return null;
+        return $root . '/.zonos-cache/' . hash('sha256', rtrim($endpoint, '/') . "\n" . basename($sample) . "\n" . $digest) . '.json';
+    }
+
     /** Execute one same-origin Gradio request with bounded redirects, output, timeout, and cancellation. */
-    private function request(string $path, array|string|null $body, array $headers, CancellationToken $cancellation): string
+    private function request(string $path, array|string|null $body, array $headers, CancellationToken $cancellation, bool $head = false): string
     {
         $url = OutboundUrlPolicy::validate($this->baseUrl . $path, [$this->host], $this->allowLoopbackHttp);
         $handle = curl_init($url);
         if ($handle === false) throw new RuntimeException('provider_unavailable');
-        curl_setopt_array($handle, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => false,
+        curl_setopt_array($handle, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => false, CURLOPT_NOBODY => $head,
             CURLOPT_CONNECTTIMEOUT_MS => min(5000, $this->timeoutMs), CURLOPT_TIMEOUT_MS => $this->timeoutMs,
             CURLOPT_HTTPHEADER => $headers, CURLOPT_NOPROGRESS => false,
             CURLOPT_XFERINFOFUNCTION => static fn($handle, $downloadTotal, $downloaded, $uploadTotal, $uploaded): int =>

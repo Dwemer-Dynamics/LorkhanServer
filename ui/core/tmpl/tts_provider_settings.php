@@ -15,7 +15,7 @@ $primaryFields = [
     'melotts'=>['language','option__speed'], 'mimic3'=>['option__rate'],
     'piper-tts'=>['option__length_scale','option__noise_scale','option__noise_w_scale','option__speaker','option__speaker_id'],
     'xvasynth'=>['language','option__model_type','option__version','option__game','option__pace','option__waveglow_path','option__vocoder','option__distro'],
-    'zonos_gradio'=>['language','model','option__dynamic_tones','option__pitch_std','option__speaking_rate','option__cfg_scale'],
+    'zonos_gradio'=>['language','model','option__dynamic_tones','option__pitch_std','option__speaking_rate','option__cfg_scale','cached_voice_path'],
     'deepgram'=>['option__bitrate'], 'azure'=>['option__fixedMood','option__region','option__volume','option__rate','option__countour','option__validMoods'], 'kokoro'=>['option__speed'], 'koboldcpp'=>[],
 ];
 $providerTitles = ['inworld'=>'Inworld TTS','cartesia'=>'Cartesia TTS','openai'=>'OpenAI TTS',
@@ -119,6 +119,8 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
         <select id="<?php echo lorkhan_ui_h($id); ?>" name="<?php echo lorkhan_ui_h($field['name']); ?>" form="<?php echo lorkhan_ui_h($formId); ?>"<?php echo $active ? '' : ' disabled'; ?>><option value="true"<?php echo $value === true ? ' selected' : ''; ?>>Enabled</option><option value="false"<?php echo $value !== true ? ' selected' : ''; ?>>Disabled</option></select>
     <?php elseif ($type === 'longstring'): ?>
         <textarea id="<?php echo lorkhan_ui_h($id); ?>" name="<?php echo lorkhan_ui_h($field['name']); ?>" maxlength="<?php echo (int)$field['maxlength']; ?>" form="<?php echo lorkhan_ui_h($formId); ?>"<?php echo $active ? '' : ' disabled'; ?>><?php echo lorkhan_ui_h($value); ?></textarea>
+    <?php elseif ($type === 'readonly'): ?>
+        <input id="<?= lorkhan_ui_h($id) ?>" type="text" value="<?= lorkhan_ui_h($value) ?>" readonly>
     <?php else: ?>
         <input id="<?php echo lorkhan_ui_h($id); ?>" name="<?php echo lorkhan_ui_h($field['name']); ?>" type="<?php echo in_array($type, ['number','integer'], true) ? 'number' : 'text'; ?>" value="<?php echo lorkhan_ui_h($value); ?>" form="<?php echo lorkhan_ui_h($formId); ?>"<?php echo $active ? '' : ' disabled'; ?>
             <?php if (in_array($type, ['number','integer'], true)): ?>step="<?php echo $type === 'integer' ? '1' : 'any'; ?>" min="<?php echo lorkhan_ui_h($field['minimum']); ?>" max="<?php echo lorkhan_ui_h($field['maximum']); ?>"<?php else: ?>maxlength="<?php echo (int)($field['maxlength'] ?? 512); ?>"<?php endif; ?>>
@@ -157,9 +159,14 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
         $fields['option__paralinguistic_tags_prompt']['help']='Prompt snippet instructing the LLM to use paralinguistic tags. Added to system prompt when enabled.';
         $fields['option__paralinguistic_tags_list']['help']='Comma-separated list of supported paralinguistic tags (e.g., [laugh],[sigh],[gasp]). Tags are case-insensitive.';
     }
+    if ($providerDriver === 'zonos_gradio') $fields['cached_voice_path'] = [
+        'name'=>'cached_voice_path','label'=>'Cached Voice Path','type'=>'readonly',
+        'help'=>'Path to the sample audio stored in Zonos. Set automatically for this connector\'s default voice; NPC voices use separate cached uploads.'];
     $primary = $primaryFields[$providerDriver] ?? array_keys($fields);
     $advanced = array_diff(array_keys($fields), $primary);
     $values = $providerContent + $connectorDefaults[$providerDriver] + ['timeout_ms'=>30000];
+    if ($providerDriver === 'zonos_gradio') $values['cached_voice_path'] = \LorkhanServer\Application\ZonosGradioSpeechProvider::cachedVoicePath(
+        (string)($config['voice_storage_path'] ?? ''), (string)$values['endpoint'], (string)$values['voice']);
     foreach ($providerOptions as $name=>$value) $values['option__'.$name]=$value;
     if (in_array($providerDriver,['chatterbox','xtts-fastapi'],true)) $values += [
         'option__paralinguistic_tags_list'=>\LorkhanServer\Application\ParalinguisticSpeech::DEFAULT_TAGS];
