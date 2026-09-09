@@ -2962,12 +2962,16 @@ assert not qs_local_export['memory_policies']['summary']['enabled'] and not qs_l
 assert qs_global['profile_management']['autofill_custom_profiles'] is False
 assert qs_global['relationship']=={'enabled':False,'update_chance_percent':0}
 assert qs_global['context']['ground_items_descriptions_only'] and qs_global['context']['inventory_items_descriptions_only']
+assert not qs_global['context']['sections']['points_of_interest'] and not qs_global['context']['details']['nearby_actor_summary']
+assert qs_global['context']['details']['nearby_actor_activity'] and qs_global['context']['details']['group_duplicate_items']
 r=request(qs_form['action'],'POST',dict(fields,_csrf=csrf,settings_preset='builtin:default')); body=r.read().decode()
 assert r.status==200 and 'Quickstart settings saved.' in body,(r.status,body)
 qs_default=json.load(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json'))['settings']
 assert qs_default['profile_management']['autofill_custom_profiles'] is True
 assert qs_default['relationship']=={'enabled':True,'update_chance_percent':50}
 assert not qs_default['context']['ground_items_descriptions_only'] and not qs_default['context']['inventory_items_descriptions_only']
+assert qs_default['context']['sections']['points_of_interest'] and qs_default['context']['details']['nearby_actor_summary']
+assert qs_default['context']['details']['item_descriptions'] and not qs_default['context']['details']['group_duplicate_items']
 assert qs_default['system_routing']==qs_global['system_routing']
 qs_default_export=json.load(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json'))
 assert qs_default_export['memory_policies']['summary']['enabled'] and qs_default_export['memory_policies']['embedding']['enabled']

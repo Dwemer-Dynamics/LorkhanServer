@@ -1034,6 +1034,17 @@ $check(str_contains($contextPrompt,'### World')&&str_contains($contextPrompt,'- 
     &&str_contains($contextPrompt,'### Points Of Interest')&&str_contains($contextPrompt,'- **Lock Level:** 20')
     &&!str_contains($contextPrompt,'**Position:**')&&!str_contains($contextPrompt,'**X:**'),
     'OpenMW world, actors, items, and points of interest render as bounded semantic Markdown');
+$presetContextTurn=$contextTurn;
+$presetContextTurn['_item_descriptions']=[['record_id'=>'ingred_bc_bungler_bane_01','content_file'=>'Morrowind.esm','description'=>'A pale fungus growing on trees.']];
+$presetContextSelection=$promptSelection;$presetContextSelection['profile']['content']['skills']='Sneaking past guards.';
+$localContextSettings=\LorkhanServer\Application\GlobalSettingsPreset::applyBuiltIn('builtin:local_llm',\LorkhanServer\Application\SettingsCatalog::globalDefaults());
+$presetContextSelection['effective_settings']['context']=$localContextSettings['context'];
+$localContextPrompt=(new PromptAssembler(16384,1024))->assemble($presetContextTurn,$presetContextSelection)['provider_input']['_assembled_prompt'];
+$check(!str_contains($localContextPrompt,'Census and Excise Office')&&!str_contains($localContextPrompt,'A watchful Imperial guard.')&&!str_contains($localContextPrompt,'Iron Saber')&&!str_contains($localContextPrompt,'Sneaking past guards.')&&!str_contains($localContextPrompt,'A pale fungus growing on trees.'),'Local preset removes optional POI, nearby biography/equipment, skills and item prose from the real prompt');
+$check(str_contains($localContextPrompt,'Seyda Neen')&&str_contains($localContextPrompt,'wander')&&str_contains($localContextPrompt,"Bungler's Bane")&&str_contains($localContextPrompt,'Fargoth'),'Local preset retains location, nearby activity, described item names and responder identity');
+$presetContextSelection['effective_settings']['context']=\LorkhanServer\Application\GlobalSettingsPreset::applyBuiltIn('builtin:default',$localContextSettings)['context'];
+$defaultContextPrompt=(new PromptAssembler(16384,1024))->assemble($presetContextTurn,$presetContextSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($defaultContextPrompt,'Census and Excise Office')&&str_contains($defaultContextPrompt,'A watchful Imperial guard.')&&str_contains($defaultContextPrompt,'Iron Saber')&&str_contains($defaultContextPrompt,'Sneaking past guards.')&&str_contains($defaultContextPrompt,'A pale fungus growing on trees.'),'Default restores the shared optional prompt details');
 $inventoryTurn=$contextTurn;
 $inventoryTurn['payload']['context']['inventory']=['items'=>[['record_id'=>'native_inventory_ring','display_name'=>'Native Inventory Ring','count'=>3]]];
 $inventoryPrompt=(new PromptAssembler(16384,1024))->assemble($inventoryTurn,$promptSelection)['provider_input']['_assembled_prompt'];

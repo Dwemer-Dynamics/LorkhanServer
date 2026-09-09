@@ -47,6 +47,13 @@ final class GlobalSettingsPreset
         $settings['context']['prompt_timestamp']=false;
         $settings['context']['ground_items_descriptions_only']=$local;
         $settings['context']['inventory_items_descriptions_only']=$local;
+        // These options have direct native prompt consumers; do not conflate history or memory with character subsections.
+        $settings['context']['sections']['points_of_interest']=!$local;
+        foreach(['world','oghma','nearby_actors','nearby_items'] as $section)$settings['context']['sections'][$section]=true;
+        foreach(['npc_skills','nearby_actor_summary','nearby_actor_personality','nearby_actor_appearance',
+            'nearby_actor_occupation','nearby_actor_equipment','item_descriptions'] as $detail)$settings['context']['details'][$detail]=!$local;
+        $settings['context']['details']['nearby_actor_activity']=true;
+        $settings['context']['details']['group_duplicate_items']=$local;
         return EffectiveSettingsResolver::validateGlobalSettings($settings);
     }
 

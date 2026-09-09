@@ -9776,3 +9776,32 @@ preserved. No real provider test, private browser save or game launch/control.
 Still open: context preset selection, other connector-availability feature gates,
 Player2, recap/general connector details, empty-installation setup and complete
 Quickstart/all-page closure. The overall goal is not complete.
+
+
+### Quickstart shared context selections (2026-09-08)
+
+Mapped reference Local's explicit prompt-context allowlists to existing native
+consumers. Local omits points of interest, skills, nearby actor profile/appearance/
+equipment and ground item prose; retains world/knowledge, nearby actors/items and
+nearby activity; groups duplicate items. Default restores those shared optional
+details and leaves duplicate grouping off, matching reference's default_enabled
+false for that option. User blacklists and separate history/memory selections are
+not conflated with character subsections.
+
+Evidence: 819 checks pass. The existing populated context fixture now assembles
+both presets through the real PromptAssembler. Local omits the actual door name,
+guard biography, saber, skill sentence and mushroom prose; retains location,
+activity, item name and responder identity. Default restores the omitted details.
+The existing HTTP suite checks persisted Local/Default POI, nearby summary,
+activity, description and grouping values (`quickstart-context-http.txt`). Full
+integration, 173-relation inventory, migrations and durable jobs pass
+(`quickstart-context-integration.txt`). Deployed all 811 runtime hashes match;
+private routes/auth pass, configuration/credentials/voice content preserved.
+
+No markup/style changes in this checkpoint, so no new visual parity claim. The
+prior Default/Local visual and interaction states remain the presentation baseline.
+No game launch/control or real-provider/private-browser save was performed.
+Remaining: native equipment/inventory is one switch while reference separates
+them; other character/general/appearance fields and connector availability remain
+open, alongside Player2 and complete Quickstart/all-page closure. This shared
+mapping is progress, not complete context parity.
