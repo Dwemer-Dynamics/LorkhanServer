@@ -83,8 +83,10 @@ final class SettingsCatalog
         'npc_occupation' => true,
         'npc_skills' => true,
         'npc_speech_style' => true,
-        'npc_moods_goals' => true,
-        'npc_relationships_notes' => true,
+        'npc_moods' => true,
+        'npc_goals' => true,
+        'npc_relationships' => true,
+        'npc_notes' => true,
         'npc_race_gender' => true,
         'npc_current_state' => true,
         'npc_equipment' => true,
@@ -242,6 +244,13 @@ final class SettingsCatalog
                 throw new \InvalidArgumentException('invalid_global_settings');
             unset($details['npc_equipment_inventory']);
             $details['npc_equipment']=$legacy;$details['npc_inventory']=$legacy;
+        }
+        foreach (['npc_moods_goals' => ['npc_moods', 'npc_goals'], 'npc_relationships_notes' => ['npc_relationships', 'npc_notes']] as $old => [$first, $second]) {
+            if (!array_key_exists($old, $details)) continue;
+            if (!is_bool($details[$old]) || array_key_exists($first, $details) || array_key_exists($second, $details))
+                throw new \InvalidArgumentException('invalid_global_settings');
+            $details[$first] = $details[$second] = $details[$old];
+            unset($details[$old]);
         }
         return $details;
     }

@@ -1288,12 +1288,15 @@ assert '<option value="https://api-free.deepl.com/v2/translate" selected>Free ac
 assert 'translates NPC subtitles and speech audio' in body and not any(name in body for name in ['translation_player_audio','translation_save_player_text','translation_player_source_language','translation_player_target_language'])
 translation_values=dict(values,translation_provider='deepl',translation_text='1')
 context_names=re.findall(r'name="(context_(?:section|detail)_[a-z_]+)"',body)
-assert len(context_names)==len(set(context_names))==34
+assert len(context_names)==len(set(context_names))==36
 assert all(title in body for title in ['Top-Level Sections','Character Subsections','Appearance / State Subsections','Nearby Actor Details','Nearby Item Details'])
 assert all(len(re.findall(r'name="'+field+r'"',body))==1 for field in ['memory_summary_enabled','memory_summary_connector','oghma_configuration_id','oghma_extractor_enabled','relationship_enabled','relationship_configuration_id'])
 context_values=dict(values); context_values.pop('context_section_world',None); context_values.pop('context_detail_npc_summary',None)
+context_values.update(context_detail_npc_goals='1',context_detail_npc_relationships='1')
+context_values.pop('context_detail_npc_moods',None); context_values.pop('context_detail_npc_notes',None)
 r=request(settings_form['action'],'POST',context_values); assert r.status==200,r.status
 _,context_body=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+assert all(('name="context_detail_'+key+'" value="1" checked' in context_body)==enabled for key,enabled in [('npc_goals',True),('npc_relationships',True),('npc_moods',False),('npc_notes',False)])
 assert 'name="context_section_world" value="1" checked' not in context_body and 'name="context_detail_npc_summary" value="1" checked' not in context_body
 r=request(settings_form['action'],'POST',translation_values); invalid_body=r.read().decode()
 assert r.status==422 and 'invalid_translation_activation' in invalid_body,(r.status,invalid_body)

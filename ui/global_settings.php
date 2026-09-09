@@ -70,11 +70,13 @@ $contextGroups = [
     'Character Subsections' => ['details', [
         'npc_summary' => ['<basic_summary>', 'Core background summary or short biography.'],
         'npc_personality' => ['<personality>', 'Behavioral traits, psychology, and temperament.'],
+        'npc_relationships' => ['<relationships>', 'Named relationships and relevant social ties.'],
         'npc_occupation' => ['<occupation>', 'Job, societal role, or current profession.'],
         'npc_skills' => ['<skills>', 'Narrative skills, talents, and expertise.'],
         'npc_speech_style' => ['<speech_style>', 'Speaking style and communication habits.'],
-        'npc_moods_goals' => ['Moods & Goals', 'Allowed moods, emotes and personal goals.'],
-        'npc_relationships_notes' => ['Relationships & Notes', 'Profile relationship text and additional notes.'],
+        'npc_goals' => ['<goals>', 'Current ambitions, motivations, and long-term aims.'],
+        'npc_moods' => ['Allowed Moods & Emotes', 'Allowed moods and emotes from the speaker profile.'],
+        'npc_notes' => ['Notes', 'Additional notes from the speaker profile.'],
         'npc_race_gender' => ['Race & Gender', 'The speaker’s race and gender.'],
     ]],
     'Appearance / State Subsections' => ['details', [

@@ -2275,6 +2275,10 @@ final class ManagementRouter
         if(isset($values['context_detail_npc_equipment_inventory'])&&!isset($values['context_detail_npc_equipment'])&&!isset($values['context_detail_npc_inventory'])){
             $content['context']['details']['npc_equipment']=true;$content['context']['details']['npc_inventory']=true;
         }
+        foreach (['npc_moods_goals' => ['npc_moods', 'npc_goals'], 'npc_relationships_notes' => ['npc_relationships', 'npc_notes']] as $old => [$first, $second]) {
+            if (isset($values['context_detail_'.$old]) && !isset($values['context_detail_'.$first]) && !isset($values['context_detail_'.$second]))
+                $content['context']['details'][$first] = $content['context']['details'][$second] = true;
+        }
         $content['context']['prompt_timestamp'] = isset($values['context_prompt_timestamp']);
         $content['context']['ground_items_descriptions_only'] = isset($values['context_ground_items_descriptions_only']);
         $content['context']['inventory_items_descriptions_only'] = isset($values['context_inventory_items_descriptions_only']);

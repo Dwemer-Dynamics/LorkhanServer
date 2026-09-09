@@ -1081,6 +1081,26 @@ unset($splitSelection['effective_settings']['context']['details']['npc_equipment
 $splitSelection['effective_settings']['context']['details']['npc_equipment_inventory']=false;
 $splitPrompt=(new PromptAssembler(16384,1024))->assemble($splitTurn,$splitSelection)['provider_input']['_assembled_prompt'];
 $check(!str_contains($splitPrompt,'Player Equipped Boots')&&!str_contains($splitPrompt,'NPC Inventory Coin'),'frozen legacy prompt snapshots retain their combined disabled selection');
+// Independent profile subsections preserve old combined documents without coupling new choices.
+$profileDetailsSelection=$promptSelection;
+$profileDetailsSelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
+$profileDetailsSelection['profile']['content']=array_merge($profileDetailsSelection['profile']['content']??[],[
+    'emote_moods'=>'UniqueMoodToken', 'goals'=>'UniqueGoalToken', 'relationships'=>'UniqueRelationshipToken', 'notes'=>'UniqueNotesToken']);
+foreach (['npc_moods'=>'UniqueMoodToken','npc_goals'=>'UniqueGoalToken','npc_relationships'=>'UniqueRelationshipToken','npc_notes'=>'UniqueNotesToken'] as $selected=>$text) {
+    foreach (['npc_moods','npc_goals','npc_relationships','npc_notes'] as $key) $profileDetailsSelection['effective_settings']['context']['details'][$key]=$key===$selected;
+    $rendered=(new PromptAssembler(16384,1024))->assemble($contextTurn,$profileDetailsSelection)['provider_input']['_assembled_prompt'];
+    foreach (['UniqueMoodToken','UniqueGoalToken','UniqueRelationshipToken','UniqueNotesToken'] as $candidate)
+        $check(str_contains($rendered,$candidate)===($candidate===$text),'profile context selector includes only its independent content');
+}
+foreach ([true,false] as $legacyEnabled) {
+    $legacyDetails=\LorkhanServer\Application\SettingsCatalog::contextDetailDefaults();
+    foreach (['npc_moods','npc_goals','npc_relationships','npc_notes'] as $key) unset($legacyDetails[$key]);
+    $legacyDetails['npc_moods_goals']=$legacyDetails['npc_relationships_notes']=$legacyEnabled;
+    $profileDetailsSelection['effective_settings']['context']['details']=$legacyDetails;
+    $rendered=(new PromptAssembler(16384,1024))->assemble($contextTurn,$profileDetailsSelection)['provider_input']['_assembled_prompt'];
+    foreach (['UniqueMoodToken','UniqueGoalToken','UniqueRelationshipToken','UniqueNotesToken'] as $candidate)
+        $check(str_contains($rendered,$candidate)===$legacyEnabled,'legacy frozen profile selections retain combined values');
+}
 $inventorySelection=$promptSelection;
 $inventorySelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
 $inventorySelection['effective_settings']['context']['details']['npc_inventory']=false;

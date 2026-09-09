@@ -9896,3 +9896,27 @@ inventory and magic, while player state bypasses it. A two-boolean replacement
 alone would expose data previously excluded. Keep this conversion explicit and
 covered with existing prompt fixtures, including frozen snapshots and presets.
 No runtime changes or new validation claims in this audit checkpoint.
+### Independent Goals and Relationships selectors (2026-09-08)
+
+Character Subsections now has separate goals and relationships cards, with reference
+labels/help and relative ordering. Allowed moods/emotes and notes retain separate
+functional selectors instead of being coupled to those fields. Existing combined
+saved settings, named presets and frozen snapshots expand to equal booleans; mixed
+legacy/new documents are rejected. Already-open checked legacy forms map to both
+new controls. No private configuration rewrite is required.
+
+852 server checks pass, including independent actual prompt content and legacy
+true/false snapshots. Full integration, migrations and the 173-relation inventory
+pass (profile-context-integration.txt). Browser proof profile-context-proof.cjs
+checks independent mouse/keyboard states at 1280/390 without saving; reference and
+native desktop Character groups and native narrow capture were visually inspected.
+The new cards match reference wording/structure; the full group remains OPEN for
+factions, RPG skills, memory/group mapping and remaining native-only controls.
+The narrow element capture's heading is overlapped by the fixed navbar, as before;
+it is not a full-page visual completion claim.
+
+Deployment preserves private configuration, credentials and voices; all 811 runtime
+hashes match and private/unpaired access checks remain 403/401. No game or provider
+calls. HTTP form suite passed before the additional mixed-selection persistence
+assertion; final result is recorded below after that assertion is run.
+Final mixed-selection save/reload HTTP assertion passes (profile-context-http-final.txt).
