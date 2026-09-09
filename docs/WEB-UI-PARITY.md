@@ -9645,3 +9645,31 @@ shortcuts, Player2 switching/lock states, exact recap text/general connectors,
 empty-installation provisioning and final complete Quickstart/hub comparison.
 The new controls are working progress; this does not close Quickstart or the
 all-pages goal. GitHub server workflow remains disabled.
+
+
+### Quickstart Windows / WSL address shortcuts (2026-09-08)
+
+Added the reference's two Server URL buttons and matching stacked mobile layout.
+Reference reads DwemerDistro's Network/HOST_IP and Network/WSL_IP records. Native
+has no such shared database ownership, so it reads the local WSL network mode,
+default route and interface addresses with fixed, bounded OS commands. No remote
+probe, configuration write or dependency on Herika's database. NAT uses the WSL
+gateway; mirrored mode uses Windows loopback. Unknown/unavailable host discovery
+leaves the shortcut disabled with an explanation. Stored connector URLs stay
+untouched; only a new unsaved setup defaults to the detected Windows host.
+
+The buttons preserve scheme, explicit port, path and query, and rebuild an invalid
+URL with the selected server's default port. Loopback/WSL-self warnings reflect
+mirrored networking. Unit cases cover NAT, mirrored, unknown, missing and invalid
+route data; 808 checks pass. Full management HTTP suite passes
+(`quickstart-network-http.txt`). Browser `quickstart-network-proof.cjs` checked
+both live discovered buttons, custom HTTPS URL preservation, invalid URL recovery,
+warning states, model recaps, keyboard and mocked test/save flows at 1280/390.
+Desktop/mobile rendered images were inspected against the unchanged reference.
+No live model calls or private browser writes; no game launch or control.
+
+Deployment verified all 811 runtime hashes, no extra/old paths, health, 403 private
+routes and 401 unpaired session; configuration/credentials/voice content retained.
+This closes the address-shortcut gap in the preceding checkpoint, not the full
+Quickstart row. Global preset behavior, all default profile effects, Player2,
+recap/general connector details and empty provisioning remain open.

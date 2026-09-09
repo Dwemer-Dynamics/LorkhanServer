@@ -499,4 +499,5 @@ body > main.quickstart-page{max-width:none;margin:0;padding:80px 10px 40px;color
     .quickstart-page .qs-local-llm-test{align-items:stretch;flex-direction:column}
     .quickstart-page .confwizard .qs-local-llm .btn-primary.qs-test-btn{width:100%}
     .quickstart-page .qs-local-llm-status{flex-basis:auto}
+    .quickstart-page .qs-local-llm-actions .qs-mini-btn{flex:1 1 100%}
 }

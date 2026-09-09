@@ -394,6 +394,14 @@ try {
         });
     $check(false,'diagnostic observer did not run');
 }catch(RuntimeException $error){if($error->getMessage()!=='diagnostic-observed')throw$error;}
+$networkRoutes=[['dst'=>'default','dev'=>'eth0','gateway'=>'192.168.160.1']];
+$networkInterfaces=[['ifname'=>'eth0','addr_info'=>[['family'=>'inet','local'=>'192.168.169.218']]]];
+$networkClass=\LorkhanServer\Application\QuickstartLocalLlm::class;
+$check($networkClass::networkAddresses('nat',$networkRoutes,$networkInterfaces)===['host_ip'=>'192.168.160.1','wsl_ip'=>'192.168.169.218'],'Local LLM WSL NAT shortcuts use the default interface');
+$check($networkClass::networkAddresses('mirrored',$networkRoutes,$networkInterfaces)['host_ip']==='127.0.0.1','mirrored WSL uses Windows loopback');
+$check($networkClass::networkAddresses('unknown',$networkRoutes,$networkInterfaces)['host_ip']==='','unknown networking does not guess a Windows host');
+$check($networkClass::networkAddresses('nat',[],[])===['host_ip'=>'','wsl_ip'=>''],'unavailable network addresses keep shortcuts disabled');
+$check($networkClass::networkAddresses('nat',[['dst'=>'default','dev'=>'eth0','gateway'=>'not-an-ip']],[])===['host_ip'=>'','wsl_ip'=>''],'invalid network data is not emitted into shortcuts');
 $localSetup=\LorkhanServer\Application\QuickstartLocalLlm::normalize(['model'=>' fixture ','endpoint'=>'http://127.0.0.1:1234/v1/chat/completions']);
 $check($localSetup['server_type']==='lm_studio'&&$localSetup['scope']==='conversations'&&$localSetup['content']['timeout_ms']===30000
     &&$localSetup['content']['options']['stream']===true&&$localSetup['content']['credential']==='none','Local LLM setup defaults match reference');

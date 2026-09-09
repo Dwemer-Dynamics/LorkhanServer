@@ -136,12 +136,22 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
         form.querySelectorAll('[data-local-endpoint]').forEach(e=>{e.textContent=url.value;});
         form.querySelector('[data-default-required]')?.toggleAttribute('hidden',local&&!!form.elements.core_profile_id.value);
         test.disabled=testing;
-        try{section.querySelector('#qs-local-loopback').hidden=!['localhost','127.0.0.1','[::1]'].includes(new URL(url.value).hostname);}
+        try{const warning=section.querySelector('#qs-local-loopback'),host=new URL(url.value).hostname;
+            warning.hidden=warning.dataset.mirrored==='1'||!['localhost','127.0.0.1','[::1]',warning.dataset.wslIp].includes(host);}
         catch{section.querySelector('#qs-local-loopback').hidden=true;}
     }
     form.querySelectorAll('[name="settings_preset"]').forEach(radio=>radio.addEventListener('change',update));
     url.addEventListener('input',update);
     form.elements.local_model.addEventListener('input',update);
+    section.querySelectorAll('[data-local-ip]').forEach(button=>button.addEventListener('click',()=>{
+        if(!button.dataset.localIp)return;
+        let endpoint;
+        try{endpoint=new URL(url.value);}catch{endpoint=new URL('http://127.0.0.1:'+(server.selectedOptions[0].dataset.port||1234)+'/v1/chat/completions');}
+        endpoint.hostname=button.dataset.localIp;
+        if(!endpoint.port)endpoint.port=server.selectedOptions[0].dataset.port||1234;
+        if(endpoint.pathname==='/')endpoint.pathname='/v1/chat/completions';
+        url.value=endpoint.href;url.dispatchEvent(new Event('input',{bubbles:true}));
+    }));
     server.addEventListener('change',()=>{
         const port=server.selectedOptions[0].dataset.port;
         if(port){try{const endpoint=new URL(url.value);endpoint.port=port;url.value=endpoint.href;}catch{}}
