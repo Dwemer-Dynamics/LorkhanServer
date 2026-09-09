@@ -555,6 +555,12 @@ foreach ([$azureContent['options'],[]] as $azureOptions) {
             &&$xml->getElementsByTagNameNS('https://www.w3.org/2001/mstts','express-as')->item(0)->getAttribute('style')==='angry'),
         'Azure escapes speech text and only emits configured prosody and fixed style');
 }
+foreach ([['whispering',['whispering'],'','whispering'],['angry',['whispering'],'','default'],['sad',[],'calm','calm']] as [$mood,$allowed,$fixed,$expected]) {
+    $azureMoodProvider=new CloudSpeechConnectorProvider('https://93.184.216.34','azure','default','en-US-JennyNeural','en-US',['validMoods'=>$allowed,'fixedMood'=>$fixed],'fake-test-key');
+    [, $body]=(new ReflectionMethod($azureMoodProvider,'request'))->invoke($azureMoodProvider,'Safe <text>','en-US-JennyNeural','en-US',['mood'=>$mood]);
+    $xml=new DOMDocument();$xml->loadXML($body);
+    $check($xml->getElementsByTagNameNS('https://www.w3.org/2001/mstts','express-as')->item(0)->getAttribute('style')===$expected && $xml->documentElement->textContent==='Safe <text>','Azure mood allowlist and fixed override preserve escaped text');
+}
 foreach ([['openai','instructions',str_repeat('x',4097)],['openai','instructions',['invalid']],
     ['azure','region','eastus/../../evil'],['azure','rate',0],['azure','volume',101],['azure','fixedMood',[]],
     ['deepgram','bitrate',22050],['deepgram','bitrate','32000'],

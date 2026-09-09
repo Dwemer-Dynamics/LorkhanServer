@@ -10084,3 +10084,14 @@ missing visible field. Current UI labels alone do not prove runtime provider par
 
 No product code, saved settings, live-provider request or deployment changed in
 this audit. Existing 8c8c21a runtime remains the baseline. Full goal remains open.
+### Azure mood provider boundary in progress (2026-09-08)
+
+Added bounded validMoods filtering to CloudSpeechConnectorProvider's Azure request
+builder when explicit mood context is supplied. Rejected moods become default;
+fixedMood retains precedence; SSML text/style escaping remains intact. No-context
+requests retain prior behavior. 871 checks pass, including direct request-builder
+allowlist, fallback and fixed-override assertions. This is partial implementation,
+not editor completion: catalog/form multi-select, worker mood metadata propagation,
+full reference emote normalization and final browser/persistence checks remain.
+Do not expose or mark the Validmoods card complete until those paths are wired.
+Not deployed in isolation; runtime remains the last fully verified baseline.

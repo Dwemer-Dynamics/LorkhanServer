@@ -219,6 +219,17 @@ final class CloudSpeechConnectorProvider implements SpeechProvider
         $speech = htmlspecialchars($text, ENT_XML1 | ENT_QUOTES, 'UTF-8');
         if ($attributes !== '') $speech = '<prosody' . $attributes . '>' . $speech . '</prosody>';
         $style = trim((string)($this->options['fixedMood'] ?? ''));
+        if ($style === '' && is_string($context['mood'] ?? null) && trim($context['mood']) !== '') {
+            $validMoods = $this->options['validMoods'] ?? [];
+            if (!is_array($validMoods) || !array_is_list($validMoods) || count($validMoods) > 32)
+                throw new RuntimeException('provider_invalid_input');
+            foreach ($validMoods as $allowed) if (!is_string($allowed) || !preg_match('/^[a-z][a-z-]{0,63}$/D', $allowed))
+                throw new RuntimeException('provider_invalid_input');
+            if ($validMoods === []) $validMoods = ['angry','cheerful','assistant','calm','embarrassed','excited','lyrical','sad','shouting','whispering','terrified'];
+            // CHIM chooses the first mood token, then applies its allowlist before SSML escaping.
+            $mood = strtolower(trim(explode(',', $context['mood'], 2)[0]));
+            $style = in_array($mood, $validMoods, true) ? $mood : 'default';
+        }
         if ($style !== '') $speech = '<mstts:express-as style="' . htmlspecialchars($style, ENT_XML1 | ENT_QUOTES, 'UTF-8')
             . '" styledegree="2">' . $speech . '</mstts:express-as>';
         $xml = '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="'
