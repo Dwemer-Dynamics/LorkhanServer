@@ -50,6 +50,17 @@ final class GlobalSettingsPreset
         return EffectiveSettingsResolver::validateGlobalSettings($settings);
     }
 
+    /** Preserve explicit memory providers; provision only missing bindings when Default enables them. */
+    public static function builtInMemory(string $id,array $summary,array $embedding,string $fallbackConnector):array
+    {
+        if(!in_array($id,['builtin:default','builtin:local_llm'],true))throw new InvalidArgumentException('invalid_quickstart_preset');
+        $enabled=$id==='builtin:default';
+        $summary['enabled']=$enabled;$embedding['enabled']=$enabled;
+        if($enabled&&$summary['provider_configuration_id']==='')$summary['provider_configuration_id']=$fallbackConnector;
+        if($enabled&&$embedding['endpoint']==='')$embedding['endpoint']='http://127.0.0.1:8082';
+        return ['summary'=>MemorySummaryPolicy::validate($summary),'embedding'=>MemoryEmbeddingPolicy::validate($embedding)];
+    }
+
     /** Merge against current settings so presets cannot silently reset hidden controls or routing. */
     public static function apply(array $preset, array $settings, array $summary, array $embedding): array
     {

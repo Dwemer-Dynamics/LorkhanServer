@@ -2956,7 +2956,9 @@ assert fields['local_model']=='form-local-model' and fields['local_timeout']=='4
 assert fields['local_disable_streaming']==''
 r=request(qs_form['action'],'POST',qs_values); assert r.status==409,(r.status,r.read())
 # The saved Local preset also updates supported global consumers, then Default restores them.
-qs_global=json.load(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json'))['settings']
+qs_local_export=json.load(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json'))
+qs_global=qs_local_export['settings']
+assert not qs_local_export['memory_policies']['summary']['enabled'] and not qs_local_export['memory_policies']['embedding']['enabled']
 assert qs_global['profile_management']['autofill_custom_profiles'] is False
 assert qs_global['relationship']=={'enabled':False,'update_chance_percent':0}
 assert qs_global['context']['ground_items_descriptions_only'] and qs_global['context']['inventory_items_descriptions_only']
@@ -2967,4 +2969,8 @@ assert qs_default['profile_management']['autofill_custom_profiles'] is True
 assert qs_default['relationship']=={'enabled':True,'update_chance_percent':50}
 assert not qs_default['context']['ground_items_descriptions_only'] and not qs_default['context']['inventory_items_descriptions_only']
 assert qs_default['system_routing']==qs_global['system_routing']
+qs_default_export=json.load(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json'))
+assert qs_default_export['memory_policies']['summary']['enabled'] and qs_default_export['memory_policies']['embedding']['enabled']
+assert qs_default_export['memory_policies']['summary']['provider_configuration_id']==qs_local_export['memory_policies']['summary']['provider_configuration_id']
+assert qs_default_export['memory_policies']['embedding']['endpoint']==qs_local_export['memory_policies']['embedding']['endpoint']
 print('browser-like management HTTP forms passed')

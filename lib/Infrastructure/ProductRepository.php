@@ -136,12 +136,14 @@ final class ProductRepository
         $query=$this->db->prepare("SELECT profile_id,core_profile_id,current_revision FROM profiles WHERE installation_id=:installation AND deleted_at IS NULL AND actor_identity->>'kind'='narrator' ORDER BY profile_id");
         $query->execute(['installation'=>$installation]);$narrators=$query->fetchAll();
         $managed=$this->quickstartLocalLlmForInstallation($installation);$global=$this->globalSettingsForInstallation($installation);$summary=$this->memorySummaryPolicyForInstallation($installation);
+        $embedding=$this->memoryEmbeddingPolicyForInstallation($installation);
         $query=$this->db->prepare('SELECT core_profile_id,current_revision FROM core_profiles WHERE installation_id=:installation AND deleted_at IS NULL ORDER BY core_profile_id');
         $query->execute(['installation'=>$installation]);$presetProfiles=$query->fetchAll();
         $plan=['installation_id'=>$installation,'core_profiles'=>$cores,'preset_profiles'=>$presetProfiles,'narrators'=>$narrators,
             'connector_id'=>$managed['configuration_id']??null,'connector_revision'=>(int)($managed['connector']['current_revision']??0),
             'global_id'=>$global['configuration_id']??null,'global_revision'=>(int)($global['current_revision']??0),
-            'summary_id'=>$summary['configuration_id']??null,'summary_revision'=>(int)($summary['current_revision']??0)];
+            'summary_id'=>$summary['configuration_id']??null,'summary_revision'=>(int)($summary['current_revision']??0),
+            'embedding_id'=>$embedding['configuration_id']??null,'embedding_revision'=>(int)($embedding['current_revision']??0)];
         return $plan+['fingerprint'=>hash('sha256',json_encode($plan,JSON_THROW_ON_ERROR))];
     }
 
@@ -154,7 +156,7 @@ final class ProductRepository
             $lock->execute(['installation'=>$installation]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
             $lock=$this->db->prepare('SELECT core_profile_id FROM core_profiles WHERE installation_id=:installation AND deleted_at IS NULL ORDER BY core_profile_id FOR UPDATE');
             $lock->execute(['installation'=>$installation]);$lock->fetchAll();
-            $lock=$this->db->prepare("SELECT configuration_id FROM configuration_sets WHERE installation_id=:installation AND deleted_at IS NULL AND kind='global_settings' ORDER BY configuration_id FOR UPDATE");
+            $lock=$this->db->prepare("SELECT configuration_id FROM configuration_sets WHERE installation_id=:installation AND deleted_at IS NULL AND kind IN ('global_settings','memory_policy','memory_embedding_policy') ORDER BY configuration_id FOR UPDATE");
             $lock->execute(['installation'=>$installation]);$lock->fetchAll();
             $plan=$this->quickstartLocalRoutingPlan($installation);
             if(!hash_equals($plan['fingerprint'],$fingerprint))throw new RuntimeException('revision_conflict');

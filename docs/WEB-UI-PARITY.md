@@ -9744,3 +9744,35 @@ still require native provisioning (the validators require an actual connector
 and MiniMe endpoint), not blindly enabling an unbound policy. Full context preset
 selection, missing connector-availability switches, Player2 and final complete
 Quickstart comparison remain open. Excluded release features are not reintroduced.
+
+
+### Quickstart memory policy defaults (2026-09-08)
+
+Completed the Default/Local preset gates for native memory summaries and MiniMe
+semantic recall. Default enables both; Local disables both while retaining saved
+connector/endpoint, intervals and timeouts. Only an unbound summary policy adopts
+the selected Fast connector, and only an empty MiniMe endpoint gets the existing
+DwemerDistro default http://127.0.0.1:8082. No connector catalogue, TTS settings or
+configured provider content is replaced. Saving does not probe either provider or
+queue historical memory backfill. Subsequent enabled runtime work follows the
+existing memory policies. Deployment and GET alone do not enable anything.
+
+Both policy IDs/revisions now participate in the Setup fingerprint and row locks;
+saves remain in the profile/global/player transaction. Scope copy states the memory
+behavior before saving. Reference CORE_CONNECTOR_SUMMARY_ENABLED and memory
+embedding switches are the source; other absent connector availability switches
+remain separate, not silently considered implemented.
+
+Evidence: 816 checks pass, covering configured binding retention, Local disable,
+and empty binding provisioning. Full HTTP suite verifies saved Local/Default
+policies and unchanged provider/endpoint (`quickstart-memory-http.txt`). Full
+integration, schema inventory (173 relations), migrations and durable-job checks
+pass (`quickstart-memory-integration.txt`). Deployed 1280/390 browser comparisons,
+keyboard/input/helpers and mocked test/save flows pass (`quickstart-memory-proof.txt`).
+Updated Default desktop and Local mobile copy was visually inspected. All 811
+runtime files match source; private-route/auth checks pass and private data is
+preserved. No real provider test, private browser save or game launch/control.
+
+Still open: context preset selection, other connector-availability feature gates,
+Player2, recap/general connector details, empty-installation setup and complete
+Quickstart/all-page closure. The overall goal is not complete.

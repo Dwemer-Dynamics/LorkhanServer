@@ -2519,6 +2519,13 @@ $quickDefault=\LorkhanServer\Application\GlobalSettingsPreset::applyBuiltIn('bui
 $check($quickDefault['profile_management']['autofill_custom_profiles']&&$quickDefault['relationship']['enabled']&&$quickDefault['relationship']['update_chance_percent']===50,'Default preset restores reference backfill and relationship chance');
 $check(!$quickDefault['context']['ground_items_descriptions_only']&&!$quickDefault['context']['inventory_items_descriptions_only'],'Default restores full item context');
 $check($quickDefault['context']['location_blacklist']===$presetCurrent['context']['location_blacklist']&&$quickDefault['system_routing']===$presetCurrent['system_routing']&&$quickDefault['client']===$presetCurrent['client'],'Quickstart global presets retain blacklists, routes and unrelated controls');
+$quickMemory=\LorkhanServer\Application\GlobalSettingsPreset::builtInMemory('builtin:default',$presetSummary,$presetEmbedding,'00000000-0000-4000-8000-000000000099');
+$check($quickMemory['summary']['enabled']&&$quickMemory['embedding']['enabled']&&$quickMemory['summary']['provider_configuration_id']===$presetSummary['provider_configuration_id']&&$quickMemory['embedding']['endpoint']===$presetEmbedding['endpoint'],'Default enables memory while retaining configured providers');
+$quickMemory=\LorkhanServer\Application\GlobalSettingsPreset::builtInMemory('builtin:local_llm',$quickMemory['summary'],$quickMemory['embedding'],'');
+$check(!$quickMemory['summary']['enabled']&&!$quickMemory['embedding']['enabled']&&$quickMemory['embedding']['endpoint']===$presetEmbedding['endpoint'],'Local disables memory without deleting its endpoint');
+$missingSummary=['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''];
+$quickMemory=\LorkhanServer\Application\GlobalSettingsPreset::builtInMemory('builtin:default',$missingSummary,\LorkhanServer\Application\MemoryEmbeddingPolicy::defaults(),'00000000-0000-4000-8000-000000000099');
+$check($quickMemory['summary']['provider_configuration_id']==='00000000-0000-4000-8000-000000000099'&&$quickMemory['embedding']['endpoint']==='http://127.0.0.1:8082','Default fills only missing Fast model and local MiniMe bindings');
 $namedDefault = \LorkhanServer\Application\GlobalSettingsPreset::defaults();
 $legacyPreset = $namedDefault;
 unset($legacyPreset['settings']['context']['prompt_timestamp']);

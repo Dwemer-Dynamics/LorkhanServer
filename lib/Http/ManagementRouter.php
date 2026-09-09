@@ -2460,6 +2460,16 @@ final class ManagementRouter
                 $settings=\LorkhanServer\Application\GlobalSettingsPreset::applyBuiltIn($preset,$settings);
                 if($stored===null)$this->service->createRevisioned('global_settings',['installation_id'=>$installation,'name'=>'Global Settings','content'=>$settings]);
                 else $this->service->revise('global_settings',$stored['configuration_id'],$settings,'Quickstart global preset',(int)$stored['current_revision']);
+                $summary=$this->repository->memorySummaryPolicyForInstallation($installation)['content']
+                    ??['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''];
+                $embedding=$this->repository->memoryEmbeddingPolicyForInstallation($installation)['content']
+                    ??\LorkhanServer\Application\MemoryEmbeddingPolicy::defaults();
+                $memory=\LorkhanServer\Application\GlobalSettingsPreset::builtInMemory($preset,$summary,$embedding,(string)($values['llm_fast_configuration_id']??''));
+                foreach($memory as $kind=>$policy){
+                    $enabled=$policy['enabled'];unset($policy['enabled']);if($enabled)$policy['enabled']='1';
+                    if($kind==='summary')$this->saveMemoryPolicy($policy,['installation_id'=>$installation]);
+                    else $this->saveMemoryEmbeddingPolicy($policy,['installation_id'=>$installation]);
+                }
                 $presetPlan=$this->repository->quickstartLocalRoutingPlan($installation);
             }
             $local=$preset==='builtin:local_llm';$localId=null;

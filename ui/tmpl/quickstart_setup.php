@@ -16,7 +16,7 @@ $localNetwork=\LorkhanServer\Application\QuickstartLocalLlm::networkIps();
             <?php endforeach; ?>
             </div>
         </fieldset>
-        <p class="qs-preset-desc" id="qs_settings_preset_desc" role="status" aria-live="polite">Default settings for all Core Profiles, with automatic profile backfill and relationship updates enabled.</p>
+        <p class="qs-preset-desc" id="qs_settings_preset_desc" role="status" aria-live="polite">Default settings for all Core Profiles, with profile backfill, relationship updates, memory summaries and semantic recall enabled.</p>
     </div>
     <fieldset class="qs-local-llm" id="qs_local_llm_panel" hidden disabled>
         <div class="qs-local-llm-head"><h3 class="qs-local-llm-title">Local LLM Setup</h3></div>
@@ -47,6 +47,6 @@ $localNetwork=\LorkhanServer\Application\QuickstartLocalLlm::networkIps();
             <div class="qs-local-llm-field qs-local-llm-field-wide"><label class="qs-local-llm-check"><input type="checkbox" name="local_disable_streaming"<?= ($localContent['options']['stream']??true)===false?' checked':'' ?>> Disable streaming</label><small class="form-text">Off by default. Turn on only if your server returns broken or empty streamed replies.</small></div>
         </div></details>
         <div class="qs-local-llm-test"><button type="button" class="btn-primary qs-mini-btn qs-test-btn" id="qs_test_local_llm">Test connection</button><div class="qs-status qs-local-llm-status" id="qs_local_llm_status" role="status" aria-live="polite" hidden></div></div>
-        <p class="form-text">Saving applies this preset to all Core Profiles and updates default model routes. Local LLM also disables automatic profile backfill and relationship updates, hides prompt timestamps, and uses item descriptions only. NPC-specific overrides and your current in-game slot stay unchanged.</p>
+        <p class="form-text">Saving applies this preset to all Core Profiles and updates default model routes. Local LLM also disables profile backfill, relationship updates, memory summaries and semantic recall, hides prompt timestamps, and uses item descriptions only. NPC-specific overrides and your current in-game slot stay unchanged.</p>
     </fieldset>
 </section>
