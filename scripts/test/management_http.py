@@ -1756,7 +1756,7 @@ assert 'name="preset_json"' in core_import_body and 'data-json-import-target="co
 # Validate the compact Core Profile response, Rechat, context, and automatic diary controls.
 core_body=request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
 core_page=Page(); core_page.feed(core_body)
-assert 'aria-labelledby="diary_generation_configuration_id-label"' in core_body and 'Automatic Diary' in core_body
+assert 'aria-labelledby="diary_generation_configuration_id-label"' in core_body and 'Auto Diary' in core_body
 assert 'aria-labelledby="relationship_configuration_id-label"' not in core_body and 'Relationship Update Chance' not in core_body
 assert 'name="setting_behavior_rechat"' in core_body and 'name="setting_memory_recent_turn_limit"' in core_body
 assert 'name="setting_diary_automatic_enabled"' in core_body and 'name="setting_diary_automatic_wait_enabled"' in core_body

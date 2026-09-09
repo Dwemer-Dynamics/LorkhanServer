@@ -10342,3 +10342,29 @@ and missing Physical Diary capability, full connector summaries and inline edito
 metadata/override composition, and the complete Core editor interaction audit.
 This first-card correction does not establish complete Core Profiles parity.
 Whole page goal remains active; no game launched or controlled.
+
+### Core Profile toggle grouping (2026-09-08)
+
+Top Profile Core groups now follow Profiles & Memories, Diary, LLM. Moved the
+existing Rechat enable control into Rechat settings, Long Term Memory into Context,
+and Diary Generation/Diary In Context into Diary settings. All original field
+names and values remain in the same edit form. Renamed Automatic Diary/Diary After
+Waiting to the reference Auto Diary/Auto Diary Wait labels and matched the shared
+Dynamic Profile, middle/short memory, and diary icons. No feature deletion or
+silent default change. Missing Physical Diary remains an actual unfinished feature;
+no inert placeholder added to force the reference's four-card diary layout.
+
+Proof: 906 checks and explicit PHP template lint pass. The deployment preflight
+caught an initial syntax error before live files changed; fixed before deployment.
+The existing HTTP label assertion was updated for the intentional Auto Diary rename;
+full final suite passes (core-groups-verified-http.txt). A deployed before/after
+FormData comparison found identical 41 submitted values (excluding CSRF), and all
+four relocated checkbox controls updated On/Off and restored their initial values
+without saving. Temporary core-groups-form-proof/core-groups-toggle-proof scripts.
+Desktop and focused 390 screenshots inspected after final icon updates; reference
+narrow clipping is not copied. Runtime verifier: 811 files, zero differences, private
+paths protected. Existing settings/credentials/voices preserved. No game activity.
+
+Remaining: full memory/digest semantics, Physical Diary, Core slot client parity,
+connector editor/modal mapping and the complete page matrix. Current grouping
+matches the shared hierarchy, not every remaining feature or editor state.
