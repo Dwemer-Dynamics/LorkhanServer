@@ -9999,3 +9999,38 @@ memory_summary records plus prior digest. Native scene selection/model summaries
 are not automatically the same artifact. Keep this requirement OPEN; do not omit
 its card as an excluded feature or alias it to all memory retrieval. Faction
 names/descriptions and native extra controls also remain open. Goal active.
+### Cumulative NPC memory digest implementation boundary (2026-09-08)
+
+Read-only runtime-path audit confirms this remains a real missing counterpart.
+Reference service/processors/middleterm/cmd/generate.php takes the previous NPC
+digest and newer scoped memory_summary records (up to 100), asks for an updated
+continuous summary, and stores it keyed by the new game-time high-water mark.
+main.php injects only the latest digest into middle_term_memory for an NPC, not
+Narrator. This is not excluded merely because the connector also serves Background Life.
+
+Native MemorySummaryJobHandler supplies one frozen memory record to the model.
+MemorySummaryRepository keys its output to that record/revision, and ProductRepository
+replaces each retrieved candidate's content with its optional model summary.
+PromptAssembler's mid_term_enabled filters tiers; consolidated recent scenes are
+explicitly treated as short term. None of these paths implements the reference's
+previous-digest-plus-new-summaries chain. Do not alias the new context card to the
+whole memory section or to the existing mid-tier filter.
+
+Required coherent implementation before this counterpart can close:
+1. Persist versioned per-installation/playthrough/NPC digests with previous revision,
+   source revisions and a deterministic progress cursor. Preserve all source memories.
+2. Extend the existing durable worker/lease and frozen connector-policy pattern to
+   generate the next digest from its prior revision and only newer scoped summaries.
+   Skip Narrator; fence concurrent jobs and changed/deleted source revisions.
+3. Select the latest valid digest separately from ranked scene memories; the
+   middle_term_memory card controls only this prompt fragment. Generation policy
+   remains distinct from context visibility, and disabling it never deletes data.
+4. Expose the saved digest through the matching NPC memory reader/editor, with
+   revision-aware save behavior. Do not add a nonfunctional checkbox first.
+5. Extend existing unit/integration fixtures for two successive digests, no-new-input,
+   duplicate jobs, scope isolation, disabled visibility and preserved scene/history
+   context. Use mock generation; no game or paid-provider validation inferred.
+
+This audit changes the next implementation from a checkbox alias to a complete
+bounded digest path. No product code or runtime changed in this checkpoint; the
+verified deployed baseline remains 8c8c21a. Goal and digest row remain OPEN.
