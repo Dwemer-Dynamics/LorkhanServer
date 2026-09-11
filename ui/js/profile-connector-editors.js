@@ -8,7 +8,7 @@
         const frame = panel.querySelector('iframe');
         let selected = select.value;
         let dirty = false;
-        const entry = { isDirty: () => dirty, button };
+        const entry = { isDirty: () => dirty, button, form: button.closest('form'), frame };
         editors.push(entry);
 
         // Snapshot only in memory: connector forms never expose credential values.
@@ -29,6 +29,30 @@
                 initial = submitted;
                 changed();
             });
+            entry.prepareSave = () => {
+                const editor = doc.querySelector('form[action$="/provider-revise"], form[action$="/connector-revise"]');
+                if (!editor || !editor.reportValidity()) throw new Error('Check the highlighted connector fields before saving.');
+                const body = new FormData(editor);
+                const id = body.get('configuration_id');
+                if (id !== selected) throw new Error('The open connector changed. Close and reopen its editor.');
+                const values = Array.from(body).filter(([key]) => key !== '_csrf');
+                const savedSnapshot = snapshot(doc);
+                return {
+                    id,
+                    signature: JSON.stringify(values.sort(([a], [b]) => a.localeCompare(b))),
+                    save: async () => {
+                        const response = await fetch(editor.action, { method: 'POST', body,
+                            headers: { Accept: 'text/html' }, credentials: 'same-origin',
+                            signal: AbortSignal.timeout(30000) });
+                        const receipt = new URL(response.url);
+                        if (!response.ok || !response.redirected || receipt.origin !== location.origin
+                            || receipt.searchParams.get('edit') !== id || receipt.searchParams.get('status') !== 'saved') {
+                            throw new Error('Connector save failed. Your unsaved fields are still open; the profile has not been submitted.');
+                        }
+                    },
+                    markSaved: () => { initial = savedSnapshot; changed(); },
+                };
+            };
             // A completed navigation after Save updates names, not profile route values.
             const receipt = new URL(frame.contentWindow.location.href).searchParams;
             if (receipt.get('status') === 'saved' && receipt.get('edit') === selected) {
@@ -68,13 +92,48 @@
         });
     });
     document.querySelectorAll('.core-profile-form').forEach(form => {
-        form.addEventListener('submit', event => {
-            const pending = editors.find(editor => editor.isDirty());
-            if (!pending) return;
+        let saving = false;
+        let resuming = false;
+        form.addEventListener('submit', async event => {
+            if (resuming) return;
+            const pending = editors.filter(editor => editor.form === form && editor.isDirty());
+            if (!pending.length && !saving) return;
             event.preventDefault();
-            window.alert('Save or discard the open connector changes before saving the profile.');
-            pending.button.focus();
-        });
+            event.stopImmediatePropagation();
+            if (saving) return;
+            saving = true;
+            const submitter = event.submitter;
+            try {
+                // Validate every draft before writing any; a shared connector cannot have two different drafts.
+                const groups = new Map();
+                for (const entry of pending) {
+                    const prepared = entry.prepareSave();
+                    const group = groups.get(prepared.id);
+                    if (group && group[0].signature !== prepared.signature) {
+                        throw new Error('The same connector has different edits in two slots. Save or discard one draft first.');
+                    }
+                    if (group) group.push(prepared); else groups.set(prepared.id, [prepared]);
+                }
+                form.inert = true;
+                form.setAttribute('aria-busy', 'true');
+                for (const group of groups.values()) {
+                    await group[0].save();
+                    group.forEach(prepared => prepared.markSaved());
+                }
+                form.inert = false;
+                resuming = true;
+                form.requestSubmit(submitter);
+            } catch (error) {
+                window.alert(error.name === 'TimeoutError'
+                    ? 'Connector save timed out. The profile was not submitted. Check the connector before retrying.'
+                    : error.message || 'Could not save connectors. Your profile draft is still open.');
+            } finally {
+                resuming = false;
+                saving = false;
+                form.inert = false;
+                form.removeAttribute('aria-busy');
+            }
+        }, { capture: true });
     });
     window.addEventListener('beforeunload', event => {
         if (!editors.some(editor => editor.isDirty())) return;

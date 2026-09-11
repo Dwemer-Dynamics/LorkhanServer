@@ -28,7 +28,7 @@ $routeSelect=static function(string$name,string$label,string$icon,string$descrip
     <?php if($name!=='prompt_configuration_id'): $editorPage=$name==='tts_configuration_id'?'tts_connectors.php':'llm_connectors.php'; ?>
         <button type="button" class="btn-base profile-connector-edit" data-connector-edit data-editor-url="<?php echo lorkhan_ui_h($webRoot.'/ui/core/'.$editorPage.'?'.http_build_query(['installation_id'=>$installationId,'embed'=>'1','partial'=>'editor'])); ?>" aria-expanded="false" aria-controls="editor-<?php echo lorkhan_ui_h($name); ?>"<?php echo $current===''?' disabled':''; ?>>Edit <?php echo lorkhan_ui_h($label); ?></button>
         <div class="profile-connector-editor" id="editor-<?php echo lorkhan_ui_h($name); ?>" hidden>
-            <p class="hint">Save connector changes here before saving the profile. Shared profiles use the same connector.</p>
+            <p class="hint">Save All includes open connector changes. Shared profiles use the same connector.</p>
             <iframe title="<?php echo lorkhan_ui_h($label); ?> editor" data-connector-frame></iframe>
             <button type="button" class="btn-base" data-connector-close>Close editor</button>
         </div>

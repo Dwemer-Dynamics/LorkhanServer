@@ -10400,3 +10400,23 @@ This closes missing embedded connector access, not the entire page-parity goal.
 The earlier matrix's uncompleted NPC/profile composition, Quickstart/voice/STT,
 playthrough/database interactions and separate runtime feature gaps remain open.
 No game launch/control, paid synthesis or live provider test was performed.
+
+### Core Profile Save All integration (2026-09-12)
+
+Supersedes the separate-child-save limitation in the preceding checkpoint.
+Save All now validates every dirty embedded LLM/TTS editor before writing, saves
+through the existing authenticated revision forms, verifies each redirect receipt,
+then submits the profile. Failed saves retain the child and parent drafts and stop
+profile submission. Completed connector saves remain completed if a later save
+fails; this is an ordered workflow, not a cross-record database transaction.
+Identical edits to one shared connector are saved once. Conflicting drafts for the
+same connector stop before any write. Controls remain inert while saves are pending.
+
+Evidence: PHP/template and JavaScript syntax, 906 existing server checks, and
+GET-only live-page browser tests with intercepted writes in lorkhan-save-all-proof.cjs.
+Success: two connector saves precede one profile submit. Failure: one rejected
+connector save, zero profile submits, draft retained. Conflict: zero writes.
+Identical shared drafts: one connector save and one profile submit. All four passed.
+These mocked browser responses do not claim live database writes; the preceding
+management HTTP suite established the real revision-form redirect contracts.
+No game activity or provider requests. Remaining page matrix stays open.
