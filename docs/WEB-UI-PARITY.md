@@ -10401,7 +10401,7 @@ The earlier matrix's uncompleted NPC/profile composition, Quickstart/voice/STT,
 playthrough/database interactions and separate runtime feature gaps remain open.
 No game launch/control, paid synthesis or live provider test was performed.
 
-### Core Profile Save All integration (2026-09-12)
+### Core Profile Save All integration (2026-09-11)
 
 Supersedes the separate-child-save limitation in the preceding checkpoint.
 Save All now validates every dirty embedded LLM/TTS editor before writing, saves
