@@ -739,6 +739,7 @@ final class ManagementRouter
             'tts-providers','stt-providers','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import','connector-selection'],true)
             &&($v['embed']??null)==='1'){
             $query=['status'=>'saved','embed'=>'1'];
+            if(($v['partial']??null)==='editor')$query['partial']='editor';
             $returnInstallation=$result['installation_id']??$scope['installation_id']??null;
             if(is_string($returnInstallation))$query['installation_id']=$returnInstallation;
             if(!in_array($domain,['provider-delete','connector-delete'],true)&&is_string($result['configuration_id']??null))$query['edit']=$result['configuration_id'];

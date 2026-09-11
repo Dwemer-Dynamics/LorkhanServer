@@ -8,8 +8,10 @@ use LorkhanServer\Application\SpeechPreviewCatalog;
 
 $pageTitle = 'TTS Connectors';
 $topNavSection = 'configuration';
+$partialEditor = ($_GET['partial'] ?? '') === 'editor';
+if ($partialEditor) $_GET['embed'] = '1';
 $embedded = ($_GET['embed'] ?? '') === '1';
-$BODY_CLASS = 'hub-page tts-page-shell' . ($embedded ? ' embedded-page' : '');
+$BODY_CLASS = 'hub-page tts-page-shell' . ($embedded ? ' embedded-page' : '') . ($partialEditor ? ' connector-editor-only' : '');
 require dirname(__DIR__) . '/ui_bootstrap.php';
 
 $installations = $uiRepository->rows('installations');
@@ -59,9 +61,10 @@ foreach ($rows as $row) {
 }
 $mode = isset($_GET['import']) ? 'import' : (isset($_GET['create']) ? 'create' : ($selected !== null ? 'edit' : 'none'));
 $pageUrl = $webRoot . '/ui/core/tts_connectors.php';
-$queryFor = static function (array $values) use ($pageUrl, $installationId, $embedded): string {
+$queryFor = static function (array $values) use ($pageUrl, $installationId, $embedded, $partialEditor): string {
     if ($installationId !== '') $values['installation_id'] = $installationId;
     if ($embedded) $values['embed'] = '1';
+    if ($partialEditor) $values['partial'] = 'editor';
     return $pageUrl . '?' . http_build_query($values);
 };
 
@@ -133,7 +136,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     <?php elseif ($mode === 'import'): ?>
                         <div class="btn-row"><a class="btn-secondary" href="<?php echo lorkhan_ui_h($queryFor([])); ?>">Cancel</a></div>
                         <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-import">
-                            <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+                            <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php if ($partialEditor): ?><input type="hidden" name="partial" value="editor"><?php endif; ?><?php endif; ?>
 
                             <input type="hidden" name="kind" value="tts_provider">
                             <div class="meta-group active">
@@ -162,9 +165,9 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <?php if (!$creating): ?>
                                 <button class="btn-primary" type="button" id="tts-test-open" aria-haspopup="dialog" aria-controls="tts-test-dialog">Test</button>
                                 <a class="btn-save" href="<?php echo lorkhan_ui_h($managementBasePath); ?>/exports/connectors/<?php echo lorkhan_ui_h($selected['configuration_id']); ?>.json">Export</a>
-                                <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-clone"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><input type="hidden" name="name" value="<?php echo lorkhan_ui_h($selected['name'] . ' copy'); ?>"><button class="btn-primary" type="submit">Clone</button></form>
+                                <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-clone"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php if ($partialEditor): ?><input type="hidden" name="partial" value="editor"><?php endif; ?><?php endif; ?><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><input type="hidden" name="name" value="<?php echo lorkhan_ui_h($selected['name'] . ' copy'); ?>"><button class="btn-primary" type="submit">Clone</button></form>
                                 <?php $inUse = filter_var($selected['active'], FILTER_VALIDATE_BOOL) || (int) ($selected['profile_usage'] ?? 0) > 0 || (int) ($selected['active_session_usage'] ?? 0) > 0; ?>
-                                <?php if (!$inUse): ?><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-delete" data-confirm="Delete this TTS connector?"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><button class="btn-danger" type="submit">Delete</button></form><?php else: ?><span class="toolbar-disabled"><button class="btn-danger" type="button" disabled aria-disabled="true" title="This connector is in use and cannot be deleted.">Delete</button></span><?php endif; ?>
+                                <?php if (!$inUse): ?><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-delete" data-confirm="Delete this TTS connector?"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php if ($partialEditor): ?><input type="hidden" name="partial" value="editor"><?php endif; ?><?php endif; ?><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><button class="btn-danger" type="submit">Delete</button></form><?php else: ?><span class="toolbar-disabled"><button class="btn-danger" type="button" disabled aria-disabled="true" title="This connector is in use and cannot be deleted.">Delete</button></span><?php endif; ?>
                             <?php else: ?>
                                 <?php foreach (['Test', 'Export', 'Clone', 'Delete'] as $pendingControl): ?><span class="toolbar-disabled"><button class="<?php echo $pendingControl === 'Delete' ? 'btn-danger' : 'btn-primary'; ?>" type="button" disabled aria-disabled="true" title="Save this connector first."><?php echo lorkhan_ui_h($pendingControl); ?></button></span><?php endforeach; ?>
                             <?php endif; ?>
@@ -172,7 +175,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <div class="orm-note">Please save any changes before testing to ensure the latest settings are used.</div>
 
                         <form id="<?php echo lorkhan_ui_h($formId); ?>" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/<?php echo lorkhan_ui_h($formAction); ?>">
-                            <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+                            <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php if ($partialEditor): ?><input type="hidden" name="partial" value="editor"><?php endif; ?><?php endif; ?>
                             <input type="hidden" name="option_fields_present" value="1">
                             <?php if ($creating): ?>
 
@@ -214,10 +217,10 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
                         <?php if (!$creating): ?>
                             <div class="secondary-actions">
-                                <?php if (!filter_var($selected['active'], FILTER_VALIDATE_BOOL)): ?><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-selection"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><button class="btn-primary" type="submit">Set Default</button></form><?php else: ?><span class="default-note">Installation default</span><?php endif; ?>
+                                <?php if (!filter_var($selected['active'], FILTER_VALIDATE_BOOL)): ?><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-selection"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php if ($partialEditor): ?><input type="hidden" name="partial" value="editor"><?php endif; ?><?php endif; ?><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><button class="btn-primary" type="submit">Set Default</button></form><?php else: ?><span class="default-note">Installation default</span><?php endif; ?>
                                 <?php if (filter_var($selected['active'], FILTER_VALIDATE_BOOL)): ?><span class="visually-hidden">This active connector cannot be deleted.</span><?php elseif ((int) ($selected['profile_usage'] ?? 0) > 0): ?><span class="visually-hidden">This connector is assigned to a profile or Core Profile.</span><?php endif; ?>
                             </div>
-                            <details class="revision-history"><summary>Revision history</summary><?php $history = is_array($selected['revisions'] ?? null) ? $selected['revisions'] : []; lorkhan_ui_table($history); ?><?php $earlier = array_values(array_filter($history, static fn(array $revision): bool => (int) ($revision['revision'] ?? 0) !== (int) $selected['current_revision'])); if ($earlier !== []): ?><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-rollback"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><label>Restore revision<select name="revision"><?php foreach ($earlier as $revision): ?><option value="<?php echo (int) $revision['revision']; ?>">Revision <?php echo (int) $revision['revision']; ?></option><?php endforeach; ?></select></label><button type="submit">Restore</button></form><?php endif; ?></details>
+                            <details class="revision-history"><summary>Revision history</summary><?php $history = is_array($selected['revisions'] ?? null) ? $selected['revisions'] : []; lorkhan_ui_table($history); ?><?php $earlier = array_values(array_filter($history, static fn(array $revision): bool => (int) ($revision['revision'] ?? 0) !== (int) $selected['current_revision'])); if ($earlier !== []): ?><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-rollback"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php if ($partialEditor): ?><input type="hidden" name="partial" value="editor"><?php endif; ?><?php endif; ?><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><label>Restore revision<select name="revision"><?php foreach ($earlier as $revision): ?><option value="<?php echo (int) $revision['revision']; ?>">Revision <?php echo (int) $revision['revision']; ?></option><?php endforeach; ?></select></label><button type="submit">Restore</button></form><?php endif; ?></details>
                         <?php endif; ?>
                     <?php endif; ?>
                 </section>

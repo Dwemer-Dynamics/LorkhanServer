@@ -22,9 +22,17 @@ $values=['max_words'=>(int)($overrides['response']['max_words']??0),
     'diary_context_turn_limit'=>(int)($overrides['diary']['context_turn_limit']??$diaryDefaults['context_turn_limit']),
     'diary_prompt'=>(string)($overrides['diary']['prompt']??$diaryDefaults['prompt'])];
 
-$routeSelect=static function(string$name,string$label,string$icon,string$description,array$rows,string$blankLabel='Disabled')use($routing):void{
+$routeSelect=static function(string$name,string$label,string$icon,string$description,array$rows,string$blankLabel='Disabled')use($routing,$webRoot,$installationId):void{
     $current=(string)($routing[$name]??'');if($current!==''&&!in_array($current,array_column($rows,'configuration_id'),true))$rows[]=['configuration_id'=>$current,'name'=>'Unavailable connector']; ?>
-    <div class="connector-option-card"><div class="setting-key"><span class="setting-icon"><?php echo$icon; ?></span><span id="<?php echo lorkhan_ui_h($name); ?>-label"><?php echo lorkhan_ui_h($label); ?></span></div><div class="setting-desc"><?php echo lorkhan_ui_h($description); ?></div><div class="setting-control"><select name="<?php echo lorkhan_ui_h($name); ?>" aria-labelledby="<?php echo lorkhan_ui_h($name); ?>-label"><option value=""><?php echo lorkhan_ui_h($blankLabel); ?></option><?php foreach($rows as$row):$id=(string)$row['configuration_id']; ?><option value="<?php echo lorkhan_ui_h($id); ?>"<?php echo$current===$id?' selected':''; ?>><?php echo lorkhan_ui_h($row['name']); ?></option><?php endforeach; ?></select></div></div>
+    <div class="connector-option-card"><div class="setting-key"><span class="setting-icon"><?php echo$icon; ?></span><span id="<?php echo lorkhan_ui_h($name); ?>-label"><?php echo lorkhan_ui_h($label); ?></span></div><div class="setting-desc"><?php echo lorkhan_ui_h($description); ?></div><div class="setting-control"><select name="<?php echo lorkhan_ui_h($name); ?>" aria-labelledby="<?php echo lorkhan_ui_h($name); ?>-label"><option value=""><?php echo lorkhan_ui_h($blankLabel); ?></option><?php foreach($rows as$row):$id=(string)$row['configuration_id']; ?><option value="<?php echo lorkhan_ui_h($id); ?>"<?php echo$current===$id?' selected':''; ?>><?php echo lorkhan_ui_h($row['name']); ?></option><?php endforeach; ?></select></div>
+    <?php if($name!=='prompt_configuration_id'): $editorPage=$name==='tts_configuration_id'?'tts_connectors.php':'llm_connectors.php'; ?>
+        <button type="button" class="btn-base profile-connector-edit" data-connector-edit data-editor-url="<?php echo lorkhan_ui_h($webRoot.'/ui/core/'.$editorPage.'?'.http_build_query(['installation_id'=>$installationId,'embed'=>'1','partial'=>'editor'])); ?>" aria-expanded="false" aria-controls="editor-<?php echo lorkhan_ui_h($name); ?>"<?php echo $current===''?' disabled':''; ?>>Edit <?php echo lorkhan_ui_h($label); ?></button>
+        <div class="profile-connector-editor" id="editor-<?php echo lorkhan_ui_h($name); ?>" hidden>
+            <p class="hint">Save connector changes here before saving the profile. Shared profiles use the same connector.</p>
+            <iframe title="<?php echo lorkhan_ui_h($label); ?> editor" data-connector-frame></iframe>
+            <button type="button" class="btn-base" data-connector-close>Close editor</button>
+        </div>
+    <?php endif; ?></div>
 <?php };
 $toggleCard=static function(string$name,string$icon,string$title,string$description,bool$enabled):void{ ?>
     <label class="profile-toggle-card"><span class="profile-toggle-heading"><span><?php echo$icon.' '.lorkhan_ui_h($title); ?></span><span class="profile-toggle-control"><input type="checkbox" name="<?php echo lorkhan_ui_h($name); ?>" value="1"<?php echo$enabled?' checked':''; ?>><span class="toggle-text"><?php echo$enabled?'On':'Off'; ?></span></span></span><span class="profile-toggle-description"><?php echo lorkhan_ui_h($description); ?></span></label>

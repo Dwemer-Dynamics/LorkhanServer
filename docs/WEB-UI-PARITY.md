@@ -10368,3 +10368,35 @@ paths protected. Existing settings/credentials/voices preserved. No game activit
 Remaining: full memory/digest semantics, Physical Diary, Core slot client parity,
 connector editor/modal mapping and the complete page matrix. Current grouping
 matches the shared hierarchy, not every remaining feature or editor state.
+
+### Core Profile embedded connector editors (2026-09-11)
+
+Restored a clean worktree from main d789ae7 after the earlier worktree was removed.
+Core Profile Standard/Fast/Powerful/Experimental/Fallback/Diary LLM and TTS choices
+now open the existing connector editor in place. Empty/default routes disable Edit.
+The editor-only view removes duplicate navigation, headings and connector lists;
+save redirects preserve the selected connector, installation and partial mode.
+No connector persistence implementation was copied or forked. TTS clone/delete
+and runtime selection stay on the full connector page, not inside a profile draft.
+
+Changing routes or closing a dirty editor requires confirmation. Profile submission
+is stopped until open connector changes are saved or discarded. LLM Save-and-Test
+reports its successful save to the parent; failed requests do not clear dirty state.
+Save All does not silently submit child forms: save connector changes explicitly.
+This is a documented remaining interaction difference from Herika's bulk save.
+Dialogue Prompt remains the existing separate prompt surface.
+
+Proof: 906 server checks; PHP and JavaScript syntax; the complete management HTTP
+suite, extended for actual LLM/TTS partial-editor saves and redirects. The initial
+HTTP failure was a test selecting the full page before asserting partial redirects;
+corrected and rerun successfully. Browser GET-only checks at 1280/390 verified both
+editor types, hidden duplicate headings/lists, dirty close refusal and restoration,
+unchanged parent form values, zero horizontal document overflow and no script errors.
+Temporary evidence: lorkhan-inline-proof.cjs, inline-*-1280/390.png and
+lorkhan-inline-http-final.txt. Browser plugin initialization timed out; standalone
+local Chrome automation was used. Claude fallback from this goal remains in effect.
+
+This closes missing embedded connector access, not the entire page-parity goal.
+The earlier matrix's uncompleted NPC/profile composition, Quickstart/voice/STT,
+playthrough/database interactions and separate runtime feature gaps remain open.
+No game launch/control, paid synthesis or live provider test was performed.

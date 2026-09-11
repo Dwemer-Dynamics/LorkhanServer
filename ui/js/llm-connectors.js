@@ -38,6 +38,7 @@
                 const saveResult = await saveResponse.json();
                 if (!saveResponse.ok || saveResult.ok !== true) throw new Error('save_failed');
                 saved = true;
+                document.dispatchEvent(new Event('connector-saved'));
                 result.textContent = 'Settings saved. Testing connector…';
                 const response = await fetch(testForm.action, {method:'POST', body:new FormData(testForm),
                     headers:{Accept:'application/json'}, credentials:'same-origin', referrerPolicy:'same-origin', signal:controller.signal});

@@ -479,3 +479,10 @@ body.llm-page-shell main.llm-page .llm-editor-toolbar button.llm-test-button:hov
 /* Match the reference range geometry while retaining Lorkhan gold. */
 .llm-page .llm-option-control input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #bc9d5a; cursor: pointer; }
 .llm-page .llm-option-control input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: #bc9d5a; cursor: pointer; }
+/* Core Profiles requests the same editor without a second list or page heading. */
+.connector-editor-only .llm-page > .page-header,
+.connector-editor-only .llm-left { display: none; }
+.connector-editor-only .llm-layout { display: block; }
+.connector-editor-only .llm-page,
+.connector-editor-only .llm-right,
+.connector-editor-only .llm-editor { width: 100%; max-width: none; min-width: 0; margin: 0; }

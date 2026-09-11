@@ -219,3 +219,14 @@ body.tts-page-shell .tts-page .editor-toolbar > button { height: 36px; }
 body.tts-page-shell .tts-test-dialog button { font-weight: 500 !important; line-height: 1.2 !important; }
 .tts-test-card .error { color: #ff9898; }
 .tts-test-card .ok { color: #9be29b; }
+/* Core Profiles requests the same editor without a second list or page heading. */
+.connector-editor-only .page-header,
+.connector-editor-only .left-col { display: none; }
+.connector-editor-only .layout { display: block; }
+.connector-editor-only .tts-page,
+.connector-editor-only .page-shell,
+.connector-editor-only .right-col { width: 100%; max-width: none; min-width: 0; margin: 0; }
+.connector-editor-only form[action$="/connector-clone"],
+.connector-editor-only form[action$="/connector-delete"],
+.connector-editor-only form[action$="/connector-selection"],
+.connector-editor-only .toolbar-disabled { display: none; }

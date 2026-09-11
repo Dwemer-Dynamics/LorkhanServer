@@ -1762,3 +1762,8 @@ body.profile-rules-open {
 /* Preserve the reference Quest toggle's inline baseline and bottom spacing. */
 .profiles-page .profile-quest-settings .profile-inline-toggle { display:block; width:100%; margin:0 0 6px; }
 .profiles-page .profile-quest-settings .profile-inline-toggle input { display:inline-block; width:16px; height:16px; margin:0 6px 0 0; transform:scale(1.6); }
+/* Expanded connector editors retain the surrounding unsaved profile form. */
+.connector-option-card.editor-open { grid-column: 1 / -1; }
+.profile-connector-edit { margin-top: 10px; }
+.profile-connector-editor iframe { display: block; width: 100%; height: 650px; border: 0; margin: 12px 0; }
+.profile-connector-editor[hidden] { display: none; }

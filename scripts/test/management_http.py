@@ -799,8 +799,10 @@ r=request(create_tts['action'],'POST',values); body=r.read().decode(); assert r.
 tts_id=connector_editor_id(body,tts_name)
 tts_export_response=request('/LorkhanServer/manage/exports/connectors/'+tts_id+'.json'); tts_export=json.loads(tts_export_response.read().decode())
 assert tts_export['content']['options']['speed']==1.1 and tts_export['content']['options']['temperature']==0.6,tts_export
-tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id))
+tts_page,tts_inline_body=parse(request('/LorkhanServer/ui/core/tts_connectors.php?partial=editor&selected='+tts_id))
+assert 'connector-editor-only' in tts_inline_body
 revise_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/connector-revise') and f['fields'].get('configuration_id')==tts_id)
+assert revise_tts['fields'].get('partial')=='editor' and revise_tts['fields'].get('embed')=='1'
 assert revise_tts['fields']['credential']=='LORKHAN_CUSTOM_TTS_HTTP_API_KEY'
 assert 'option__speed' in revise_tts['fields'] and 'option__temperature' in revise_tts['fields'] and revise_tts['fields'].get('option_fields_present')=='1',revise_tts
 values=dict(revise_tts['fields'],_csrf=csrf,option__speed='1.25',option__temperature='0.7',change_reason='HTTP labelled TTS options')
@@ -857,10 +859,11 @@ r=request('/LorkhanServer/manage/forms/connector-revise','POST',dict(azure_form[
 tts_badge_html=request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id).read().decode()
 assert 'fixture-tts-badge-key' not in tts_badge_html and 'id="tts_credential"' in tts_badge_html
 assert tts_badge_html.index('🟢 Custom Tts Http') < tts_badge_html.index('— Missing Key —')
-tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id))
+tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?partial=editor&selected='+tts_id))
 revise_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/connector-revise') and f['fields'].get('configuration_id')==tts_id)
 values=dict(revise_tts['fields'],_csrf=csrf,driver='omnivoice',option__speed='1.0',change_reason='HTTP connector driver switch')
 r=request(revise_tts['action'],'POST',values); assert r.status==200,(r.status,r.geturl(),r.read().decode())
+assert 'partial=editor' in r.geturl() and 'edit='+tts_id in r.geturl(),r.geturl()
 tts_export=json.loads(request('/LorkhanServer/manage/exports/connectors/'+tts_id+'.json').read().decode())
 assert tts_export['content']['driver']=='omnivoice' and tts_export['content']['options']['speed']==1.0 and 'temperature' not in tts_export['content']['options'],tts_export
 tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id))
@@ -1740,9 +1743,13 @@ r=request(model_test['action'],'POST',dict(model_test['fields'],_csrf=csrf),acce
 test_summary=json.load(r); assert r.status==200 and test_summary['ok'] is True and '1 valid utterance' in test_summary['message']
 assert 'endpoint' not in test_summary and 'api_key' not in json.dumps(test_summary)
 assert 'id="llm-test-dialog"' in body and 'data-llm-test-loading' in body
-revise=next(f for f in llm_page.forms if f['action'].endswith('/forms/provider-revise') and f['fields'].get('configuration_id')==slot_id)
+llm_inline,llm_inline_body=parse(request('/LorkhanServer/ui/core/llm_connectors.php?partial=editor&edit='+slot_id))
+assert 'connector-editor-only' in llm_inline_body
+revise=next(f for f in llm_inline.forms if f['action'].endswith('/forms/provider-revise') and f['fields'].get('configuration_id')==slot_id)
+assert revise['fields'].get('partial')=='editor' and revise['fields'].get('embed')=='1'
 values=dict(revise['fields'],_csrf=csrf,driver='mock',model='deterministic-mock-v2',mock_prefix='[revised] ',change_reason='HTTP model-slot test')
 r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'deterministic-mock-v2' in body,(r.status,r.geturl())
+assert 'partial=editor' in r.geturl() and 'edit='+slot_id in r.geturl(),r.geturl()
 r=request(revise['action'],'POST',values,accept='application/json'); assert r.status==200 and json.load(r)=={'ok':True}
 r=request(revise['action'],'POST',dict(values,model=''),accept='application/json'); assert r.status==422 and 'error' in json.load(r)
 core_list,core_body=parse(request('/LorkhanServer/ui/core/core_profiles.php'))
