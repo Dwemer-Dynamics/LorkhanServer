@@ -10,6 +10,7 @@ final class MockProfileGenerationProvider implements ProfileGenerationProvider
     public function generate(array $profile, CancellationToken $cancellation): array
     {
         $cancellation->throwIfCancellationRequested();
+        if(($profile['generation_mode']??'')==='npc_evolution_report')return ['report'=>"**Mock evolution report**\n* ".count($profile['history']??[]).' distinct personality snapshots supplied. No NPC profile was changed.'];
         if(in_array($profile['generation_mode']??'',['relationship_build','relationship_text_conversion'],true))return ['relationships'=>[]];
         if(($profile['generation_mode']??'')==='relationship_evaluation')
             return ['disposition_delta'=>0,'affinity_delta'=>0,'reason'=>'Mock evaluation preserves the current relationship.'];

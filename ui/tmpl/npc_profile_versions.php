@@ -5,7 +5,7 @@ $versionRows=is_array($row['revisions']??null)?$row['revisions']:[];
 <dialog class="npc-versions-dialog" id="<?= lorkhan_ui_h($modalKey) ?>-versions" aria-labelledby="<?= lorkhan_ui_h($modalKey) ?>-versions-title"
     data-npc-versions data-version-url="<?= lorkhan_ui_h($managementBasePath.'/api/v1/npc-profile-versions/'.$profileId) ?>"
     data-version-list="<?= lorkhan_ui_h(json_encode($versionRows,JSON_THROW_ON_ERROR)) ?>">
-    <header class="npc-versions-header"><h2 id="<?= lorkhan_ui_h($modalKey) ?>-versions-title">NPC Profile Versions</h2><button type="button" class="btn-cancel" data-versions-close>Close</button></header>
+    <header class="npc-versions-header"><h2 id="<?= lorkhan_ui_h($modalKey) ?>-versions-title">NPC Profile Versions</h2><a class="btn-cancel" target="_blank" rel="noopener" href="<?= lorkhan_ui_h((preg_replace('#/manage$#','/ui/core/npc_report.php',$managementBasePath)).'?'.http_build_query(['installation_id'=>$row['installation_id'],'profile_id'=>$profileId])) ?>">Evolution report (AI request)</a><button type="button" class="btn-cancel" data-versions-close>Close</button></header>
     <div class="npc-versions-body">
         <nav class="npc-versions-list" aria-label="Saved profile versions" data-versions-list></nav>
         <div class="npc-versions-detail">

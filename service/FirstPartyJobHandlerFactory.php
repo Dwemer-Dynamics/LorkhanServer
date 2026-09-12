@@ -34,6 +34,7 @@ final class FirstPartyJobHandlerFactory
         $handlers[] = new SttProcessJobHandler(new \LorkhanServer\Infrastructure\Repository($db),$sttProvider,$mediaStore,
             new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db),$products,$providerConfig);
         return array_merge($handlers, [
+            new NpcEvolutionReportJobHandler(new \LorkhanServer\Infrastructure\NpcEvolutionReportRepository($db),$products,new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db),$providerConfig),
             new DatabaseCompactJobHandler($db),
             new DatabaseBackupJobHandler($db,$providerConfig),
             new DatabaseRestoreJobHandler($db,$providerConfig),
@@ -96,7 +97,7 @@ final class FirstPartyJobHandlerFactory
             RetentionJobHandler::TYPE,
             ProviderReconciliationJobHandler::TYPE,
             DialogueExpiryJobHandler::TYPE,
-            ProfileGenerateJobHandler::TYPE,
+            ProfileGenerateJobHandler::TYPE, NpcEvolutionReportJobHandler::TYPE,
         ];
     }
 }

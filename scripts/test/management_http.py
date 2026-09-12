@@ -88,6 +88,14 @@ threading.Thread(target=voice_provider.serve_forever,daemon=True).start()
 atexit.register(voice_provider.server_close)
 atexit.register(voice_provider.shutdown)
 repository_root=pathlib.Path(__file__).resolve().parents[2]
+# Exercise the report's real request/output contract against the local synthetic provider.
+report_transport=subprocess.run(['php','-r',"require $argv[1].'/lib/Autoload.php'; $p=new LorkhanServer\\Application\\OpenAiCompatibleProfileGenerationProvider($argv[2],['127.0.0.1'],'structured-fixture','',5000,false,['max_tokens'=>100,'json_mode'=>true,'json_schema'=>true,'prefill_json'=>true],true,true); echo json_encode($p->generate(['generation_mode'=>'npc_evolution_report','name'=>'Fixture NPC','history'=>[['text'=>'Reserved'],['text'=>'Outgoing']],'fixture_response'=>['report'=>'**Evolution**: more outgoing.']],new LorkhanServer\\Application\\NeverCancelledToken()));",str(repository_root),'http://127.0.0.1:'+str(voice_provider.server_port)+'/llm/chat/completions'],capture_output=True,text=True,timeout=10)
+assert report_transport.returncode==0 and json.loads(report_transport.stdout)=={'report':'**Evolution**: more outgoing.'},report_transport.stderr
+report_request=VoiceProvider.llm_requests[-1][1]
+assert report_request['max_tokens']==4096 and report_request['response_format']['json_schema']['schema']['required']==['report']
+assert 'chronological personality' in report_request['messages'][0]['content'] and 'Authorization' not in VoiceProvider.llm_requests[-1][0]
+VoiceProvider.llm_requests.clear()
+
 embedding_probe=subprocess.run(['php','-r',
     "require $argv[1].'/lib/Autoload.php'; $provider=new LorkhanServer\\Application\\MiniMeEmbeddingProvider($argv[2],1250); echo json_encode($provider->embed('Vivec remembers Red Mountain.',new LorkhanServer\\Application\\NeverCancelledToken()));",
     str(repository_root),'http://127.0.0.1:'+str(voice_provider.server_port)],capture_output=True,text=True,timeout=5)

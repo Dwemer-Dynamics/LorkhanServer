@@ -1,0 +1,23 @@
+// Read-only report generation: retries reuse the request identity and never save profile changes.
+(() => {
+    const form=document.querySelector('[data-npc-report-form]');if(!form)return;
+    const button=form.querySelector('button'),status=document.querySelector('[data-report-status]'),body=document.querySelector('[data-report-body]');
+    const url=new URL(location.href),uuid=/^[0-9a-f-]{36}$/;
+    let requestId=uuid.test(url.searchParams.get('request')||'')?url.searchParams.get('request'):'',jobId=uuid.test(url.searchParams.get('job')||'')?url.searchParams.get('job'):'',busy=false;
+    // Build only text, bold and bullet nodes; model output is never interpreted as HTML.
+    const render=text=>{body.replaceChildren();let list=null;for(const line of text.split(/\r?\n/)){if(!line.trim()){list=null;continue;}let node;if(/^\s*\*\s+/.test(line)){if(!list){list=document.createElement('ul');body.append(list);}node=document.createElement('li');list.append(node);}else{list=null;node=document.createElement('p');body.append(node);}const source=line.replace(/^\s*\*\s+/,'');source.split(/(\*\*[^*]+\*\*)/g).forEach(part=>{if(part.startsWith('**')&&part.endsWith('**')){const strong=document.createElement('strong');strong.textContent=part.slice(2,-2);node.append(strong);}else node.append(document.createTextNode(part));});}};
+    const post=async(values)=>{const data=new FormData(form);Object.entries(values).forEach(([k,v])=>data.set(k,v));const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000);try{const response=await fetch(location.href,{method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'},signal:controller.signal});const result=await response.json();if(!response.ok){const messages={report_connector_disabled:'Summaries is disabled or has no connector in Global Settings.',report_history_empty:'No saved personality or backstory is available.',report_history_too_large:'The saved history exceeds the report input limit.',unauthorized:'Your session changed. Reload before continuing.'};throw new Error(messages[result.error]||'The report request failed. Check the server logs.');}return result;}finally{clearTimeout(timer);}};
+    const run=async()=>{if(busy)return;busy=true;button.disabled=true;try{
+        if(!jobId){requestId||=crypto.randomUUID();url.searchParams.set('request',requestId);history.replaceState(null,'',url);status.textContent='Requesting report…';const result=await post({operation:'generate',request_id:requestId});if(!uuid.test(result.job_id||''))throw new Error('The report request could not be confirmed. Retry to check the same request.');jobId=result.job_id;url.searchParams.set('job',jobId);history.replaceState(null,'',url);}
+        const deadline=Date.now()+180000;
+        while(Date.now()<deadline){const result=await post({operation:'status',job_id:jobId});
+            if(result.state==='succeeded'){if(typeof result.report!=='string'||!result.report.trim())throw new Error('The worker returned no report.');render(result.report);status.textContent='Report generated from saved profile revision '+result.base_revision+'.';jobId='';requestId='';button.textContent='Generate another report (AI request)';return;}
+            if(['dead','dead_letter','failed','cancelled'].includes(result.state)){status.textContent='Report generation failed. Check the provider settings and server logs before requesting another report.';jobId='';requestId='';button.textContent='Generate another report (AI request)';return;}
+            status.textContent=result.state==='leased'?'Generating report…':'Report queued…';await new Promise(resolve=>setTimeout(resolve,1000));
+        }
+        status.textContent='The report is still pending. Check again to continue waiting; no new AI request will be created.';button.textContent='Check report status';
+    }catch(error){status.textContent=error.name==='AbortError'||error instanceof TypeError||error instanceof SyntaxError?'The server response could not be confirmed. Retry checks the same request without creating a duplicate.':error.message;button.textContent=jobId?'Check report status':'Retry report request';}
+    finally{busy=false;button.disabled=false;}};
+    form.addEventListener('submit',event=>{event.preventDefault();if(!jobId&&!requestId){url.searchParams.delete('job');url.searchParams.delete('request');history.replaceState(null,'',url);}run();});
+    if(jobId)run();else if(requestId){status.textContent='A previous request was not confirmed. Retry checks that same request.';button.textContent='Check previous request';}
+})();

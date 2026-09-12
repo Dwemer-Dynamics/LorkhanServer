@@ -1003,3 +1003,6 @@ body.view-characters .npc-setting-overrides .npc-ovr-option-category {color:#bc9
 
 .npc-versions-dialog,.npc-versions-dialog form{font-size:15px;line-height:1.5}
 .npc-versions-dialog .npc-versions-toolbar button.btn-save[type=submit]{background:#bc9d5a!important;border-color:#bc9d5a!important;color:#111!important;border-radius:6px;padding:6px 12px;font-weight:700}
+
+.npc-versions-dialog[open]{display:flex;flex-direction:column}.npc-versions-header{flex-shrink:0;flex-wrap:wrap}.npc-versions-body{min-height:0}
+.npc-versions-header a.btn-cancel{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 12px;border:1px solid #555;border-radius:6px;background:#383838;color:#eee;font-size:.82rem;font-weight:700;line-height:1.1;text-decoration:none!important}.npc-versions-header a.btn-cancel:focus-visible{outline:2px solid #bc9d5a;outline-offset:2px}

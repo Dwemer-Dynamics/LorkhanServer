@@ -3739,4 +3739,33 @@ SQL);
     }
 }
 
+
+// NPC evolution reports are separate, frozen read-only results, including for locked NPCs.
+$reportInstallation=\LorkhanServer\Infrastructure\Uuid::v4();
+$db->prepare('INSERT INTO installations(installation_id,token_fingerprint) VALUES(:id,:token)')->execute(['id'=>$reportInstallation,'token'=>hash('sha256',$reportInstallation)]);
+$reportProducts=new \LorkhanServer\Infrastructure\ProductRepository($db);$reportNow=gmdate('c');
+$reportNpc=$reportProducts->createRevisioned('profile',['installation_id'=>$reportInstallation,'name'=>'Report NPC','actor_identity'=>['kind'=>'actor','record_id'=>'report_npc'],'content'=>['biography'=>'Born in Balmora','personality'=>'Reserved','management'=>['locked'=>true]]],$reportNow);
+$reportNpcId=$reportNpc['profile_id'];$reports=new \LorkhanServer\Infrastructure\NpcEvolutionReportRepository($db);
+try{$reports->enqueue($reportInstallation,$reportNpcId,\LorkhanServer\Infrastructure\Uuid::v4());$assert(false,'disabled report connector queued');}catch(InvalidArgumentException $e){$assert($e->getMessage()==='report_connector_disabled','wrong report disabled error');}
+$reportProvider=$reportProducts->createRevisioned('provider',['installation_id'=>$reportInstallation,'name'=>'Mock report connector','content'=>['driver'=>'mock','model'=>'report-test']],$reportNow);
+$reportProducts->createRevisioned('memory_policy',['installation_id'=>$reportInstallation,'name'=>'Report summary policy','content'=>['schema'=>'lorkhan.memory-policy.v1','enabled'=>true,'provider_configuration_id'=>$reportProvider['configuration_id']]],$reportNow);
+$content=$reportNpc['content'];$content['biography']='Same personality, later biography';$reportProducts->revise('profile',$reportNpcId,$content,'test',$reportNow);
+$content['personality']='Outgoing';$reportProducts->revise('profile',$reportNpcId,$content,'test',$reportNow);
+$requestId=\LorkhanServer\Infrastructure\Uuid::v4();$reportQueued=$reports->enqueue($reportInstallation,$reportNpcId,$requestId);
+$assert($reports->enqueue($reportInstallation,$reportNpcId,$requestId)['job_id']===$reportQueued['job_id'],'report retry duplicated work');
+$reportInput=$reports->input($reportInstallation,$reportNpcId,$reportQueued['job_id']);
+$assert(count($reportInput['history'])===2&&$reportInput['history'][0]['revision']===1&&$reportInput['history'][1]['revision']===3,'report history order/dedup');
+$content['personality']='Changed while report queued';$reportProducts->revise('profile',$reportNpcId,$content,'test',$reportNow);
+$assert($reports->input($reportInstallation,$reportNpcId,$reportQueued['job_id'])===$reportInput,'report input changed after enqueue');
+$reportJobs=new \LorkhanServer\Infrastructure\JobRepository($db);$claimed=$reportJobs->claim('report-test',1,60,['profile.report'])[0];
+$assert($claimed['job_id']===$reportQueued['job_id']&&$claimed['max_attempts']===1,'report claim/attempt bounds');
+$reportHandler=new \LorkhanServer\Application\NpcEvolutionReportJobHandler($reports,$reportProducts,new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db));
+$reportHandler->handle($claimed['payload']+['_job'=>['job_id'=>$claimed['job_id'],'attempt'=>$claimed['attempt_count'],'lease_token'=>$claimed['lease_token']]],$claimed['idempotency_key'],static fn()=>true);
+$assert($reports->status($reportInstallation,$reportNpcId,$claimed['job_id'])['report']===null,'uncommitted report exposed');
+$reportJobs->succeed($claimed['job_id'],$claimed['lease_token']);$reportStatus=$reports->status($reportInstallation,$reportNpcId,$claimed['job_id']);
+$assert($reportStatus['state']==='succeeded'&&str_contains($reportStatus['report'],'2 distinct personality snapshots')&&$reportStatus['base_revision']===3,'report result not persisted');
+$assert($reportProducts->getRevisioned('profile',$reportNpcId)['current_revision']===4,'report changed NPC profile');
+try{$reports->save($claimed['job_id'],1,$claimed['lease_token'],'late result');$assert(false,'expired report lease wrote');}catch(RuntimeException $e){$assert($e->getMessage()==='lease_lost','wrong report fence error');}
+try{$reports->status('00000000-0000-4000-8000-000000000001',$reportNpcId,$claimed['job_id']);$assert(false,'cross-installation report exposed');}catch(RuntimeException){$assert(true,'report scope rejection');}
+
 fwrite(STDOUT, "integration vertical slice passed\n");

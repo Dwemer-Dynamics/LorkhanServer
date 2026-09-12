@@ -1,0 +1,8 @@
+/* Herika npc_report.php presentation, with Lorkhan's gold accent. */
+.npc-report-main{padding:40px 10%;width:100%;margin:0}.npc-report-main .api-title{margin:0 0 20px;font:400 2.2em MagicCards,serif;word-spacing:8px;color:#bc9d5a;text-shadow:2px 2px 4px rgba(0,0,0,.5);text-align:center;overflow-wrap:anywhere}
+.npc-report-main .content-grid{display:grid;grid-template-columns:1fr;gap:30px;margin-bottom:30px}.npc-report-main .content-section{background:#2a2a2a;padding:25px;border-radius:8px;border:1px solid #4a4a4a}
+.npc-report-main h2{font-family:MagicCards,serif;color:#bc9d5a;text-shadow:1px 1px 2px rgba(0,0,0,.5);word-spacing:6px;margin-bottom:15px;font-size:1.4em}
+.npc-report-main .report-body{color:#e0e0e0;line-height:1.6;font-size:15px;overflow-wrap:anywhere}.report-body p{margin:10px 0}.report-body ul{margin:10px 0 10px 22px;padding:0}.report-body li{margin:6px 0}.report-body strong{color:#cfb67e}.report-help{font-size:13px;color:#b9b9b9}
+.npc-report-main form button[type=submit]{background:#bc9d5a!important;border-color:#bc9d5a!important;color:#111!important}
+@media(max-width:600px){.npc-report-main{padding:24px 12px}.npc-report-main .content-section{padding:18px}}
+body.npc-report-page .npc-report-main .api-title,body.npc-report-page .npc-report-main h2{color:#bc9d5a!important}body.npc-report-page .npc-report-main .content-section{background:#2a2a2a!important;border:1px solid #4a4a4a!important;border-radius:8px!important;padding:25px!important}body.npc-report-page .npc-report-main form button[type=submit]{background:#bc9d5a!important;border-color:#bc9d5a!important;color:#111!important}
