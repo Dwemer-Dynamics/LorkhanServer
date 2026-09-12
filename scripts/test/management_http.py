@@ -571,6 +571,7 @@ assert r.status==200 and 'Voice sample synced to '+sync_tts_name+'.' in body,(r.
 assert len(VoiceProvider.uploads)==1 and b'name="wavFile"' in VoiceProvider.uploads[0][1] and b'name="force"' in VoiceProvider.uploads[0][1] and b'\r\n\r\ntrue\r\n' in VoiceProvider.uploads[0][1],VoiceProvider.uploads
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'discover','configuration_id':sync_tts_id,'language':'en'}); body=r.read().decode()
 assert r.status==200 and '1 provider voices discovered.' in body and 'MockProviderVoice' in body,(r.status,r.geturl(),body)
+if os.environ.get('LORKHAN_VOICE_BATCH_EVIDENCE'): pathlib.Path(os.environ['LORKHAN_VOICE_BATCH_EVIDENCE']).write_text(body,encoding='utf-8')
 # Planning does not upload; named steps do not depend on a provider refreshing its speaker list immediately.
 batch_fields={'_csrf':csrf,'action':'batch_sync','_batch_ajax':'1','_batch_phase':'plan','consent':'1','configuration_id':sync_tts_id,'language':'en'}
 before_uploads=len(VoiceProvider.uploads)

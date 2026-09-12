@@ -31,7 +31,8 @@ document.querySelectorAll('[data-voice-batch]').forEach((form) => {
         let uploaded = 0, failed = 0, skipped = 0, completed = 0, rateLimited = false;
         // Never retry an uncertain upload automatically; a provider may already have created the voice.
         const send = async () => {
-            const response = await fetch(form.action, {method: 'POST', body: data, credentials: 'same-origin'});
+            // The hidden action field shadows HTMLFormElement.action. Read the URL attribute instead.
+            const response = await fetch(form.getAttribute('action'), {method: 'POST', body: data, credentials: 'same-origin'});
             if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('Unexpected response. Refresh the page before retrying; the last request may have completed.');
             const result = await response.json();
             if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'Voice request failed. Check the connector before retrying.');
@@ -49,9 +50,10 @@ document.querySelectorAll('[data-voice-batch]').forEach((form) => {
                 row.textContent = `⏳ Processing: ${voice}`; log.append(row); log.scrollTop = log.scrollHeight;
                 status.textContent = `Processing ${voice}…`; data.set('voice_name', voice);
                 let result;
-                try { result = await send(); }
-                catch (error) { row.className = 'voice-batch-failed'; row.textContent = `? ${voice}: outcome unconfirmed`; throw error; }
-                if (result.voice !== voice || ![result.uploaded, result.failed, result.skipped].every(value => value === 0 || value === 1) || result.uploaded + result.failed + result.skipped !== 1) throw new Error('Unconfirmed voice result. Refresh the page before retrying.');
+                try {
+                    result = await send();
+                    if (!result || result.voice !== voice || ![result.uploaded, result.failed, result.skipped].every(value => value === 0 || value === 1) || result.uploaded + result.failed + result.skipped !== 1) throw new Error('Unconfirmed voice result. Refresh the page before retrying.');
+                } catch (error) { row.className = 'voice-batch-failed'; row.textContent = `? ${voice}: outcome unconfirmed`; throw error; }
                 uploaded += result.uploaded; failed += result.failed; skipped += result.skipped; completed++;
                 row.className = result.failed ? 'voice-batch-failed' : 'voice-batch-succeeded';
                 row.textContent = result.failed ? `✗ ${voice}: upload failed` : result.skipped ? `✓ ${voice}: already available` : `✓ ${voice}`;
