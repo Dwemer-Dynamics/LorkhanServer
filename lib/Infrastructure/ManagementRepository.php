@@ -76,6 +76,17 @@ final class ManagementRepository
         return $row===false?null:$row;
     }
 
+    /** Match the reference's first Playthrough Manager visit without running a dump inside the web request. */
+    public function ensureInitialPlaythroughSnapshot():?string
+    {
+        if(!filter_var($this->db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn(),FILTER_VALIDATE_BOOL))return null;
+        try{
+            if($this->db->query("SELECT 1 FROM backup_records WHERE scope->>'kind'='database_sql' AND jsonb_exists(scope,'snapshot') LIMIT 1")->fetchColumn()!==false)return null;
+            return $this->queueDatabaseBackup(false,['name'=>'default','notes'=>'Auto-captured initial database snapshot']);
+        }catch(RuntimeException $error){if($error->getMessage()==='maintenance_busy')return null;throw $error;}
+        finally{$this->db->query('SELECT pg_advisory_unlock(7514,113)');}
+    }
+
     public function databaseBackupSettings(): array
     {
         $row=$this->db->query('SELECT enabled,max_count FROM lorkhan_internal.database_backup_settings WHERE singleton')->fetch(PDO::FETCH_ASSOC);
@@ -108,6 +119,7 @@ final class ManagementRepository
         try{
             $record=(new ProductRepository($db))->configurationBackupRecord($id);
             if(($record['scope']['kind']??'')!=='database_sql'||($kind==='automatic'?($record['scope']['automatic']??false)!==true:!isset($record['scope']['snapshot'])))throw new RuntimeException('not_found');
+            if(strtolower($record['scope']['snapshot']['name']??'')==='default')throw new RuntimeException('default_snapshot_protected');
             $pending=$db->prepare("SELECT 1 FROM durable_jobs WHERE job_type='database.restore' AND state IN ('queued','leased') AND payload->>'backup_id'=:id LIMIT 1");
             $pending->execute(['id'=>$id]);if($pending->fetchColumn()!==false)throw new RuntimeException('backup_restore_pending');
             if(is_link($path)||is_link($path.'.dump'))throw new RuntimeException('backup_integrity_failed');

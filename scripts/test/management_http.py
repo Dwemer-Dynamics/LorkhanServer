@@ -1105,6 +1105,22 @@ r=request(delete_all['action'],'POST',dict(delete_all['fields'],_csrf=csrf,confi
 bulk_preserved=json.loads(request('/LorkhanServer/manage/exports/profiles/'+profile_id+'.json').read().decode())
 assert r.status==200 and extra_name not in body and profile_name in body and bulk_preserved['content']['management']['locked'] is True,(r.status,r.geturl(),bulk_preserved)
 playthroughs,_=parse(request('/LorkhanServer/ui/playthrough_manager.php'))
+initial_status='/LorkhanServer/manage/api/v1/playthrough-snapshot'
+initial_job=json.load(request(initial_status,accept='application/json'))['job']
+assert initial_job['state']=='queued',initial_job
+request('/LorkhanServer/ui/playthrough_manager.php')
+assert json.load(request(initial_status,accept='application/json'))['job']['job_id']==initial_job['job_id']
+initial_args=list(sql_worker.args);initial_args[-1]=initial_job['job_id']
+initial_worker=subprocess.run(initial_args,capture_output=True,text=True,timeout=60)
+assert initial_worker.returncode==0 and json.loads(initial_worker.stdout)['succeeded']==1,(initial_worker.stdout,initial_worker.stderr)
+initial_page,initial_html=parse(request('/LorkhanServer/ui/playthrough_manager.php'))
+assert 'Protected default' in initial_html and 'Auto-captured initial database snapshot' in initial_html
+assert not any(f['fields'].get('backup_id')==initial_job['job_id'] and f['fields'].get('operation')=='delete' for f in initial_page.forms)
+initial_sql=request('/LorkhanServer/manage/exports/database/'+initial_job['job_id']+'.sql').read()
+protected=request('/LorkhanServer/manage/forms/playthrough-snapshot','POST',{'_csrf':csrf,'operation':'delete','backup_id':initial_job['job_id'],'confirm':'Delete'})
+assert 'initial default snapshot is protected' in protected.read().decode()
+assert request('/LorkhanServer/manage/exports/database/'+initial_job['job_id']+'.sql').read()==initial_sql
+assert json.load(request(initial_status,accept='application/json'))['job']['job_id']==initial_job['job_id']
 create_playthrough=next(f for f in playthroughs.forms if f['action'].endswith('/forms/playthroughs'))
 playthrough_name='HTTP playthrough '+uuid.uuid4().hex
 values=dict(create_playthrough['fields'],_csrf=csrf,profile_id=profile_id,name=playthrough_name,content_json='{}')

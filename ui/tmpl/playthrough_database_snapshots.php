@@ -5,6 +5,7 @@ $snapshotMessages=[
     'snapshot-deleted'=>'Stored snapshot deleted. The active database was not deleted.',
     'snapshot-busy'=>'Another backup or restore is pending. Wait for it to finish before retrying.',
     'snapshot-protected'=>'This snapshot is queued for copying and cannot be deleted yet.',
+    'snapshot-default-protected'=>'The initial default snapshot is protected and cannot be deleted.',
     'snapshot-delete-failed'=>'Snapshot deletion did not finish. A file may already be removed; retry to finish deletion.',
 ];
 $snapshotCalendar=\LorkhanServer\Application\MorrowindCalendar::parse($liveDatabase['current']['calendar_data']??null)['label']??'n/a';
@@ -40,6 +41,7 @@ $snapshotCalendar=\LorkhanServer\Application\MorrowindCalendar::parse($liveDatab
         </form>
         <p class="scope-note" role="status" data-database-maintenance data-kind="snapshot" data-state="<?= lorkhan_ui_h($snapshotSaveJob['state']??'') ?>" data-endpoint="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/playthrough-snapshot">Latest save: <?= lorkhan_ui_h($snapshotSaveJob['state']??'none') ?>.</p>
         <p class="scope-note">Stored as private PostgreSQL archives. Snapshots share the backup storage limit. Keep downloaded SQL private.</p>
+        <p class="scope-note">The first visit queues a protected default snapshot when no named snapshots exist. Its capture time is when the worker starts the backup.</p>
     </section>
     <section class="content-section" aria-labelledby="stored-snapshots-title">
         <h2 id="stored-snapshots-title">💾 Stored Snapshots</h2>
@@ -66,11 +68,11 @@ $snapshotCalendar=\LorkhanServer\Application\MorrowindCalendar::parse($liveDatab
                             <button class="button snapshot-copy" type="submit">Copy to Public</button>
                         </form>
                         <a class="button" href="<?= lorkhan_ui_h($managementBasePath.'/exports/database/'.$snapshot['backup_id'].'.sql') ?>">Download SQL</a>
-                        <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthrough-snapshot" data-snapshot-confirm="delete" data-snapshot-name="<?= lorkhan_ui_h($snapshot['name']) ?>">
+                        <?php if(strtolower($snapshot['name'])!=='default'): ?><form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthrough-snapshot" data-snapshot-confirm="delete" data-snapshot-name="<?= lorkhan_ui_h($snapshot['name']) ?>">
                             <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="operation" value="delete"><input type="hidden" name="backup_id" value="<?= lorkhan_ui_h($snapshot['backup_id']) ?>"><input type="hidden" name="confirm" value="Delete">
                             <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
                             <button class="button snapshot-delete btn-danger" type="submit" aria-label="Delete snapshot <?= lorkhan_ui_h($snapshot['name']) ?>">🗑️</button>
-                        </form>
+                        </form><?php else: ?><span class="selected-badge">Protected default</span><?php endif; ?>
                     </div>
                 </div>
             </article>

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 $pageTitle='Playthrough Manager';$topNavSection='control';$BODY_CLASS='hub-page playthrough-shell';
 require __DIR__.'/ui_bootstrap.php';
+$managementRepository->ensureInitialPlaythroughSnapshot();
 $snapshotSaveJob=$managementRepository->snapshotSaveStatus();
 $snapshotRestoreJob=$managementRepository->databaseMaintenanceStatus('database.restore');
 $snapshotSource=$database->query('SELECT s.backup_id,s.name,s.copied_at,EXISTS(SELECT 1 FROM backup_records b WHERE b.backup_id=s.backup_id) AS stored FROM lorkhan_internal.database_snapshot_source s WHERE singleton')->fetch(PDO::FETCH_ASSOC);
