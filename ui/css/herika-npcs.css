@@ -820,6 +820,8 @@ body .npc-relationships .npc-rel-detail-dialog input{height:40px;min-height:40px
 .npc-ovr-options {display:flex;flex-direction:column;gap:8px;}
 .npc-ovr-options button {text-align:left;padding:10px;}
 .npc-setting-overrides :is(input,select,textarea) {box-sizing:border-box;max-width:100%;}
+.npc-setting-overrides [data-npc-override-text] {width:100%;min-height:140px;resize:vertical;}
+.npc-ovr-info .npc-ovr-value {max-height:5em;overflow:auto;white-space:pre-wrap;}
 .npc-setting-overrides [hidden] {display:none!important;}
 .npc-setting-overrides :is(button,input,select,textarea,summary):focus-visible {outline:2px solid #bc9d5a;outline-offset:2px;}
 @media(max-width:480px){.npc-ovr-item{grid-template-columns:auto minmax(0,1fr);}.npc-ovr-actions{grid-column:2;}.npc-ovr-dialog footer .npc-ovr-add{width:auto;}}

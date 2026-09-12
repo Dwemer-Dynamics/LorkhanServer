@@ -2345,12 +2345,19 @@ final class ManagementRouter
                     || array_diff(array_keys($fields), $catalog[$section]) !== [])
                     throw new InvalidArgumentException('invalid_npc_settings_override');
             }
-            $submitted = EffectiveSettingsResolver::validateSettingsOverrides($submitted);
+            $submitted = EffectiveSettingsResolver::validateSettingsOverrides($submitted, true);
             $overrides = $content['settings_overrides'] ?? [];
             foreach ($catalog as $section => $fields) {
                 foreach ($fields as $field) unset($overrides[$section][$field]);
                 if (($overrides[$section] ?? null) === []) unset($overrides[$section]);
             }
+            // Diary overrides keep their established NPC owner alongside the separate Auto Diary switches.
+            $diary = $content['diary'] ?? [];
+            foreach ($catalog['diary'] as $field) unset($diary[$field]);
+            $diary = array_replace($diary, $submitted['diary'] ?? []);
+            if ($diary === []) unset($content['diary']);
+            else $content['diary'] = DiaryGenerationPolicy::validateOverrides($diary);
+            unset($submitted['diary']);
             foreach ($submitted as $section => $fields)
                 $overrides[$section] = array_replace($overrides[$section] ?? [], $fields);
             if ($overrides === []) unset($content['settings_overrides']);

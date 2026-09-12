@@ -1994,15 +1994,20 @@ assert not any(field in saved_routing['fields'] for field in ['profile_generatio
 
 # Explicit NPC overrides round-trip through the existing revisioned profile save.
 npc_overrides={'quest_comments':{'enabled':False,'chance_percent':25},'bored_event':{'chance_percent':0},'behavior':{'rechat':False,'rechat_probability_percent':0},'memory':{'recent_turn_limit':3,'short_term_max_summaries':2},'response':{'max_words':17,'core_lang':'fr','lang_llm_xtts':True}}
+npc_overrides['diary']={'prompt':'Write this NPC’s witnessed history only.\nRetain uncertainty.','automatic_interval_seconds':35,'context_turn_limit':0}
+npc_overrides['profile_evolution']={'history_limit':0}
 for submitted in [npc_overrides, None, {}]:
     override_values=dict(saved_routing['fields'],_csrf=csrf,change_reason='NPC overrides HTTP')
     if submitted is not None: override_values['npc_settings_overrides_json']=json.dumps(submitted)
+    else: override_values.pop('npc_settings_overrides_json',None)
     r=request(saved_routing['action'],'POST',override_values); override_page,override_body=parse(r)
     assert r.status==200,(r.status,override_body)
     saved_routing=next(f for f in override_page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==routing_profile_id)
     saved_routing_content=json.loads(saved_routing['fields']['base_content_json'])
-    assert saved_routing_content.get('settings_overrides',{})==(npc_overrides if submitted is None else submitted),saved_routing_content
-for invalid_override in [{'quest_comments':{'chance_percent':30}},{'quest_comments':{'enabled':'false'}},{'bored_event':{'chance_percent':101}},{'behavior':{'rechat':'false'}},{'memory':{'recent_turn_limit':0}},{'response':{'max_words':10001}},{'narrator':{'enabled':True}},{'memory':{'short_term_max_summaries':51}},{'response':{'core_lang':'invalid'}},{'response':{'lang_llm_xtts':'true'}}]:
+    expected_overrides=npc_overrides if submitted is None else submitted
+    assert saved_routing_content.get('settings_overrides',{})=={k:v for k,v in expected_overrides.items() if k!='diary'},saved_routing_content
+    assert {k:v for k,v in saved_routing_content.get('diary',{}).items() if k in npc_overrides['diary']}==expected_overrides.get('diary',{})
+for invalid_override in [{'quest_comments':{'chance_percent':30}},{'quest_comments':{'enabled':'false'}},{'bored_event':{'chance_percent':101}},{'behavior':{'rechat':'false'}},{'memory':{'recent_turn_limit':0}},{'response':{'max_words':10001}},{'narrator':{'enabled':True}},{'memory':{'short_term_max_summaries':51}},{'response':{'core_lang':'invalid'}},{'response':{'lang_llm_xtts':'true'}},{'diary':{'prompt':' '}},{'diary':{'prompt':'é'*4097}},{'diary':{'context_turn_limit':401}},{'diary':{'automatic_interval_seconds':9}},{'profile_evolution':{'history_limit':401}},{'profile_evolution':{'history_limit':'2'}},{'profile_evolution':{'enabled':True}}]:
     r=request(saved_routing['action'],'POST',dict(saved_routing['fields'],_csrf=csrf,npc_settings_overrides_json=json.dumps(invalid_override),biography='MUST NOT SAVE'))
     assert r.status==422,(r.status,r.read().decode())
     unchanged_page,_=parse(request('/LorkhanServer/ui/core/npc_master.php'))
@@ -2013,6 +2018,7 @@ for invalid_override in [{'quest_comments':{'chance_percent':30}},{'quest_commen
 diary_base=dict(saved_routing_content,diary={'automatic_interval_seconds':240,'include_in_context':False})
 diary_values=dict(saved_routing['fields'],_csrf=csrf,change_reason='HTTP NPC diary override',base_content_json=json.dumps(diary_base),
     npc_diary_automatic_enabled='1',npc_diary_automatic_wait_enabled='0')
+diary_values.pop('npc_settings_overrides_json',None)
 for enabled,waiting in [('1','0'),('0','1'),('inherit','inherit')]:
     diary_values.update(npc_diary_automatic_enabled=enabled,npc_diary_automatic_wait_enabled=waiting)
     r=request(saved_routing['action'],'POST',diary_values); diary_body=r.read().decode()

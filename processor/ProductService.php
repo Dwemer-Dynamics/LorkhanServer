@@ -530,7 +530,7 @@ final class ProductService
             $content['routing'] = EffectiveSettingsResolver::validateRouting($content['routing']);
         }
         if (array_key_exists('settings_overrides', $content)) {
-            $content['settings_overrides'] = EffectiveSettingsResolver::validateSettingsOverrides($content['settings_overrides']);
+            $content['settings_overrides'] = EffectiveSettingsResolver::validateSettingsOverrides($content['settings_overrides'], true);
         }
         if(array_key_exists('player_elevenlabs',$content))$content['player_elevenlabs']=CloudSpeechConnectorProvider::validatePlayerOverrides($content['player_elevenlabs']);
         if(!array_key_exists('voice',$content))return$content;

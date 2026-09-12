@@ -11,11 +11,18 @@ $overrideLabels = [
     'response.max_words'=>'Maximum Response Words',
     'memory.short_term_max_summaries'=>'Max Summaries',
     'response.core_lang'=>'Core Language', 'response.lang_llm_xtts'=>'LLM Output Language',
+    'diary.prompt'=>'Diary Prompt', 'diary.automatic_interval_seconds'=>'Diary Cooldown',
+    'diary.context_turn_limit'=>'Context History Diary Event Count',
+    'profile_evolution.history_limit'=>'Context History Dynamic Profile Event Count',
 ];
 $help=[
             'response.core_lang'=>'Language of built-in roleplay instructions. Blank uses English; custom prompts and output translation are unchanged.',
             'response.lang_llm_xtts'=>'Ask the LLM for the spoken language and use it for XTTS/Chatterbox. Missing or unsupported codes keep the configured voice language.',
             'memory.short_term_max_summaries'=>'Maximum past-scene summaries included in a response (1–50). Used only when Short Term Memory is enabled.',
+            'diary.prompt'=>'Instructions for this NPC’s diary generation. Keep between 1 and 8192 UTF-8 bytes; this does not enable automatic diaries.',
+            'diary.automatic_interval_seconds'=>'Minimum seconds between this NPC’s automatic diary requests, including timer, sleep and wait triggers (10–86400).',
+            'diary.context_turn_limit'=>'Witnessed history records included when generating this NPC’s diary (0–400). Zero uses the regular Context History limit.',
+            'profile_evolution.history_limit'=>'History records included in this NPC’s automatic profile updates (0–400). Zero uses the regular Context History limit; this does not enable Dynamic Profile.',
         ];
 $overrideCatalog=[];$overrideValues=[];
 foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $section=>$fields) {
@@ -23,6 +30,9 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
         $path=$section.'.'.$key;
         $range=\LorkhanServer\Application\SettingsCatalog::ranges()[$path] ?? ($path==='response.max_words'?[0,10000]:null);
         if($path==='memory.short_term_max_summaries')$range=[1,50];
+        if($path==='diary.automatic_interval_seconds')$range=[10,86400];
+        if($path==='diary.context_turn_limit')$range=[0,400];
+        if($path==='profile_evolution.history_limit')$range=[0,400];
         $default=$effectiveSettings['settings'][$section][$key]
             ?? \LorkhanServer\Application\SettingsCatalog::clientDefaults()[$section][$key] ?? ($range?0:true);
         if($path==='response.core_lang')$default=$effectiveSettings['settings']['response']['core_lang']??'';
@@ -34,8 +44,12 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
             'label'=>$overrideLabels[$path],'type'=>'choice',
             'choices'=>array_keys(\LorkhanServer\Application\CoreProfileLanguage::LABELS),
             'labels'=>\LorkhanServer\Application\CoreProfileLanguage::LABELS,'value'=>$default];
+        if($path==='diary.prompt')$overrideCatalog[$path]=[
+            'label'=>$overrideLabels[$path],'type'=>'string','maxBytes'=>8192,
+            'value'=>$effectiveSettings['settings']['diary']['prompt']??\LorkhanServer\Application\DiaryGenerationPolicy::defaults()['prompt']];
         if(isset($help[$path]))$overrideCatalog[$path]['help']=$help[$path].' Remove this override to restore inheritance.';
         if(array_key_exists($key,$content['settings_overrides'][$section]??[]))$overrideValues[$section][$key]=$content['settings_overrides'][$section][$key];
+        if($section==='diary'&&array_key_exists($key,$content['diary']??[]))$overrideValues[$section][$key]=$content['diary'][$key];
     }
 }
 $overrideId=$formId.'-overrides';
@@ -69,6 +83,7 @@ $overrideId=$formId.'-overrides';
                 <label for="<?= lorkhan_ui_h($overrideId) ?>-bool" data-npc-override-label></label>
                 <select id="<?= lorkhan_ui_h($overrideId) ?>-bool" data-npc-override-bool><option value="true">On</option><option value="false">Off</option></select>
                 <input type="number" id="<?= lorkhan_ui_h($overrideId) ?>-number" step="1" data-npc-override-number>
+                <textarea id="<?= lorkhan_ui_h($overrideId) ?>-text" rows="6" data-npc-override-text></textarea>
                 <p data-npc-override-help></p>
             </div>
         </div>

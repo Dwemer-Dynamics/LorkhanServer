@@ -84,10 +84,12 @@ final class EffectiveSettingsResolver
         $settings['narrator'] = SettingsCatalog::clientDefaults()['narrator'];
         $settings['diary'] = DiaryGenerationPolicy::defaults();
         $settings['response'] = ['max_words' => 0];
+        $settings['profile_evolution'] = ['history_limit' => 50];
         $sources = [];
         $this->markLeaves($settings, $globalSettings === [] ? 'default' : 'global', 'settings', $sources);
         $this->markLeaves($settings['narrator'], 'default', 'settings.narrator', $sources);
         $this->markLeaves($settings['diary'], 'default', 'settings.diary', $sources);
+        $this->markLeaves($settings['profile_evolution'], 'default', 'settings.profile_evolution', $sources);
         $settings['memory']['short_term_max_summaries'] = 10;
         $sources['settings.memory.short_term_max_summaries'] = 'default';
         $settings['quest_comments'] = $global['quest_comments'];
@@ -141,6 +143,8 @@ final class EffectiveSettingsResolver
         if (isset($coreOverrides['quest_comments'])) $allowedOverrides['quest_comments'] = $coreOverrides['quest_comments'];
         if (isset($coreOverrides['bored_event'])) $allowedOverrides['bored_event'] = $coreOverrides['bored_event'];
         if (isset($coreOverrides['rpg_comments'])) $allowedOverrides['rpg_comments'] = $coreOverrides['rpg_comments'];
+        if (isset($coreOverrides['profile_evolution']['history_limit']))
+            $allowedOverrides['profile_evolution']['history_limit'] = $coreOverrides['profile_evolution']['history_limit'];
         $this->mergeSettings($settings, $allowedOverrides, 'core_profile', 'settings', $sources);
 
         $coreRouting = self::validateRouting($coreProfileContent['routing'] ?? []);
@@ -166,7 +170,7 @@ final class EffectiveSettingsResolver
         if (!is_array($npcProfileContent) || ($npcProfileContent !== [] && array_is_list($npcProfileContent))) {
             throw new InvalidArgumentException('invalid_settings_layer');
         }
-        $npcOverrides = self::validateSettingsOverrides($npcProfileContent['settings_overrides'] ?? []);
+        $npcOverrides = self::validateSettingsOverrides($npcProfileContent['settings_overrides'] ?? [], true);
         $npcAllowed = [];
         foreach (SettingsCatalog::npcOverrideFields() as $section => $fields) {
             foreach ($fields as $field) {
@@ -367,7 +371,7 @@ final class EffectiveSettingsResolver
     }
 
     /** @param mixed $overrides */
-    public static function validateSettingsOverrides(mixed $overrides): array
+    public static function validateSettingsOverrides(mixed $overrides, bool $npc = false): array
     {
         if (!is_array($overrides) || ($overrides !== [] && array_is_list($overrides)) || array_key_exists('schema', $overrides)) {
             throw new InvalidArgumentException('invalid_settings_overrides');
@@ -386,7 +390,10 @@ final class EffectiveSettingsResolver
             unset($validation['rpg_comments']);
         }
         if (array_key_exists('profile_evolution', $validation)) {
-            self::profileEvolutionDefaults($validation['profile_evolution']);
+            if ($npc && is_array($validation['profile_evolution']) && array_keys($validation['profile_evolution']) === ['history_limit']) {
+                $limit = $validation['profile_evolution']['history_limit'];
+                if (!is_int($limit) || $limit < 0 || $limit > 400) throw new InvalidArgumentException('invalid_settings_overrides');
+            } else self::profileEvolutionDefaults($validation['profile_evolution']);
             unset($validation['profile_evolution']);
         }
         // Response length is a server prompt instruction, not an OpenMW client control.

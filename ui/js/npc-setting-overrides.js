@@ -15,6 +15,7 @@
         const save = root.querySelector('[data-npc-override-save]');
         const boolean = root.querySelector('[data-npc-override-bool]');
         const number = root.querySelector('[data-npc-override-number]');
+        const text = root.querySelector('[data-npc-override-text]');
         let values = JSON.parse(field.value), selected = '', opener = null, dirty = false;
         const button = (text, action) => {
             const element = document.createElement('button'); element.type = 'button'; element.textContent = text;
@@ -31,6 +32,7 @@
                     if (!definition) throw new Error('Unsupported setting: ' + section + '.' + key);
                     if (definition.type === 'boolean' ? typeof setting !== 'boolean'
                         : definition.type === 'choice' ? !definition.choices.includes(setting)
+                        : definition.type === 'string' ? typeof setting !== 'string' || !setting.trim() || new TextEncoder().encode(setting).length > definition.maxBytes
                         : !Number.isInteger(setting) || setting < definition.range[0] || setting > definition.range[1])
                         throw new Error('Invalid value for ' + definition.label + '.');
                 }
@@ -66,21 +68,23 @@
             root.querySelector('[data-npc-override-title]').textContent = 'Edit Override';
             picker.hidden = true; editor.hidden = false; save.hidden = false;
             const label = root.querySelector('[data-npc-override-label]'); label.textContent = definition.label;
-            const isBoolean = definition.type === 'boolean', isChoice = definition.type === 'choice';
-            boolean.hidden = !(isBoolean || isChoice); number.hidden = isBoolean || isChoice;
+            const isBoolean = definition.type === 'boolean', isChoice = definition.type === 'choice', isText = definition.type === 'string';
+            boolean.hidden = !(isBoolean || isChoice); number.hidden = isBoolean || isChoice || isText; text.hidden = !isText;
+            boolean.disabled = boolean.hidden; number.disabled = number.hidden; text.disabled = text.hidden;
             boolean.replaceChildren(...(isChoice ? definition.choices.map(value => new Option(definition.labels?.[value] ?? String(value) + (definition.suffix || ''), String(value))) : [new Option('On','true'),new Option('Off','false')]));
-            label.htmlFor = isBoolean || isChoice ? boolean.id : number.id;
+            label.htmlFor = isText ? text.id : isBoolean || isChoice ? boolean.id : number.id;
             const current = values[section]?.[key] ?? definition.value;
-            if (isBoolean || isChoice) boolean.value = String(current);
+            if (isText) { text.required = true; text.maxLength = definition.maxBytes; text.value = current; text.setCustomValidity(''); }
+            else if (isBoolean || isChoice) boolean.value = String(current);
             else { number.required = true; number.min = definition.range[0]; number.max = definition.range[1]; number.value = current; }
-            root.querySelector('[data-npc-override-help]').textContent = isBoolean ? 'An explicit On or Off overrides the inherited setting.' : isChoice ? 'Choose one of the listed values. Removing this override restores inheritance.' : 'Allowed range: ' + definition.range.join('–') + '. Removing this override restores inheritance.';
+            root.querySelector('[data-npc-override-help]').textContent = isText ? 'Enter instructions. Removing this override restores inheritance.' : isBoolean ? 'An explicit On or Off overrides the inherited setting.' : isChoice ? 'Choose one of the listed values. Removing this override restores inheritance.' : 'Allowed range: ' + definition.range.join('–') + '. Removing this override restores inheritance.';
             if (definition.help) root.querySelector('[data-npc-override-help]').textContent = definition.help;
         };
         const filter = () => {
             options.replaceChildren();
             for (const [path, definition] of Object.entries(catalog)) {
                 if (!(definition.label + ' ' + path).toLowerCase().includes(search.value.toLowerCase())) continue;
-                options.append(button(definition.label, () => { openSetting(path); (boolean.hidden ? number : boolean).focus(); }));
+                options.append(button(definition.label, () => { openSetting(path); (text.hidden ? boolean.hidden ? number : boolean : text).focus(); }));
             }
             if (!options.children.length) options.textContent = 'No settings match your search.';
         };
@@ -95,11 +99,17 @@
         save.addEventListener('click', () => {
             const definition = catalog[selected], [section,key] = selected.split('.');
             if (definition.type === 'integer' && !number.reportValidity()) return;
+            if (definition.type === 'string') {
+                text.setCustomValidity(!text.value.trim() || new TextEncoder().encode(text.value).length > definition.maxBytes
+                    ? 'Enter between 1 and ' + definition.maxBytes + ' UTF-8 bytes.' : '');
+                if (!text.reportValidity()) return;
+            }
             const choice = definition.type === 'choice' ? definition.choices.find(value => String(value) === boolean.value) : undefined;
             if (definition.type === 'choice' && choice === undefined) return;
             let value = Number(number.value);
             if (definition.type === 'boolean') value = boolean.value === 'true';
             else if (definition.type === 'choice') value = choice;
+            else if (definition.type === 'string') value = text.value;
             values[section] ||= {}; values[section][key] = value;
             sync(); dialog.close();
         });

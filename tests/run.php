@@ -925,9 +925,16 @@ try{\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn('builtin:unknown'
 catch(InvalidArgumentException){$check(true,'unknown builtin rejected');}
 $evolutionResolved=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['profile_evolution'=>$evolutionDefaults]],[]);
 $check(EffectiveSettingsResolver::validateSettingsOverrides(['profile_evolution'=>$evolutionDefaults])['profile_evolution']===$evolutionDefaults
-    &&!isset($evolutionResolved['settings']['profile_evolution'])
+    &&$evolutionResolved['settings']['profile_evolution']===['history_limit'=>$evolutionDefaults['history_limit']]
     &&!isset(EffectiveSettingsResolver::controlsProjection($evolutionResolved)['settings']['profile_evolution']),
     'Core Profile evolution defaults retain all five fields without leaking into the client contract');
+foreach ([0,2,400] as $historyLimit) {
+    $npcEvolution=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['profile_evolution'=>$evolutionDefaults]],
+        ['settings_overrides'=>['profile_evolution'=>['history_limit'=>$historyLimit]]]);
+    $check($npcEvolution['settings']['profile_evolution']===['history_limit'=>$historyLimit]
+        &&$npcEvolution['sources']['settings.profile_evolution.history_limit']==='npc',
+        'NPC evolution history is a typed server override without discovery switches');
+}
 foreach([['enabled'=>'true','fields'=>['personality']],['enabled'=>true,'fields'=>[]],
     ['enabled'=>true,'fields'=>['skills'],'history_limit'=>-1],['enabled'=>true,'fields'=>['skills'],'history_limit'=>401],['enabled'=>true,'fields'=>['skills'],'history_limit'=>'20'],
     ['enabled'=>true,'fields'=>['notes']],['enabled'=>true,'fields'=>['skills','skills']],
@@ -2619,6 +2626,15 @@ $check($npcDiaryResolved['settings']['diary']['automatic_enabled']===false
     &&$npcDiaryResolved['settings']['diary']['automatic_interval_seconds']===240
     &&$npcDiaryResolved['sources']['settings.diary.automatic_enabled']==='npc',
     'NPC diary toggles override their own leaves without replacing inherited generation and interval settings');
+$npcDiaryFields=['automatic_interval_seconds'=>35, 'context_turn_limit'=>0, 'prompt'=>'Use only witnessed events.'];
+foreach (['diary'=>$npcDiaryFields, 'settings_overrides'=>['diary'=>$npcDiaryFields]] as $owner=>$fields) {
+    $resolved=(new EffectiveSettingsResolver())->resolve($globalSettings,
+        ['settings_overrides'=>['diary'=>['automatic_enabled'=>true,'automatic_interval_seconds'=>240]]],[$owner=>$fields]);
+    $check(array_intersect_key($resolved['settings']['diary'],$npcDiaryFields)===$npcDiaryFields
+        &&$resolved['settings']['diary']['automatic_enabled']===true
+        &&$resolved['sources']['settings.diary.prompt']==='npc',
+        'NPC diary prompt, zero history fallback and interval reach generation settings without changing Auto Diary');
+}
 // Narrator content is passed as the selected profile; installation-wide narrator options must not leak its diary override to other NPCs.
 foreach ([false,true] as $coreLatestDiary) {
     $latestDiaryCore=['settings_overrides'=>['diary'=>['latest_entry_in_context'=>$coreLatestDiary]]];

@@ -108,7 +108,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. Remaining children and full embedded interactions still pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Other Context event controls and profile-affecting built-ins remain open; see the dated checkpoints |
 | `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Remaining: full metadata/override composition and page-wide interaction closure. Physical Diary, cumulative memory semantics and Core-slot client selection are separate unfinished runtime features. |
-| `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Fifteen typed per-NPC override leaves now include Core Language, LLM speech-language detection and Max Summaries; real prompt assembly, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. Remaining: editable general metadata, full runtime-backed override catalogue, complete editor/modal review, target inventory capture and NPC Visit/Teleport/Return. |
+| `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Nineteen typed per-NPC override leaves now include language, summaries, Diary Prompt/Cooldown/History and Dynamic Profile History. Prompt assembly, queued evolution history, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. Remaining: editable general metadata, full runtime-backed override catalogue, complete editor/modal review, target inventory capture and NPC Visit/Teleport/Return. |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; remaining generation edge states remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; provider presets consolidated to 11 cards with all 32 built-in credential identities editable through saved/optional additional badges; standalone and actual hub preset/custom draft geometry reviewed at 1280/390, with failed-save and concurrent-edit retention rechecked using mocks; content-only shell now matches; live-provider acceptance remains untested |
@@ -10513,3 +10513,35 @@ or paid provider calls.
   typography was corrected. Provider and production mutation requests were blocked
   during browser checks. This closes the inline prompt item, not the whole Core
   Profile or all-page parity goal.
+
+## NPC diary and dynamic-profile history overrides (2026-09-11)
+
+- Added the reference Diary Prompt, Diary Cooldown, Context History Diary Event
+  Count and Context History Dynamic Profile Event Count to the existing typed
+  NPC override picker. The catalog now exposes nineteen supported leaves.
+- Diary controls use the established NPC `diary` owner, alongside Auto Diary
+  switches. Ordinary saves preserve them; explicit removal restores inheritance.
+  The editor also reads older settings-overrides values and normalizes them into
+  that owner only on an explicit override submission. No bulk data rewrite occurs.
+- Prompt text accepts newlines and enforces the backend's 8192-byte UTF-8 limit.
+  Numeric limits remain 10–86400 seconds for automatic diary cooldown and 0–400
+  history records; zero uses regular context history. Neither history setting
+  enables diary or profile generation.
+- Dynamic Profile History now resolves Core then NPC precedence into the actual
+  generation queue. Only this history leaf is allowed in the NPC override editor;
+  discovery defaults and the NPC's existing dynamic-field switches remain separate.
+  The strict client controls projection is unchanged.
+- Unit checks: 912 passed. The existing isolated integration fixture now proves
+  NPC history two wins over Core history three in the queued job; the Narrator's
+  zero-to-regular-history case remains covered. Existing database backup/restore,
+  migrations and durable-job checks pass. Schema inventory was refreshed after
+  its stale reference hash was detected, with 173 relations/1604 columns unchanged;
+  a subsequent normal check matches.
+- The existing management HTTP suite also passes: all four added overrides survive
+  save/read, ordinary saves preserve them, explicit removal restores inheritance,
+  and invalid text, ranges, types and discovery-switch submissions are rejected.
+- Browser checks at 1280/390 covered text, UTF-8 bounds, zero/numeric drafts,
+  edit/reopen, removal and invalid raw JSON; previous language, summary and percent
+  controls still pass. No production POST or paid provider request was made.
+- General observed actor metadata remains read-only; full metadata composition,
+  per-NPC combat behavior and other unfinished matrix items are not closed here.

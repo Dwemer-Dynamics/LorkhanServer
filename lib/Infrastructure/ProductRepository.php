@@ -849,7 +849,7 @@ final class ProductRepository
             $pending->execute(['profile'=>$profileId,'playthrough'=>$playthroughId,'mode'=>$mode]);
             if($pending->fetchColumn())return['queued'=>false,'reason'=>'interval','observed'=>0];
             $effective=$this->effectiveSettingsForProfile((string)$row['installation_id'],$profileId);
-            $historyLimit=(int)($effective['core_profile']['content']['settings_overrides']['profile_evolution']['history_limit']??50);
+            $historyLimit=(int)($effective['settings']['profile_evolution']['history_limit']??50);
             if($historyLimit===0)$historyLimit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
             $history=$narrator?$this->narratorEvolutionHistory((string)$row['installation_id'],$playthroughId,$historyLimit)
                 :$this->profileBackfillHistory((string)$row['installation_id'],$playthroughId,$identity,$historyLimit);

@@ -999,6 +999,7 @@ $dynamicContent['dynamic_profile_fields']=['personality','occupation','skills'];
 $dynamicContent['occupation']='Baseline occupation.';$dynamicContent['skills']='Baseline skills.';
 $dynamicContent['speech_style']='Speech style must remain unchanged.';
 $dynamicContent['goals']='Goals must remain unchanged.';
+$dynamicContent['settings_overrides']['profile_evolution']['history_limit']=2;
 $dynamicProfile=$products->revise('profile',$backfillProfile['profile_id'],$dynamicContent,'enable dynamic profile fixture',$now);
 $db->prepare("UPDATE sessions SET created_at=clock_timestamp()-interval '21 minutes' WHERE session_id=:session")
     ->execute(['session'=>$sessionId]);
@@ -1014,8 +1015,8 @@ $dynamicJob->execute(['profile'=>$dynamicProfile['profile_id']]);$dynamicJobRow=
 $dynamicPayload=$dynamicJobRow?json_decode((string)$dynamicJobRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
 $assert(($dynamicQueued['queued']??false)===true&&$dynamicJobRow&&$dynamicJobRow['state']==='queued'
     &&($dynamicPayload['dynamic_fields']??null)===['personality','occupation','skills']
-    &&count($dynamicPayload['source_turn_ids']??[])===3&&count($dynamicPayload['recent_events']??[])===3,
-    'dynamic NPC profile evolution did not freeze its selected fields and witnessed history');
+    &&count($dynamicPayload['source_turn_ids']??[])===2&&count($dynamicPayload['recent_events']??[])===2,
+    'dynamic NPC profile evolution did not freeze its selected fields and NPC-limited witnessed history');
 $dynamicHandlerPayload=$dynamicPayload;unset($dynamicHandlerPayload['provider_configuration_id'],$dynamicHandlerPayload['provider_revision']);
 $dynamicHandlerPayload['_job']=['job_id'=>$dynamicJobRow['job_id'],'attempt'=>1];
 (new \LorkhanServer\Application\ProfileGenerateJobHandler($products,

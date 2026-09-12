@@ -311,6 +311,8 @@ final class SettingsCatalog
             'behavior' => ['rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_allow_actions'],
             'memory' => ['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled', 'short_term_max_summaries'],
             'response' => ['max_words', 'core_lang', 'lang_llm_xtts'],
+            'diary' => ['prompt', 'automatic_interval_seconds', 'context_turn_limit'],
+            'profile_evolution' => ['history_limit'],
         ];
     }
 
