@@ -66,7 +66,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
    </aside>
    <section class="right-col">
     <?php if ($selected === null): ?><div class="placeholder">The global STT connector has not been provisioned yet. Reconnect OpenMW or run the current database migrations.</div><?php else: ?>
-    <div class="btn-row"><button class="btn-save" type="submit" form="stt-form">Save</button><button class="btn-primary" id="stt-test-open" type="button" aria-haspopup="dialog" aria-controls="stt-test-dialog">Test</button><span class="excluded-control"><button class="btn-secondary" type="button" disabled aria-disabled="true" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.stt.google-free')['description']); ?>">Google Free STT</button><?php echo lorkhan_ui_feature_badge('config.stt.google-free',true); ?></span></div>
+    <div class="btn-row"><button class="btn-save" type="submit" form="stt-form">Save</button><button class="btn-primary" id="stt-test-open" type="button" aria-haspopup="dialog" aria-controls="stt-test-dialog">Test</button><button class="btn-secondary" id="browser-speech-open" type="button" aria-haspopup="dialog" aria-controls="browser-speech-dialog">Google Free STT</button></div>
     <div class="orm-note">Testing saves the current connector first, then sends the fixed test sample to the selected STT service. Cloud tests may incur provider charges.</div>
     <form id="stt-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-revise">
      <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?><input type="hidden" name="kind" value="stt_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><input type="hidden" name="change_reason" value="Management STT update"><input type="hidden" name="voice" value=""><input type="hidden" name="option_fields_present" value="1">
@@ -82,6 +82,9 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
  </div>
 </main>
 <?php if ($selected !== null) include __DIR__ . '/tmpl/stt_connector_test.php'; ?>
+<?php if ($selected !== null) include __DIR__ . '/tmpl/browser_speech.php'; ?>
+<link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/browser-speech.css?v=<?php echo (string) filemtime(dirname(__DIR__) . '/css/browser-speech.css'); ?>">
+<script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/browser-speech.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/browser-speech.js'); ?>" defer></script>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>" defer></script>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/stt-connector-editor.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/stt-connector-editor.js'); ?>" defer></script>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/stt-connector-test.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/stt-connector-test.js'); ?>" defer></script>

@@ -3678,9 +3678,12 @@ SQL);
     public function debugCommandSessions():array
     {
         $rows=$this->db->query("SELECT s.session_id,s.installation_id,s.generation,s.created_at,COALESCE(p.name,s.session_id::text) AS label,"
-            ."('debug.commands.v1'=ANY(s.capabilities)) AS supported FROM sessions s LEFT JOIN playthroughs p ON p.playthrough_id=s.playthrough_id "
+            ."('debug.commands.v1'=ANY(s.capabilities)) AS supported,"
+            ."('debug.commands.v1'=ANY(s.capabilities) AND 'speech.browser.v1'=ANY(s.capabilities)) AS browser_speech_supported "
+            ."FROM sessions s LEFT JOIN playthroughs p ON p.playthrough_id=s.playthrough_id "
             ."WHERE s.state='active' ORDER BY s.created_at DESC LIMIT 50")->fetchAll();
-        foreach($rows as&$row){$row['generation']=(int)$row['generation'];$row['supported']=filter_var($row['supported'],FILTER_VALIDATE_BOOL);}unset($row);
+        foreach($rows as&$row){$row['generation']=(int)$row['generation'];$row['supported']=filter_var($row['supported'],FILTER_VALIDATE_BOOL);
+            $row['browser_speech_supported']=filter_var($row['browser_speech_supported'],FILTER_VALIDATE_BOOL);}unset($row);
         return$rows;
     }
 
@@ -3699,8 +3702,9 @@ SQL);
     }
 
     /** Queue one fixed, validated debug operation for the selected live game session. */
-    public function queueDebugCommand(string $sessionId,string $name,array $parameters):array
+    public function queueDebugCommand(string $sessionId,string $name,array $parameters,?string $commandId=null):array
     {
+        if($commandId!==null&&($name!=='player.dialogue.submit'||!Uuid::isValid($commandId)))throw new InvalidArgumentException('invalid_browser_speech_request');
         $empty=['status.snapshot','shaders.reload','player.vitals.restore','target.actor.kill','target.actor.restore','target.teleport.to_player'];
         $enabled=['god_mode.set','collision.set','ai.set','mwscript.set','shader_hot_reload.set'];
         $renderModes=['collision','wireframe','pathgrid','water','scene','navmesh','actors_paths','recast_mesh'];
@@ -3713,7 +3717,13 @@ SQL);
             &&preg_match('/[\\\\\/\r\n\t]/',$value)!==1;
         $number=static fn(mixed $value,float $minimum,float $maximum):bool=>(is_int($value)||is_float($value))
             &&is_finite((float)$value)&&(float)$value>=$minimum&&(float)$value<=$maximum;
-        if(in_array($name,$empty,true)){if($parameters!==[])throw new InvalidArgumentException('invalid_debug_parameters');}
+        if($name==='player.dialogue.submit'){
+            if(!$hasKeys($parameters,['text','language'])||!is_string($parameters['text']??null)
+                ||trim($parameters['text'])===''||strlen($parameters['text'])>2048||!mb_check_encoding($parameters['text'],'UTF-8')
+                ||preg_match('/[\x00-\x1f\x7f]/',$parameters['text'])||!is_string($parameters['language']??null)
+                ||strlen($parameters['language'])>16||preg_match('/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/D',$parameters['language'])!==1)
+                throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif(in_array($name,$empty,true)){if($parameters!==[])throw new InvalidArgumentException('invalid_debug_parameters');}
         elseif(in_array($name,$enabled,true)){if(!$hasKeys($parameters,['enabled'])||!is_bool($parameters['enabled']))throw new InvalidArgumentException('invalid_debug_parameters');}
         elseif($name==='render_mode.toggle'){
             if(!$hasKeys($parameters,['mode'])||!is_string($parameters['mode'])||!in_array($parameters['mode'],$renderModes,true))
@@ -3752,17 +3762,28 @@ SQL);
             if(!$hasKeys($parameters,['region_id','weather'])||!$recordId($parameters['region_id'])
                 ||!in_array($parameters['weather']??null,$weathers,true))throw new InvalidArgumentException('invalid_debug_parameters');
         }else throw new InvalidArgumentException('invalid_debug_command');
-        return$this->transaction(function()use($sessionId,$name,$parameters):array{
+        return$this->transaction(function()use($sessionId,$name,$parameters,$commandId):array{
             $session=$this->db->prepare("SELECT installation_id,generation,capabilities FROM sessions WHERE session_id=:session AND state='active' FOR UPDATE");
             $session->execute(['session'=>$sessionId]);$row=$session->fetch();if(!$row)throw new InvalidArgumentException('invalid_session_id');
             $capabilities=$this->parsePgArray((string)$row['capabilities']);
             if(!in_array('debug.commands.v1',$capabilities,true))throw new InvalidArgumentException('debug_commands_unsupported');
+            if($name==='player.dialogue.submit'&&!in_array('speech.browser.v1',$capabilities,true))
+                throw new InvalidArgumentException('browser_speech_unsupported');
+            if($commandId!==null){
+                $existing=$this->db->prepare('SELECT * FROM debug_commands WHERE command_id=:id');$existing->execute(['id'=>$commandId]);$duplicate=$existing->fetch();
+                if($duplicate){
+                    if($duplicate['session_id']!==$sessionId||$duplicate['command_name']!==$name||$this->json($duplicate['parameters'])!=$parameters)
+                        throw new InvalidArgumentException('browser_speech_request_conflict');
+                    return ['command_id'=>$commandId,'session_id'=>$sessionId,'generation'=>(int)$duplicate['generation'],'name'=>$name,
+                        'parameters'=>$parameters,'state'=>$duplicate['state'],'created_at'=>$duplicate['created_at'],'expires_at'=>$duplicate['expires_at']];
+                }
+            }
             $this->db->prepare("UPDATE debug_commands SET state='expired',completed_at=clock_timestamp(),reason_code='command_expired' "
                 ."WHERE session_id=:session AND state IN ('queued','delivered') AND expires_at<=clock_timestamp()")
                 ->execute(['session'=>$sessionId]);
             $pending=$this->db->prepare("SELECT count(*) FROM debug_commands WHERE session_id=:session AND state IN ('queued','delivered')");
             $pending->execute(['session'=>$sessionId]);if((int)$pending->fetchColumn()>=16)throw new InvalidArgumentException('debug_command_queue_full');
-            $id=Uuid::v4();$insert=$this->db->prepare('INSERT INTO debug_commands '
+            $id=$commandId??Uuid::v4();$insert=$this->db->prepare('INSERT INTO debug_commands '
                 .'(command_id,installation_id,session_id,generation,command_name,parameters,expires_at) '
                 ."VALUES (:id,:installation,:session,:generation,:name,CAST(:parameters AS jsonb),clock_timestamp()+interval '30 seconds') RETURNING *");
             $insert->execute(['id'=>$id,'installation'=>$row['installation_id'],'session'=>$sessionId,'generation'=>$row['generation'],

@@ -210,6 +210,14 @@ assert re.search(r'<article class="widget">\s*<div class="widget-header"><h3>LOR
 assert all('/ui/images/'+asset in text for asset in ['youtube.png','discord.png','patreon.png'])
 assert 'Management secret' not in text and '/logout' not in text
 csrf=next(c.value for c in jar if c.name=='lorkhan_csrf')
+browser_speech_path='/LorkhanServer/manage/api/v1/browser-speech'
+browser_speech_body={'session_id':str(uuid.uuid4()),'request_id':str(uuid.uuid4()),'text':'Where is Caius?','language':'en-US'}
+assert json_request(browser_speech_path,'GET').status==404
+assert json_request(browser_speech_path,'POST',browser_speech_body).status>=400
+for invalid_speech in [dict(browser_speech_body,script='tgm'),dict(browser_speech_body,request_id=[]),
+                       dict(browser_speech_body,session_id='invalid')]:
+    response=json_request(browser_speech_path,'POST',invalid_speech,csrf)
+    assert response.status==422,(response.status,response.read())
 for catalogue in ['llm-models','llm-providers']:
     try:
         urllib.request.urlopen(base+'/LorkhanServer/manage/api/v1/'+catalogue)
@@ -3000,6 +3008,9 @@ csrf=next(c.value for c in jar if c.name=='lorkhan_csrf')
 r=json_request('/LorkhanServer/manage/api/v1/stt-providers','POST',{'installation_id':valid['installation_id'],'name':'HTTP STT test','content':{'driver':'localwhisper','endpoint':'http://'+provider_host+':'+str(voice_provider.server_port)+'/stt-test','model':'whisper-1','language':'en','timeout_ms':30000,'options':{}}},csrf)
 created_stt=json.loads(r.read()); assert r.status==201,(r.status,created_stt)
 stt_page,stt_body=parse(request('/LorkhanServer/ui/core/stt_connectors.php?installation_id='+valid['installation_id']+'&driver=localwhisper&embed=1'))
+assert 'id="browser-speech-open"' in stt_body and 'id="browser-speech-dialog"' in stt_body
+if os.environ.get('LORKHAN_BROWSER_SPEECH_EVIDENCE'):
+    pathlib.Path(os.environ['LORKHAN_BROWSER_SPEECH_EVIDENCE']).write_text(stt_body,encoding='utf-8')
 stt_form=next(f for f in stt_page.forms if f['action'].endswith('/forms/connector-revise'))
 stt_values=dict(stt_form['fields'],_csrf=csrf,endpoint='http://'+provider_host+':'+str(voice_provider.server_port)+'/stt-test',options_json='{}')
 r=request(stt_form['action'],'POST',stt_values); r.read(); assert r.status==200 and 'embed=1' in r.geturl() and '/ui/core/stt_connectors.php?' in r.geturl() and r.geturl().count('?')==1,r.geturl()

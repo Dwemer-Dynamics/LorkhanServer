@@ -365,6 +365,18 @@ final class ManagementRouter
         }
         if($r->method==='GET'&&$path==='/api/v1/diagnostics')return Response::json(200,$this->repository->diagnostics());
         if($r->method==='GET'&&$path==='/api/v1/debug-command-sessions')return Response::json(200,['items'=>$this->repository->debugCommandSessions()]);
+        if($r->method==='POST'&&$path==='/api/v1/browser-speech'){
+            // Stable utterance IDs make retries safe; a queued receipt is not game acceptance.
+            $body=$this->json($r);$keys=array_keys($body);sort($keys);
+            if($keys!==['language','request_id','session_id','text'])throw new InvalidArgumentException('invalid_browser_speech_request');
+            foreach(['session_id','request_id']as$key){
+                if(!is_string($body[$key]))throw new InvalidArgumentException('invalid_browser_speech_request');
+                $this->uuid($body[$key],$key);
+            }
+            $command=$this->repository->queueDebugCommand($body['session_id'],'player.dialogue.submit',
+                ['text'=>$body['text'],'language'=>$body['language']],$body['request_id']);
+            return Response::json(202,['command'=>$command]);
+        }
         if($path==='/api/v1/debug-commands'){
             if($r->method==='GET')return Response::json(200,['items'=>$this->repository->debugCommands($this->queryUuid($r,'session_id'))]);
             if($r->method==='POST'){$body=$this->json($r);$session=(string)($body['session_id']??'');$this->uuid($session,'session_id');

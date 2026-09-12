@@ -3495,4 +3495,26 @@ try {
     $badPayload=$memoryPayload;$badPayload['player2_policy_revision']=999;
     $assert($memoryRouting->input($badPayload)===null,'Unrecorded Player2 revision accepted');
 } finally {$db->rollBack();}
+$db->beginTransaction();
+try {
+    $browserSession=$db->query("SELECT session_id FROM sessions WHERE state='active' ORDER BY created_at DESC LIMIT 1")->fetchColumn();
+    $assert(is_string($browserSession),'Browser speech needs a session fixture');
+    $db->prepare("UPDATE sessions SET capabilities=array_remove(array_append(capabilities,'debug.commands.v1'),'speech.browser.v1') WHERE session_id=:id")
+        ->execute(['id'=>$browserSession]);
+    $speechParameters=['text'=>'Where is Caius? *curious* / ordinary text','language'=>'en-US'];
+    try{$products->queueDebugCommand($browserSession,'player.dialogue.submit',$speechParameters);$assert(false,'old client accepted browser speech');}
+    catch(InvalidArgumentException $error){$assert($error->getMessage()==='browser_speech_unsupported','unexpected browser speech capability error');}
+    foreach([['text'=>' '],['text'=>str_repeat('x',2049)],['text'=>"line\nbreak"],['language'=>'en-'],['script'=>'tgm']]as$invalid){
+        try{$products->queueDebugCommand($browserSession,'player.dialogue.submit',array_replace($speechParameters,$invalid));$assert(false,'invalid browser speech accepted');}
+        catch(InvalidArgumentException $error){$assert($error->getMessage()==='invalid_debug_parameters','unexpected browser speech validation error');}
+    }
+    $db->prepare("UPDATE sessions SET capabilities=array_append(capabilities,'speech.browser.v1') WHERE session_id=:id")->execute(['id'=>$browserSession]);
+    $speechId=\LorkhanServer\Infrastructure\Uuid::v4();
+    $speechCommand=$products->queueDebugCommand($browserSession,'player.dialogue.submit',$speechParameters,$speechId);
+    $assert($speechCommand['state']==='queued'&&$speechCommand['parameters']===$speechParameters,'Browser speech changed text or claimed game completion');
+    $assert($products->queueDebugCommand($browserSession,'player.dialogue.submit',$speechParameters,$speechId)===$speechCommand,
+        'Browser retry queued duplicate speech');
+    try{$products->queueDebugCommand($browserSession,'player.dialogue.submit',array_replace($speechParameters,['text'=>'Changed']),$speechId);$assert(false,'browser request ID reused for changed text');}
+    catch(InvalidArgumentException $error){$assert($error->getMessage()==='browser_speech_request_conflict','unexpected browser retry error');}
+} finally {$db->rollBack();}
 fwrite(STDOUT, "integration vertical slice passed\n");
