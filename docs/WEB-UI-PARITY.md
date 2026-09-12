@@ -12169,3 +12169,43 @@ bounded control comparison, not whole-page pixel identity: product wording and
 saved profile counts differ. Deployed desktop/narrow import interaction checks
 pass again. All 864 runtime files match source after the CSS-only refresh;
 rollback CSS is `/var/backups/lorkhan-core-import-before-control-style.css`.
+
+## NPC editor Import Bio target correction (2026-09-12)
+
+The reference's editor-header Import Bio opens a file picker and imports into
+CURRENT_NPC_ID after confirmation. Lorkhan incorrectly opened its global import
+modal, whose endpoint creates a new NPC. The header now uses the same picker /
+confirmation interaction with an explicit native target ID and expected revision.
+The global new-NPC import remains separate.
+
+The new target endpoint copies supported biography fields, voice, profile flags,
+dynamic-field selection and Oghma tags. It preserves the target name, actor
+identity, Core Profile assignment, connector routes, settings overrides, portrait
+and history. Existing automatic-lock-on-edit behavior applies. Stale revisions
+are rejected by the existing immutable revision service. The file format remains
+a native NPC export; this does not claim arbitrary Herika JSON interchange or
+foreign relationship-record identity mapping.
+
+Evidence:
+
+- PHP and JavaScript syntax, 1083 server checks and 111 protocol files pass.
+- Full isolated HTTP suite passes in `npc-biography-import-http.txt`, including
+  selected-ID and name/identity preservation, no additional NPC row, excluded
+  routing/portrait transfer, invalid CSRF and stale-revision refusal.
+- `npc-bio-import-review.cjs` and `npc-bio-import-deployed-review.cjs` pass at
+  1280/390: target picker, invalid file, cancelled confirmation, conflict retaining
+  an unsaved Roleplay draft, and successful same-NPC reopen with embedded scope.
+  Browser writes are mocked; persistence evidence is the isolated HTTP suite.
+  The first browser attempts ran before an active NPC existed and tried a hidden
+  Roleplay field; the corrected test opens that tab in a populated fixture.
+- Full deployment completed, rollback `/var/backups/lorkhanserver-code.BFMhdG`.
+  All 865 deployed runtime files match source, with no extras or old paths.
+  Configuration, credentials and voice hashes are preserved; private/auth/NPC
+  probes pass. No live NPC was imported or edited by the browser checks, and no
+  game or paid-provider activity occurred. The workflow remains disabled.
+
+Next confirmed editor gap: View Diary currently opens the unfiltered Narratives
+manager in the same page. Herika opens `diary_book.php?person=...` in a new tab.
+The native book reader already exists but requires installation, playthrough and
+exact profile UUID scope; that selection must be wired without mixing saves.
+Other NPC/editor and full-matrix gaps remain open.

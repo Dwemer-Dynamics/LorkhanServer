@@ -701,6 +701,7 @@ final class ManagementRouter
             'profile-toggle-favorite'=>$this->toggleNpcProfileManagement($v,'favorite'),
             'profile-toggle-lock'=>$this->toggleNpcProfileManagement($v,'locked'),
             'profile-import'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id']]+$this->profileImportDocument($v)),
+            'profile-import-to'=>$this->importNpcBiography($v),
             'profile-clone'=>$this->cloneProfile($v),
             'core-profile-create'=>$this->createCoreProfile($v,$scope),
             'core-profile-import'=>$this->importCoreProfileBundle($v,$scope),
@@ -789,6 +790,7 @@ final class ManagementRouter
                 'installation_id'=>$memoryReturnScope['installation_id'],'playthrough_id'=>$memoryReturnScope['playthrough_id']]));
         }
         if($domain==='profile-bulk-switch'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]+$result);
+        if($domain==='profile-import-to')return Response::json(200,['ok'=>true,'profile_id'=>$result['profile_id'],'revision'=>$result['current_revision']]);
         if($domain==='provider-revise'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]);
         if($domain==='connector-import'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true,'configuration_id'=>$result['configuration_id']]);
         if($domain==='core-profile-import'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true,
@@ -2036,7 +2038,38 @@ final class ManagementRouter
         return$this->service->restorePlaythrough($document);
     }
 
-    /** Validate a portable profile document before assigning it a new local ID and installation scope. */
+    /** Import biography fields into a revision-guarded existing NPC without changing its identity or routing. */
+    private function importNpcBiography(array $values):array
+    {
+        $id=$this->need($values,'profile_id');$this->uuid($id,'profile_id');
+        $revision=filter_var($values['base_revision']??null,FILTER_VALIDATE_INT);
+        if($revision===false||$revision<1)throw new InvalidArgumentException('invalid_expected_revision');
+        $import=$this->profileImportDocument($values);
+        return$this->repository->transaction(function()use($id,$revision,$import):array{
+            $target=$this->repository->getRevisioned('profile',$id);
+            $identity=$target['actor_identity'];if(is_string($identity))$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);
+            if(!is_array($identity)||!in_array($identity['kind']??'actor',['actor','npc','creature'],true))throw new InvalidArgumentException('profile_not_editable');
+            // Mirror Bio import fields without transferring actor bindings, connector IDs, private media or history.
+            $fields=['prompt_head','core','appearance','biography','personality','speech_style','occupation','skills','goals',
+                'relationships','emote_moods','gender','race','tags','notes','oghma_knowledge_tags','voice','management',
+                'dynamic_profile','dynamic_profile_fields'];
+            $patch=array_intersect_key($import['content'],array_flip($fields));
+            foreach($patch as$field=>$value)if(!in_array($field,['voice','management','dynamic_profile','dynamic_profile_fields'],true)&&!is_string($value))throw new InvalidArgumentException('invalid_biography_field');
+            if(isset($patch['oghma_knowledge_tags']))$patch['oghma_knowledge_tags']=$this->npcKnowledgeTags($patch['oghma_knowledge_tags']);
+            if(array_key_exists('dynamic_profile',$patch)&&!is_bool($patch['dynamic_profile']))throw new InvalidArgumentException('invalid_dynamic_profile_fields');
+            if(array_key_exists('dynamic_profile_fields',$patch)){
+                if(!is_array($patch['dynamic_profile_fields'])||!array_is_list($patch['dynamic_profile_fields']))throw new InvalidArgumentException('invalid_dynamic_profile_fields');
+                foreach($patch['dynamic_profile_fields']as$field)if(!in_array($field,EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS,true))throw new InvalidArgumentException('invalid_dynamic_profile_fields');
+            }
+            $content=array_replace($target['content'],$patch);
+            if($this->repository->profileAutoLockEnabled((string)$target['installation_id'])){
+                $content['management']['locked']=true;$content['management']['favorite']??=false;
+            }
+            return$this->service->revise('profile',$id,$content,'Imported NPC biography',$revision);
+        });
+    }
+
+    /** Validate a native export before either creating an NPC or copying its biography to an existing NPC. */
     private function profileImportDocument(array $values):array
     {
         $document=$this->jsonField($values,'profile_json');$keys=array_keys($document);sort($keys);
@@ -3191,6 +3224,7 @@ final class ManagementRouter
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/')
+        &&!(str_ends_with($r->path,'/forms/profile-import-to')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/core-profile-import')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/connector-import')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/provider-revise')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))

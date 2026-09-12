@@ -3827,4 +3827,32 @@ assert request('/LorkhanServer/manage/exports/core-profiles/'+first_slot['core_p
 bad_bundle=dict(bundle,schema='foreign.schema')
 assert request(bundle_form['action'],'POST',dict(slot_fields,profile_json=json.dumps(bad_bundle)),accept='application/json').status==422
 
+# Import Bio in the NPC editor revises that exact NPC rather than creating another profile.
+npc_import_page,npc_import_html=parse(request('/LorkhanServer/ui/core/npc_master.php?embed=1'))
+npc_import_button=re.search(r'data-npc-import-to="([0-9a-f-]{36})" data-base-revision="([0-9]+)"',npc_import_html)
+assert npc_import_button,'saved NPC Import Bio targets missing'
+npc_import_id,npc_import_revision=npc_import_button.groups()
+npc_import_form=next(f for f in npc_import_page.forms if f['fields'].get('profile_id')==npc_import_id and '_csrf' in f['fields'])
+npc_import_before=json.load(request('/LorkhanServer/manage/exports/profiles/'+npc_import_id+'.json'))
+npc_import_document=json.loads(json.dumps(npc_import_before))
+npc_import_document['name']='Do not replace the selected NPC name'
+npc_import_document['actor_identity']['display_name']='Foreign actor identity'
+npc_import_document['content']['biography']='Biography imported into an existing NPC'
+npc_import_document['content']['routing']={'tts_configuration_id':str(uuid.uuid4())}
+npc_import_document['content']['portrait']={'filename':'foreign-private-file'}
+npc_import_fields={'_csrf':npc_import_form['fields']['_csrf'],'profile_id':npc_import_id,'base_revision':npc_import_revision,'profile_json':json.dumps(npc_import_document)}
+npc_import_path='/LorkhanServer/manage/forms/profile-import-to'
+npc_count_before=subprocess.run([*pg_test,'SELECT count(*) FROM lorkhan_internal.profiles'],check=True,capture_output=True,text=True).stdout.strip()
+assert request(npc_import_path,'POST',dict(npc_import_fields,_csrf='wrong'),accept='application/json').status in (401,403)
+npc_import_result=json.load(request(npc_import_path,'POST',npc_import_fields,accept='application/json'))
+assert npc_import_result.get('ok') and npc_import_result['profile_id']==npc_import_id,npc_import_result
+assert npc_import_result['revision']==int(npc_import_revision)+1
+npc_import_after=json.load(request('/LorkhanServer/manage/exports/profiles/'+npc_import_id+'.json'))
+assert npc_import_after['name']==npc_import_before['name'] and npc_import_after['actor_identity']==npc_import_before['actor_identity']
+assert npc_import_after['content']['biography']=='Biography imported into an existing NPC'
+for retained in ['routing','settings_overrides','portrait']:
+    assert npc_import_after['content'].get(retained)==npc_import_before['content'].get(retained),retained
+assert subprocess.run([*pg_test,'SELECT count(*) FROM lorkhan_internal.profiles'],check=True,capture_output=True,text=True).stdout.strip()==npc_count_before
+assert request(npc_import_path,'POST',npc_import_fields,accept='application/json').status==409
+
 print('browser-like management HTTP forms passed')
