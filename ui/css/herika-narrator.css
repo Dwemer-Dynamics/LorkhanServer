@@ -307,7 +307,7 @@ body.narrator-page-shell.embedded-page { padding-top: 0; }
 .narrator-page .page-header.lorkhan-page-head h1 { flex: 0 0 auto; margin: 0; color: rgb(188,157,90); font-size: 1.3rem; line-height: 1.25; text-align: left; text-shadow: none; word-spacing: 6px; }
 .narrator-page .page-header.lorkhan-page-head p { flex: 1 1 300px; min-width: 0; color: #aaa; font-size: .82rem; line-height: 1.35; }
 .narrator-content-grid { gap: 12px; margin-bottom: 14px; }
-.narrator-content-section { padding: 14px; border-radius: 6px; }
+.narrator-content-section { padding: 14px; }
 .narrator-full-width { margin-bottom: 14px; }
 .narrator-content-section h2,
 .narrator-heading-with-badge { margin: 0 0 10px; padding-bottom: 7px; }

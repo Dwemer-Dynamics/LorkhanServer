@@ -11707,3 +11707,25 @@ is /var/backups/lorkhanserver-profile-rule-fields.33SJHV.
 
 Advanced regex/action metadata and native source-mod matching differences remain
 open runtime work; this does not claim those controls or full matrix completion.
+
+## Narration whole-page layout and draft pass (2026-09-12)
+
+Fresh deployed/reference review confirms the ten main section headings and order,
+two-column desktop / one-column narrow layout, and shared grid spacing, section
+padding, heading typography, toggle rows, name input and persona text controls.
+The native shared density sheet incorrectly reduced outer Narration cards from
+10px to 6px corners; a Narrator-only correction restores the reference radius
+without changing Player styling. Removed the overridden duplicate radius.
+
+narrator-whole-review.cjs and narrator-whole-styles.cjs exercise every native
+checkbox by keyboard on/off/restoration, every available Core Profile selection
+and its connector summary, and capture full-page desktop/390px screenshots.
+Both viewports have no horizontal page overflow, page errors or non-GET requests.
+Measured grid/card/heading/toggle/input properties agree after the correction.
+Screenshots inspected; no paid generation, microphone or game activity occurred.
+This live native installation currently renders the create-Narrator state, so
+saved-profile import/generation acceptance is not inferred from this review.
+Existing ten prompt-dialog tests and isolated management persistence tests remain
+separate evidence. Live reference Voice Filter/evolution schedule additions and
+broader Core semantics remain open features, not silently counted as matched.
+Scoped deployment: /var/backups/lorkhanserver-narrator-section-layout.9MQjvu.

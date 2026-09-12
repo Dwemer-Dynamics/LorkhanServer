@@ -232,3 +232,6 @@ main.narrator-page .narrator-toggle-row { min-height: 54px; }
         padding: 11px;
     }
 }
+
+/* Narration's outer cards retain the reference radius at both viewport sizes. */
+main.narrator-page .narrator-content-section { border-radius:10px; }
