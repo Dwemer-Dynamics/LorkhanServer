@@ -3342,7 +3342,10 @@ assert r.status==200 and 'Quickstart settings saved.' in saved,(r.status,saved)
 reloaded,reloaded_body=parse(request('/LorkhanServer/ui/quickstart.php?installation_id='+valid['installation_id']))
 fields=next(f['fields'] for f in reloaded.forms if f['action'].endswith('/forms/quickstart-save'))
 assert fields['local_model']=='form-local-model' and fields['local_timeout']=='45' and fields['local_scope']=='all'
-assert fields['local_disable_streaming']==''
+assert fields['local_disable_streaming']=='1'
+saved_local_plan=json.load(request(local_path+'?installation_id='+valid['installation_id']))['routing_plan']
+saved_local_connector=json.load(request('/LorkhanServer/manage/exports/providers/'+saved_local_plan['connector_id']+'.json'))
+assert saved_local_connector['content']['options']['stream'] is False
 r=request(qs_form['action'],'POST',qs_values); assert r.status==409,(r.status,r.read())
 # The saved Local preset also updates supported global consumers, then Default restores them.
 qs_local_export=json.load(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json'))
