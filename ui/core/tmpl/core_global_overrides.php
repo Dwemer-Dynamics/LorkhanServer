@@ -15,6 +15,8 @@ foreach (['location_blacklist'=>'Location Blacklist','item_blacklist'=>'Item Bla
 foreach (['hide_ambient_combat'=>'Hide Ambient Combat','prompt_timestamp'=>'Prompt Timestamp','ground_items_descriptions_only'=>'Ground Items Descriptions Only','inventory_items_descriptions_only'=>'Inventory Items Descriptions Only'] as $key=>$label)
     $coreOverrideCatalog['context.'.$key]=['label'=>$label,'type'=>'boolean','value'=>false];
 $coreOverrideCatalog['prompt.prompt_head']=['label'=>'Prompt Head','type'=>'string','value'=>'','maxBytes'=>8192,'multiline'=>true];
+$coreOverrideCatalog['prompt.emote_moods']=['label'=>'Emote Moods','type'=>'string','value'=>'','maxBytes'=>4096,'multiline'=>true];
+$coreOverrideCatalog['context.event_types']=['label'=>'Event Type Filter','type'=>'textlist','value'=>\LorkhanServer\Application\SettingsCatalog::eventTypes(),'choices'=>\LorkhanServer\Application\SettingsCatalog::eventTypes(),'maxBytes'=>4096,'multiline'=>true];
 $coreOverrideCatalog['behavior.rechat_mode']=['label'=>'Rechat Mode','type'=>'choice','value'=>'random','choices'=>['tight','conversational','group','random']];
 $coreOverrideCatalog['behavior.rechat_strict_targeting']=['label'=>'Strict Rechat Targeting','type'=>'boolean','value'=>false];
 $coreOverrideCatalog['behavior.open_rechat']=['label'=>'Open Rechat','type'=>'boolean','value'=>true];
@@ -23,6 +25,8 @@ $coreOverrideCatalog['relationship.enabled']=['label'=>'Relationship System Enab
 $coreOverrideCatalog['relationship.update_chance_percent']=['label'=>'Relationship Update Chance','type'=>'integer','value'=>50,'range'=>[0,100]];
 $coreOverrideCatalog['context.power_awareness_enabled']=['label'=>'Power Awareness Enabled','type'=>'boolean','value'=>false];
 $coreOverrideHelp = [
+    'prompt.emote_moods'=>'Moods and emotes offered in the prompt when the NPC has no custom mood list. Blank removes inherited suggestions; turn off Override to inherit. Maximum 4096 UTF-8 bytes.',
+    'context.event_types'=>'One included event type per line: '.implode(', ',\LorkhanServer\Application\SettingsCatalog::eventTypes()).'. Blank excludes event history from this profile’s context without deleting it; turn off Override to inherit.',
     'context.location_blacklist'=>'One location per line. These locations are omitted from prompt context. Blank clears the inherited blacklist; turn off Override to inherit. Maximum 256 entries, 256 UTF-8 bytes each.',
     'context.item_blacklist'=>'One item record ID or name per line. Matching items are omitted from prompt context. Blank clears the inherited blacklist; turn off Override to inherit. Maximum 256 entries, 256 UTF-8 bytes each.',
     'context.magic_effects_blacklist'=>'One magic effect per line. Matching effects are omitted from prompt context. Blank clears the inherited blacklist; turn off Override to inherit. Maximum 256 entries, 256 UTF-8 bytes each.',

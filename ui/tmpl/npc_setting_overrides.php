@@ -2,6 +2,7 @@
 declare(strict_types=1);
 // Current rows and modal structure derive from Herika's NPC override_editor.php.
 $overrideLabels = [
+    'context.event_types'=>'Event Type Filter','prompt.emote_moods'=>'Emote Moods',
     'context.location_blacklist'=>'Location Blacklist','context.item_blacklist'=>'Item Blacklist','context.magic_effects_blacklist'=>'Magic Effect Blacklist',
     'quest_comments.enabled'=>'Quest Comment', 'quest_comments.chance_percent'=>'Quest Comment Chance',
     'bored_event.chance_percent'=>'Bored Event Chance',
@@ -68,6 +69,8 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
             'help'=>'One entry per line, at most 256 entries and 256 UTF-8 bytes each. Matching context is hidden from prompts, not deleted from history. Blank clears the inherited blacklist; remove the override to inherit.'];
         if($path==='behavior.rechat_mode')$overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'choice','choices'=>['tight','conversational','group','random'],'value'=>$default];
         if($path==='prompt.prompt_head')$overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'string','maxBytes'=>8192,'allowEmpty'=>true,'value'=>$default,'help'=>'System roleplay instructions for this NPC. Blank uses the built-in prompt; removing the override restores Core or global inheritance.'];
+        if($path==='prompt.emote_moods')$overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'string','maxBytes'=>4096,'allowEmpty'=>true,'value'=>$default,'help'=>'Moods and emotes offered when this NPC has no custom mood list. Blank removes inherited suggestions; remove the override to inherit.'];
+        if($path==='context.event_types')$overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'textlist','maxBytes'=>4096,'allowEmpty'=>true,'value'=>$effectiveSettings['context']['event_types']??\LorkhanServer\Application\SettingsCatalog::eventTypes(),'choices'=>\LorkhanServer\Application\SettingsCatalog::eventTypes(),'help'=>'One included event type per line: '.implode(', ',\LorkhanServer\Application\SettingsCatalog::eventTypes()).'. Blank excludes event history from context without deleting it. Remove the override to inherit.'];
         if($path==='diary.prompt')$overrideCatalog[$path]=[
             'label'=>$overrideLabels[$path],'type'=>'string','maxBytes'=>8192,
             'value'=>$effectiveSettings['settings']['diary']['prompt']??\LorkhanServer\Application\DiaryGenerationPolicy::defaults()['prompt']];

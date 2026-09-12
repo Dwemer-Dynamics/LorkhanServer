@@ -16,7 +16,7 @@
             if (definition.type === 'boolean' ? typeof item !== 'boolean'
                 : definition.type === 'choice' ? !definition.choices.includes(item)
                 : definition.type === 'string' ? typeof item !== 'string' || new TextEncoder().encode(item).length > definition.maxBytes
-                : definition.type === 'textlist' ? !Array.isArray(item) || item.length > 256 || item.some(entry => typeof entry !== 'string' || new TextEncoder().encode(entry).length > 256)
+                : definition.type === 'textlist' ? !Array.isArray(item) || item.length > (definition.choices?.length ?? 256) || item.some(entry => typeof entry !== 'string' || new TextEncoder().encode(entry).length > 256 || (definition.choices && !definition.choices.includes(entry)))
                 : !Number.isInteger(item) || item < definition.range[0] || item > definition.range[1]) throw Error('Invalid value for ' + definition.label + '.');
         }
         return value;
@@ -47,7 +47,7 @@
                 const value = read(); control.disabled = !toggle.checked;
                 control.setCustomValidity(toggle.checked && definition.type === 'string' && new TextEncoder().encode(control.value).length > definition.maxBytes ? 'Maximum ' + definition.maxBytes + ' UTF-8 bytes.' : '');
                 const entries = definition.type === 'textlist' ? control.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean) : null;
-                if (toggle.checked && entries && (entries.length > 256 || entries.some(entry => new TextEncoder().encode(entry).length > 256))) control.setCustomValidity('Use at most 256 entries, each at most 256 UTF-8 bytes.');
+                if (toggle.checked && entries && (entries.length > (definition.choices?.length ?? 256) || entries.some(entry => new TextEncoder().encode(entry).length > 256 || (definition.choices && !definition.choices.includes(entry))))) control.setCustomValidity(definition.choices ? 'Use only the listed event types, one per line.' : 'Use at most 256 entries, each at most 256 UTF-8 bytes.');
                 if (toggle.checked && !control.checkValidity()) { status.textContent = 'Correct ' + definition.label + ' before saving.'; return; }
                 if (toggle.checked) { value[section] ||= {}; value[section][key] = definition.type === 'boolean' ? control.checked : definition.type === 'integer' ? Number(control.value) : entries ?? control.value; }
                 else if (value[section]) { delete value[section][key]; if (!Object.keys(value[section]).length) delete value[section]; }

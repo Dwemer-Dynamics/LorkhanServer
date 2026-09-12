@@ -1974,15 +1974,15 @@ core_values.update(profile_evolution_enabled='1',setting_profile_evolution_histo
 core_values['profile_evolution_fields[]']=['occupation','skills']
 core_values['profile_rpg_events[]']=['sleep','wait']
 core_values['setting_rpg_comments_chance_percent']='73'
-core_values['core_settings_overrides_json']=json.dumps({'memory':{'oghma_knowledge_tags':'Morrowind,Tribunal'},'response':{'max_words':999},'oghma':{'enabled':False,'result_limit':1},'context':{'prompt_timestamp':True,'ground_items_descriptions_only':False,'inventory_items_descriptions_only':True,'item_blacklist':['iron dagger'],'location_blacklist':[],'magic_effects_blacklist':['Fire Shield']},'prompt':{'prompt_head':'Core HTTP prompt.'},'behavior':{'rechat_mode':'group','open_rechat':False,'rechat_strict_targeting':True,'end_conversation_cooldown_seconds':0},'relationship':{'enabled':False,'update_chance_percent':37}})
+core_values['core_settings_overrides_json']=json.dumps({'memory':{'oghma_knowledge_tags':'Morrowind,Tribunal'},'response':{'max_words':999},'oghma':{'enabled':False,'result_limit':1},'context':{'prompt_timestamp':True,'ground_items_descriptions_only':False,'inventory_items_descriptions_only':True,'item_blacklist':['iron dagger'],'location_blacklist':[],'magic_effects_blacklist':['Fire Shield'],'event_types':['chat','book']},'prompt':{'prompt_head':'Core HTTP prompt.','emote_moods':'wary, hopeful'},'behavior':{'rechat_mode':'group','open_rechat':False,'rechat_strict_targeting':True,'end_conversation_cooldown_seconds':0},'relationship':{'enabled':False,'update_chance_percent':37}})
 core_response=request(core_form['action'],'POST',core_values); assert core_response.status==200
 core_body=core_response.read().decode(); core_page=Page(); core_page.feed(core_body)
 core_saved=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
 core_advanced=json.loads(html.unescape(re.search(r'id="core-settings-overrides-json"[^>]*>(.*?)</textarea>',core_body,re.S).group(1)))
 assert core_advanced['memory']['oghma_knowledge_tags']=='Morrowind,Tribunal'
 assert core_advanced['oghma']=={'enabled':False,'result_limit':1}
-assert core_advanced['context']=={'prompt_timestamp':True,'ground_items_descriptions_only':False,'inventory_items_descriptions_only':True,'item_blacklist':['iron dagger'],'location_blacklist':[],'magic_effects_blacklist':['Fire Shield']}
-assert core_advanced['prompt']=={'prompt_head':'Core HTTP prompt.'}
+assert core_advanced['context']=={'prompt_timestamp':True,'ground_items_descriptions_only':False,'inventory_items_descriptions_only':True,'item_blacklist':['iron dagger'],'location_blacklist':[],'magic_effects_blacklist':['Fire Shield'],'event_types':['chat','book']}
+assert core_advanced['prompt']=={'prompt_head':'Core HTTP prompt.','emote_moods':'wary, hopeful'}
 assert core_advanced['behavior']['end_conversation_cooldown_seconds']==0 and core_advanced['behavior']['open_rechat'] is False and core_advanced['behavior']['rechat_strict_targeting'] is True
 assert core_advanced['relationship']['update_chance_percent']==37
 assert core_advanced['behavior']['rechat_mode']=='group' and core_advanced['relationship']=={'enabled':False,'update_chance_percent':37}
@@ -2199,6 +2199,8 @@ npc_overrides['diary']={'prompt':'Write this NPC’s witnessed history only.\nRe
 npc_overrides['profile_evolution']={'history_limit':0}
 npc_overrides.update(context={'hide_ambient_combat':True,'power_awareness_enabled':False,'prompt_timestamp':True,'ground_items_descriptions_only':True,'inventory_items_descriptions_only':False},prompt={'prompt_head':'NPC global prompt override'},oghma={'enabled':False,'location_context_enabled':False,'racial_context_enabled':True,'topic_count':3,'result_limit':4,'extractor_timeout_ms':300,'extractor_fallback_enabled':True},relationship={'enabled':False})
 npc_overrides['context'].update(item_blacklist=[],location_blacklist=['Vivec'],magic_effects_blacklist=['Fire Shield'])
+npc_overrides['context']['event_types']=[]
+npc_overrides['prompt']['emote_moods']=''
 npc_overrides['behavior']['rechat_mode']='group'
 for submitted in [npc_overrides, None, {}]:
     override_values=dict(saved_routing['fields'],_csrf=csrf,change_reason='NPC overrides HTTP')
@@ -2213,7 +2215,7 @@ for submitted in [npc_overrides, None, {}]:
     expected_overrides=npc_overrides if submitted is None else submitted
     assert saved_routing_content.get('settings_overrides',{})=={k:v for k,v in expected_overrides.items() if k!='diary'},saved_routing_content
     assert {k:v for k,v in saved_routing_content.get('diary',{}).items() if k in npc_overrides['diary']}==expected_overrides.get('diary',{})
-for invalid_override in [{'context':{'item_blacklist':'bad'}},{'context':{'location_blacklist':[1]}},{'context':{'magic_effects_blacklist':['é'*129]}},{'context':{'hide_ambient_combat':'true'}},{'prompt':{'prompt_head':'x'*8193}},{'oghma':{'topic_count':4}},{'relationship':{'enabled':1}},{'behavior':{'rechat_mode':'unknown'}},{'quest_comments':{'chance_percent':30}},{'quest_comments':{'enabled':'false'}},{'bored_event':{'chance_percent':101}},{'behavior':{'rechat':'false'}},{'memory':{'recent_turn_limit':0}},{'response':{'max_words':10001}},{'narrator':{'enabled':True}},{'memory':{'short_term_max_summaries':51}},{'response':{'core_lang':'invalid'}},{'response':{'lang_llm_xtts':'true'}},{'diary':{'prompt':' '}},{'diary':{'prompt':'é'*4097}},{'diary':{'context_turn_limit':401}},{'diary':{'automatic_interval_seconds':9}},{'profile_evolution':{'history_limit':401}},{'profile_evolution':{'history_limit':'2'}},{'profile_evolution':{'enabled':True}}]:
+for invalid_override in [{'context':{'event_types':['invented']}},{'prompt':{'emote_moods':'é'*2049}},{'context':{'item_blacklist':'bad'}},{'context':{'location_blacklist':[1]}},{'context':{'magic_effects_blacklist':['é'*129]}},{'context':{'hide_ambient_combat':'true'}},{'prompt':{'prompt_head':'x'*8193}},{'oghma':{'topic_count':4}},{'relationship':{'enabled':1}},{'behavior':{'rechat_mode':'unknown'}},{'quest_comments':{'chance_percent':30}},{'quest_comments':{'enabled':'false'}},{'bored_event':{'chance_percent':101}},{'behavior':{'rechat':'false'}},{'memory':{'recent_turn_limit':0}},{'response':{'max_words':10001}},{'narrator':{'enabled':True}},{'memory':{'short_term_max_summaries':51}},{'response':{'core_lang':'invalid'}},{'response':{'lang_llm_xtts':'true'}},{'diary':{'prompt':' '}},{'diary':{'prompt':'é'*4097}},{'diary':{'context_turn_limit':401}},{'diary':{'automatic_interval_seconds':9}},{'profile_evolution':{'history_limit':401}},{'profile_evolution':{'history_limit':'2'}},{'profile_evolution':{'enabled':True}}]:
     r=request(saved_routing['action'],'POST',dict(saved_routing['fields'],_csrf=csrf,npc_settings_overrides_json=json.dumps(invalid_override),biography='MUST NOT SAVE'))
     assert r.status==422,(r.status,r.read().decode())
     unchanged_page,_=parse(request('/LorkhanServer/ui/core/npc_master.php'))

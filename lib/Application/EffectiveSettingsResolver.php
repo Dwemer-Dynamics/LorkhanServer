@@ -400,20 +400,24 @@ final class EffectiveSettingsResolver
         if (array_key_exists('context', $validation)) {
             $context = $validation['context'];
             if (!is_array($context) || array_is_list($context)
-                || array_diff(array_keys($context), ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','hide_ambient_combat','location_blacklist','item_blacklist','magic_effects_blacklist']) !== [])
+                || array_diff(array_keys($context), ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','hide_ambient_combat','location_blacklist','item_blacklist','magic_effects_blacklist','event_types']) !== [])
                 throw new InvalidArgumentException('invalid_settings_overrides');
             foreach ($context as $key=>$value) {
                 if (in_array($key,['location_blacklist','item_blacklist','magic_effects_blacklist'],true)) {
                     $overrides['context'][$key]=self::validateTextList($value);
+                } elseif ($key==='event_types') {
+                    if (!is_array($value)||!array_is_list($value)||count($value)>count(SettingsCatalog::eventTypes())) throw new InvalidArgumentException('invalid_settings_overrides');
+                    foreach($value as $type) if(!is_string($type)||!in_array($type,SettingsCatalog::eventTypes(),true)) throw new InvalidArgumentException('invalid_settings_overrides');
+                    $overrides['context'][$key]=array_values(array_filter(SettingsCatalog::eventTypes(),static fn($type)=>in_array($type,$value,true)));
                 } elseif (!is_bool($value)) throw new InvalidArgumentException('invalid_settings_overrides');
             }
             unset($validation['context']);
         }
         if (array_key_exists('prompt', $validation)) {
             $prompt = $validation['prompt'];
-            if (!is_array($prompt) || array_keys($prompt) !== ['prompt_head'] || !is_string($prompt['prompt_head'])
-                || strlen($prompt['prompt_head']) > 8192 || !mb_check_encoding($prompt['prompt_head'], 'UTF-8'))
+            if (!is_array($prompt) || array_is_list($prompt) || array_diff(array_keys($prompt),['prompt_head','emote_moods'])!==[])
                 throw new InvalidArgumentException('invalid_settings_overrides');
+            foreach($prompt as $field=>$value) if(!is_string($value)||strlen($value)>($field==='prompt_head'?8192:4096)||!mb_check_encoding($value,'UTF-8')) throw new InvalidArgumentException('invalid_settings_overrides');
             unset($validation['prompt']);
         }
         if (array_key_exists('quest_comments', $validation)) {

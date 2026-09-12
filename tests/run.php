@@ -984,10 +984,22 @@ $check(str_contains($corePromptText,'Core roleplay sentinel.')
     'Core prompt and context overrides reach assembly with explicit ownership');
 $check(\LorkhanServer\Application\CoreProfilePreset::capture(['settings_overrides'=>$corePromptOverrides])['settings_overrides']==$corePromptOverrides,
     'Core prompt and context overrides survive named preset capture');
-foreach ([['context'=>['prompt_timestamp'=>'true']], ['context'=>['sections'=>[]]], ['prompt'=>['emote_moods'=>'test']], ['prompt'=>['prompt_head'=>str_repeat('x',8193)]]] as $invalidCoreOverride) {
+foreach ([['context'=>['prompt_timestamp'=>'true']], ['context'=>['sections'=>[]]], ['prompt'=>['emote_moods'=>str_repeat('x',4097)]], ['prompt'=>['prompt_head'=>str_repeat('x',8193)]], ['context'=>['event_types'=>['invented']]], ['context'=>['event_types'=>'chat']]] as $invalidCoreOverride) {
     try { EffectiveSettingsResolver::validateSettingsOverrides($invalidCoreOverride); $check(false,'invalid Core prompt/context override rejected'); }
     catch (InvalidArgumentException) { $check(true,'invalid Core prompt/context override rejected'); }
 }
+
+$filterCore=['settings_overrides'=>['context'=>['event_types'=>['book','chat','chat']], 'prompt'=>['emote_moods'=>'wary, hopeful']]];
+$filterResolved=(new EffectiveSettingsResolver())->resolve([],$filterCore,[]);
+$check($filterResolved['context']['event_types']===['chat','book'],'Core event types are canonicalized against the supported catalog');
+$filterSelection=$promptSelection;$filterSelection['effective_settings']=$filterResolved;
+$check(str_contains((new PromptAssembler())->assemble($promptTurn,$filterSelection)['provider_input']['_assembled_prompt'],'wary, hopeful'),'Core mood override reaches the actual prompt');
+$filterNpc=['settings_overrides'=>['context'=>['event_types'=>[]],'prompt'=>['emote_moods'=>'']]];
+$filterSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve([],$filterCore,$filterNpc);
+$check($filterSelection['effective_settings']['context']['event_types']===[]
+    &&!str_contains((new PromptAssembler())->assemble($promptTurn,$filterSelection)['provider_input']['_assembled_prompt'],'wary, hopeful'),'NPC empty event and mood overrides clear inherited selections');
+$filterPreset=\LorkhanServer\Application\CoreProfilePreset::capture($filterCore);
+$check($filterPreset['settings_overrides']['context']['event_types']===['chat','book']&&$filterPreset['settings_overrides']['prompt']['emote_moods']==='wary, hopeful','event and mood overrides survive named presets');
 $npcPromptOverrides=$corePromptOverrides;$npcPromptOverrides['prompt']['prompt_head']='NPC override sentinel.';
 $npcPromptOverrides['context']['prompt_timestamp']=false;
 $corePromptSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>$corePromptOverrides],['settings_overrides'=>$npcPromptOverrides]);

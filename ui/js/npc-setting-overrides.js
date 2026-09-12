@@ -33,7 +33,7 @@
                     if (definition.type === 'boolean' ? typeof setting !== 'boolean'
                         : definition.type === 'choice' ? !definition.choices.includes(setting)
                         : definition.type === 'string' ? typeof setting !== 'string' || (!definition.allowEmpty && !setting.trim()) || new TextEncoder().encode(setting).length > definition.maxBytes
-                        : definition.type === 'textlist' ? !Array.isArray(setting) || setting.length > 256 || setting.some(entry => typeof entry !== 'string' || new TextEncoder().encode(entry).length > 256)
+                        : definition.type === 'textlist' ? !Array.isArray(setting) || setting.length > (definition.choices?.length ?? 256) || setting.some(entry => typeof entry !== 'string' || new TextEncoder().encode(entry).length > 256 || (definition.choices && !definition.choices.includes(entry)))
                         : !Number.isInteger(setting) || setting < definition.range[0] || setting > definition.range[1])
                         throw new Error('Invalid value for ' + definition.label + '.');
                 }
@@ -113,7 +113,7 @@
             else if (definition.type === 'string') value = text.value;
             else if (definition.type === 'textlist') {
                 value = text.value.split(/\r?\n/).map(entry => entry.trim()).filter(Boolean);
-                text.setCustomValidity(value.length > 256 || value.some(entry => new TextEncoder().encode(entry).length > 256) ? 'Use at most 256 entries, each at most 256 UTF-8 bytes.' : '');
+                text.setCustomValidity(value.length > (definition.choices?.length ?? 256) || value.some(entry => new TextEncoder().encode(entry).length > 256 || (definition.choices && !definition.choices.includes(entry))) ? definition.choices ? 'Use only the listed event types, one per line.' : 'Use at most 256 entries, each at most 256 UTF-8 bytes.' : '');
                 if (!text.reportValidity()) return;
             }
             values[section] ||= {}; values[section][key] = value;

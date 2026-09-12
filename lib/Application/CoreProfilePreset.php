@@ -10,8 +10,8 @@ use InvalidArgumentException;
 final class CoreProfilePreset
 {
     private const FIELDS = [
-        'context'=>['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','hide_ambient_combat','location_blacklist','item_blacklist','magic_effects_blacklist'],
-        'prompt'=>['prompt_head'],
+        'context'=>['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','hide_ambient_combat','location_blacklist','item_blacklist','magic_effects_blacklist','event_types'],
+        'prompt'=>['prompt_head','emote_moods'],
         'response'=>['max_words','core_lang','lang_llm_xtts'],
         'rpg_comments'=>['events','chance_percent'],
         'bored_event'=>['chance_percent'],

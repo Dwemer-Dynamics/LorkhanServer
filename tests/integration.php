@@ -2107,6 +2107,14 @@ $limitedCore=$products->getRevisioned('core_profile',$actorCoreProfile['core_pro
 $limitedContent=$limitedCore['content'];$limitedContent['settings_overrides']['memory']['recent_turn_limit']=1;
 $products->revise('core_profile',$actorCoreProfile['core_profile_id'],$limitedContent,'test recent-turn limit',$memoryNow);
 $limitedHistory=$products->promptContext($memoryProbe,$memoryNow)['history'];
+$db->exec('SAVEPOINT profile_event_filter_probe');
+$eventCountBefore=(int)$db->query('SELECT count(*) FROM eventlog')->fetchColumn();
+$filteredContent=$limitedContent;$filteredContent['settings_overrides']['context']['event_types']=[];
+$products->revise('core_profile',$actorCoreProfile['core_profile_id'],$filteredContent,'empty profile history filter',$memoryNow);
+$assert($products->promptContext($memoryProbe,$memoryNow)['history']===[], 'Core empty event filter must exclude retrieved history');
+$assert((int)$db->query('SELECT count(*) FROM eventlog')->fetchColumn()===$eventCountBefore,'profile context filtering must not delete event history');
+$db->exec('ROLLBACK TO SAVEPOINT profile_event_filter_probe');
+$assert($products->promptContext($memoryProbe,$memoryNow)['history']===$limitedHistory,'removing Core event filter restores inherited history');
 $limitedTurns=array_values(array_unique(array_column(array_column($limitedHistory,'content'),'turn_id')));
 $assert($limitedTurns===[$sharedTurn]&&count($limitedHistory)===2,
     'profile recent-turn limit must count one conversation turn with both input and world context');
