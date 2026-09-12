@@ -249,7 +249,7 @@ body :focus-visible {
 
 /* Buttons */
 .chim-btn,
-body button:not(:where(.chim-btn, .navbar-toggler, .navbar-brand, .btn-close, .accordion-button)),
+body button:not(:where(.chim-btn, .navbar-toggler, .navbar-brand, .btn-close, .accordion-button, [data-json-editor-target] button)),
 body input[type="button"],
 body input[type="submit"],
 body input[type="reset"],
@@ -288,7 +288,7 @@ body .btn-import {
 }
 
 .chim-btn:hover:not(:disabled),
-body button:not(:where(.chim-btn, .navbar-toggler, .navbar-brand, .btn-close, .accordion-button)):hover:not(:disabled),
+body button:not(:where(.chim-btn, .navbar-toggler, .navbar-brand, .btn-close, .accordion-button, [data-json-editor-target] button)):hover:not(:disabled),
 body input[type="button"]:hover:not(:disabled),
 body input[type="submit"]:hover:not(:disabled),
 body input[type="reset"]:hover:not(:disabled),

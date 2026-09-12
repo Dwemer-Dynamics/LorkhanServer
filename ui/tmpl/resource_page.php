@@ -739,6 +739,7 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="info" hidden>';
     $field('emote_moods','Emote Moods Override','textarea',(string)($content['emote_moods']??''),[],'span-2','Allowed mood/emote cues. Leave empty to use the inherited defaults.');
     include __DIR__.'/npc_observed_state.php';
+    include __DIR__.'/npc_profile_metadata.php';
     include __DIR__.'/npc_setting_overrides.php';
     if(!$creating&&$effectiveSettings!==[]){echo'<div class="span-2">';lorkhan_ui_effective_settings_summary($effectiveSettings,'Effective NPC settings and sources');echo'</div>';}
     $field('notes','Notes','textarea',(string)($content['notes']??''),[],'span-2');if(!$creating)$field('change_reason','Change Reason','text','management edit',[],'span-2');echo'</section>';
@@ -749,7 +750,7 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     echo'</div></section>';
     lorkhan_ui_npc_history_panel($profileId,$creating,is_array($playthroughOptions[$installationId]??null)?$playthroughOptions[$installationId]:[],$managementBasePath,$csrf);
     echo'</div><form id="'.lorkhan_ui_h($formId).'" method="post" data-track-dirty action="'.lorkhan_ui_h($managementBasePath.'/forms/'.($creating?'profile-create':'profile-revise')).'">';
-    if(!$creating)echo'<input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'"><input type="hidden" name="base_content_json" value="'.lorkhan_ui_h(json_encode($content===[]?(object)[]:$content,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)).'">';
+    if(!$creating)echo'<input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'">';
     echo'<input type="hidden" name="management_fields" value="1"><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'">';
     lorkhan_ui_hidden_state($listState);echo'</form>';
 }
@@ -1442,5 +1443,6 @@ $relationshipConversionNotice=$view==='characters'?lorkhan_ui_relationship_conve
 </main>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>" defer></script>
 <?php if ($view === 'actions'): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/action-editor.js?v=<?php echo lorkhan_ui_h((string) filemtime(dirname(__DIR__) . '/js/action-editor.js')); ?>" defer></script><?php endif; ?>
+<?php if ($view === 'characters'): ?><script type="module" src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/profile-json-editor.js?v=<?= filemtime(dirname(__DIR__).'/js/profile-json-editor.js') ?>"></script><?php endif; ?>
 <?php if ($view === 'characters'): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/npc-setting-overrides.js?v=<?php echo filemtime(dirname(__DIR__).'/js/npc-setting-overrides.js'); ?>" defer></script><?php endif; ?>
 <?php include $uiRootDir . '/tmpl/footer.html'; ?>

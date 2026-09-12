@@ -50,7 +50,7 @@ $skillLabels=['mediumarmor'=>'Medium Armor','heavyarmor'=>'Heavy Armor','bluntwe
 <?php foreach($state['spells']as$item): ?><tr><td><?= lorkhan_ui_h($item['name']??$item['display_name']??$item['id']??$item['record_id']??'—') ?></td><td><?= lorkhan_ui_h($item['id']??$item['record_id']??'—') ?></td></tr><?php endforeach; ?>
 </tbody></table></div><small class="hint">Recorded spells: <?= count($state['spells']) ?>. Up to 128 observed rows are displayed.</small><?php endif; ?>
 </div></details></div>
-<div class="form-item span-2 npc-observed-state"><details class="npc-metadata-collapse"><summary>Metadata (JSON)</summary><div class="npc-metadata-collapse-body">
+<div class="form-item span-2 npc-observed-state"><details class="npc-metadata-collapse"><summary>Recorded State (JSON)</summary><div class="npc-metadata-collapse-body">
     <small class="hint">Read-only projection of the recorded actor state. Raw turn context and private fields are excluded.</small>
     <pre><?= lorkhan_ui_h(json_encode($observation?:new stdClass(),JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)) ?></pre>
 </div></details></div>

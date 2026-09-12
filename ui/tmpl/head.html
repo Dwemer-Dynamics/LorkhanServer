@@ -2,6 +2,7 @@
 <html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="utf-8">
+    <?php if (isset($uiStyleNonce)): ?><meta name="lorkhan-style-nonce" content="<?= lorkhan_ui_h($uiStyleNonce) ?>"><?php endif; ?>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?php echo lorkhan_ui_h($pageTitle ?? 'LORKHAN'); ?></title>
     <link rel="icon" type="image/x-icon" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/favicon.ico">

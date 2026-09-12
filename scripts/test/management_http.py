@@ -106,6 +106,7 @@ class Page(html.parser.HTMLParser):
     def __init__(self,external_form=None):
         super().__init__(); self.labels=set(); self.controls=[]; self.nav=[]; self.current=0; self.forms=[]; self.form=None; self.select_name=None; self.label_depth=0
         self.external_form=external_form; self.external_fields={}; self.external_select=None; self.external_textarea=None
+        self.textarea_control=None; self.textarea_fields={}
     def handle_starttag(self,tag,attrs):
         a=dict(attrs)
         if self.external_form and a.get('form')==self.external_form and a.get('name') and 'disabled' not in a:
@@ -114,6 +115,10 @@ class Page(html.parser.HTMLParser):
             if tag=='textarea': self.external_textarea=a['name']; self.external_fields[a['name']]=''
         if tag=='option' and self.external_select and (self.external_select not in self.external_fields or 'selected' in a):
             self.external_fields[self.external_select]=a.get('value','')
+        if tag=='textarea' and a.get('name') and 'disabled' not in a:
+            owner=a.get('form') or (self.form or {}).get('id')
+            if owner:
+                self.textarea_control=(owner,a['name']); self.textarea_fields[self.textarea_control]=''
         if tag=='label':
             self.label_depth+=1
             if a.get('for'): self.labels.add(a['for'])
@@ -128,7 +133,13 @@ class Page(html.parser.HTMLParser):
         if self.form is not None and tag=='select' and a.get('name') and 'disabled' not in a: self.select_name=a['name']
         if self.form is not None and tag=='option' and self.select_name and (self.select_name not in self.form['fields'] or 'selected' in a):
             self.form['fields'][self.select_name]=a.get('value','')
+    def feed(self,data):
+        super().feed(data)
+        for form in self.forms:
+            for (owner,name),value in self.textarea_fields.items():
+                if owner==form['id']: form['fields'][name]=value.removeprefix('\n')
     def handle_endtag(self,tag):
+        if tag=='textarea': self.textarea_control=None
         if tag=='select': self.external_select=None
         if tag=='textarea' and self.external_textarea:
             self.external_fields[self.external_textarea]=self.external_fields[self.external_textarea].removeprefix('\n'); self.external_textarea=None
@@ -136,6 +147,7 @@ class Page(html.parser.HTMLParser):
         if tag=='select': self.select_name=None
         if tag=='form': self.form=None
     def handle_data(self,data):
+        if self.textarea_control: self.textarea_fields[self.textarea_control]+=data
         if self.external_textarea: self.external_fields[self.external_textarea]+=data
 
 def request(path,method='GET',data=None,follow=True,accept=None):

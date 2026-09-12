@@ -61,7 +61,7 @@ $relRenderRow=static function(array$rel,string$relForm)use($relTiers,$relTypeOpt
     <tr data-npc-rel-row data-rel-form="<?=$relForm?>">
         <td><span class="npc-rel-target" title="<?=lorkhan_ui_h(($rel['actor_identity']['record_id']??'').' · '.($rel['actor_identity']['content_file']??''))?>"><?=lorkhan_ui_h($rel['actor'])?></span></td>
         <td><input class="npc-rel-aff" aria-label="Affinity with <?=lorkhan_ui_h($rel['actor'])?>" type="number" name="affinity" min="-100" max="100" required value="<?=(int)$rel['affinity']?>" form="<?=$relForm?>"></td>
-        <td><span class="npc-rel-tier" style="color:<?=$relTier[2]?>"><?=$relTier[1]?></span></td>
+        <td><span class="npc-rel-tier" data-affinity-tier="<?=lorkhan_ui_h($relTier[1])?>"><?=$relTier[1]?></span></td>
         <td><select class="npc-rel-type" aria-label="Relationship type with <?=lorkhan_ui_h($rel['actor'])?>" name="relationship_type" required form="<?=$relForm?>"><?php $relTypeOptions($rel['relationship_type']); ?></select></td>
         <td class="npc-rel-signals">
             <?php $latest=null;foreach($relHistory as$item)if($item['relationship_id']===$relId){$latest=$item;break;}$savedDetails=$rel['details']??[];if(array_key_exists('note',$savedDetails))$latest=$savedDetails['note']!==''?['reason'=>$savedDetails['note']]:null; ?>
