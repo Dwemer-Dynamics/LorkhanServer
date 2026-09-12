@@ -1,0 +1,53 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+use LorkhanServer\Infrastructure\Connection;
+use LorkhanServer\Infrastructure\MigrationRunner;
+
+require dirname(__DIR__).'/lib/Autoload.php';
+if(PHP_SAPI!=='cli')throw new RuntimeException('CLI only.');
+
+// Called only by the isolated factory builder; never load the deployed server configuration.
+$mode=$argv[1]??'';$socket=$argv[2]??'';
+if(!in_array($mode,['build','verify'],true)||preg_match('~^/[^\x00-\x20;]+$~D',$socket)!==1){
+    fwrite(STDERR,"Usage: php scripts/factory-database.php <build|verify> <private-unix-socket-directory>\n");exit(2);
+}
+$db=Connection::open(['database_dsn'=>'pgsql:host='.$socket.';port=5432;dbname=lorkhan_factory'.($mode==='verify'?'_verify':'')]);
+$runner=new MigrationRunner($db,dirname(__DIR__).'/data/migrations');
+// Match deployment's bundled catalogs; fingerprint their exact sources before any import.
+$root=dirname(__DIR__).'/data';
+$descriptions=$root.'/descriptions/morrowind-official';$biographies=$root.'/biographies/morrowind-official';
+$oghma=$root.'/oghma/morrowind-official';$active=trim((string)file_get_contents($oghma.'/active-catalog-version.txt'));
+if(preg_match('/^[a-zA-Z0-9._-]+$/D',$active)!==1)throw new RuntimeException('invalid_factory_catalog_version');
+$catalog=$oghma.'/catalogs/'.$active;
+$sourceHash=hash_init('sha256');
+foreach([$descriptions.'/descriptions.csv',$descriptions.'/manifest.json',$descriptions.'/catalog-version.txt',
+    $biographies.'/biographies.json',$biographies.'/manifest.json',$biographies.'/catalog-version.txt',
+    $oghma.'/active-catalog-version.txt',$catalog.'/articles.json',$catalog.'/manifest.json',$catalog.'/catalog-version.txt'] as $source){
+    if(!is_file($source))throw new RuntimeException('factory_catalog_missing');
+    hash_update($sourceHash,substr($source,strlen($root))."\0".hash_file('sha256',$source)."\n");
+}
+$catalogFingerprint=hash_final($sourceHash);
+if($mode==='build'){
+    $runner->up();
+    (new \LorkhanServer\Infrastructure\DescriptionCatalogImporter($db))->provision($descriptions.'/descriptions.csv',$descriptions.'/manifest.json',trim((string)file_get_contents($descriptions.'/catalog-version.txt')));
+    (new \LorkhanServer\Infrastructure\BiographyCatalogImporter($db))->provision($biographies.'/biographies.json',$biographies.'/manifest.json',trim((string)file_get_contents($biographies.'/catalog-version.txt')));
+    (new \LorkhanServer\Infrastructure\OghmaCatalogImporter($db))->apply($catalog.'/articles.json',$catalog.'/manifest.json',trim((string)file_get_contents($catalog.'/catalog-version.txt')));
+}
+$status=$runner->status(false);
+if($status===[]||count(array_filter($status,static fn(array $row):bool=>!$row['applied']))!==0)throw new RuntimeException('factory_migrations_incomplete');
+if((int)$db->query("SELECT count(*) FROM lorkhan_internal.action_catalog WHERE action_name='conversation.end'")->fetchColumn()!==1)throw new RuntimeException('factory_action_seed_missing');
+if((int)$db->query('SELECT count(*) FROM lorkhan_internal.installations')->fetchColumn()!==0)throw new RuntimeException('factory_contains_installations');
+
+// Hash every source-seeded row, not just row counts, so archive restoration must reproduce the factory data.
+$tables=$db->query("SELECT format('%I.%I',n.nspname,c.relname) AS name FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','lorkhan_internal') AND c.relkind IN ('r','p') AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype='e') ORDER BY n.nspname,c.relname")->fetchAll(PDO::FETCH_COLUMN);
+$hash=hash_init('sha256');$rowCount=0;
+foreach($tables as $table){
+    hash_update($hash,$table."\n");
+    $rows=$db->query('SELECT to_jsonb(t)::text FROM '.$table.' t ORDER BY to_jsonb(t)::text');
+    while(($row=$rows->fetchColumn())!==false){hash_update($hash,$row."\n");++$rowCount;}
+}
+echo json_encode(['format_version'=>1,'migration_fingerprint'=>$runner->replayFingerprint(false),'catalog_fingerprint'=>$catalogFingerprint,
+    'migration_count'=>count($status),'table_count'=>count($tables),'seed_row_count'=>$rowCount,
+    'seed_sha256'=>hash_final($hash)],JSON_PRETTY_PRINT|JSON_THROW_ON_ERROR)."\n";
