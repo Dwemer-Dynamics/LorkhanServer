@@ -891,6 +891,15 @@ assert r.status==200 and clone_name in body,(r.status,r.geturl(),body)
 clone_tts_id=connector_editor_id(body,clone_name)
 clone_tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?edit='+clone_tts_id))
 assert next(f for f in clone_tts_page.forms if f['action'].endswith('/forms/connector-revise'))['fields']['credential']=='LORKHAN_CUSTOM_TTS_HTTP_API_KEY'
+clone_before=json.loads(request('/LorkhanServer/manage/exports/connectors/'+clone_tts_id+'.json').read())
+clone_edit=next(f for f in clone_tts_page.forms if f['action'].endswith('/forms/connector-revise'))
+r=request(clone_edit['action'],'POST',dict(clone_edit['fields'],_csrf=csrf,language='fr')); assert r.status==200
+clone_changed=json.loads(request('/LorkhanServer/manage/exports/connectors/'+clone_tts_id+'.json').read()); assert clone_changed['content']['language']=='fr'
+clone_history,clone_history_html=parse(request('/LorkhanServer/ui/core/tts_connectors.php?edit='+clone_tts_id+'&embed=1'))
+clone_restore=next(f for f in clone_history.forms if f['action'].endswith('/forms/connector-rollback'))
+r=request(clone_restore['action'],'POST',dict(clone_restore['fields'],_csrf=csrf,revision='1')); assert r.status==200
+clone_restored=json.loads(request('/LorkhanServer/manage/exports/connectors/'+clone_tts_id+'.json').read())
+assert clone_restored['content']==clone_before['content'],(clone_restored,clone_before)
 r=request('/LorkhanServer/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':clone_tts_id,'kind':'tts_provider'}); assert r.status==200
 tts_export['name']=tts_name+' imported'; tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?import=1&embed=1'))
 import_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/connector-import'))

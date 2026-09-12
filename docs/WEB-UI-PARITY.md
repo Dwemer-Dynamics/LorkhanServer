@@ -113,7 +113,7 @@ do not use an exception to excuse a generic substitute layout.
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; provider presets consolidated to 11 cards with all 32 built-in credential identities editable through saved/optional additional badges; standalone and actual hub preset/custom draft geometry reviewed at 1280/390, with failed-save and concurrent-edit retention rechecked using mocks; content-only shell now matches; live-provider acceptance remains untested |
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key selection is now wired and browser save/reload tested; hub selection and unsaved draft retention, narrow editor bounds and failed-save Test refusal are verified; remaining provider/advanced interaction review stays open. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
-| `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired. Zonos Cached Voice Path is editable, revisioned and applied once to its exact endpoint/sample; remaining provider interactions are listed in the latest audit below |
+| `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired. Zonos Cached Voice Path is editable, revisioned and applied once to its exact endpoint/sample; lower revision/restore and Delete-cancel interactions are verified; remaining provider interactions are listed in the latest audit below |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, API Badge, independent service drafts and editable Name are implemented. Google Free STT remains missing: Herika uses browser recognition plus a game-injection bridge; a dictation-only test would not supply parity. Complete STT editor interaction review remains open. |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management and OmniVoice language/readiness/direct-import/provider-delete flows are implemented with mock HTTP/browser evidence below; exact remaining provider presentation, errors, batch states and hub comparisons remain |
 | `core/npc_biographies.php` | `npc_upload.php` | Header, summary, Add/Edit, Extended Profiles, inline Oghma and full-catalog search/paging aligned. Batch guidance, complete global/installation custom export and confirmed factory reset are implemented; ownership and native fallback protections are explicit. Final tests/deployment evidence below. |
@@ -10806,3 +10806,25 @@ or paid provider calls.
   including save/reload, clear and invalid-input rejection. Populated and empty
   narrow editor screenshots inspected. All 815 deployed files match source;
   private routes remain protected, credentials/voices preserved.
+
+## TTS lower editor and revision interaction proof (2026-09-11)
+
+- Rechecked the live lower panel with one revision at 1280/390. The history table
+  stays within the page width and correctly omits Restore when no earlier revision
+  exists. No browser errors. The reference has no revision panel; this is an existing
+  native data-safety extension, not a missing Herika control.
+- Extended the existing HTTP connector clone fixture: edit its language, verify
+  persistence, restore revision 1 through the rendered form, then compare the
+  complete exported content with the original. Full HTTP suite passed. Clone and
+  delete continue through their existing checks; no extra test file was added.
+- Captured the actual isolated PHP-rendered two-revision editor for browser checks,
+  then removed the temporary capture line from the test. At 1280/390 the restored
+  revision selector retains its value across disclosure close/reopen, submits
+  revision 1 with the correct connector kind, and does not overflow. Delete Cancel
+  shows the confirmation and sends no request. All browser POSTs were intercepted;
+  no production connector was changed. Narrow screenshot inspected.
+- Temporary evidence: tts-revision-http.txt, tts-revision-proof.cjs,
+  tts-revision-fixture.html, tts-restore-proof.cjs and screenshots. This closes the
+  lower revision-surface review previously left open for TTS. No product-code or
+  deployment change was needed; provider-specific error states and full hub review
+  are still separate open matrix work.
