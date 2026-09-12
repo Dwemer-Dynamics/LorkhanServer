@@ -29,7 +29,7 @@ foreach ($groups as $providers) foreach ($providers as [$panelDriver,$panelName,
         'language'=>['label'=>$panelDriver==='inworld'?'Language':'Lang', 'type'=>'text', 'value'=>$panelContent['language'] ?? 'en', 'maxlength'=>35],
         'model'=>['label'=>$panelDriver==='inworld'?'Model Id':'Model', 'type'=>isset($modelChoices[$panelDriver])?'select':'text', 'value'=>$panelContent['model'] ?? '', 'maxlength'=>256, 'values'=>$modelChoices[$panelDriver] ?? []],
         'timeout_ms'=>['label'=>'Timeout (ms)', 'type'=>'number', 'value'=>$panelContent['timeout_ms'] ?? 30000, 'min'=>1000, 'max'=>120000],
-        'endpoint'=>['label'=>'URL', 'type'=>'text', 'value'=>$panelContent['endpoint'] ?? $defaults[$panelDriver]['endpoint'], 'maxlength'=>2048],
+        'endpoint'=>['label'=>'URL', 'type'=>$panelDriver==='localwhisper'?'url':'text', 'value'=>$panelContent['endpoint'] ?? $defaults[$panelDriver]['endpoint'], 'maxlength'=>2048],
     ];
     $fields['language']['help']=match($panelDriver){'inworld'=>'Language code in BCP-47 format, e.g. en-US. Leave blank for auto-detect.','gemini'=>'Language (e.g., en, es, ja)','deepgram'=>'Language',default=>'Language to detect for STT.'};
     $fields['model']['help']=match($panelDriver){'inworld'=>'Model identifier in provider/model format, e.g. groq/whisper-large-v3.','gemini'=>'Gemini model. 2.5 Flash recommended for best speed and quality.',default=>'Model to use'};

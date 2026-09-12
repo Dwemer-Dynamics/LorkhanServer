@@ -114,7 +114,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; provider presets consolidated to 11 cards with all 32 built-in credential identities editable through saved/optional additional badges; standalone and actual hub preset/custom draft geometry reviewed at 1280/390, with failed-save and concurrent-edit retention rechecked using mocks; content-only shell now matches; live-provider acceptance remains untested |
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key selection is now wired and browser save/reload tested; hub selection and unsaved draft retention, narrow editor bounds and failed-save Test refusal are verified; remaining provider/advanced interaction review stays open. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired. Zonos Cached Voice Path is editable, revisioned and applied once to its exact endpoint/sample; lower revision/restore and Delete-cancel interactions are verified; remaining provider interactions are listed in the latest audit below |
-| `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, API Badge, independent service drafts and editable Name are implemented. Google Free STT remains missing: Herika uses browser recognition plus a game-injection bridge; a dictation-only test would not supply parity. Complete STT editor interaction review remains open. |
+| `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, API Badge, independent service drafts and editable Name are implemented. Google Free STT remains missing: Herika uses browser recognition plus a game-injection bridge; a dictation-only test would not supply parity. Primary fields across eight services and desktop/narrow draft switching, URL validation and Test failure/retry/close flows are checked. Advanced drafts for all eight services and Configuration-hub tab retention are verified; Google Free STT remains open. |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management and OmniVoice language/readiness/direct-import/provider-delete flows are implemented with mock HTTP/browser evidence below; exact remaining provider presentation, errors, batch states and hub comparisons remain |
 | `core/npc_biographies.php` | `npc_upload.php` | Header, summary, Add/Edit, Extended Profiles, inline Oghma and full-catalog search/paging aligned. Batch guidance, complete global/installation custom export and confirmed factory reset are implemented; ownership and native fallback protections are explicit. Final tests/deployment evidence below. |
 | `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
@@ -10828,3 +10828,33 @@ or paid provider calls.
   lower revision-surface review previously left open for TTS. No product-code or
   deployment change was needed; provider-specific error states and full hub review
   are still separate open matrix work.
+
+## STT provider controls and Test interactions (2026-09-11)
+
+- Compared the rendered primary field inventory and input types for all eight
+  existing reference services: Deepgram, Parakeet, Whisper, Local Whisper, Gemini,
+  Azure, Inworld and Disabled. After native field-name mappings, the only input
+  type mismatch was Local Whisper URL. Changed that input from text to url, matching
+  the reference and adding browser URL validation without changing server policy.
+- Native browser checks at 1280/390 prove independent language drafts survive
+  service switches; an invalid Local Whisper URL prevents Test, while that inactive
+  draft does not block another service. No production settings were saved.
+- Mocked save failure prevents the provider request; mocked provider failure can
+  retry successfully. Results render transcript text literally rather than as HTML.
+  Close and Escape return focus to Test. No browser errors; narrow success and
+  provider-failure screenshots captured, success screenshot inspected.
+- PHP deployment preflight passed. Temporary evidence: stt-current-field-audit.cjs
+  and .json, stt-interaction-proof.cjs, stt-success and stt-failure screenshots.
+  Google Free remains unfinished: it requires browser recognition plus the native
+  session/target-fenced game bridge. This audit does not substitute dictation-only
+  behavior or close the remaining advanced/hub review.
+
+- Follow-up hub proof: all eight services retain and serialize separate Advanced
+  JSON drafts at 1280/390. Switching STT to TTS and back in the actual Configuration
+  hub retains both selected service and draft. Compared current native/reference
+  embedded Parakeet views and inspected narrow screenshots. Brand width and the
+  explicitly excluded reference tabs account for wrapping differences; reference
+  clipping was not copied. Evidence: stt-hub-final-proof.cjs,
+  stt-hub-ref-final-proof.cjs and corresponding screenshots.
+- Deployment verifier: all 815 runtime files match source; no extra or old paths,
+  private routes remain protected, existing credentials and voice contents kept.
