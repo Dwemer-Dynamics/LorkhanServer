@@ -3376,6 +3376,34 @@ assert qs_default_export['memory_policies']['summary']['enabled'] and qs_default
 assert qs_default_export['memory_policies']['summary']['provider_configuration_id']==qs_local_export['memory_policies']['summary']['provider_configuration_id']
 assert qs_default_export['memory_policies']['embedding']['endpoint']==qs_local_export['memory_policies']['embedding']['endpoint']
 
+# Global Settings exposes the same installation-wide built-ins as Quickstart.
+core_snapshot_sql="SELECT coalesce(json_agg(json_build_object('id',c.core_profile_id,'revision',c.current_revision,'routing',r.content->'routing','settings',r.content->'settings_overrides') ORDER BY c.core_profile_id),'[]') FROM lorkhan_internal.core_profiles c JOIN lorkhan_internal.core_profile_revisions r ON r.core_profile_id=c.core_profile_id AND r.revision=c.current_revision WHERE c.deleted_at IS NULL AND c.installation_id='"+valid['installation_id']+"'"
+core_snapshot=lambda:json.loads(subprocess.run([*pg_test,core_snapshot_sql],capture_output=True,text=True,check=True).stdout)
+for builtin,history,words,enabled in [('builtin:local_llm',20,60,False),('builtin:default',75,0,True)]:
+    _,builtin_page=parse(request('/LorkhanServer/ui/global_settings.php'))
+    assert 'value="builtin:default"' in builtin_page and 'value="builtin:local_llm"' in builtin_page
+    fingerprint=re.search(r'data-preset-fingerprint="([a-f0-9]{64})"',builtin_page).group(1)
+    before_cores=core_snapshot()
+    builtin_values={'_csrf':csrf,'installation_id':valid['installation_id'],'operation':'apply','preset_id':builtin,'confirm':'Apply','setup_fingerprint':fingerprint}
+    refused=preset_request(dict(builtin_values,setup_fingerprint='0'*64)); assert refused.status==409,(refused.status,refused.read())
+    assert core_snapshot()==before_cores
+    applied_builtin=preset_request(builtin_values); assert applied_builtin.status==200,(applied_builtin.status,applied_builtin.read())
+    assert json.load(applied_builtin)['applied'] is True
+    after_cores=core_snapshot(); assert len(after_cores)==len(before_cores)>0
+    for before_core,after_core in zip(before_cores,after_cores):
+        assert after_core['id']==before_core['id'] and after_core['revision']==before_core['revision']+1
+        assert after_core['routing']==before_core['routing']
+        assert after_core['settings']['memory']['recent_turn_limit']==history and after_core['settings']['response']['max_words']==words
+    stale=preset_request(builtin_values); assert stale.status==409,(stale.status,stale.read())
+    assert core_snapshot()==after_cores
+    builtin_export=json.load(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json'))
+    assert builtin_export['settings']['profile_management']['autofill_custom_profiles'] is enabled
+    assert builtin_export['memory_policies']['summary']['enabled'] is enabled and builtin_export['memory_policies']['embedding']['enabled'] is enabled
+    assert builtin_export['settings']['system_routing']==qs_default_export['settings']['system_routing']
+    assert builtin_export['settings']['context']['location_blacklist']==qs_default_export['settings']['context']['location_blacklist']
+    assert builtin_export['memory_policies']['summary']['provider_configuration_id']==qs_default_export['memory_policies']['summary']['provider_configuration_id']
+    assert builtin_export['memory_policies']['embedding']['endpoint']==qs_default_export['memory_policies']['embedding']['endpoint']
+
 # Restore tests run last: the transaction deliberately replaces this isolated fixture database.
 
 # Match deployment ownership: application tables/functions belong to a nonsuperuser; extensions do not.

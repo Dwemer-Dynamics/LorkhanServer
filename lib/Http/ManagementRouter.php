@@ -2164,8 +2164,10 @@ final class ManagementRouter
         $id=trim((string)($values['preset_id']??''));
         if($operation==='apply'){
             if(($values['confirm']??'')!=='Apply')throw new InvalidArgumentException('confirmation_mismatch');
-            $this->repository->transaction(function()use($installation,$scope,$id):void{
-                $preset=$id==='default'?\LorkhanServer\Application\GlobalSettingsPreset::defaults():$this->management->globalSettingsPreset($installation,$id);
+            $this->repository->transaction(function()use($installation,$scope,$id,$values):void{
+                $builtIn=in_array($id,['builtin:default','builtin:local_llm'],true);
+                if($builtIn)$this->repository->applyQuickstartCorePreset($installation,$id,$this->need($values,'setup_fingerprint'),gmdate(DATE_ATOM));
+                $preset=$builtIn?null:($id==='default'?\LorkhanServer\Application\GlobalSettingsPreset::defaults():$this->management->globalSettingsPreset($installation,$id));
                 $stored=$this->repository->globalSettingsForInstallation($installation);
                 $settings=EffectiveSettingsResolver::globalDocument($stored['content']??[],
                     $this->repository->oghmaSettings($installation),$this->repository->translationPolicyForInstallation($installation)['content'],
@@ -2174,7 +2176,13 @@ final class ManagementRouter
                     ??['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''];
                 $embedding=$this->repository->memoryEmbeddingPolicyForInstallation($installation)['content']
                     ??\LorkhanServer\Application\MemoryEmbeddingPolicy::defaults();
-                $applied=\LorkhanServer\Application\GlobalSettingsPreset::apply($preset,$settings,$summary,$embedding);
+                if($builtIn){
+                    $settings=\LorkhanServer\Application\GlobalSettingsPreset::applyBuiltIn($id,$settings);
+                    $core=$this->repository->defaultCoreProfileForInstallation($installation);
+                    $fallback=(string)($core['content']['routing']['llm_fast_configuration_id']??'');
+                    $memory=\LorkhanServer\Application\GlobalSettingsPreset::builtInMemory($id,$summary,$embedding,$fallback);
+                    $applied=['settings'=>$settings]+$memory;
+                }else $applied=\LorkhanServer\Application\GlobalSettingsPreset::apply($preset,$settings,$summary,$embedding);
                 $document=['schema'=>'lorkhan.global-settings-preset.v3','exported_at'=>gmdate('c'),'name'=>'Named preset',
                     'settings'=>$applied['settings'],'memory_policies'=>['summary'=>$applied['summary'],'embedding'=>$applied['embedding']]];
                 $this->importGlobalSettings(['preset_json'=>json_encode($document,JSON_THROW_ON_ERROR)],$scope);

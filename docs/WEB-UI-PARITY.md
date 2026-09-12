@@ -11762,3 +11762,38 @@ The complete isolated management HTTP suite also passed with the current source:
 Save All retains false/100 and export → import → re-export preserves the complete
 profile_management section. Temporary client timeout was 30 seconds, not the
 suite's default 5 seconds. Existing full-goal runtime/page gaps remain open.
+
+## Global Settings built-in preset entry point (2026-09-12)
+
+The Global Settings preset row now exposes the reference Default and Local LLM
+choices. Both reuse the existing Quickstart Core/global/memory preset logic.
+Unlike the older global-only reset, they update every existing Core Profile in
+this installation together with supported global switches and memory policies.
+The transaction uses the existing locked, revision-fenced setup inventory. The
+confirmation states the affected Core Profile count and warns that unsaved edits
+will be lost. Connector assignments, existing URLs, NPC overrides and identity
+are preserved; missing memory bindings may be provisioned by Default as already
+implemented in Quickstart. Unsupported reference features are not fabricated.
+
+Built-ins cannot be overwritten. Conflicts retain the dialog and ask for a page
+reload; the selected built-in survives successful navigation. Existing custom
+named presets and portable formats keep their prior semantics. Custom global
+snapshot capture of all profiles and defaults for future profiles remain parity
+work, independently of this new entry point for the two existing built-ins.
+
+1044 server checks, 111 protocol files and PHP/JS syntax pass. Read-only browser
+checks at 1280/390 cover both choices, confirmation/cancel, protected overwrite,
+stale response retention and mocked successful apply/reload, with zero live
+writes. Actual reference/native preset labels and select padding/font/radius
+match at both widths; screenshots inspected. Full local deployment preserves
+configuration, credentials and voice data, with all 858 runtime files matching.
+Full rollback: /var/backups/lorkhanserver-code.NSBp0b; final confirmation-help
+update backup: /var/backups/lorkhanserver-global-builtins-help.q6ZgZK.
+
+The full isolated management HTTP suite passed after qualifying its Core snapshot
+query with lorkhan_internal (the first run queried the compatibility table).
+Both built-ins advance every existing Core Profile by one revision, apply the
+expected history/word limits and global/memory switches, preserve routes,
+blacklists and existing memory endpoints/bindings, and reject stale fingerprints
+without changing the saved Core snapshot. The runner used a temporary 30-second
+HTTP client timeout; no default-5-second CI or live-provider claim is made.

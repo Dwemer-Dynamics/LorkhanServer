@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let operation = '', opener = null, busy = false;
         const updateButtons = () => {
             select.disabled = busy;
-            buttons.forEach((button) => { button.disabled = busy || (button.dataset.presetOperation === 'overwrite' && select.value === 'default'); });
+            buttons.forEach((button) => { button.disabled = busy || (button.dataset.presetOperation === 'overwrite' && (select.value === 'default' || select.value.startsWith('builtin:'))); });
         };
         select.addEventListener('change', updateButtons);
         updateButtons();
@@ -73,7 +73,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const title = select.selectedOptions[0].textContent;
             document.getElementById('gs-preset-title').textContent = operation === 'save_new' ? 'Save current setup as a preset' : `${operation === 'apply' ? 'Apply' : 'Overwrite'} ${title}?`;
             document.getElementById('gs-preset-description').textContent = operation === 'apply'
-                ? 'This saves the included Global Settings and memory scheduling immediately. Unsaved edits will be lost. Connector choices, service URLs and NPC profiles stay unchanged.'
+                ? (select.value.startsWith('builtin:')
+                    ? `This applies ${title} to Global Settings, memory scheduling and all Core Profiles in this installation (${presetRow.dataset.presetProfileCount}) immediately. Unsaved edits will be lost. Existing connector assignments, service URLs, NPC overrides and profile identities are preserved. ${select.value === 'builtin:default' ? 'Default enables memory and may require a configured connector.' : ''}`
+                    : 'This saves the included Global Settings and memory scheduling immediately. Unsaved edits will be lost. Connector choices, service URLs and NPC profiles stay unchanged.')
                 : operation === 'overwrite' ? 'Replace this preset with the Global Settings currently on screen, including unsaved edits? This cannot be undone. Connector choices, service URLs and NPC profiles stay unchanged.'
                 : 'Name this preset. It stores Global Settings currently on screen, including unsaved edits. Connector choices, service URLs and NPC profiles stay unchanged.';
             document.getElementById('gs-preset-name-field').hidden = operation !== 'save_new';
@@ -93,6 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const body = new URLSearchParams(new FormData(settingsForm));
             body.set('operation', operation);
             body.set('preset_id', select.value);
+            if (operation === 'apply' && select.value.startsWith('builtin:')) body.set('setup_fingerprint', presetRow.dataset.presetFingerprint);
             body.set('preset_name', name.value.trim());
             body.set('preset_revision', select.selectedOptions[0].dataset.revision || '0');
             body.set('confirm', operation === 'apply' ? 'Apply' : 'Overwrite');
@@ -114,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 status.textContent = 'Preset saved. Active settings are unchanged.';
                 presetDialog.close();
             } catch (failure) {
-                const messages = {revision_conflict: 'This preset changed in another tab. Reload before overwriting it.',
+                const messages = {revision_conflict: operation === 'apply' ? 'Settings or profiles changed since this page loaded. Reload the page before applying the preset.' : 'This preset changed in another tab. Reload before overwriting it.',
                     preset_name_exists: 'A preset with that name already exists.', invalid_preset_name: 'Use a unique name of up to 128 bytes. Built-in names are reserved.'};
                 error.textContent = messages[failure.message] || `Preset was not applied: ${failure.message.replaceAll('_', ' ')}. Check connector requirements if enabling memory or translation.`;
                 error.hidden = false;

@@ -43,6 +43,7 @@ if (($storedContent['schema'] ?? null) !== SettingsCatalog::GLOBAL_SCHEMA && $in
 }
 $settings = $globalDocument['client'];
 $namedPresets = $installationId === '' ? [] : $managementRepository->globalSettingsPresets($installationId);
+$presetPlan = $installationId === '' ? null : $productRepository->quickstartLocalRoutingPlan($installationId);
 $autoLockProfile = $globalDocument['profile_management']['auto_lock_profile'];
 $autofillCustomProfiles = $globalDocument['profile_management']['autofill_custom_profiles'];
 $autofillCustomProfilesTrigger = $globalDocument['profile_management']['autofill_custom_profiles_trigger'];
@@ -187,10 +188,12 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             </div>
         </div>
         <?php if ($installations !== []): ?>
-        <div class="preset-row" data-preset-endpoint="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/global-settings-preset">
+        <div class="preset-row" data-preset-fingerprint="<?= lorkhan_ui_h($presetPlan['fingerprint'] ?? '') ?>" data-preset-profile-count="<?= count($presetPlan['preset_profiles'] ?? []) ?>" data-preset-endpoint="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/global-settings-preset">
             <label class="preset-label" for="gs-named-preset">Settings Preset</label>
             <select class="preset-select" id="gs-named-preset">
-                <optgroup label="Built-in"><option value="default">Default</option></optgroup>
+                <optgroup label="Built-in"><?php foreach (['builtin:default'=>'Default','builtin:local_llm'=>'Local LLM'] as $presetId=>$presetLabel): ?>
+                    <option value="<?= lorkhan_ui_h($presetId) ?>"<?= ($presetId === ($_GET['preset_id'] ?? 'builtin:default')) ? ' selected' : '' ?>><?= lorkhan_ui_h($presetLabel) ?></option>
+                <?php endforeach; ?></optgroup>
                 <optgroup label="Custom" id="gs-custom-presets"><?php foreach ($namedPresets as $preset): ?>
                     <option value="<?php echo lorkhan_ui_h($preset['preset_id']); ?>" data-revision="<?php echo (int)$preset['revision']; ?>"<?php echo ($preset['preset_id'] === ($_GET['preset_id'] ?? null)) ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($preset['name']); ?></option>
                 <?php endforeach; ?></optgroup>
