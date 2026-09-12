@@ -34,10 +34,24 @@ final class ManagementRepository
         } finally { $this->db->query('SELECT pg_advisory_unlock(7514,113)'); }
     }
 
-    /** Expose only the latest maintenance lifecycle, never worker payloads or database credentials. */
-    public function databaseMaintenanceStatus(): ?array
+    /** Queue one full SQL snapshot; a pending snapshot is shared by repeated clicks. */
+    public function queueDatabaseBackup(): string
     {
-        $row=$this->db->query("SELECT job_id,state,created_at,updated_at FROM durable_jobs WHERE job_type='database.compact' ORDER BY created_at DESC,job_id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        if (!filter_var($this->db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn(),FILTER_VALIDATE_BOOL)) throw new RuntimeException('maintenance_busy');
+        try {
+            $existing=$this->db->query("SELECT job_id FROM durable_jobs WHERE job_type='database.backup' AND state IN ('queued','leased') ORDER BY created_at LIMIT 1")->fetchColumn();
+            if(is_string($existing))return $existing;
+            $id=Uuid::v4();(new JobRepository($this->db))->enqueue($id,'database.backup',1,$id,['backup_id'=>$id],1);
+            return $id;
+        } finally {$this->db->query('SELECT pg_advisory_unlock(7514,113)');}
+    }
+
+    /** Expose only the latest maintenance lifecycle, never worker payloads or database credentials. */
+    public function databaseMaintenanceStatus(string $type = 'database.compact'): ?array
+    {
+        if(!in_array($type,['database.compact','database.backup'],true))throw new \InvalidArgumentException('invalid_database_job_type');
+        $query=$this->db->prepare('SELECT job_id,state,created_at,updated_at FROM durable_jobs WHERE job_type=:type ORDER BY created_at DESC,job_id DESC LIMIT 1');
+        $query->execute(['type'=>$type]);$row=$query->fetch(PDO::FETCH_ASSOC);
         return $row === false ? null : $row;
     }
 

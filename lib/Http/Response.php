@@ -11,6 +11,7 @@ final readonly class Response
         public int $status,
         public string $body,
         public array $headers = ['Content-Type' => 'application/json; charset=utf-8'],
+        public mixed $stream = null,
     ) {
     }
 
@@ -41,8 +42,9 @@ final readonly class Response
         foreach ($this->headers as $name => $value) {
             foreach (is_array($value) ? $value : [$value] as $headerValue) header($name . ': ' . $headerValue, false);
         }
-        header('Content-Length: ' . strlen($this->body));
+        // SQL backups are streamed from an already authenticated and integrity-checked file.
+        header('Content-Length: ' . (is_resource($this->stream) ? fstat($this->stream)['size'] : strlen($this->body)));
         header('Cache-Control: no-store');
-        echo $this->body;
+        if(is_resource($this->stream)){fpassthru($this->stream);fclose($this->stream);}else echo $this->body;
     }
 }

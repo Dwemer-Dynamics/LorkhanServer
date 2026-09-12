@@ -1,10 +1,11 @@
 <main class="database-manager-page">
     <header class="page-header">
         <div class="page-header-top"><h1>Database Manager</h1><?php if (!$embedded): ?><a class="back-link" href="<?= lorkhan_ui_h($webRoot) ?>/ui/control_panel.php?tab=dbmgr">Back to Control Panel</a><?php endif; ?></div>
-        <p class="page-subtitle">Manage installation configuration backups, restores and applied schema migrations</p>
+        <p class="page-subtitle">Manage database backups, configuration snapshots, maintenance and applied schema migrations</p>
     </header>
     <?php if (($_GET['status']??'')==='saved'): ?><p class="database-notice" role="status">Database operation completed.</p><?php endif; ?>
     <?php $maintenanceMessages=[
+        'backup-queued'=>'Full SQL backup queued. Reload the backup list after the worker completes.',
         'maintenance-queued'=>'Database maintenance queued. The worker will process it; status is shown below.',
         'maintenance-completed'=>'Database maintenance completed: Lorkhan application tables compacted and analysed.',
         'maintenance-busy'=>'Maintenance is already running or was started within the last minute. Please wait before retrying.',
@@ -12,6 +13,28 @@
         'maintenance-empty'=>'No application tables were found. No maintenance was started.',
         'maintenance-failed'=>'Maintenance did not complete within the database limits or encountered an error. Some tables may already be compacted. Your records were not deleted. See server logs before retrying.',
     ]; if(isset($maintenanceMessages[$_GET['status']??''])): ?><p class="database-notice" role="status"><?= lorkhan_ui_h($maintenanceMessages[$_GET['status']]) ?></p><?php endif; ?>
+    <section class="message" id="sql-backups" aria-labelledby="sql-backup-heading">
+        <h2 id="sql-backup-heading">Full Database Backups</h2>
+        <p>Create a consistent SQL snapshot of this Lorkhan PostgreSQL database, including NPCs, events, history and configuration. External audio, voice files, game saves and private server credential files are not included. Keep downloaded backups private.</p>
+        <p>The background job has a 10-minute limit, 1 GiB per backup and 4 GiB of SQL backup storage. No existing backup is deleted automatically.</p>
+        <p role="status" data-database-maintenance data-kind="backup" data-download-base="<?= lorkhan_ui_h($managementBasePath) ?>/exports/database/" data-endpoint="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/database-backup" data-state="<?= lorkhan_ui_h($sqlBackupJob['state']??'') ?>">Latest SQL backup: <?= lorkhan_ui_h($sqlBackupJob['state']??'none') ?>.</p>
+        <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/database-backup">
+            <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>">
+            <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+            <label for="sql-backup-confirm">Type Backup to confirm</label><input id="sql-backup-confirm" name="confirm" required pattern="Backup" autocomplete="off">
+            <button class="button" type="submit">Create SQL Backup</button>
+        </form>
+        <?php if($sqlBackups===[]): ?><p class="empty-state">No full SQL backups on this page.</p><?php else: ?>
+        <div class="server-file-list">
+        <?php foreach($sqlBackups as $backup): ?><div class="backup-file-row"><div class="server-file-option"><div class="server-file-card"><div class="server-file-card-header"><div class="backup-details">
+            <div class="backup-filename"><?= lorkhan_ui_h($backup['backup_id']) ?>.sql</div>
+            <div class="backup-badges"><span class="backup-scope-badge">LorkhanServer database</span></div>
+            <div class="backup-meta"><span><?= lorkhan_ui_table_value($backup['byte_count'],'bytes') ?></span><span>Created <?= lorkhan_ui_h($backup['created_utc']) ?> UTC</span><span><?= lorkhan_ui_h($backup['state']) ?></span></div>
+        </div></div></div></div><a class="backup-download" href="<?= lorkhan_ui_h($managementBasePath.'/exports/database/'.$backup['backup_id'].'.sql') ?>" aria-label="Download SQL backup <?= lorkhan_ui_h($backup['backup_id']) ?>">Download SQL</a></div><?php endforeach; ?>
+        </div><?php endif; ?>
+        <nav class="backup-pagination" aria-label="SQL backup pages"><?php if($sqlPage>1): ?><a class="button" href="<?= lorkhan_ui_h($sqlPageUrl($sqlPage-1)) ?>">Previous</a><?php endif; ?><?php if($sqlHasNext): ?><a class="button" href="<?= lorkhan_ui_h($sqlPageUrl($sqlPage+1)) ?>">Next</a><?php endif; ?></nav>
+        <a class="button" href="<?= lorkhan_ui_h($sqlPageUrl($sqlPage)) ?>">Refresh backup list</a>
+    </section>
     <div class="manager-sections">
         <section class="manager-section grid-container tools-grid" aria-label="Database tools">
             <article class="card-tile">

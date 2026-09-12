@@ -89,6 +89,15 @@ final class ManagementRouter
             $session=$this->authenticatedSession($r);
             if($session===null){if($r->method==='GET'&&$this->htmlRequest($r))return$this->openBrowserSession($r->path);throw new RuntimeException('unauthorized');}
             if($r->method==='GET'&&$path==='/api/v1/database-maintenance')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus()]);
+            if($r->method==='GET'&&$path==='/api/v1/database-backup')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus('database.backup')]);
+            if($r->method==='GET'&&preg_match('#^/exports/database/([0-9a-f-]{36})\\.sql$#D',$path,$m)){
+                $record=$this->repository->configurationBackupRecord($m[1]);
+                if(($record['scope']['kind']??'')!=='database_sql')throw new RuntimeException('not_found');
+                $file=(new \LorkhanServer\Infrastructure\DatabaseSqlBackup($this->providerConfig))->path($m[1]);
+                if(!is_file($file)||filesize($file)!==(int)$record['byte_count']||!hash_equals($record['content_sha256'],hash_file('sha256',$file)))throw new RuntimeException('backup_integrity_failed');
+                $stream=fopen($file,'rb');if($stream===false)throw new RuntimeException('backup_storage_unavailable');
+                return new Response(200,'',['Content-Type'=>'application/sql','Content-Disposition'=>'attachment; filename="LorkhanServer-'.$m[1].'.sql"'],$stream);
+            }
             if($r->method==='GET'&&preg_match('#^/exports/profiles/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProfile($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/core-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportCoreProfileSettings($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/player-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportSpecialProfileSettings($m[1],'player');
@@ -441,6 +450,12 @@ final class ManagementRouter
         }
         if($domain==='global-settings-preset')return $this->namedGlobalSettingsPreset($v,$scope);
         if($domain==='core-profile-preset')return $this->namedCoreProfilePreset($v,$scope);
+        if($domain==='database-backup'){
+            if(($v['confirm']??'')!=='Backup')throw new InvalidArgumentException('confirmation_mismatch');
+            try{$this->management->queueDatabaseBackup();$status='backup-queued';}
+            catch(RuntimeException $error){if($error->getMessage()!=='maintenance_busy')throw $error;$status='maintenance-busy';}
+            return $this->redirect($this->webRoot().'/ui/database_manager.php?'.http_build_query(['status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
+        }
         if($domain==='database-maintenance'){
             if(($v['confirm']??'')!=='Maintenance')throw new InvalidArgumentException('confirmation_mismatch');
             $status='maintenance-queued';

@@ -386,6 +386,33 @@ maintenance_worker=subprocess.run(['php','-r',
     str(repository_root),sys.argv[3]],capture_output=True,text=True,timeout=60)
 assert maintenance_worker.returncode==0 and json.loads(maintenance_worker.stdout)['succeeded']==1,(maintenance_worker.stdout,maintenance_worker.stderr)
 assert json.load(request(maintenance_status,accept='application/json'))['job']['state']=='succeeded'
+# Full SQL backups use the actual worker, private storage and streamed authenticated download.
+sql_form=next(f for f in database.forms if f['action'].endswith('/forms/database-backup'))
+assert request(sql_form['action'],'POST',dict(sql_form['fields'],confirm='wrong')).status==422
+assert request(sql_form['action'],'POST',dict(sql_form['fields'],confirm='Backup')).status==200
+sql_status='/LorkhanServer/manage/api/v1/database-backup'
+sql_job=json.load(request(sql_status,accept='application/json'))['job']; assert sql_job['state']=='queued'
+assert request(sql_form['action'],'POST',dict(sql_form['fields'],confirm='Backup')).status==200
+assert json.load(request(sql_status,accept='application/json'))['job']['job_id']==sql_job['job_id']
+sql_worker=subprocess.run(['php','-r',
+    "require $argv[1].'/lib/Autoload.php'; $config=['database_dsn'=>'pgsql:host=127.0.0.1;port='.$argv[2].';dbname=lorkhan_management_http','database_user'=>'postgres']; $db=LorkhanServer\\Infrastructure\\Connection::open($config); $config['backup_storage_path']=dirname($db->query('SHOW data_directory')->fetchColumn()).'/control/backups'; $worker=new LorkhanServer\\Application\\Worker(new LorkhanServer\\Infrastructure\\JobRepository($db),new LorkhanServer\\Application\\JobHandlerRegistry([new LorkhanServer\\Application\\DatabaseBackupJobHandler($db,$config)]),'backup-http',30,1,1,1,60,['database.backup']); $stats=$worker->run(); if($stats['succeeded']===1){(new LorkhanServer\\Application\\DatabaseBackupJobHandler($db,$config))->handle(['backup_id'=>$argv[3]],$argv[3],fn()=>true);} echo json_encode($stats);",
+    str(repository_root),sys.argv[3],sql_job['job_id']],capture_output=True,text=True,timeout=60)
+assert sql_worker.returncode==0 and json.loads(sql_worker.stdout)['succeeded']==1,(sql_worker.stdout,sql_worker.stderr)
+assert json.load(request(sql_status,accept='application/json'))['job']['state']=='succeeded'
+sql_download=request('/LorkhanServer/manage/exports/database/'+sql_job['job_id']+'.sql',accept='application/sql')
+assert sql_download.status==200 and sql_download.headers['Content-Type']=='application/sql'
+sql_data=sql_download.read(); assert len(sql_data)==int(sql_download.headers['Content-Length']) and b'PostgreSQL database dump' in sql_data
+pg_args=['-h','127.0.0.1','-p',sys.argv[3]]
+subprocess.run(['createdb',*pg_args,'lorkhan_sql_restore'],check=True,capture_output=True)
+try:
+    restored_sql=subprocess.run(['psql',*pg_args,'-d','lorkhan_sql_restore','-v','ON_ERROR_STOP=1'],input=sql_data,capture_output=True,timeout=60)
+    assert restored_sql.returncode==0,restored_sql.stderr.decode()[-1000:]
+    restored_count=subprocess.run(['psql',*pg_args,'-d','lorkhan_sql_restore','-Atc','SELECT count(*) FROM public.bio_templates'],capture_output=True,text=True,check=True)
+    assert int(restored_count.stdout)>=5005
+finally:
+    subprocess.run(['dropdb',*pg_args,'lorkhan_sql_restore'],check=True,capture_output=True)
+assert sql_job['job_id']+'.sql' in request('/LorkhanServer/ui/database_manager.php').read().decode()
+
 studio,text=parse(request('/LorkhanServer/ui/core/voice_library.php')); assert studio.current==1 and 'Add WAV voice samples' in text and 'flat ZIP batch' in text and 'Voice Library' in text and 'Configured TTS Connectors' in text and 'Provider Voice Browser' in text and 'never contacts a provider automatically' in text
 for provider_tab,provider_label in [('xtts','XTTS'),('chatterbox','Chatterbox'),('pockettts','PocketTTS'),('omnivoice','OmniVoice'),('cartesia','Cartesia'),('inworld','Inworld')]:
     cache_html=request('/LorkhanServer/ui/core/voice_library.php?tab='+provider_tab).read().decode()

@@ -4,6 +4,11 @@ $pageTitle='Database Manager'; $topNavSection='control'; $BODY_CLASS='hub-page d
 require __DIR__.'/ui_bootstrap.php';
 require __DIR__.'/tmpl/control_reader.php';
 $maintenanceJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus();
+$sqlBackupJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus('database.backup');
+$sqlPage=max(1,min(100000,(int)($_GET['sql_page']??1)));
+$sqlBackups=$database->query("SELECT backup_id,byte_count,state,to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS') AS created_utc FROM backup_records WHERE scope->>'kind'='database_sql' ORDER BY created_at DESC,backup_id DESC LIMIT 26 OFFSET ".(($sqlPage-1)*25))->fetchAll(PDO::FETCH_ASSOC);
+$sqlHasNext=count($sqlBackups)>25;$sqlBackups=array_slice($sqlBackups,0,25);
+$sqlPageUrl=static fn(int $page):string=>'?'.http_build_query(['sql_page'=>$page,'embed'=>$embedded?'1':'0']).'#sql-backups';
 $installations=$uiRepository->rows('installations');
 $state=lorkhan_control_state($installations);
 $state['installation']=''; $state['period']='all'; $state['since']=null;
