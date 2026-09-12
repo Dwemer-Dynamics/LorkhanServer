@@ -39,10 +39,10 @@ $skillLabels=['mediumarmor'=>'Medium Armor','heavyarmor'=>'Heavy Armor','bluntwe
 </div></details></div>
 <div class="form-item span-2 npc-observed-state"><details><summary>Inventory</summary><div class="npc-observed-body">
 <?php if(!array_key_exists('inventory',$state)): ?><p>No NPC inventory was recorded in this observation. Player inventory is not shown here.</p>
-<?php elseif($state['inventory']===[]): ?><p>No inventory items found in metadata.</p>
-<?php else: ?><div class="npc-observed-table"><table><thead><tr><th>Item</th><th>Count</th></tr></thead><tbody>
-<?php foreach($state['inventory']as$item): ?><tr><td><?= lorkhan_ui_h($item['display_name']??$item['record_id']??'—') ?></td><td><?= lorkhan_ui_h((string)($item['count']??'—')) ?></td></tr><?php endforeach; ?>
-</tbody></table></div><?php endif; ?>
+<?php elseif($state['inventory']===[]): ?><p><?= ($state['inventory_observation']['truncated']??false)?'Inventory rows were omitted from this bounded observation.':'No inventory items found in metadata.' ?></p>
+<?php else: ?><div class="npc-observed-table npc-inventory-table"><table><thead><tr><th>Item</th><th>Count</th></tr></thead><tbody>
+<?php foreach($state['inventory']as$item): ?><tr><td><?= lorkhan_ui_h($item['display_name']??$item['record_id']??'—') ?></td><td>×<?= lorkhan_ui_h((string)($item['count']??'—')) ?></td></tr><?php endforeach; ?>
+</tbody></table><div class="npc-inventory-total"><strong>Total Items:</strong> <?= number_format((int)($state['inventory_observation']['total']??count($state['inventory']))) ?> unique items<?php if($state['inventory_observation']['truncated']??false): ?> · Showing <?= count($state['inventory']) ?> captured rows<?php endif; ?></div></div><?php endif; ?>
 </div></details></div>
 <div class="form-item span-2 npc-observed-state"><details><summary>Spells</summary><div class="npc-observed-body">
 <?php if(($state['spells']??[])===[]): ?><p>No spell data found in metadata.</p>

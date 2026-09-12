@@ -1420,6 +1420,15 @@ for response_row in response_rows:
     assert response_row['oghma_topic']=='None' and response_row['http_request']=='text: Export fixture input'
 empty_response_csv=list(csv.reader(io.StringIO(request(response_export_path.replace('q=ResponseExportFixture','q=export-no-match-fixture-926407')).read().decode())))
 assert len(empty_response_csv)==1 and empty_response_csv[0]==response_csv.fieldnames
+inventory_context=json.dumps({'inventory':{'items':[{'record_id':'NOT_NPC_INVENTORY','count':99}]},
+    'targetState':{'inventory':{'items':[{'record_id':'z_item','display_name':'Z inventory fixture','count':2,'private':'PRIVATE_NPC_ITEM'},
+        {'record_id':'a_item','display_name':'A <inventory> fixture','count':1}],'total':49,'truncated':True}}})
+subprocess.run(adventure_psql,input=f"UPDATE lorkhan_internal.turns SET target=(SELECT actor_identity || '{{\"kind\":\"npc\"}}'::jsonb FROM lorkhan_internal.profiles WHERE profile_id='{profile_id}'),context=$inventory${inventory_context}$inventory$::jsonb WHERE turn_id='{response_turn}';",text=True,capture_output=True,check=True)
+inventory_html=request('/LorkhanServer/ui/core/npc_master.php?q='+urllib.parse.quote(profile_name)).read().decode()
+if os.environ.get('LORKHAN_NPC_INVENTORY_EVIDENCE'):
+    pathlib.Path(os.environ['LORKHAN_NPC_INVENTORY_EVIDENCE']).write_text(inventory_html,encoding='utf-8')
+assert 'A &lt;inventory&gt; fixture' in inventory_html and '49 unique items' in inventory_html and 'Showing 2 captured rows' in inventory_html
+assert 'NOT_NPC_INVENTORY' not in inventory_html and 'PRIVATE_NPC_ITEM' not in inventory_html
 subprocess.run(adventure_psql,input=f"DELETE FROM public.log WHERE rowid IN (SELECT rowid FROM lorkhan_internal.log_metadata WHERE turn_id='{response_turn}'); DELETE FROM lorkhan_internal.log_metadata WHERE turn_id='{response_turn}'; DELETE FROM lorkhan_internal.turns WHERE turn_id='{response_turn}'; DELETE FROM lorkhan_internal.sessions WHERE session_id='{response_session}';",text=True,capture_output=True,check=True)
 # Books follow game time and numeric row IDs, even when wall-clock arrival runs backwards.
 book_order_sql=f"""

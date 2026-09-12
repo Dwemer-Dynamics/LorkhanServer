@@ -1444,8 +1444,8 @@ FROM profiles p JOIN sessions s ON s.installation_id=p.installation_id
 JOIN turns t ON t.session_id=s.session_id
 JOIN playthroughs pt ON pt.playthrough_id=s.playthrough_id AND pt.installation_id=s.installation_id
 WHERE p.installation_id=:installation AND p.profile_id=:profile AND p.deleted_at IS NULL
-  AND p.actor_identity->>'kind' IN ('npc','creature')
-  AND t.target->>'kind'=p.actor_identity->>'kind'
+  AND p.actor_identity->>'kind' IN ('actor','npc','creature')
+  AND t.target->>'kind'=CASE WHEN p.actor_identity->>'kind'='actor' THEN 'npc' ELSE p.actor_identity->>'kind' END
   AND t.target->>'record_id'=p.actor_identity->>'record_id'
   AND t.target->>'content_file'=p.actor_identity->>'content_file'
   AND t.target->'refnum' IS NOT DISTINCT FROM p.actor_identity->'refnum'
@@ -1478,6 +1478,13 @@ SQL);
                 if($section!=='spells'&&$number($item['count']??null))$entry['count']=$item['count'];
                 if($entry!==[])$safe[$section][]=$entry;
             }
+        }
+        if(isset($safe['inventory'])&&is_array($state['inventory']??null)){
+            $total=$state['inventory']['total']??count($safe['inventory']);
+            if(!is_int($total)||$total<count($safe['inventory']))$total=count($safe['inventory']);
+            $safe['inventory_observation']=['total'=>$total,
+                'truncated'=>($state['inventory']['truncated']??false)===true||$total>count($safe['inventory'])];
+            usort($safe['inventory'],static fn(array $a,array $b):int=>strcmp($a['display_name']??$a['record_id']??'', $b['display_name']??$b['record_id']??''));
         }
         return ['observed_at'=>$row['accepted_at'],'playthrough_name'=>$row['playthrough_name'],'state'=>$safe];
     }

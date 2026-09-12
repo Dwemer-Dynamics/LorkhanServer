@@ -3333,6 +3333,16 @@ try {
     $assert($observed['state']['stats']['magicka']['current']===0&&$observed['state']['skills']['sneak']['modified']===0
         &&$observed['state']['equipment'][0]['display_name']==='Dagger <safe>'&&!str_contains(json_encode($observed),'PRIVATE_')
         &&!array_key_exists('inventory',$observed['state']),'NPC observation leaked private/player data or lost zero values');
+    $context['targetState']['inventory']=['items'=>[
+        ['record_id'=>'z_item','display_name'=>'Z item','count'=>2,'private'=>'PRIVATE_INVENTORY'],
+        ['record_id'=>'a_item','display_name'=>'A <safe> item','count'=>0]],'total'=>49,'truncated'=>true];
+    $db->prepare('UPDATE turns SET context=:context WHERE turn_id=:id')
+        ->execute(['context'=>json_encode($context),'id'=>$observedTurn['turn_id']]);
+    $inventoryObservation=$products->npcObservedState($observedTurn['installation_id'],$observedProfile['profile_id']);
+    $assert($inventoryObservation['state']['inventory'][0]['display_name']==='A <safe> item'
+        &&$inventoryObservation['state']['inventory'][0]['count']===0
+        &&$inventoryObservation['state']['inventory_observation']===['total'=>49,'truncated'=>true]
+        &&!str_contains(json_encode($inventoryObservation),'PRIVATE_'),'NPC inventory sorting, bounds or safe projection failed');
     $otherIdentity=$identity;$otherIdentity['refnum']=['index'=>987654321,'content_file'=>0];
     $otherReference=$products->createRevisioned('profile',['installation_id'=>$observedTurn['installation_id'],'name'=>'Other NPC reference regression',
         'actor_identity'=>$otherIdentity,'content'=>[]],$now);
