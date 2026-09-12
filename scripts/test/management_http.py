@@ -729,6 +729,18 @@ npc_voice_cleanup_html=request('/LorkhanServer/ui/core/npc_master.php').read().d
 assert 'MockProviderVoice' not in npc_voice_cleanup_html and 'Warning:' not in npc_voice_cleanup_html
 # The Create NPC editor has no resolved profile yet, but its context maps still need typed defaults.
 create_override_catalog=json.loads(html.unescape(re.search(r'data-npc-overrides data-form="management-form-profile-create" data-catalog="([^"]+)"',npc_voice_cleanup_html).group(1)))
+for path, definition in create_override_catalog.items():
+    value=definition['value']
+    if definition['type']=='integer':
+        assert type(value) is int and definition['range'][0]<=value<=definition['range'][1],(path,definition)
+    elif definition['type']=='boolean':
+        assert type(value) is bool,(path,definition)
+    elif definition['type']=='choice':
+        assert value in definition['choices'],(path,definition)
+assert create_override_catalog['oghma.topic_count']['value']==1
+assert create_override_catalog['oghma.extractor_fallback_enabled']['value'] is False
+assert create_override_catalog['memory.short_term_max_summaries']['value']==10
+
 for context_map in ['context.sections','context.details']:
     value=create_override_catalog[context_map]['value']
     assert isinstance(value,dict) and value and all(isinstance(enabled,bool) for enabled in value.values()),context_map

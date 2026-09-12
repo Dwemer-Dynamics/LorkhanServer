@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 // Current rows and modal structure derive from Herika's NPC override_editor.php.
+// New NPC drafts have no persisted profile yet; use the runtime defaults, not guessed booleans/zeros.
+if ($effectiveSettings === []) $effectiveSettings = (new \LorkhanServer\Application\EffectiveSettingsResolver())->resolve([], [], []);
 $contextSelectionGroups=require __DIR__.'/context_selection_groups.php';
 $overrideLabels = [
     'context.sections'=>'Context Sections','context.details'=>'Context Details',

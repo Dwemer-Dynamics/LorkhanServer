@@ -11328,3 +11328,23 @@ Scoped deployment backup: `/var/backups/lorkhanserver-core-override-card.allbPr`
 Runtime verifier: 858 matching files, no extras, old paths or hash mismatches;
 private routes remain protected. This closes the card shell gap only, not the
 remaining Core override catalogue, runtime features or whole-project parity.
+
+## NPC Create override default values (2026-09-12)
+
+The Create editor had no effective-settings document and guessed zero for numeric
+settings or true for booleans. This produced invalid initial overrides, including
+Oghma Topic Count and Max Summaries. Empty effective settings now use the existing
+runtime resolver's default document before the catalogue is built. Saved NPC
+resolved settings remain unchanged. These are server defaults for a new draft,
+not a claim of dynamic inheritance preview when its installation/Core selection
+changes.
+
+Extended the existing management HTTP assertions to check every Create catalogue
+integer range, boolean type and choice membership, plus concrete Oghma/memory
+defaults. A temporary invocation of the current HTTP suite through the NPC create
+catalogue passed against isolated PostgreSQL/PHP and mock providers (30-second
+client timeout; no factory operations in this prefix). Later HTTP cases were not
+run. PHP lint and 1034 server checks passed. `npc-defaults-review.cjs` checked all
+45 deployed Create definitions at 1280/390 without any POSTs. Exact runtime
+verification passed for 858 files and protected private routes. Deployment backup:
+`/var/backups/lorkhanserver-npc-defaults.8E0q2L`. No game or paid provider invoked.
