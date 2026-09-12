@@ -91,6 +91,8 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
         if(in_array($path,['context.prompt_timestamp','context.location_blacklist','context.item_blacklist',
             'context.magic_effects_blacklist','context.event_types','relationship.update_chance_percent'],true))
             $overrideCatalog[$path]['category']='Prompt';
+        if(in_array($path,['behavior.rechat_strict_targeting','behavior.open_rechat','behavior.end_conversation_cooldown_seconds'],true))
+            $overrideCatalog[$path]['category']='Misc';
         if(array_key_exists($key,$content['settings_overrides'][$section]??[]))$overrideValues[$section][$key]=$content['settings_overrides'][$section][$key];
         if($section==='diary'&&array_key_exists($key,$content['diary']??[]))$overrideValues[$section][$key]=$content['diary'][$key];
     }

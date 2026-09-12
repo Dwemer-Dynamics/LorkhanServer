@@ -64,6 +64,15 @@ $coreOverrideHelp = [
 $inheritedCoreOverrides = (new \LorkhanServer\Application\EffectiveSettingsResolver())->resolve($globalContent ?? [], [], []);
 foreach ($coreOverrideCatalog as $path=>&$definition) {
     [$section,$key] = explode('.', $path);
+    $definition['category'] = match ($section) {
+        'oghma', 'memory' => 'Oghma', 'prompt' => 'Prompt', 'behavior' => 'Rechat', default => 'Context'
+    };
+    if (in_array($path, ['context.prompt_timestamp','context.location_blacklist','context.item_blacklist',
+        'context.magic_effects_blacklist','context.event_types','relationship.update_chance_percent'], true))
+        $definition['category'] = 'Prompt';
+    if (in_array($path, ['behavior.rechat_strict_targeting','behavior.open_rechat','behavior.end_conversation_cooldown_seconds'], true))
+        $definition['category'] = 'Misc';
+    $definition['icon'] = in_array($path, ['oghma.enabled','oghma.topic_count','oghma.result_limit','oghma.extractor_fallback_enabled','oghma.extractor_timeout_ms','memory.oghma_knowledge_tags'], true) ? '🧾' : ($path === 'behavior.rechat_mode' ? '🔁' : '⚙️');
     $definition['value'] = $inheritedCoreOverrides['settings'][$section][$key] ?? $inheritedCoreOverrides[$section][$key] ?? $definition['value'];
 }
 unset($definition);
@@ -75,11 +84,11 @@ unset($definition);
     <div class="provider-body profile-provider-body">
     <small class="core-override-intro">Override global settings for this profile. Changes here take precedence over global configurations.</small>
     <div class="prof-ovr-list">
-    <?php foreach (['Context'=>['context','relationship'],'Oghma'=>['oghma','memory'],'Prompt'=>['prompt'],'Rechat'=>['behavior']] as $category=>$sections): ?>
+    <?php foreach (array_values(array_unique(array_column($coreOverrideCatalog, 'category'))) as $category): ?>
     <section class="prof-ovr-category"><h3 class="prof-ovr-category-title"><?= lorkhan_ui_h($category) ?></h3><div class="prof-ovr-category-settings">
-    <?php foreach ($coreOverrideCatalog as $path=>$definition): [$section,$key]=explode('.', $path); if (!in_array($section,$sections,true)) continue; $enabled=array_key_exists($key,$overrides[$section]??[]); $value=$enabled?$overrides[$section][$key]:$definition['value']; $id='core-override-'.str_replace('.','-',$path); $globalPreview=is_array($definition['value'])?implode(', ',$definition['type']==='booleanmap'?array_values(array_intersect_key($definition['choices'],array_filter($definition['value']))):$definition['value']):(is_bool($definition['value'])?($definition['value']?'true':'false'):($definition['value']===''?'Not set':(string)$definition['value'])); $globalPreview=mb_strlen($globalPreview)>180?mb_substr($globalPreview,0,177).'…':$globalPreview; ?>
+    <?php foreach ($coreOverrideCatalog as $path=>$definition): [$section,$key]=explode('.', $path); if ($definition['category'] !== $category) continue; $enabled=array_key_exists($key,$overrides[$section]??[]); $value=$enabled?$overrides[$section][$key]:$definition['value']; $id='core-override-'.str_replace('.','-',$path); $globalPreview=is_array($definition['value'])?implode(', ',$definition['type']==='booleanmap'?array_values(array_intersect_key($definition['choices'],array_filter($definition['value']))):$definition['value']):(is_bool($definition['value'])?($definition['value']?'true':'false'):($definition['value']===''?'Not set':(string)$definition['value'])); $globalPreview=mb_strlen($globalPreview)>180?mb_substr($globalPreview,0,177).'…':$globalPreview; ?>
         <div class="prof-ovr-inline-item<?= $enabled?' enabled':'' ?>" data-path="<?= lorkhan_ui_h($path) ?>">
-            <div class="prof-ovr-inline-info"><div class="prof-ovr-inline-name"><span>🧾</span><label for="<?= lorkhan_ui_h($id) ?>"><?= lorkhan_ui_h($definition['label']) ?></label></div>
+            <div class="prof-ovr-inline-info"><div class="prof-ovr-inline-name"><span aria-hidden="true"><?= lorkhan_ui_h($definition['icon']) ?></span><label for="<?= lorkhan_ui_h($id) ?>"><?= lorkhan_ui_h($definition['label']) ?></label></div>
                 <div class="prof-ovr-inline-description"><?= lorkhan_ui_h($coreOverrideHelp[$path]) ?></div>
                 <div class="prof-ovr-inherited-value">Global value: <?= lorkhan_ui_h($globalPreview) ?></div>
             </div>

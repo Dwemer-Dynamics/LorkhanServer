@@ -11504,3 +11504,23 @@ runtime catalogue and page-wide interaction requirements remain open.
 
 This checkpoint changes test/documentation files only. Previously deployed
 product code is unchanged; no deployment or game launch was needed.
+
+## Core and NPC override category alignment (2026-09-12)
+
+Compared the pinned lib/settings.php category rules and override_editor.php icon
+rules with current deployed editors. Core had placed prompt timestamps, blacklists,
+event filters and relationship chance under Context, and used one Oghma icon for
+every row. Core now groups those controls under Prompt and renders appropriate
+icons. Strict Rechat Targeting, Open Rechat and End Conversation Cooldown are Misc
+in both Core and NPC, matching their reference runtime keys. Existing paths,
+values, inherited defaults and Save All wiring are unchanged. No new setting or
+runtime capability was added; unsupported catalogue categories remain open.
+
+core-groups-review.cjs compared categories/icons for 21 shared reference/native
+rows at 1280/390. Every native Core row toggles and restores enabled state, with
+no writes, page errors or horizontal overflow. Inspected the narrow screenshot.
+npc-all-editors-current.cjs rechecked all 45 typed draft editors at both widths.
+PHP lint, 1036 server checks, 111 protocol files and git diff --check passed.
+Scoped local deployment backup: /var/backups/lorkhanserver-core-override-groups.vPfBCy.
+Exact runtime verification reports 858 matching files and no extras/old paths;
+private routes remain protected. No provider call or game launch was performed.
