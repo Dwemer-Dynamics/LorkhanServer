@@ -1170,7 +1170,8 @@ final class ManagementRouter
     /** Convert the labelled LLM model-slot form into the strict server-owned provider document. */
     private function providerFormContent(array $values):array
     {
-        $driver=$this->need($values,'driver');$model=$this->need($values,'model');
+        $driver=$this->need($values,'driver');
+        $model=$driver==='openai-compatible'&&($values['service']??'')==='player2'?'':$this->need($values,'model');
         if($driver==='mock')return['driver'=>'mock','model'=>$model,'mock_prefix'=>trim((string)($values['mock_prefix']??''))];
         $content=['driver'=>$driver,'model'=>$model];
         if($driver==='configured'&&isset($values['credential'])&&$values['credential']!=='__inherit__')$content['credential']=$values['credential'];

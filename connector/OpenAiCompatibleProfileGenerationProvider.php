@@ -22,7 +22,7 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
         $addresses=null;
         OutboundUrlPolicy::validate($endpoint,$allowedHosts,$allowLoopbackHttp,$addresses,$localNetwork);
         LlmConnector::validateOptions($options);
-        if($model===''||strlen($model)>256||$timeoutMs<1000||$timeoutMs>120_000)
+        if((!$player2&&$model==='')||strlen($model)>256||$timeoutMs<1000||$timeoutMs>120_000)
             throw new \InvalidArgumentException('invalid_profile_provider_configuration');
     }
 
@@ -81,6 +81,8 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
             $mode==='relationship_evaluation'?'disposition_delta':(in_array($mode,['relationship_build','relationship_text_conversion'],true)?'relationships':$fields[0]));
         // Optional audit observers receive the exact messages, never transport options or credentials.
         if($observeMessages!==null)$observeMessages($request['messages']);
+        // Player2 selects the model in its app, including legacy placeholder connector revisions.
+        if ($this->player2) unset($request['model']);
         $body=json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
         $networkOptions=OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection,$this->localNetwork);
         $handle=curl_init($this->endpoint);if($handle===false)throw new RuntimeException('provider_unavailable');

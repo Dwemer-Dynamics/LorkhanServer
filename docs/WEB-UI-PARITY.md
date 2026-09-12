@@ -11377,3 +11377,33 @@ JS syntax, 1034 server checks and 111 protocol checks passed. Scoped deployment
 backup `/var/backups/lorkhanserver-llm-groq-schema.8qTUmt`; exact runtime verification
 passed for 858 files with private-route protection unchanged. Paid providers and the
 game were not invoked.
+
+## Player2 app-selected model and editor parity (2026-09-12)
+
+Closed the Player2 gap identified in the preceding LLM review. The editor now
+hides Model and API Key for Player2, clears the explicit model, removes its required
+constraint, and restores visible/required model editing when switching away.
+Server-rendered saved Player2 forms follow the same rule without JavaScript.
+Existing game-key references remain server-held; explicit preset selection retains
+the established No API key / LORKHAN game-key default.
+
+Player2 saves normalize model to an empty string (including legacy placeholder
+revisions); other services still require a nonempty model. All three actual
+OpenAI-compatible adapters omit the model property when Player2 is selected:
+dialogue, profile/diary/relationship generation, and Oghma extraction. Quickstart's
+routing connector no longer creates the placeholder. No migration or live settings
+rewrite is needed. Ordinary connector behavior is unchanged.
+
+Evidence: 1036 existing/extended server checks and 111 protocol files passed.
+The existing management HTTP suite through the new Player2 wire block passed on
+isolated PostgreSQL/PHP with a local mock (30-second client timeout). It verifies
+blank-model save/export and successful actual dialogue, generation and extraction
+requests without model. The mock was corrected to permit model omission; the first
+run failed on its former mandatory-model assumption, not an accepted green result.
+Later HTTP cases were not run in this invocation. `player2-model-review.cjs` compared
+actual deployed native/reference preset switching at 1280/390; Model/API Key hide,
+model clearing and return behavior pass. No browser writes or paid requests. Narrow
+native screenshot inspected. PHP/JS syntax passed. Scoped deployment backup:
+`/var/backups/lorkhanserver-player2-model.JBpCzc`. Exact deployed comparison: 858
+files, no hash mismatches/extras/old paths, private access still protected. Live
+Player2-app and game acceptance remain untested; whole-project parity remains open.

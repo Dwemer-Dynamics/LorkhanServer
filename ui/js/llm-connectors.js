@@ -320,6 +320,15 @@
         // Match the reference Groq preset presentation without discarding its saved schema draft.
         const schemaRow = document.getElementById('llm_option_json_schema')?.closest('.llm-option-field');
         if (schemaRow) schemaRow.hidden = service === 'groq';
+        const modelField = document.getElementById('llm_model');
+        const player2 = service === 'player2';
+        if (modelField) {
+            modelField.closest('.llm-connection-field').hidden = player2;
+            modelField.required = !player2;
+            if (player2) modelField.value = '';
+        }
+        const keyRow = document.getElementById('llm_credential')?.closest('.llm-connection-field');
+        if (keyRow) keyRow.hidden = player2;
         const signup = document.getElementById('llm-service-signup');
         if (signup) {
             signup.hidden = !signupUrls[service];
@@ -369,7 +378,7 @@
                 credential.dispatchEvent(new Event('change', {bubbles: true}));
             }
             updateService();
-            document.querySelector('[name="model"]')?.focus();
+            if (button.dataset.llmService !== 'player2') document.querySelector('[name="model"]')?.focus();
         });
     });
 

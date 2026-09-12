@@ -52,16 +52,20 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
             self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
         if self.path=='/llm/chat/completions':
             body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0')))); self.llm_requests.append((dict(self.headers),body))
-            content=json.dumps({'utterances':[{'text':'Greetings, traveller.'}],'action':None} if body['model']!='invalid-output' else {'unexpected':'not dialogue'})
-            if body['model']=='prefill-continuation':
+            content=json.dumps({'utterances':[{'text':'Greetings, traveller.'}],'action':None} if body.get('model')!='invalid-output' else {'unexpected':'not dialogue'})
+            if body.get('model')=='prefill-continuation':
                 assert body['messages'][-1]=={'role':'assistant','content':'{"utterances":'},body
                 content=content[len('{"utterances":'):]
-            if body['model']=='structured-fixture':
+            if body.get('model')=='structured-fixture':
                 fixture=json.loads(body['messages'][1]['content'])
                 content=json.dumps(fixture['fixture_response'],separators=(',',':'))
                 prefix=body['messages'][-1]['content']
                 assert body['messages'][-1]['role']=='assistant' and content.startswith(prefix),body
                 content=content[len(prefix):]
+            if 'model' not in body:
+                try: fixture=json.loads(body['messages'][1]['content'])
+                except (ValueError,IndexError,KeyError): fixture={}
+                if 'fixture_response' in fixture: content=json.dumps(fixture['fixture_response'])
             if body.get('stream'):
                 payload=('data: '+json.dumps({'choices':[{'delta':{'content':content}}]})+'\n\ndata: [DONE]\n\n').encode(); content_type='text/event-stream'
             else:
@@ -2604,6 +2608,23 @@ topics_probe=subprocess.run(['php','-r',
 assert topics_probe.returncode==0 and json.loads(topics_probe.stdout)==['Balmora','Vivec'],(topics_probe.stdout,topics_probe.stderr)
 assert VoiceProvider.llm_requests[-1][1]['response_format']['json_schema']['schema']['properties']['topics']['maxItems']==2
 assert VoiceProvider.llm_requests[-1][1]['metadata']=={'yaml_fixture':True}
+
+# Player2 uses the app model in every request path and accepts a blank model in the editor.
+player2_edit=dict(direct_values,service='player2',model='',credential='none',option_stream='false')
+r=request('/LorkhanServer/manage/forms/provider-revise','POST',player2_edit); assert r.status==200
+player2_export=json.loads(request('/LorkhanServer/manage/exports/providers/'+direct_id+'.json').read())
+assert player2_export['content']['model']=='' and player2_export['content']['service']=='player2'
+r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); assert r.status==200 and 'status=tested' in r.geturl()
+assert 'model' not in VoiceProvider.llm_requests[-1][1]
+for adapter,call,fixture in [
+    ('OpenAiCompatibleProfileGenerationProvider',"generate(json_decode($argv[3],true),new LorkhanServer\\Application\\NeverCancelledToken())",{'title':'Day','content':'Ash fell.'}),
+    ('OpenAiCompatibleOghmaTopicExtractor',"extract($argv[3],2,new LorkhanServer\\Application\\NeverCancelledToken())",{'topics':['Balmora']})]:
+    probe=subprocess.run(['php','-r',
+        "require $argv[1].'/lib/Autoload.php'; $p=new LorkhanServer\\Application\\"+adapter+"($argv[2],['127.0.0.1'],'player2-app-selected','',allowLoopbackHttp:true,directConnection:true,player2:true); echo json_encode($p->"+call+");",
+        str(repository_root),'http://127.0.0.1:'+str(voice_provider.server_port)+'/llm/chat/completions',json.dumps({'generation_mode':'diary_generation','fixture_response':fixture})],capture_output=True,text=True,timeout=15)
+    assert probe.returncode==0,(probe.stdout,probe.stderr)
+    assert 'model' not in VoiceProvider.llm_requests[-1][1],adapter
+r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); assert r.status==200
 
 # Both provider response styles work, streamed and buffered; saving the switches reaches the actual wire.
 for stream,model in [('true','prefill-continuation'),('false','prefill-continuation'),('true','local-test')]:

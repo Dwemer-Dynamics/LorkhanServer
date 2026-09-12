@@ -20,7 +20,7 @@ final class OpenAiCompatibleOghmaTopicExtractor implements OghmaTopicExtractor
         $addresses=null;
         OutboundUrlPolicy::validate($endpoint,$allowedHosts,$allowLoopbackHttp,$addresses,$localNetwork);
         LlmConnector::validateOptions($options);
-        if($model===''||strlen($model)>256||$timeoutMs<250||$timeoutMs>30_000)throw new \InvalidArgumentException('invalid_oghma_extractor_configuration');
+        if((!$player2&&$model==='')||strlen($model)>256||$timeoutMs<250||$timeoutMs>30_000)throw new \InvalidArgumentException('invalid_oghma_extractor_configuration');
     }
 
     public function extract(string $context,int $limit,CancellationToken $cancellation):array
@@ -34,6 +34,8 @@ final class OpenAiCompatibleOghmaTopicExtractor implements OghmaTopicExtractor
             ['role'=>'user','content'=>$context],
         ]];
         $prefix=LlmConnector::prefillMessages($request['messages'],$this->options,'topics');
+        // Player2 selects the model in its app, including legacy placeholder connector revisions.
+        if ($this->player2) unset($request['model']);
         $body=json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
         $networkOptions=OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection,$this->localNetwork);
         $handle=curl_init($this->endpoint);if($handle===false)throw new RuntimeException('provider_unavailable');

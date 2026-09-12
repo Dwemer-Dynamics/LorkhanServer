@@ -363,6 +363,12 @@ $check(ProviderFactory::dialogueForSlot(['provider'=>['api_key_env'=>'UNRELATED_
     &&ProviderFactory::profileGenerationForSlot(['provider'=>['driver'=>'invalid-runtime','api_key_env'=>'UNRELATED_SECRET']],$directSlot) instanceof \LorkhanServer\Application\OpenAiCompatibleProfileGenerationProvider,
     'dialogue, Oghma and profile generation resolve explicit connectors without inheriting runtime credentials');
 $player2Slot=$directSlot;$player2Slot['content']['service']='player2';
+$ordinaryBlank=$directSlot['content'];$ordinaryBlank['model']='';
+try{LlmConnector::validate($ordinaryBlank);$check(false,'Ordinary connectors still require a model');}
+catch(\InvalidArgumentException $error){$check($error->getMessage()==='invalid_provider_model','Ordinary connectors still require a model');}
+$player2Blank=$player2Slot['content'];unset($player2Blank['model']);
+$check(LlmConnector::validate($player2Blank)['model']===''
+    &&LlmConnector::validate($player2Slot['content'])['model']==='', 'Player2 accepts app-selected models and normalizes old explicit models');
 foreach(['dialogueForSlot','profileGenerationForSlot','oghmaTopicExtractorForSlot']as$factory){
     $player2Provider=ProviderFactory::$factory([],$player2Slot);
     $check((new \ReflectionProperty($player2Provider,'player2'))->getValue($player2Provider)===true,'Player2 identity reaches '.$factory);

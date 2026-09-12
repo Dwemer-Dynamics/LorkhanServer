@@ -74,7 +74,7 @@ final class Player2RoutingRepository
                     while(in_array(strtolower($name),$used,true))$name='Player2 Local '.$suffix++;
                     $connector=$products->createRevisioned('provider',['installation_id'=>$installation,'name'=>$name,'content'=>[
                         'driver'=>'openai-compatible','service'=>'player2','endpoint'=>'http://127.0.0.1:4315/v1/chat/completions',
-                        'model'=>'player2-app-selected','credential'=>'none','timeout_ms'=>30000]],$now);
+                        'model'=>'','credential'=>'none','timeout_ms'=>30000]],$now);
                     $id=$connector['configuration_id'];
                 }
             }

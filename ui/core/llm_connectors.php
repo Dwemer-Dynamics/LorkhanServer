@@ -331,6 +331,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 $storedTimeout = $content['timeout_ms'] ?? null;
                 $timeout = is_int($storedTimeout) ? (string) $storedTimeout : (is_string($storedTimeout) ? $storedTimeout : '');
                 $isDirect = $driver === 'openai-compatible';
+                $isPlayer2 = $isDirect && ($content['service'] ?? '') === 'player2';
                 $isMock = $driver === 'mock';
                 $switchFields = array_column(LORKHAN_LLM_BOOLEAN_FIELDS, null, 0);
                 $runtimeDefaults = array_replace(['stream'=>true, 'json_mode'=>true, 'reasoning_model'=>false, 'json_schema'=>false, 'prefill_json'=>false,
@@ -375,10 +376,10 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_endpoint-help">Paste the complete chat-completions URL. LORKHAN stores it verbatim and never appends or rewrites a path.</p>
                             </div>
 
-                            <div class="llm-connection-field">
+                            <div class="llm-connection-field"<?php echo $isPlayer2 ? ' hidden' : ''; ?>>
                                 <label for="llm_model">Model</label>
-                                <input id="llm_model" type="text" name="model" required maxlength="256" value="<?php echo lorkhan_ui_h($content['model'] ?? ''); ?>" aria-describedby="llm_model-help" form="<?php echo lorkhan_ui_h($formId); ?>" data-model-catalogue="<?php echo lorkhan_ui_h($managementBasePath . '/api/v1/llm-models'); ?>" data-groq-catalogue="<?php echo lorkhan_ui_h($managementBasePath . '/api/v1/llm-groq-models'); ?>" data-runtime-service="<?php echo lorkhan_ui_h($runtimeService); ?>" data-runtime-openrouter="<?php echo $runtimeService === 'openrouter' ? 'true' : 'false'; ?>">
-                                <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_model-help">Required in every mode. Up to 256 characters, spelled exactly as the provider expects.</p>
+                                <input id="llm_model" type="text" name="model"<?php echo $isPlayer2 ? '' : ' required'; ?> maxlength="256" value="<?php echo lorkhan_ui_h($isPlayer2 ? '' : ($content['model'] ?? '')); ?>" aria-describedby="llm_model-help" form="<?php echo lorkhan_ui_h($formId); ?>" data-model-catalogue="<?php echo lorkhan_ui_h($managementBasePath . '/api/v1/llm-models'); ?>" data-groq-catalogue="<?php echo lorkhan_ui_h($managementBasePath . '/api/v1/llm-groq-models'); ?>" data-runtime-service="<?php echo lorkhan_ui_h($runtimeService); ?>" data-runtime-openrouter="<?php echo $runtimeService === 'openrouter' ? 'true' : 'false'; ?>">
+                                <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_model-help">Required except for Player2, which uses the model selected in its app. Up to 256 characters, spelled exactly as the provider expects.</p>
                             </div>
 
                             <div class="llm-connection-field" id="llm_provider_row" data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
@@ -389,7 +390,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
                             <section class="llm-mode-panel" data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
 
-                                <div class="llm-connection-field">
+                                <div class="llm-connection-field"<?php echo $isPlayer2 ? ' hidden' : ''; ?>>
                                     <label for="llm_credential">API Key</label>
                                     <select id="llm_credential" name="credential" aria-describedby="llm_credential-help llm_key_notice"<?php echo $unless(!$isMock); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
                                         <option value="__inherit__"<?php echo $credential === '__inherit__' ? ' selected' : ''; ?><?php echo $driver !== 'configured' ? ' disabled hidden' : ''; ?>>Inherit runtime API key</option>

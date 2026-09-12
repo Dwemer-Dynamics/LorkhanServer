@@ -58,8 +58,9 @@ final class LlmConnector
         if (!in_array($driver, ['configured', 'mock', 'openai-compatible'], true)) {
             throw new InvalidArgumentException('invalid_provider_driver');
         }
-        $model = $content['model'] ?? ($driver === 'mock' ? 'deterministic-mock-v1' : null);
-        if (!is_string($model) || trim($model) === '' || strlen($model) > 256 || !mb_check_encoding($model, 'UTF-8')) {
+        $player2 = $driver === 'openai-compatible' && ($content['service'] ?? '') === 'player2';
+        $model = $player2 ? '' : ($content['model'] ?? ($driver === 'mock' ? 'deterministic-mock-v1' : null));
+        if (!is_string($model) || (!$player2 && trim($model) === '') || strlen($model) > 256 || !mb_check_encoding($model, 'UTF-8')) {
             throw new InvalidArgumentException('invalid_provider_model');
         }
         $allowed = ['driver', 'model', 'timeout_ms'];

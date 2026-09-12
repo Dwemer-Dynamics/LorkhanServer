@@ -31,7 +31,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         $addresses=null;
         OutboundUrlPolicy::validate($endpoint, $allowedHosts, $allowLoopbackHttp, $addresses, $localNetwork);
         LlmConnector::validateOptions($options);
-        if ($model === '' || strlen($model) > 256 || $timeoutMs < 1000 || $timeoutMs > 120_000) {
+        if ((!$player2 && $model === '') || strlen($model) > 256 || $timeoutMs < 1000 || $timeoutMs > 120_000) {
             throw new \InvalidArgumentException('invalid_openai_compatible_configuration');
         }
     }
@@ -54,6 +54,8 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             'stream' => $this->options['stream'] ?? true,
             'messages' => $messages,
         ];
+        // Player2 selects the model in its app, including legacy placeholder connector revisions.
+        if ($this->player2) unset($request['model']);
         $body = json_encode($request, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if(($request['stream']??false)===true&&in_array(strtolower((string)parse_url($this->endpoint,PHP_URL_HOST)),['api.openai.com','openrouter.ai'],true)){
             $request['stream_options']=['include_usage'=>true];
