@@ -188,6 +188,9 @@ if [[ ${health} != '{"schema":"lorkhan.health.v1"}' ]]; then
     exit 1
 fi
 
+# Refresh the private source-only reset artifact only after the deployed schema is current.
+bash "${source_root}/scripts/deploy-factory-database.sh" "${source_root}"
+
 echo "Deployed ${target_root}"
 echo "Rollback code and Apache route: ${rollback_root}"
 echo "Health: http://127.0.0.1:${http_port}/LorkhanServer/api/v1/health"

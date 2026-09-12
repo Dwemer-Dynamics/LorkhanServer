@@ -3607,6 +3607,26 @@ if($factoryDirectory!==''){
     $manifestPath=$factoryDirectory.'/factory.json';$manifestText=(string)file_get_contents($manifestPath);
     $factoryManifest=json_decode($manifestText,true,16,JSON_THROW_ON_ERROR);
     $factoryFingerprint=hash('sha256',$factoryManifest['migration_fingerprint']."\0".$factoryManifest['catalog_fingerprint']);
+    // Match deployment ownership without granting the worker superuser or extension ownership.
+    $db->exec(<<<'SQL'
+CREATE ROLE factory_runtime LOGIN;
+GRANT USAGE,CREATE ON SCHEMA public,lorkhan_internal TO factory_runtime;
+DO $ownership$ DECLARE r record; BEGIN
+ EXECUTE format('ALTER DATABASE %I OWNER TO factory_runtime',current_database());
+ FOR r IN SELECT n.nspname,c.relname,c.relkind FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+ WHERE n.nspname IN ('public','lorkhan_internal') AND c.relkind IN ('r','p','v','m','S')
+ AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype='e') ORDER BY c.relkind='S'
+ LOOP EXECUTE format('ALTER %s %I.%I OWNER TO factory_runtime',CASE r.relkind WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW' WHEN 'S' THEN 'SEQUENCE' ELSE 'TABLE' END,r.nspname,r.relname); END LOOP;
+ FOR r IN SELECT p.oid::regprocedure AS name FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+ WHERE n.nspname IN ('public','lorkhan_internal') AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e')
+ LOOP EXECUTE format('ALTER FUNCTION %s OWNER TO factory_runtime',r.name); END LOOP;
+END $ownership$;
+SQL);
+    $factoryConfig['database_user']='factory_runtime';$factoryConfig['database_password']='';
+    $db->query('SELECT pg_advisory_unlock_all()');
+    $db=\LorkhanServer\Infrastructure\Connection::open($factoryConfig,false);
+    $db->exec('SET search_path TO lorkhan_internal,public');
+    $assert(!$db->query("SELECT rolsuper FROM pg_roles WHERE rolname=current_user")->fetchColumn(),'factory fixture must not be superuser');
     $factoryJobs=new JobRepository($db);
     $factoryHandler=new class(new \LorkhanServer\Application\DatabaseFactoryResetJobHandler($db,$factoryConfig)) implements \LorkhanServer\Application\JobHandler {
         public array $errors=[];
@@ -3639,7 +3659,7 @@ if($factoryDirectory!==''){
         $assert($failedStats['dead']===1&&$failedStats['retried']===0,'mismatched factory state was committed or retried');
         $assert((int)$db->query('SELECT count(*) FROM source_events')->fetchColumn()===$eventCount
             &&$db->query('SELECT value FROM public.factory_removed')->fetchColumn()==='old-user-data'&&$controlDigest()===$originalControl,'failed reset lost data or authentication');
-        $assert($factoryHandler->errors===["factory_source_changed","factory_state_mismatch"],"factory failure did not reach expected validation stage");
+        $assert($factoryHandler->errors===["factory_source_changed","factory_state_mismatch"],"factory failure did not reach expected validation stage: ".json_encode($factoryHandler->errors));
         file_put_contents($manifestPath,$manifestText);
         $factoryJob=\LorkhanServer\Infrastructure\Uuid::v4();$rollback=\LorkhanServer\Infrastructure\Uuid::v4();
         $factoryJobs->enqueue($factoryJob,'database.factory_reset',1,$factoryJob,['fingerprint'=>$factoryFingerprint,'rollback_id'=>$rollback],1);
@@ -3653,6 +3673,14 @@ if($factoryDirectory!==''){
         $backupPath=(new \LorkhanServer\Infrastructure\DatabaseSqlBackup($factoryConfig))->path($rollback);
         $assert(($backup['scope']['factory_reset']??false)===true&&$backup['scope']['rollback_for']===$factoryJob
             &&hash_equals($backup['content_sha256'],hash_file('sha256',$backupPath)),'factory rollback backup missing or changed');
+        $restoreId=(new \LorkhanServer\Infrastructure\ManagementRepository($db))->queueDatabaseRestore($rollback);
+        $restoreRegistry=new \LorkhanServer\Application\JobHandlerRegistry([new \LorkhanServer\Application\DatabaseRestoreJobHandler($db,$factoryConfig)]);
+        $restoreStats=(new Worker($factoryJobs,$restoreRegistry,'factory-rollback-fixture',30,1,1,1,60,['database.restore']))->run();
+        $assert($restoreStats['succeeded']===1&&$restoreStats['dead']===0,'factory rollback archive did not restore');
+        $assert((int)$db->query('SELECT count(*) FROM source_events')->fetchColumn()===$eventCount
+            &&$db->query('SELECT value FROM public.factory_removed')->fetchColumn()==='old-user-data','factory rollback lost original history or table');
+        $assert($controlDigest()===$originalControl,'factory rollback changed authentication identities');
+        $db->exec('DROP TABLE public.factory_removed');
     }finally{
         file_put_contents($manifestPath,$manifestText);
         foreach(glob($factoryRoot.'/sql/*')?:[] as $file)unlink($file);
