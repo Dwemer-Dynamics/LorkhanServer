@@ -85,7 +85,7 @@ function lorkhan_ui_feature_registry(): array
         'config.tts-studio.batch-sync' => ['title' => 'Batch Provider Sync', 'state' => 'live', 'description' => 'Sequential, resumable sample uploads with explicit consent and stop-after-current control.'],
         'config.tts-studio.provider-delete' => ['title' => 'Provider Copy Deletion', 'state' => 'replaced', 'description' => 'LORKHAN deletes persistent local samples only after checking every typed profile and connector reference.'],
         'config.stt' => ['title' => 'STT', 'state' => 'live', 'description' => 'One installation-global CHIM-compatible speech-to-text connector with typed OpenMW capture and durable transcription.'],
-        'config.stt.google-free' => ['title' => 'Google Free STT', 'state' => 'replaced', 'description' => 'Browser-only dictation cannot carry LORKHAN target, session, and generation fencing; use the authenticated in-game microphone controls instead.'],
+        'config.stt.google-free' => ['title' => 'Google Free STT', 'state' => 'planned', 'description' => 'The browser recognition-to-game bridge is not implemented yet. It must preserve the selected target, session and generation before submitting speech.'],
         'config.keys' => ['title' => 'API Keys', 'state' => 'live', 'description' => 'Masked browser-managed provider credentials.'],
         'config.keys.test' => ['title' => 'API Key Test', 'state' => 'live', 'description' => 'Bounded metadata requests test supported provider credentials without generating content.'],
         'config.keys.environment' => ['title' => 'Environment Credential', 'state' => 'replaced', 'description' => 'This credential is controlled by the Apache and worker environment and cannot be replaced from the browser.'],
