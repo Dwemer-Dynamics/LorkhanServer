@@ -1727,7 +1727,7 @@ $previewCatalogVoices=[['configuration_id'=>'cfg-cartesia','id'=>'Discovered Voi
     ['configuration_id'=>'cfg-xtts','id'=>"Control\x07Voice"]];
 $previewOptions=SpeechPreviewCatalog::options($previewPresets,$previewCatalogVoices,$previewVoiceRoot,'cfg-cartesia');
 $check(array_column($previewOptions['connectors'],'id')===['cfg-xtts','cfg-cartesia']
-    &&$previewOptions['connectors'][0]['label']==='Local XTTS (XTTS FastAPI)'
+    &&$previewOptions['connectors'][0]['label']==='Local XTTS (XTTS)'
     &&$previewOptions['connectors'][0]['voices']===['almalexia','Nerevarine']
     &&$previewOptions['connectors'][1]['voices']===['Discovered Voice','sonic-en']
     &&$previewOptions['voices']===['Discovered Voice','sonic-en']

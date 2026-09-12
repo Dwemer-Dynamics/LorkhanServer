@@ -109,7 +109,7 @@ do not use an exception to excuse a generic substitute layout.
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Other Context event controls and profile-affecting built-ins remain open; see the dated checkpoints |
 | `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Remaining: full metadata/override composition and page-wide interaction closure. Physical Diary, cumulative memory semantics and Core-slot client selection are separate unfinished runtime features. |
 | `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Nineteen typed per-NPC override leaves now include language, summaries, Diary Prompt/Cooldown/History and Dynamic Profile History. Prompt assembly, queued evolution history, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. Remaining: editable general metadata, full runtime-backed override catalogue, complete editor/modal review, target inventory capture and NPC Visit/Teleport/Return. |
-| `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; remaining generation edge states remain pending |
+| `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; generation success, failed/stale jobs, concurrent edits, retry idempotency and empty-result rejection are checked with browser mocks; live-provider acceptance remains untested |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; provider presets consolidated to 11 cards with all 32 built-in credential identities editable through saved/optional additional badges; standalone and actual hub preset/custom draft geometry reviewed at 1280/390, with failed-save and concurrent-edit retention rechecked using mocks; content-only shell now matches; live-provider acceptance remains untested |
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key selection is now wired and browser save/reload tested; hub selection and unsaved draft retention, narrow editor bounds and failed-save Test refusal are verified; remaining provider/advanced interaction review stays open. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
@@ -10189,8 +10189,11 @@ Concrete remaining provider discrepancies (not product exclusions):
   TTS_IN_USE GET path ignores volume; only ttsMimicOld SSML reads it. Thus this is a
   presentation mismatch, not evidence of missing active reference volume behavior.
   Do not add a silently inert setting or claim real volume parity from a field.
-- OmniVoice language lists match here, but automatic preparation-on-save is still
-  different from selecting an already available local profile.
+- OmniVoice language list labels match. The pinned reference help claims preparation
+  on save, but its save handler and connector create/update methods only normalize
+  and persist metadata; they do not prepare languages. This is stale reference help,
+  not a missing runtime feature. Native unavailable saved languages remain selected
+  with an explicit warning instead of silently switching to the first available one.
 - XTTS FastAPI display label differs from reference XTTS; additional native XTTS
   driver must remain distinguishable if label alignment is made.
 - Chatterbox/XTTS/ElevenLabs boolean rows contain a hidden reference INPUT before
@@ -10573,3 +10576,22 @@ or paid provider calls.
 - Player2 and remaining whole-page workflows are still open. This change closes
   speech-connector provisioning, not installation of external service processes
   or the complete all-page goal.
+
+## TTS labels and Player generation edge closure (2026-09-11)
+
+- The current XTTS FastAPI connector now displays as XTTS, matching Herika. The
+  separate legacy connector displays as XTTS (legacy API). Connector identities,
+  endpoints, credentials and speech dispatch are unchanged.
+- Six mocked browser cases verify Player generation: successful staging, failed
+  job, stale profile, concurrent text edits, transient polling failure followed by
+  an idempotent retry, and invalid empty success. Terminal failures allow a new
+  request; transport retries reuse the pending request. Existing text survives
+  every failure and concurrent edit. Generated text still requires explicit Save.
+- The OmniVoice preparation claim was traced through reference tts_connectors.php
+  save handling and TTSConnector create/update/default-normalization methods.
+  There is no preparation call on that path. Language options display label/id,
+  not voice counts. No new background preparation workflow is needed for parity.
+- Existing test expectation updated for the XTTS display label. No production
+  writes, provider calls or game control were used in browser checks. Evidence:
+  player-generation-edge-proof.cjs and tts-service-order-proof.cjs in the temporary
+  evidence directory. This closes these specific items, not the all-page goal.
