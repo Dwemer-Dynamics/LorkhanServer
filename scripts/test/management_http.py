@@ -2316,6 +2316,15 @@ assert r.status==200 and len(global_test_plan['jobs'])==1 and global_test_plan['
 global_slots=global_test_plan['groups'][0]['slots']
 assert len(global_slots)==4 and sum(slot['status']=='pending' for slot in global_slots)==3 and global_slots[0]['status']=='skipped',global_slots
 assert len(VoiceProvider.llm_requests)==before_global_test_calls and not any(key in json.dumps(global_test_plan).lower() for key in ['api_key','credential','endpoint','content'])
+# Quickstart lists the same saved global routes without running connector tests.
+r=request('/LorkhanServer/ui/quickstart.php?installation_id='+valid['installation_id']); _,general_quickstart_html=parse(r)
+assert r.status==200 and 'Other Connectors Used:' in general_quickstart_html
+for slot in global_slots:
+    if slot['configuration_id'] is not None:
+        expected=html.escape(slot['label'],quote=True)+':</span> '+html.escape(slot['connector_label'],quote=True)
+        assert expected in general_quickstart_html,slot['field']
+assert len(VoiceProvider.llm_requests)==before_global_test_calls
+if os.environ.get('LORKHAN_QUICKSTART_GENERAL_EVIDENCE'): pathlib.Path(os.environ['LORKHAN_QUICKSTART_GENERAL_EVIDENCE']).write_text(general_quickstart_html,encoding='utf-8')
 global_test_request={'installation_id':valid['installation_id'],'configuration_id':slot_id,'kind':'provider','confirm':'Run tests'}
 r=json_request(global_test_path,'POST',global_test_request); assert r.status==401,r.status
 r=json_request(global_test_path,'POST',dict(global_test_request,confirm=''),csrf); assert r.status==422,r.status

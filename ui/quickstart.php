@@ -18,6 +18,9 @@ if($selected===null&&$selectedId==='')$selected=$profiles[0]??null;
 $routing=$selected['content']['routing']??[];
 $player2=$productRepository->player2Routing()->state($installationId);
 $llms=$scoped($uiRepository->rows('llm'));$tts=$scoped($uiRepository->rows('tts'));$stt=$scoped($uiRepository->rows('stt'));
+// Reuse the read-only global route inventory; this does not run connector tests.
+$generalConnectors=$installationId===''?[]:($productRepository->globalConnectorTestPlan($installationId)['groups'][0]['slots']??[]);
+$generalConnectors=array_values(array_filter($generalConnectors,static fn(array $slot):bool=>$slot['configuration_id']!==null));
 $active=[];
 foreach(['tts_provider'=>$tts,'stt_provider'=>$stt]as$kind=>$rows)foreach($rows as$row)
     if(filter_var($row['active']??false,FILTER_VALIDATE_BOOL))$active[$kind]=$row['configuration_id'];
@@ -119,6 +122,14 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
                 <div class="qs-model" data-model-recap><?php echo lorkhan_ui_h($model); ?></div>
             </div><?php endforeach; ?></div>
             <div class="qs-connector-grid" data-local-recap hidden><?php foreach(['🕹️ Standard','🏃 Fast','💪 Powerful','🧪 Experimental'] as $label): ?><div class="qs-connector-card"><strong><?= $label ?></strong><div class="qs-model" data-local-model></div><small class="form-text" data-local-endpoint></small></div><?php endforeach; ?></div>
+            <div class="qs-general-connector-wrap">
+                <div class="qs-general-connector-title" data-general-connector-title>Other Connectors Used:</div>
+                <div data-general-connector-saved>
+                    <?php if($generalConnectors===[]): ?><div class="qs-general-connector-empty">No additional general-settings connectors are configured.</div>
+                    <?php else: ?><ul class="qs-general-connector-list"><?php foreach($generalConnectors as $connector): ?><li><span class="qs-general-connector-name"><?= lorkhan_ui_h($connector['label']) ?>:</span> <?= lorkhan_ui_h($connector['connector_label']) ?></li><?php endforeach; ?></ul><?php endif; ?>
+                </div>
+                <div class="qs-general-connector-empty" data-general-connector-override hidden></div>
+            </div>
             <p class="form-text">These are your saved connectors. <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/llm_connectors.php">Configure Models</a> · <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/api_keys.php">API Keys</a></p>
         </section>
         <p class="form-text">MiniMe and automatic summary settings are in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/config_hub.php?tab=globals">Global Settings</a>. The MiniMe check only tests reachability; it does not enable summaries or generate embeddings.</p>

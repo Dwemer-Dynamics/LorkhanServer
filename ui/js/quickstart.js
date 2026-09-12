@@ -139,6 +139,12 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
             'Default settings for all Core Profiles, with profile backfill, relationship updates, memory summaries and semantic recall enabled.';
         models[0]?.closest('.qs-connector-grid').toggleAttribute('hidden',local||player2);
         form.querySelector('[data-local-recap]').hidden=!local||player2;
+        const allLocal=local&&form.elements.local_scope.value==='all';
+        form.querySelector('[data-general-connector-title]').textContent=local&&!player2?'Other AI tasks:':'Other Connectors Used:';
+        form.querySelector('[data-general-connector-saved]').hidden=player2||allLocal;
+        const generalOverride=form.querySelector('[data-general-connector-override]');
+        generalOverride.hidden=!player2&&!allLocal;
+        generalOverride.textContent=player2?'Player2 Local':'Local LLM';
         form.querySelectorAll('[data-local-model]').forEach(e=>{e.textContent=form.elements.local_model.value.trim()?'Local: '+form.elements.local_model.value.trim():'Local model (name not set)';});
         form.querySelectorAll('[data-local-endpoint]').forEach(e=>{e.textContent=url.value.trim()||'Server URL not set';});
         form.querySelector('[data-default-required]')?.toggleAttribute('hidden',(local||player2)&&!!form.elements.core_profile_id.value);
@@ -149,6 +155,7 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
     }
     form.querySelectorAll('[name="settings_preset"]').forEach(radio=>radio.addEventListener('change',update));
     form.elements.player2_force_all_llm?.addEventListener('change',update);
+    form.querySelectorAll('[name="local_scope"]').forEach(radio=>radio.addEventListener('change',update));
     url.addEventListener('input',update);
     form.elements.local_model.addEventListener('input',update);
     section.querySelectorAll('[data-local-ip]').forEach(button=>button.addEventListener('click',()=>{

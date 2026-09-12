@@ -518,3 +518,10 @@ body > main.quickstart-page{max-width:none;margin:0;padding:80px 10px 40px;color
 }
 
 .quickstart-page [data-local-endpoint]{overflow-wrap:anywhere;word-break:break-word}
+
+.quickstart-page .qs-general-connector-wrap{margin-top:14px;padding:12px;border:1px solid #3b3b3b;border-radius:8px;background:rgba(20,20,20,.65);overflow-wrap:anywhere}
+.quickstart-page .qs-general-connector-title{color:#cfd9ea;font-weight:600;margin-bottom:8px}
+.quickstart-page .qs-general-connector-list{margin:0;padding-left:18px;color:#b9c4d6;font-size:13px}
+.quickstart-page .qs-general-connector-list li{margin-bottom:4px}
+.quickstart-page .qs-general-connector-name{color:#e5e7eb;font-weight:600}
+.quickstart-page .qs-general-connector-empty{color:#9ca3af;font-size:13px}
