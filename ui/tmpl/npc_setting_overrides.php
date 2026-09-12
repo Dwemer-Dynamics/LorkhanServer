@@ -14,6 +14,13 @@ $overrideLabels = [
     'diary.prompt'=>'Diary Prompt', 'diary.automatic_interval_seconds'=>'Diary Cooldown',
     'diary.context_turn_limit'=>'Context History Diary Event Count',
     'profile_evolution.history_limit'=>'Context History Dynamic Profile Event Count',
+    'behavior.rechat_mode'=>'Rechat Mode', 'relationship.enabled'=>'Relationship System Enabled',
+    'context.prompt_timestamp'=>'Prompt Timestamp', 'context.ground_items_descriptions_only'=>'Ground Items Descriptions Only',
+    'context.inventory_items_descriptions_only'=>'Inventory Items Descriptions Only', 'context.power_awareness_enabled'=>'Power Awareness Enabled',
+    'context.hide_ambient_combat'=>'Hide Ambient Combat', 'prompt.prompt_head'=>'Prompt Head',
+    'oghma.location_context_enabled'=>'Force Location Oghma', 'oghma.topic_count'=>'Oghma Topic Count',
+    'oghma.extractor_fallback_enabled'=>'Oghma Extractor Fallback', 'oghma.extractor_timeout_ms'=>'Oghma Extractor Timeout',
+    'oghma.enabled'=>'Enable Oghma', 'oghma.result_limit'=>'Oghma Result Limit', 'oghma.racial_context_enabled'=>'Force Racial Oghma',
 ];
 $help=[
             'response.core_lang'=>'Language of built-in roleplay instructions. Blank uses English; custom prompts and output translation are unchanged.',
@@ -33,6 +40,7 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
         if($path==='diary.automatic_interval_seconds')$range=[10,86400];
         if($path==='diary.context_turn_limit')$range=[0,400];
         if($path==='profile_evolution.history_limit')$range=[0,400];
+        if($section==='oghma')$range=match($key){'topic_count'=>[1,3],'result_limit'=>[1,5],'extractor_timeout_ms'=>[250,3000],default=>null};
         $default=$effectiveSettings['settings'][$section][$key]
             ?? \LorkhanServer\Application\SettingsCatalog::clientDefaults()[$section][$key] ?? ($range?0:true);
         if($path==='response.core_lang')$default=$effectiveSettings['settings']['response']['core_lang']??'';
@@ -44,6 +52,11 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
             'label'=>$overrideLabels[$path],'type'=>'choice',
             'choices'=>array_keys(\LorkhanServer\Application\CoreProfileLanguage::LABELS),
             'labels'=>\LorkhanServer\Application\CoreProfileLanguage::LABELS,'value'=>$default];
+        if(in_array($section,['context','prompt'],true))$default=$effectiveSettings[$section][$key]??($section==='prompt'?'':false);
+        if($path==='relationship.enabled')$default=($effectiveSettings['settings']['relationship']['enabled']??false)===true;
+        if($section==='context'||$section==='relationship')$overrideCatalog[$path]['value']=$default;
+        if($path==='behavior.rechat_mode')$overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'choice','choices'=>['tight','conversational','group','random'],'value'=>$default];
+        if($path==='prompt.prompt_head')$overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'string','maxBytes'=>8192,'allowEmpty'=>true,'value'=>$default,'help'=>'System roleplay instructions for this NPC. Blank uses the built-in prompt; removing the override restores Core or global inheritance.'];
         if($path==='diary.prompt')$overrideCatalog[$path]=[
             'label'=>$overrideLabels[$path],'type'=>'string','maxBytes'=>8192,
             'value'=>$effectiveSettings['settings']['diary']['prompt']??\LorkhanServer\Application\DiaryGenerationPolicy::defaults()['prompt']];

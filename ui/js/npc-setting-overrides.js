@@ -32,7 +32,7 @@
                     if (!definition) throw new Error('Unsupported setting: ' + section + '.' + key);
                     if (definition.type === 'boolean' ? typeof setting !== 'boolean'
                         : definition.type === 'choice' ? !definition.choices.includes(setting)
-                        : definition.type === 'string' ? typeof setting !== 'string' || !setting.trim() || new TextEncoder().encode(setting).length > definition.maxBytes
+                        : definition.type === 'string' ? typeof setting !== 'string' || (!definition.allowEmpty && !setting.trim()) || new TextEncoder().encode(setting).length > definition.maxBytes
                         : !Number.isInteger(setting) || setting < definition.range[0] || setting > definition.range[1])
                         throw new Error('Invalid value for ' + definition.label + '.');
                 }
@@ -74,7 +74,7 @@
             boolean.replaceChildren(...(isChoice ? definition.choices.map(value => new Option(definition.labels?.[value] ?? String(value) + (definition.suffix || ''), String(value))) : [new Option('On','true'),new Option('Off','false')]));
             label.htmlFor = isText ? text.id : isBoolean || isChoice ? boolean.id : number.id;
             const current = values[section]?.[key] ?? definition.value;
-            if (isText) { text.required = true; text.maxLength = definition.maxBytes; text.value = current; text.setCustomValidity(''); }
+            if (isText) { text.required = !definition.allowEmpty; text.maxLength = definition.maxBytes; text.value = current; text.setCustomValidity(''); }
             else if (isBoolean || isChoice) boolean.value = String(current);
             else { number.required = true; number.min = definition.range[0]; number.max = definition.range[1]; number.value = current; }
             root.querySelector('[data-npc-override-help]').textContent = isText ? 'Enter instructions. Removing this override restores inheritance.' : isBoolean ? 'An explicit On or Off overrides the inherited setting.' : isChoice ? 'Choose one of the listed values. Removing this override restores inheritance.' : 'Allowed range: ' + definition.range.join('–') + '. Removing this override restores inheritance.';
@@ -100,8 +100,8 @@
             const definition = catalog[selected], [section,key] = selected.split('.');
             if (definition.type === 'integer' && !number.reportValidity()) return;
             if (definition.type === 'string') {
-                text.setCustomValidity(!text.value.trim() || new TextEncoder().encode(text.value).length > definition.maxBytes
-                    ? 'Enter between 1 and ' + definition.maxBytes + ' UTF-8 bytes.' : '');
+                text.setCustomValidity((!definition.allowEmpty && !text.value.trim()) || new TextEncoder().encode(text.value).length > definition.maxBytes
+                    ? 'Enter between ' + (definition.allowEmpty ? '0' : '1') + ' and ' + definition.maxBytes + ' UTF-8 bytes.' : '');
                 if (!text.reportValidity()) return;
             }
             const choice = definition.type === 'choice' ? definition.choices.find(value => String(value) === boolean.value) : undefined;

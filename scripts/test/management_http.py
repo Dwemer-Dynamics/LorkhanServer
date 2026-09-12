@@ -2041,6 +2041,8 @@ assert not any(field in saved_routing['fields'] for field in ['profile_generatio
 npc_overrides={'quest_comments':{'enabled':False,'chance_percent':25},'bored_event':{'chance_percent':0},'behavior':{'rechat':False,'rechat_probability_percent':0},'memory':{'recent_turn_limit':3,'short_term_max_summaries':2},'response':{'max_words':17,'core_lang':'fr','lang_llm_xtts':True}}
 npc_overrides['diary']={'prompt':'Write this NPC’s witnessed history only.\nRetain uncertainty.','automatic_interval_seconds':35,'context_turn_limit':0}
 npc_overrides['profile_evolution']={'history_limit':0}
+npc_overrides.update(context={'hide_ambient_combat':True,'power_awareness_enabled':False,'prompt_timestamp':True,'ground_items_descriptions_only':True,'inventory_items_descriptions_only':False},prompt={'prompt_head':'NPC global prompt override'},oghma={'enabled':False,'location_context_enabled':False,'racial_context_enabled':True,'topic_count':3,'result_limit':4,'extractor_timeout_ms':300,'extractor_fallback_enabled':True},relationship={'enabled':False})
+npc_overrides['behavior']['rechat_mode']='group'
 for submitted in [npc_overrides, None, {}]:
     override_values=dict(saved_routing['fields'],_csrf=csrf,change_reason='NPC overrides HTTP')
     if submitted is not None: override_values['npc_settings_overrides_json']=json.dumps(submitted)
@@ -2052,7 +2054,7 @@ for submitted in [npc_overrides, None, {}]:
     expected_overrides=npc_overrides if submitted is None else submitted
     assert saved_routing_content.get('settings_overrides',{})=={k:v for k,v in expected_overrides.items() if k!='diary'},saved_routing_content
     assert {k:v for k,v in saved_routing_content.get('diary',{}).items() if k in npc_overrides['diary']}==expected_overrides.get('diary',{})
-for invalid_override in [{'quest_comments':{'chance_percent':30}},{'quest_comments':{'enabled':'false'}},{'bored_event':{'chance_percent':101}},{'behavior':{'rechat':'false'}},{'memory':{'recent_turn_limit':0}},{'response':{'max_words':10001}},{'narrator':{'enabled':True}},{'memory':{'short_term_max_summaries':51}},{'response':{'core_lang':'invalid'}},{'response':{'lang_llm_xtts':'true'}},{'diary':{'prompt':' '}},{'diary':{'prompt':'é'*4097}},{'diary':{'context_turn_limit':401}},{'diary':{'automatic_interval_seconds':9}},{'profile_evolution':{'history_limit':401}},{'profile_evolution':{'history_limit':'2'}},{'profile_evolution':{'enabled':True}}]:
+for invalid_override in [{'context':{'hide_ambient_combat':'true'}},{'prompt':{'prompt_head':'x'*8193}},{'oghma':{'topic_count':4}},{'relationship':{'enabled':1}},{'behavior':{'rechat_mode':'unknown'}},{'quest_comments':{'chance_percent':30}},{'quest_comments':{'enabled':'false'}},{'bored_event':{'chance_percent':101}},{'behavior':{'rechat':'false'}},{'memory':{'recent_turn_limit':0}},{'response':{'max_words':10001}},{'narrator':{'enabled':True}},{'memory':{'short_term_max_summaries':51}},{'response':{'core_lang':'invalid'}},{'response':{'lang_llm_xtts':'true'}},{'diary':{'prompt':' '}},{'diary':{'prompt':'é'*4097}},{'diary':{'context_turn_limit':401}},{'diary':{'automatic_interval_seconds':9}},{'profile_evolution':{'history_limit':401}},{'profile_evolution':{'history_limit':'2'}},{'profile_evolution':{'enabled':True}}]:
     r=request(saved_routing['action'],'POST',dict(saved_routing['fields'],_csrf=csrf,npc_settings_overrides_json=json.dumps(invalid_override),biography='MUST NOT SAVE'))
     assert r.status==422,(r.status,r.read().decode())
     unchanged_page,_=parse(request('/LorkhanServer/ui/core/npc_master.php'))

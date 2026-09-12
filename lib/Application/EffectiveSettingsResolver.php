@@ -116,6 +116,7 @@ final class EffectiveSettingsResolver
 
         $relationship = $global['relationship'];
         $settings['relationship'] = [
+            'enabled' => $relationship['enabled'],
             'update_chance_percent' => $relationship['enabled'] ? $relationship['update_chance_percent'] : 0,
             'locked' => false,
         ];
@@ -165,7 +166,6 @@ final class EffectiveSettingsResolver
             $settings['relationship']['update_chance_percent'] = $coreOverrides['relationship']['enabled'] ? $relationship['update_chance_percent'] : 0;
             $sources['settings.relationship.update_chance_percent'] = 'core_profile';
         }
-        if (!$settings['oghma']['extractor_fallback_enabled']) $routing['oghma_configuration_id'] = '';
         $allowedCoreRouting = array_fill_keys(SettingsCatalog::coreRoutingFields(), true);
         foreach (array_intersect_key($coreRouting, $allowedCoreRouting) as $key => $value) {
             $routing[$key] = $value;
@@ -183,7 +183,12 @@ final class EffectiveSettingsResolver
                     $npcAllowed[$section][$field] = $npcOverrides[$section][$field];
             }
         }
-        $this->mergeSettings($settings, $npcAllowed, 'npc', 'settings', $sources);
+        $this->mergeSettings($settings, array_diff_key($npcAllowed, ['context'=>true,'prompt'=>true]), 'npc', 'settings', $sources);
+        if (array_key_exists('enabled', $npcOverrides['relationship'] ?? [])) {
+            $settings['relationship']['update_chance_percent'] = $npcOverrides['relationship']['enabled'] ? $relationship['update_chance_percent'] : 0;
+            $sources['settings.relationship.update_chance_percent'] = 'npc';
+        }
+        if (!$settings['oghma']['extractor_fallback_enabled']) $routing['oghma_configuration_id'] = '';
         if ($allowProfileTtsRouting) {
             $profileRouting = self::validateRouting($npcProfileContent['routing'] ?? []);
             foreach (['tts_configuration_id','player_autochat_configuration_id'] as $field) {
@@ -229,12 +234,14 @@ final class EffectiveSettingsResolver
         }
 
 
-        $context = array_replace($global['context'], $coreOverrides['context'] ?? []);
+        $context = array_replace($global['context'], $coreOverrides['context'] ?? [], $npcOverrides['context'] ?? []);
         $this->markLeaves($global['context'], $globalSettings === [] ? 'default' : 'global', 'context', $sources);
         $this->markLeaves($coreOverrides['context'] ?? [], 'core_profile', 'context', $sources);
-        $promptSettings = array_replace($global['prompt'], $coreOverrides['prompt'] ?? []);
+        $promptSettings = array_replace($global['prompt'], $coreOverrides['prompt'] ?? [], $npcOverrides['prompt'] ?? []);
         $this->markLeaves($global['prompt'], $globalSettings === [] ? 'default' : 'global', 'prompt', $sources);
         $this->markLeaves($coreOverrides['prompt'] ?? [], 'core_profile', 'prompt', $sources);
+        $this->markLeaves($npcOverrides['context'] ?? [], 'npc', 'context', $sources);
+        $this->markLeaves($npcOverrides['prompt'] ?? [], 'npc', 'prompt', $sources);
         $document = ['schema' => 'lorkhan.effective-settings.v2', 'settings' => $settings, 'routing' => $routing, 'context' => $context, 'prompt'=>$promptSettings];
         return [
             'document' => $document,
@@ -388,7 +395,7 @@ final class EffectiveSettingsResolver
         $validation=$overrides;
         if (array_key_exists('context', $validation)) {
             $context = $validation['context'];
-            if ($npc || !is_array($context) || array_is_list($context)
+            if (!is_array($context) || array_is_list($context)
                 || array_diff(array_keys($context), ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','hide_ambient_combat']) !== [])
                 throw new InvalidArgumentException('invalid_settings_overrides');
             foreach ($context as $value) if (!is_bool($value)) throw new InvalidArgumentException('invalid_settings_overrides');
@@ -396,7 +403,7 @@ final class EffectiveSettingsResolver
         }
         if (array_key_exists('prompt', $validation)) {
             $prompt = $validation['prompt'];
-            if ($npc || !is_array($prompt) || array_keys($prompt) !== ['prompt_head'] || !is_string($prompt['prompt_head'])
+            if (!is_array($prompt) || array_keys($prompt) !== ['prompt_head'] || !is_string($prompt['prompt_head'])
                 || strlen($prompt['prompt_head']) > 8192 || !mb_check_encoding($prompt['prompt_head'], 'UTF-8'))
                 throw new InvalidArgumentException('invalid_settings_overrides');
             unset($validation['prompt']);
@@ -444,7 +451,7 @@ final class EffectiveSettingsResolver
         if (($validation['memory'] ?? null) === []) unset($validation['memory']);
         if(array_key_exists('relationship',$validation)){
             if (is_array($validation['relationship']) && array_key_exists('enabled', $validation['relationship'])) {
-                if ($npc || !is_bool($validation['relationship']['enabled'])) throw new InvalidArgumentException('invalid_settings_overrides');
+                if (!is_bool($validation['relationship']['enabled'])) throw new InvalidArgumentException('invalid_settings_overrides');
                 unset($validation['relationship']['enabled']);
             }
             if ($validation['relationship'] !== []) self::validateSettingsShape(['relationship'=>$validation['relationship']],

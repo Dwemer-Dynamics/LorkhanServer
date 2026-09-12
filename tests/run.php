@@ -967,8 +967,12 @@ foreach ([['context'=>['prompt_timestamp'=>'true']], ['context'=>['sections'=>[]
     try { EffectiveSettingsResolver::validateSettingsOverrides($invalidCoreOverride); $check(false,'invalid Core prompt/context override rejected'); }
     catch (InvalidArgumentException) { $check(true,'invalid Core prompt/context override rejected'); }
 }
-try { EffectiveSettingsResolver::validateSettingsOverrides($corePromptOverrides,true); $check(false,'Core-only prompt/context policy rejected for NPC overrides'); }
-catch (InvalidArgumentException) { $check(true,'Core-only prompt/context policy rejected for NPC overrides'); }
+$npcPromptOverrides=$corePromptOverrides;$npcPromptOverrides['prompt']['prompt_head']='NPC override sentinel.';
+$npcPromptOverrides['context']['prompt_timestamp']=false;
+$corePromptSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>$corePromptOverrides],['settings_overrides'=>$npcPromptOverrides]);
+$check(str_contains($assembler->assemble($promptTurn,$corePromptSelection)['provider_input']['_assembled_prompt'],'NPC override sentinel.')
+    &&$corePromptSelection['effective_settings']['context']['prompt_timestamp']===false
+    &&$corePromptSelection['effective_settings']['sources']['prompt.prompt_head']==='npc', 'NPC prompt/context override Core values in actual assembly');
 $globalPromptSelection['profile']['content']['prompt_head']='NPC roleplay sentinel.';
 $globalPromptSelection['profile']['content']['emote_moods']='defiant';
 $npcPromptText=$assembler->assemble($promptTurn,$globalPromptSelection)['provider_input']['_assembled_prompt'];
@@ -2543,8 +2547,17 @@ foreach ([['behavior'=>['rechat_mode'=>'invalid']], ['relationship'=>['enabled'=
     try { EffectiveSettingsResolver::validateSettingsOverrides($invalidMode); $check(false,'invalid Core mode or relationship switch rejected'); }
     catch (InvalidArgumentException) { $check(true,'invalid Core mode or relationship switch rejected'); }
 }
-try { EffectiveSettingsResolver::validateSettingsOverrides(['relationship'=>['enabled'=>true]],true); $check(false,'Core relationship switch rejected in NPC overrides'); }
-catch (InvalidArgumentException) { $check(true,'Core relationship switch rejected in NPC overrides'); }
+$npcModeOverrides=['relationship'=>['enabled'=>true],'behavior'=>['rechat_mode'=>'group'],
+    'oghma'=>['enabled'=>false,'location_context_enabled'=>false,'racial_context_enabled'=>false,'topic_count'=>3,'result_limit'=>5,'extractor_fallback_enabled'=>true,'extractor_timeout_ms'=>250]];
+$npcModeResolved=(new EffectiveSettingsResolver())->resolve($modeGlobal,$modeCore,['settings_overrides'=>$npcModeOverrides]);
+$check($npcModeResolved['settings']['relationship']['update_chance_percent']===$modeGlobal['relationship']['update_chance_percent']
+    &&$npcModeResolved['settings']['behavior']['rechat_mode']==='group'
+    &&$npcModeResolved['sources']['settings.relationship.update_chance_percent']==='npc','NPC relationship and Rechat mode override the Core settings');
+foreach($npcModeOverrides['oghma'] as $key=>$value)$check($npcModeResolved['settings']['oghma'][$key]===$value
+    &&$npcModeResolved['sources']['settings.oghma.'.$key]==='npc','NPC Oghma setting reaches retrieval policy: '.$key);
+$npcModeOverrides['relationship']['enabled']=false;
+$check((new EffectiveSettingsResolver())->resolve($modeGlobal,$modeCore,['settings_overrides'=>$npcModeOverrides])['settings']['relationship']['update_chance_percent']===0,
+    'NPC relationship off disables automatic evaluations');
 $combatResolved=(new EffectiveSettingsResolver())->resolve([],$combatCore,[]);
 $check($combatResolved['settings']['behavior']['combat_bark_period_seconds']===600
     &&$combatResolved['sources']['settings.behavior.combat_bark_period_seconds']==='core_profile'
@@ -2703,7 +2716,7 @@ $check(($effective['sources']['settings.behavior.rechat']??null)==='npc'
 $relationshipResolved=(new EffectiveSettingsResolver())->resolve($globalSettings,
     ['routing'=>[],'settings_overrides'=>['relationship'=>['update_chance_percent'=>100,'locked'=>true]]],
     ['routing'=>['relationship_configuration_id'=>''],'settings_overrides'=>['relationship'=>['locked'=>true]]]);
-$check($relationshipResolved['settings']['relationship']===['update_chance_percent'=>75,'locked'=>false]
+$check($relationshipResolved['settings']['relationship']===['enabled'=>true,'update_chance_percent'=>75,'locked'=>false]
     &&$relationshipResolved['routing']['relationship_configuration_id']==='00000000-0000-4000-8000-000000000444'
     &&$relationshipResolved['sources']['settings.relationship.update_chance_percent']==='global',
     'relationship policy and connector routing are installation-wide Global Settings');
