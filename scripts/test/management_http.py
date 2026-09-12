@@ -1987,6 +1987,20 @@ assert core_advanced['behavior']['end_conversation_cooldown_seconds']==0 and cor
 assert core_advanced['relationship']['update_chance_percent']==37
 assert core_advanced['behavior']['rechat_mode']=='group' and core_advanced['relationship']=={'enabled':False,'update_chance_percent':37}
 assert core_advanced['response']['max_words']==60  # Visible control wins, as in Herika.
+# Every displayed inline override must survive the same preset gate used by Core Save.
+displayed_catalog=json.loads(html.unescape(re.search(r'data-core-overrides data-catalog="([^"]+)"',core_body).group(1)))
+catalog_overrides={}
+for path,definition in displayed_catalog.items():
+    section,key=path.split('.')
+    catalog_overrides.setdefault(section,{})[key]=definition['value']
+catalog_response=request(core_form['action'],'POST',dict(core_values,core_settings_overrides_json=json.dumps(catalog_overrides)))
+assert catalog_response.status==200,catalog_response.read().decode()
+catalog_body=catalog_response.read().decode()
+catalog_saved=json.loads(html.unescape(re.search(r'id="core-settings-overrides-json"[^>]*>(.*?)</textarea>',catalog_body,re.S).group(1)))
+for section,fields in catalog_overrides.items():
+    for key,value in fields.items():
+        assert catalog_saved[section][key]==value,(section,key,catalog_saved[section].get(key),value)
+assert request(core_form['action'],'POST',core_values).status==200  # Restore the fixture used below.
 for invalid_metadata in ['{', '{"unknown":true}', '{"memory":{"oghma_knowledge_tags":123}}', '{"behavior":{"auto_greeting":true}}']:
     assert request(core_form['action'],'POST',dict(core_values,core_settings_overrides_json=invalid_metadata)).status==422
 assert core_saved['fields']['diary_generation_configuration_id']==slot_id and core_saved['fields']['setting_diary_enabled']=='1'
