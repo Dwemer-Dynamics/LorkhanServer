@@ -3068,12 +3068,13 @@ try {
 } finally {foreach(glob($diaryCacheRoot.'/*')?:[]as$file)unlink($file);rmdir($diaryCacheRoot);}
 
 // Sandbox data must match destination columns exactly before any import mutation is allowed.
-$importHeader=['kind'=>'header','format'=>'lorkhan.import-data.v1'];
-$importTable=['kind'=>'table','schema'=>'public','name'=>'fixture','columns'=>['id','body']];
+$importHeader=['kind'=>'header','format'=>'lorkhan.import-data.v2'];
+$importSequence=['last_value'=>'9223372036854775806','is_called'=>false];
+$importTable=['kind'=>'table','schema'=>'public','name'=>'fixture','columns'=>['id','body'],'sequences'=>(object)['id'=>$importSequence]];
 $importRow=['kind'=>'row','schema'=>'public','table'=>'fixture','data'=>['id'=>'9223372036854775807','body'=>"Literal ; DROP TABLE\nSecond line"]];
 $importComplete=['kind'=>'complete'];
 $importRecords=[$importHeader,$importTable,$importRow,$importComplete];
-$importValidator=new \LorkhanServer\Infrastructure\SqlImportData(['public.fixture'=>['id','body']]);
+$importValidator=new \LorkhanServer\Infrastructure\SqlImportData(['public.fixture'=>['id','body']],['public.fixture'=>['id']]);
 $validateImport=static function(array $records,string $suffix='')use($importValidator):array{
     $stream=fopen('php://temp','w+b');
     try{
@@ -3083,8 +3084,14 @@ $validateImport=static function(array $records,string $suffix='')use($importVali
     }finally{fclose($stream);}
 };
 [$validatedImport,$importBytes,$importOffset]=$validateImport($importRecords);
-$check($validatedImport===['sha256'=>hash('sha256',$importBytes),'byte_count'=>strlen($importBytes),'table_count'=>1,'row_count'=>1]&&$importOffset===0,'SQL data validation preserves exact bytes and rewinds without mutation');
+$check($validatedImport===['sha256'=>hash('sha256',$importBytes),'byte_count'=>strlen($importBytes),'table_count'=>1,'row_count'=>1,'sequence_states'=>['public.fixture'=>['id'=>$importSequence]]]&&$importOffset===0,'SQL data validation preserves exact bytes and sequence precision and rewinds without mutation');
 foreach([
+    [[array_replace($importHeader,['format'=>'lorkhan.import-data.v1']),$importTable,$importComplete],'import_header_invalid'],
+    [[$importHeader,array_replace($importTable,['sequences'=>(object)[]]),$importComplete],'import_sequence_mismatch'],
+    [[$importHeader,array_replace($importTable,['sequences'=>[]]),$importComplete],'import_sequence_invalid'],
+    [[$importHeader,array_replace($importTable,['sequences'=>(object)['id'=>['last_value'=>123,'is_called'=>true]]]),$importComplete],'import_sequence_invalid'],
+    [[$importHeader,array_replace($importTable,['sequences'=>(object)['id'=>['last_value'=>'1; SELECT 1','is_called'=>true]]]),$importComplete],'import_sequence_invalid'],
+    [[$importHeader,array_replace($importTable,['sequences'=>(object)['id'=>['last_value'=>'1','is_called'=>'false']]]),$importComplete],'import_sequence_invalid'],
     [[$importHeader,$importComplete],'import_tables_incomplete'],
     [[$importHeader,array_replace($importTable,['schema'=>'unknown']),$importComplete],'import_table_invalid'],
     [[$importHeader,$importTable,$importTable,$importComplete],'import_schema_mismatch'],

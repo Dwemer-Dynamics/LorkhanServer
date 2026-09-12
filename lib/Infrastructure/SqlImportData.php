@@ -11,7 +11,19 @@ final class SqlImportData
     public const MAX_BYTES=1073741824;
     public const MAX_LINE_BYTES=8388608;
 
-    public function __construct(private readonly array $tables) {}
+    public function __construct(private readonly array $tables,private readonly array $sequences=[]) {}
+
+    /** Identify sequence-owning columns from the destination, never from uploaded identifiers. */
+    public static function destinationSequences(PDO $db):array
+    {
+        $rows=$db->query("SELECT n.nspname||'.'||r.relname AS relation,a.attname
+            FROM pg_class r JOIN pg_namespace n ON n.oid=r.relnamespace JOIN pg_attribute a ON a.attrelid=r.oid AND a.attnum>0 AND NOT a.attisdropped
+            WHERE n.nspname IN ('public','lorkhan_internal') AND r.relkind IN ('r','p') AND pg_get_serial_sequence(format('%I.%I',n.nspname,r.relname),a.attname) IS NOT NULL
+            AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=r.oid AND d.deptype='e') ORDER BY n.nspname,r.relname,a.attname")->fetchAll(PDO::FETCH_ASSOC);
+        $result=[];
+        foreach($rows as $row)$result[$row['relation']][]=$row['attname'];
+        return $result;
+    }
 
     /** Read the destination's trusted base-table columns before examining any imported data. */
     public static function destinationTables(PDO $db):array
@@ -32,7 +44,7 @@ final class SqlImportData
     {
         if(!is_resource($stream)||get_resource_type($stream)!=='stream'||!stream_get_meta_data($stream)['seekable']||!rewind($stream))
             throw new RuntimeException('import_stream_invalid');
-        $hash=hash_init('sha256');$bytes=0;$rows=0;$seen=[];$active=null;$header=false;$complete=false;
+        $hash=hash_init('sha256');$bytes=0;$rows=0;$seen=[];$sequenceStates=[];$active=null;$header=false;$complete=false;
         while(($line=fgets($stream,self::MAX_LINE_BYTES+1))!==false){
             $bytes+=strlen($line);
             if($bytes>self::MAX_BYTES||strlen($line)>self::MAX_LINE_BYTES||!str_ends_with($line,"\n"))throw new RuntimeException('import_stream_limit');
@@ -41,7 +53,7 @@ final class SqlImportData
             if(!$record instanceof \stdClass||$complete)throw new RuntimeException('import_record_invalid');
             $keys=array_keys(get_object_vars($record));sort($keys);
             if(!$header){
-                if($keys!==['format','kind']||$record->kind!=='header'||$record->format!=='lorkhan.import-data.v1')throw new RuntimeException('import_header_invalid');
+                if($keys!==['format','kind']||$record->kind!=='header'||$record->format!=='lorkhan.import-data.v2')throw new RuntimeException('import_header_invalid');
                 $header=true;continue;
             }
             if(($record->kind??null)==='complete'){
@@ -49,11 +61,21 @@ final class SqlImportData
                 $complete=true;continue;
             }
             if(($record->kind??null)==='table'){
-                if($keys!==['columns','kind','name','schema']||!is_string($record->schema)||!is_string($record->name)
+                if($keys!==['columns','kind','name','schema','sequences']||!is_string($record->schema)||!is_string($record->name)
                     ||!in_array($record->schema,['public','lorkhan_internal'],true))throw new RuntimeException('import_table_invalid');
                 $active=$record->schema.'.'.$record->name;
                 $activeSchema=$record->schema;$activeName=$record->name;
                 if(!isset($this->tables[$active])||isset($seen[$active])||$record->columns!==$this->tables[$active])throw new RuntimeException('import_schema_mismatch');
+                if(!$record->sequences instanceof \stdClass)throw new RuntimeException('import_sequence_invalid');
+                $states=get_object_vars($record->sequences);$sequenceColumns=array_keys($states);sort($sequenceColumns);
+                if($sequenceColumns!==($this->sequences[$active]??[]))throw new RuntimeException('import_sequence_mismatch');
+                foreach($states as $column=>$state){
+                    if(!$state instanceof \stdClass)throw new RuntimeException('import_sequence_invalid');
+                    $stateKeys=array_keys(get_object_vars($state));sort($stateKeys);
+                    if($stateKeys!==['is_called','last_value']||!is_bool($state->is_called)||!is_string($state->last_value)
+                        ||preg_match('/^-?(?:0|[1-9][0-9]{0,18})$/D',$state->last_value)!==1)throw new RuntimeException('import_sequence_invalid');
+                    $sequenceStates[$active][$column]=['last_value'=>$state->last_value,'is_called'=>$state->is_called];
+                }
                 $seen[$active]=true;continue;
             }
             if(($record->kind??null)!=='row'||$keys!==['data','kind','schema','table']||!is_string($record->schema)||!is_string($record->table)
@@ -65,7 +87,7 @@ final class SqlImportData
         }
         if(!feof($stream)||!$header||!$complete)throw new RuntimeException('import_stream_incomplete');
         rewind($stream);
-        return ['sha256'=>hash_final($hash),'byte_count'=>$bytes,'table_count'=>count($seen),'row_count'=>$rows];
+        return ['sha256'=>hash_final($hash),'byte_count'=>$bytes,'table_count'=>count($seen),'row_count'=>$rows,'sequence_states'=>$sequenceStates];
     }
 
     /** Stage typed values inside the caller's transaction, without changing destination rows or executing imported DDL. */
@@ -74,6 +96,7 @@ final class SqlImportData
         if(!$db->inTransaction())throw new RuntimeException('import_transaction_required');
         $expected=$this->validate($stream);
         if(self::destinationTables($db)!==$this->tables)throw new RuntimeException('import_destination_changed');
+        if(self::destinationSequences($db)!==$this->sequences)throw new RuntimeException('import_destination_changed');
         $tick=static function()use($progress):void{if($progress()===false)throw new RuntimeException('lease_lost');};
         $quote=static fn(string $name):string=>'"'.str_replace('"','""',$name).'"';
         $staged=[];$insert=null;$columns=[];$rows=0;$hash=hash_init('sha256');
@@ -161,7 +184,7 @@ final class SqlImportData
             $db->exec('ALTER TABLE '.$trigger['relation'].' '.$mode.' TRIGGER '.$quote($trigger['tgname']));
         }
         // ALTER SEQUENCE RESTART is transactional, unlike setval; failed imports must not rewind live counters.
-        $sequences=$db->query("SELECT format('%I.%I',n.nspname,r.relname) AS relation,a.attname,pg_get_serial_sequence(format('%I.%I',n.nspname,r.relname),a.attname) AS sequence
+        $sequences=$db->query("SELECT n.nspname||'.'||r.relname AS key,format('%I.%I',n.nspname,r.relname) AS relation,a.attname,pg_get_serial_sequence(format('%I.%I',n.nspname,r.relname),a.attname) AS sequence
             FROM pg_class r JOIN pg_namespace n ON n.oid=r.relnamespace JOIN pg_attribute a ON a.attrelid=r.oid AND a.attnum>0 AND NOT a.attisdropped
             WHERE n.nspname IN ('public','lorkhan_internal') AND r.relkind IN ('r','p') AND pg_get_serial_sequence(format('%I.%I',n.nspname,r.relname),a.attname) IS NOT NULL
             AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=r.oid AND d.deptype='e')")->fetchAll(PDO::FETCH_ASSOC);
@@ -169,8 +192,14 @@ final class SqlImportData
             $tick();$definition=$db->prepare('SELECT seqincrement,seqmin,seqmax,seqstart FROM pg_sequence WHERE seqrelid=CAST(:sequence AS regclass)');
             $definition->execute(['sequence'=>$sequence['sequence']]);$limits=$definition->fetch(PDO::FETCH_ASSOC);
             if((int)$limits['seqincrement']!==1)throw new RuntimeException('import_sequence_unsupported');
+            $imported=$staged['summary']['sequence_states'][$sequence['key']][$sequence['attname']]??null;
+            if(!is_array($imported))throw new RuntimeException('import_sequence_mismatch');
+            $importRange=$db->prepare('SELECT CAST(:last AS numeric) BETWEEN CAST(:minimum AS numeric) AND CAST(:maximum AS numeric)');
+            $importRange->execute(['last'=>$imported['last_value'],'minimum'=>$limits['seqmin'],'maximum'=>$limits['seqmax']]);
+            if(!$importRange->fetchColumn())throw new RuntimeException('import_sequence_exhausted');
+            $importFloor=$db->quote($imported['last_value']).'::numeric+'.($imported['is_called']?'1':'0');
             $next=$db->query('SELECT GREATEST('.(int)$limits['seqstart'].',COALESCE(max('.$quote($sequence['attname']).')::numeric+1,'.(int)$limits['seqstart'].'),'
-                .'(SELECT last_value::numeric+CASE WHEN is_called THEN 1 ELSE 0 END FROM '.$sequence['sequence'].'))::text FROM '.$sequence['relation'])->fetchColumn();
+                .$importFloor.',(SELECT last_value::numeric+CASE WHEN is_called THEN 1 ELSE 0 END FROM '.$sequence['sequence'].'))::text FROM '.$sequence['relation'])->fetchColumn();
             if(!is_string($next)||preg_match('/^-?[0-9]+$/D',$next)!==1)throw new RuntimeException('import_sequence_exhausted');
             $range=$db->prepare('SELECT CAST(:next AS numeric) BETWEEN CAST(:minimum AS numeric) AND CAST(:maximum AS numeric)');
             $range->execute(['next'=>$next,'minimum'=>$limits['seqmin'],'maximum'=>$limits['seqmax']]);

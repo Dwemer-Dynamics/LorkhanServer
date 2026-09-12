@@ -25,6 +25,8 @@ LORKHAN_TEST_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=lorkhan_test" \
 LORKHAN_RESPONSE_CAPTURE="${LORKHAN_RESPONSE_CAPTURE:-}" php "$ROOT/tests/integration.php"
 LORKHAN_SCHEMA_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=lorkhan_test" \
 php "$ROOT/scripts/schema-inventory.php" "${LORKHAN_SCHEMA_MODE:---check}"
+# A deleted allocation can leave the exported sequence far above every surviving row.
+psql -h 127.0.0.1 -p "$PORT" -d lorkhan_test -v ON_ERROR_STOP=1 -Atc "SELECT setval(pg_get_serial_sequence('lorkhan_internal.durable_job_attempts','attempt_id'),9007199254740993,true)" >/dev/null
 pg_dump -h 127.0.0.1 -p "$PORT" -Fc -f "$TMP/lorkhan.backup" lorkhan_test
 createdb -h 127.0.0.1 -p "$PORT" lorkhan_restore_test
 pg_restore -h 127.0.0.1 -p "$PORT" -d lorkhan_restore_test --exit-on-error "$TMP/lorkhan.backup"
@@ -38,7 +40,7 @@ python3 - "$TMP/import.jsonl" <<'PY'
 import json,sys
 with open(sys.argv[1],encoding='utf-8') as stream:
     records=(json.loads(line) for line in stream)
-    assert next(records)=={'kind':'header','format':'lorkhan.import-data.v1'}
+    assert next(records)=={'kind':'header','format':'lorkhan.import-data.v2'}
     tables=set(); rows=0; complete=False
     for record in records:
         assert not complete
@@ -58,15 +60,18 @@ php /dev/stdin "$ROOT" "$TMP/import.jsonl" "$PORT" <<'PHP'
 require $argv[1].'/lib/Autoload.php';
 $db=new PDO('pgsql:host=127.0.0.1;port='.$argv[3].';dbname=lorkhan_test','factory_runtime','',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
 $tables=\LorkhanServer\Infrastructure\SqlImportData::destinationTables($db);
+$sequences=\LorkhanServer\Infrastructure\SqlImportData::destinationSequences($db);
 $stream=fopen($argv[2],'rb');
-try{$result=(new \LorkhanServer\Infrastructure\SqlImportData($tables))->validate($stream);}finally{fclose($stream);}
+try{$result=(new \LorkhanServer\Infrastructure\SqlImportData($tables,$sequences))->validate($stream);}finally{fclose($stream);}
 if($result['table_count']!==count($tables)||$result['row_count']<100||!hash_equals($result['sha256'],hash_file('sha256',$argv[2])))throw new RuntimeException('import_validation_failed');
+if(($result['sequence_states']['lorkhan_internal.durable_job_attempts']['attempt_id']??null)!==['last_value'=>'9007199254740993','is_called'=>true])throw new RuntimeException('import_sequence_precision_lost');
+$db->exec("SELECT setval(pg_get_serial_sequence('lorkhan_internal.durable_job_attempts','attempt_id'),GREATEST(1,(SELECT max(attempt_id)+1 FROM lorkhan_internal.durable_job_attempts)),false)");
 echo "sandbox data matches trusted destination schema\n";
 $original=(int)$db->query('SELECT count(*) FROM lorkhan_internal.source_events')->fetchColumn();
 $db->beginTransaction();
 try{
     $stream=fopen($argv[2],'rb');
-    try{$staged=(new \LorkhanServer\Infrastructure\SqlImportData($tables))->stage($db,$stream,static function():void{});}finally{fclose($stream);}
+    try{$staged=(new \LorkhanServer\Infrastructure\SqlImportData($tables,$sequences))->stage($db,$stream,static function():void{});}finally{fclose($stream);}
     foreach($staged['tables'] as $key=>$temporary){
         [$schema,$name]=explode('.',$key,2);
         $quote=static fn(string $value):string=>'"'.str_replace('"','""',$value).'"';
@@ -78,10 +83,11 @@ try{
 if($db->query("SELECT EXISTS(SELECT 1 FROM pg_class WHERE relnamespace=pg_my_temp_schema() AND relname LIKE 'sql_import_%')")->fetchColumn())throw new RuntimeException('staging_survived_rollback');
 echo "typed SQL import staging matches all source rows and rolls back cleanly\n";
 $bad=fopen('php://temp','w+b');
-fwrite($bad,json_encode(['kind'=>'header','format'=>'lorkhan.import-data.v1'])."\n");
+fwrite($bad,json_encode(['kind'=>'header','format'=>'lorkhan.import-data.v2'])."\n");
 foreach($tables as $key=>$columns){
     [$schema,$name]=explode('.',$key,2);
-    fwrite($bad,json_encode(['kind'=>'table','schema'=>$schema,'name'=>$name,'columns'=>$columns])."\n");
+    $states=[];foreach($sequences[$key]??[] as $column)$states[$column]=['last_value'=>'1','is_called'=>false];
+    fwrite($bad,json_encode(['kind'=>'table','schema'=>$schema,'name'=>$name,'columns'=>$columns,'sequences'=>(object)$states])."\n");
     if($key==='lorkhan_internal.installations'){
         $values=array_fill_keys($columns,null);$values['installation_id']='not-a-uuid';
         fwrite($bad,json_encode(['kind'=>'row','schema'=>$schema,'table'=>$name,'data'=>$values])."\n");
@@ -89,14 +95,14 @@ foreach($tables as $key=>$columns){
 }
 fwrite($bad,json_encode(['kind'=>'complete'])."\n");
 $db->beginTransaction();$rejected=false;
-try{(new \LorkhanServer\Infrastructure\SqlImportData($tables))->stage($db,$bad,static function():void{});}
+try{(new \LorkhanServer\Infrastructure\SqlImportData($tables,$sequences))->stage($db,$bad,static function():void{});}
 catch(PDOException $error){if($error->getCode()!=='22P02')throw $error;$rejected=true;}
 finally{$db->rollBack();fclose($bad);}
 if(!$rejected||(int)$db->query('SELECT count(*) FROM lorkhan_internal.source_events')->fetchColumn()!==$original
     ||$db->query("SELECT EXISTS(SELECT 1 FROM pg_class WHERE relnamespace=pg_my_temp_schema() AND relname LIKE 'sql_import_%')")->fetchColumn())throw new RuntimeException('invalid_import_type_not_rolled_back');
 echo "invalid imported UUID rejected without destination changes\n";
 $db->beginTransaction();$cancelled=false;$ticks=0;$stream=fopen($argv[2],'rb');
-try{(new \LorkhanServer\Infrastructure\SqlImportData($tables))->stage($db,$stream,static function()use(&$ticks):bool{return ++$ticks<3;});}
+try{(new \LorkhanServer\Infrastructure\SqlImportData($tables,$sequences))->stage($db,$stream,static function()use(&$ticks):bool{return ++$ticks<3;});}
 catch(RuntimeException $error){if($error->getMessage()!=='lease_lost')throw $error;$cancelled=true;}
 finally{$db->rollBack();fclose($stream);}
 if(!$cancelled||$ticks!==3||(int)$db->query('SELECT count(*) FROM lorkhan_internal.source_events')->fetchColumn()!==$original
@@ -114,12 +120,13 @@ $changedBio=$bioHash();if($changedBio===$originalBio)throw new RuntimeException(
 $attemptSequence=$db->query("SELECT pg_get_serial_sequence('lorkhan_internal.durable_job_attempts','attempt_id')")->fetchColumn();
 $sequenceState=$db->query('SELECT last_value,is_called FROM '.$attemptSequence)->fetch(PDO::FETCH_ASSOC);
 $currentAttempt=$db->query('SELECT attempt_id FROM durable_job_attempts WHERE job_id='.$db->quote($importJob))->fetchColumn();
-foreach(['schema','foreign_key','late','success'] as $phase){
+foreach(['schema','foreign_key','sequence','late','success'] as $phase){
     $db->beginTransaction();$stream=fopen($argv[2],'rb');
     try{
-        $data=new \LorkhanServer\Infrastructure\SqlImportData($tables);$staged=$data->stage($db,$stream,static function():void{});
+        $data=new \LorkhanServer\Infrastructure\SqlImportData($tables,$sequences);$staged=$data->stage($db,$stream,static function():void{});
         if($phase==='schema')$db->exec('UPDATE '.$staged['tables']['lorkhan_internal.schema_migrations']." SET checksum=repeat('0',64) WHERE version=(SELECT max(version) FROM ".$staged['tables']['lorkhan_internal.schema_migrations'].')');
         if($phase==='foreign_key')$db->exec('UPDATE '.$staged['tables']['lorkhan_internal.profiles']." SET installation_id='00000000-0000-4000-8000-000000000999'");
+        if($phase==='sequence')$staged['summary']['sequence_states']['lorkhan_internal.durable_job_attempts']['attempt_id']['last_value']='9223372036854775808';
         $history=$db->query('SELECT job_id,attempt_number FROM '.$staged['tables']['lorkhan_internal.durable_job_attempts'].' ORDER BY attempt_id LIMIT 1')->fetch(PDO::FETCH_ASSOC);
         if(!$history)throw new RuntimeException('import_history_fixture_missing');
         $db->exec('UPDATE '.$staged['tables']['lorkhan_internal.durable_jobs']." SET state='queued',completed_at=NULL,lease_owner=NULL,lease_token=NULL,leased_at=NULL,lease_expires_at=NULL,heartbeat_at=NULL WHERE job_id=".$db->quote($history['job_id']));
@@ -131,11 +138,12 @@ foreach(['schema','foreign_key','late','success'] as $phase){
         $historyCheck->execute(['job'=>$history['job_id'],'attempt'=>$history['attempt_number']]);
         if((int)$historyCheck->fetchColumn()!==1||(int)$db->query('SELECT attempt_id FROM durable_job_attempts WHERE job_id='.$db->quote($importJob))->fetchColumn()===(int)$currentAttempt)throw new RuntimeException('import_attempt_history_overwritten');
         if($db->query('SELECT state FROM durable_jobs WHERE job_id='.$db->quote($history['job_id']))->fetchColumn()!=='dead')throw new RuntimeException('import_resumed_historical_work');
+        if($db->query('SELECT last_value::text FROM '.$attemptSequence)->fetchColumn()!=='9007199254740994')throw new RuntimeException('import_sequence_floor_lost');
         if($phase==='late')$db->exec('SELECT 1/0');
         if($phase!=='success')throw new RuntimeException('import_failure_not_reached');
         $db->commit();
     }catch(RuntimeException $error){
-        $expectedError=['schema'=>'import_compatibility_mismatch','foreign_key'=>'23503','late'=>'22012'][$phase]??'';
+        $expectedError=['schema'=>'import_compatibility_mismatch','foreign_key'=>'23503','sequence'=>'import_sequence_exhausted','late'=>'22012'][$phase]??'';
         if(($error instanceof PDOException?$error->getCode():$error->getMessage())!==$expectedError)throw $error;
         $db->rollBack();
     }finally{if($db->inTransaction())$db->rollBack();fclose($stream);}

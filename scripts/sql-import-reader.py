@@ -32,11 +32,18 @@ try:
     tables = query("SELECT jsonb_build_object('schema',n.nspname,'name',c.relname,'columns',(SELECT jsonb_agg(a.attname ORDER BY a.attnum) FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped))::text FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','lorkhan_internal') AND c.relkind IN ('r','p') AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype='e') ORDER BY n.nspname,c.relname").splitlines()
     if len(tables) > 256:
         raise RuntimeError("import_too_many_tables")
-    emit({"kind": "header", "format": "lorkhan.import-data.v1"})
+    emit({"kind": "header", "format": "lorkhan.import-data.v2"})
     for line in tables:
         table = json.loads(line)
-        emit({"kind": "table", **table})
         identifier = '.'.join('"' + table[key].replace('"', '""') + '"' for key in ("schema", "name"))
+        # Export owned counters separately: maximum surviving row IDs omit deleted allocations.
+        sequences = {}
+        relation_literal = "'" + identifier.replace("'", "''") + "'"
+        owned = query("SELECT jsonb_build_object('column',attname,'sequence',pg_get_serial_sequence(" + relation_literal + ",attname))::text FROM pg_attribute WHERE attrelid=" + relation_literal + "::regclass AND attnum>0 AND NOT attisdropped AND pg_get_serial_sequence(" + relation_literal + ",attname) IS NOT NULL ORDER BY attname")
+        for owned_line in owned.splitlines():
+            owner = json.loads(owned_line)
+            sequences[owner['column']] = json.loads(query("SELECT jsonb_build_object('last_value',last_value::text,'is_called',is_called)::text FROM " + owner['sequence']))
+        emit({"kind": "table", **table, "sequences": sequences})
         # Text representations preserve numeric precision, PostgreSQL arrays and bytea without JSON coercion.
         cells = ','.join("('" + column.replace("'", "''") + "',t.\"" + column.replace('"', '""') + '\"::text)' for column in table['columns'])
         row_query = "SELECT (SELECT jsonb_object_agg(k,v) FROM (VALUES " + cells + ") AS cells(k,v))::text FROM " + identifier + " t"
