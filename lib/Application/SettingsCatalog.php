@@ -318,7 +318,7 @@ final class SettingsCatalog
             'response' => ['max_words', 'core_lang', 'lang_llm_xtts'],
             'diary' => ['prompt', 'automatic_interval_seconds', 'context_turn_limit'],
             'profile_evolution' => ['history_limit'],
-            'context' => ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','hide_ambient_combat'],
+            'context' => ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','hide_ambient_combat','location_blacklist','item_blacklist','magic_effects_blacklist'],
             'prompt' => ['prompt_head'],
             'oghma' => ['location_context_enabled','topic_count','extractor_fallback_enabled','extractor_timeout_ms','enabled','result_limit','racial_context_enabled'],
             'relationship' => ['enabled','update_chance_percent'],

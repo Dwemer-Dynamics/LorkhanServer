@@ -2,6 +2,7 @@
 declare(strict_types=1);
 // Current rows and modal structure derive from Herika's NPC override_editor.php.
 $overrideLabels = [
+    'context.location_blacklist'=>'Location Blacklist','context.item_blacklist'=>'Item Blacklist','context.magic_effects_blacklist'=>'Magic Effect Blacklist',
     'quest_comments.enabled'=>'Quest Comment', 'quest_comments.chance_percent'=>'Quest Comment Chance',
     'bored_event.chance_percent'=>'Bored Event Chance',
     'behavior.rechat'=>'Rechat', 'behavior.rechat_max_depth'=>'Rechat Rounds',
@@ -62,6 +63,9 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
         if(in_array($section,['context','prompt'],true))$default=$effectiveSettings[$section][$key]??($section==='prompt'?'':false);
         if($path==='relationship.enabled')$default=($effectiveSettings['settings']['relationship']['enabled']??false)===true;
         if($section==='context'||$section==='relationship')$overrideCatalog[$path]['value']=$default;
+        if(in_array($key,['location_blacklist','item_blacklist','magic_effects_blacklist'],true))$overrideCatalog[$path]=[
+            'label'=>$overrideLabels[$path],'type'=>'textlist','maxBytes'=>65792,'allowEmpty'=>true,'value'=>$effectiveSettings['context'][$key]??[],
+            'help'=>'One entry per line, at most 256 entries and 256 UTF-8 bytes each. Matching context is hidden from prompts, not deleted from history. Blank clears the inherited blacklist; remove the override to inherit.'];
         if($path==='behavior.rechat_mode')$overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'choice','choices'=>['tight','conversational','group','random'],'value'=>$default];
         if($path==='prompt.prompt_head')$overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'string','maxBytes'=>8192,'allowEmpty'=>true,'value'=>$default,'help'=>'System roleplay instructions for this NPC. Blank uses the built-in prompt; removing the override restores Core or global inheritance.'];
         if($path==='diary.prompt')$overrideCatalog[$path]=[

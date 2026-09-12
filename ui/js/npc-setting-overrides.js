@@ -33,6 +33,7 @@
                     if (definition.type === 'boolean' ? typeof setting !== 'boolean'
                         : definition.type === 'choice' ? !definition.choices.includes(setting)
                         : definition.type === 'string' ? typeof setting !== 'string' || (!definition.allowEmpty && !setting.trim()) || new TextEncoder().encode(setting).length > definition.maxBytes
+                        : definition.type === 'textlist' ? !Array.isArray(setting) || setting.length > 256 || setting.some(entry => typeof entry !== 'string' || new TextEncoder().encode(entry).length > 256)
                         : !Number.isInteger(setting) || setting < definition.range[0] || setting > definition.range[1])
                         throw new Error('Invalid value for ' + definition.label + '.');
                 }
@@ -68,13 +69,13 @@
             root.querySelector('[data-npc-override-title]').textContent = 'Edit Override';
             picker.hidden = true; editor.hidden = false; save.hidden = false;
             const label = root.querySelector('[data-npc-override-label]'); label.textContent = definition.label;
-            const isBoolean = definition.type === 'boolean', isChoice = definition.type === 'choice', isText = definition.type === 'string';
+            const isBoolean = definition.type === 'boolean', isChoice = definition.type === 'choice', isText = ['string','textlist'].includes(definition.type);
             boolean.hidden = !(isBoolean || isChoice); number.hidden = isBoolean || isChoice || isText; text.hidden = !isText;
             boolean.disabled = boolean.hidden; number.disabled = number.hidden; text.disabled = text.hidden;
             boolean.replaceChildren(...(isChoice ? definition.choices.map(value => new Option(definition.labels?.[value] ?? String(value) + (definition.suffix || ''), String(value))) : [new Option('On','true'),new Option('Off','false')]));
             label.htmlFor = isText ? text.id : isBoolean || isChoice ? boolean.id : number.id;
             const current = values[section]?.[key] ?? definition.value;
-            if (isText) { text.required = !definition.allowEmpty; text.maxLength = definition.maxBytes; text.value = current; text.setCustomValidity(''); }
+            if (isText) { text.required = !definition.allowEmpty; text.maxLength = definition.maxBytes; text.value = definition.type === 'textlist' ? current.join('\n') : current; text.setCustomValidity(''); }
             else if (isBoolean || isChoice) boolean.value = String(current);
             else { number.required = true; number.min = definition.range[0]; number.max = definition.range[1]; number.value = current; }
             root.querySelector('[data-npc-override-help]').textContent = isText ? 'Enter instructions. Removing this override restores inheritance.' : isBoolean ? 'An explicit On or Off overrides the inherited setting.' : isChoice ? 'Choose one of the listed values. Removing this override restores inheritance.' : 'Allowed range: ' + definition.range.join('–') + '. Removing this override restores inheritance.';
@@ -110,6 +111,11 @@
             if (definition.type === 'boolean') value = boolean.value === 'true';
             else if (definition.type === 'choice') value = choice;
             else if (definition.type === 'string') value = text.value;
+            else if (definition.type === 'textlist') {
+                value = text.value.split(/\r?\n/).map(entry => entry.trim()).filter(Boolean);
+                text.setCustomValidity(value.length > 256 || value.some(entry => new TextEncoder().encode(entry).length > 256) ? 'Use at most 256 entries, each at most 256 UTF-8 bytes.' : '');
+                if (!text.reportValidity()) return;
+            }
             values[section] ||= {}; values[section][key] = value;
             sync(); dialog.close();
         });

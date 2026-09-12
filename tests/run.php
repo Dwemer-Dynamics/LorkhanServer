@@ -2642,6 +2642,33 @@ $globalSettings['system_routing']=[
     'relationship_configuration_id'=>'00000000-0000-4000-8000-000000000444'];
 $globalSettings['context']['sections']['nearby_items']=false;
 $globalSettings['context']['item_blacklist']=['iron dagger'];
+$blacklistCore=['settings_overrides'=>['context'=>['item_blacklist'=>[' iron longsword ','IRON LONGSWORD'],'location_blacklist'=>['Balmora'],'magic_effects_blacklist'=>['Fire Shield']]]];
+$overridePresetSource=['settings_overrides'=>['context'=>['item_blacklist'=>[],'location_blacklist'=>['Balmora'],'magic_effects_blacklist'=>['Fire Shield']],
+    'behavior'=>['open_rechat'=>false,'rechat_strict_targeting'=>true,'end_conversation_cooldown_seconds'=>0],'relationship'=>['update_chance_percent'=>37]]];
+$overridePreset=\LorkhanServer\Application\CoreProfilePreset::capture($overridePresetSource);
+$check($overridePreset['settings_overrides']===$overridePresetSource['settings_overrides'],
+    'Named presets retain all displayed blacklist, Rechat and relationship chance overrides');
+$blacklistEffective=(new EffectiveSettingsResolver())->resolve($globalSettings,$blacklistCore,[]);
+$check($blacklistEffective['context']['item_blacklist']===['IRON LONGSWORD']
+    &&$blacklistEffective['context']['location_blacklist']===['Balmora']
+    &&$blacklistEffective['context']['magic_effects_blacklist']===['Fire Shield'],'Core blacklists replace global lists with bounded canonical entries');
+$blacklistNpc=['settings_overrides'=>['context'=>['item_blacklist'=>[],'location_blacklist'=>['Vivec']]]];
+$blacklistEffective=(new EffectiveSettingsResolver())->resolve($globalSettings,$blacklistCore,$blacklistNpc);
+$check($blacklistEffective['context']['item_blacklist']===[]&&$blacklistEffective['context']['location_blacklist']===['Vivec']
+    &&$blacklistEffective['context']['magic_effects_blacklist']===['Fire Shield'],'NPC empty blacklist clears inheritance while omitted lists retain Core values');
+$blacklistSelection=$promptSelection;
+$blacklistSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve(SettingsCatalog::globalDefaults(),
+    ['settings_overrides'=>['context'=>['item_blacklist'=>['iron_dagger']]]],[]);
+$check(!str_contains((new PromptAssembler())->assemble($promptTurn,$blacklistSelection)['provider_input']['_assembled_prompt'],'A short iron blade.'),
+    'Core item blacklist removes the matching record description from the actual prompt');
+$blacklistSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve(SettingsCatalog::globalDefaults(),
+    ['settings_overrides'=>['context'=>['item_blacklist'=>['iron_dagger']]]],['settings_overrides'=>['context'=>['item_blacklist'=>[]]]]);
+$check(str_contains((new PromptAssembler())->assemble($promptTurn,$blacklistSelection)['provider_input']['_assembled_prompt'],'A short iron blade.'),
+    'NPC empty blacklist restores matching descriptions in the actual prompt');
+foreach(['bad',[1],[str_repeat('é',129)],array_fill(0,257,'entry')] as $invalidBlacklist){
+    try{EffectiveSettingsResolver::validateSettingsOverrides(['context'=>['item_blacklist'=>$invalidBlacklist]],true);$check(false,'invalid NPC blacklist refused');}
+    catch(InvalidArgumentException){$check(true,'invalid NPC blacklist refused');}
+}
 $coreLayer=['settings_overrides'=>['behavior'=>['rechat'=>false,'rechat_max_depth'=>4,'rechat_allow_actions'=>true],
         'memory'=>['recent_turn_limit'=>7,'knowledge_limit'=>0],
         'oghma'=>['topic_count'=>3]],

@@ -16,6 +16,7 @@
             if (definition.type === 'boolean' ? typeof item !== 'boolean'
                 : definition.type === 'choice' ? !definition.choices.includes(item)
                 : definition.type === 'string' ? typeof item !== 'string' || new TextEncoder().encode(item).length > definition.maxBytes
+                : definition.type === 'textlist' ? !Array.isArray(item) || item.length > 256 || item.some(entry => typeof entry !== 'string' || new TextEncoder().encode(entry).length > 256)
                 : !Number.isInteger(item) || item < definition.range[0] || item > definition.range[1]) throw Error('Invalid value for ' + definition.label + '.');
         }
         return value;
@@ -30,7 +31,7 @@
                 row.querySelector('[data-core-override-enabled]').checked = enabled; control.disabled = !enabled; control.setCustomValidity(''); row.classList.toggle('enabled', enabled);
                 const current = enabled ? value[section][key] : definition.value;
                 if (definition.type === 'boolean') control.checked = current;
-                else if (control.value !== String(current)) control.value = String(current);
+                else { const display = definition.type === 'textlist' ? current.join('\n') : String(current); if (control.value !== display) control.value = display; }
             }
         } catch (exception) { raw.setCustomValidity(exception.message); error(exception); }
     };
@@ -41,8 +42,10 @@
             try {
                 const value = read(); control.disabled = !toggle.checked;
                 control.setCustomValidity(toggle.checked && definition.type === 'string' && new TextEncoder().encode(control.value).length > definition.maxBytes ? 'Maximum ' + definition.maxBytes + ' UTF-8 bytes.' : '');
+                const entries = definition.type === 'textlist' ? control.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean) : null;
+                if (toggle.checked && entries && (entries.length > 256 || entries.some(entry => new TextEncoder().encode(entry).length > 256))) control.setCustomValidity('Use at most 256 entries, each at most 256 UTF-8 bytes.');
                 if (toggle.checked && !control.checkValidity()) { status.textContent = 'Correct ' + definition.label + ' before saving.'; return; }
-                if (toggle.checked) { value[section] ||= {}; value[section][key] = definition.type === 'boolean' ? control.checked : definition.type === 'integer' ? Number(control.value) : control.value; }
+                if (toggle.checked) { value[section] ||= {}; value[section][key] = definition.type === 'boolean' ? control.checked : definition.type === 'integer' ? Number(control.value) : entries ?? control.value; }
                 else if (value[section]) { delete value[section][key]; if (!Object.keys(value[section]).length) delete value[section]; }
                 raw.value = JSON.stringify(value, null, 2); raw.dispatchEvent(new Event('input', {bubbles:true})); status.textContent = 'Unsaved changes. Save All to apply these overrides.';
             } catch (exception) { error(exception); }
