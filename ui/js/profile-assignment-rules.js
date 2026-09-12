@@ -348,7 +348,10 @@
             draft.enabled = rule.enabled !== false;
             MATCH_FIELDS.forEach((key) => { draft.match[key] = listOf(rule.match ? rule.match[key] : []); });
         }
-        formTitle.textContent = editingId === null ? 'New assignment rule' : 'Edit assignment rule';
+        formTitle.textContent = editingId === null ? 'New Rule' : (draft.description || 'Untitled Rule');
+        const stateBadge = form.querySelector('[data-profile-rules-form-state]');
+        stateBadge.textContent = draft.enabled ? 'Enabled' : 'Disabled';
+        stateBadge.className = 'profile-rules-pill profile-rules-pill-' + (draft.enabled ? 'on' : 'off');
         descriptionInput.value = draft.description;
         priorityInput.value = String(draft.priority);
         enabledInput.checked = draft.enabled;
@@ -432,7 +435,11 @@
         if (problem) {
             showError(problem.message);
             announce(problem.message);
-            if (problem.field) problem.field.focus();
+            if (problem.field) {
+                const disclosure = problem.field.closest('details');
+                if (disclosure) disclosure.open = true;
+                problem.field.focus();
+            }
             return;
         }
         busy = true;

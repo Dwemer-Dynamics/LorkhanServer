@@ -2033,3 +2033,64 @@ body.profile-rules-open {
     margin:18px 0 10px; color:#fff; font-family:MagicCards, serif;
     font-size:20px; word-spacing:5px;
 }
+
+/* Herika's compact rule-edit-core and simple picker layout, with native priority separate. */
+.profiles-page .profile-rules-fields {
+    grid-template-columns:minmax(240px, 1.4fr) minmax(240px, 1fr) auto;
+    margin-top:14px; margin-bottom:0;
+}
+.profiles-page .profile-rules-field { display:block; }
+.profiles-page .profile-rules-field-wide { grid-column:auto; }
+.profiles-page .profile-rules-field label { display:block; }
+.profiles-page .profile-rules-field input[type="text"],
+.profiles-page .profile-rules-field input[type="number"],
+.profiles-page .profile-rules-field select {
+    background:#343434; border:1px solid #555; border-radius:6px;
+    padding:9px 10px; color:#f8f9fa;
+    font-family:'Futura CondensedLight', Arial, sans-serif; font-size:15px;
+}
+.profiles-page .profile-rules-field-check { min-width:92px; padding-bottom:7px; }
+.profiles-page .profile-rules-check-line { gap:9px; min-height:0; }
+.profiles-page .profile-rules-check-line label { margin:0; }
+.profiles-page .profile-rules-match-hint {
+    color:#aab3c0; font-family:'Futura CondensedLight', Arial, sans-serif;
+    font-size:13px; font-weight:400; margin-left:7px; word-spacing:normal;
+}
+.profiles-page .profile-rules-picker-label {
+    display:flex; align-items:center; gap:7px; color:#d5dbe4;
+    font-size:14px; font-weight:700; margin-bottom:7px;
+    text-transform:uppercase; letter-spacing:.04em;
+}
+.profiles-page .profile-rules-picker-icon { font-size:17px; line-height:1; text-transform:none; }
+.profiles-page .profile-rules-match-add { display:flex; gap:7px; margin-top:0; align-items:stretch; }
+.profiles-page .profile-rules-detected-controls { margin-top:0; }
+.profiles-page .profile-rules-detected-controls + .profile-rules-match-add { margin-top:7px; }
+.profiles-page .profile-rules-match-empty { color:#818b99; font-size:13px; padding:3px 0; margin:9px 0 0; min-height:24px; }
+.profiles-page .profile-rules-priority-options { margin-top:14px; }
+.profiles-page .profile-rules-priority-options > summary { cursor:pointer; font-size:14px; font-weight:700; }
+.profiles-page .profile-rules-priority-options > .profile-rules-field { max-width:320px; margin-top:12px; }
+@media(max-width:900px) {
+    .profiles-page .profile-rules-fields { grid-template-columns:minmax(0,1fr); }
+}
+@media(max-width:600px) {
+    .profiles-page .profile-rules-match-add { flex-wrap:wrap; }
+}
+
+.profiles-page .profile-rules-shell .sr-only {
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+}
+
+
+.profiles-page .profile-rules-fields input[type="text"],
+.profiles-page .profile-rules-fields select,
+.profiles-page .profile-rules-priority-options input,
+.profiles-page .profile-rules-match-add input,
+.profiles-page .profile-rules-detected-controls select {
+    padding:7px 10px; font-size:.84rem; min-height:36px;
+}
+
+.profiles-page .profile-rules-form-title {
+    margin:0; font-family:'Futura CondensedLight', Arial, sans-serif;
+    font-size:20px; font-weight:700; color:#fff; letter-spacing:.2px;
+}

@@ -70,12 +70,12 @@ foreach ($profiles as $profile) {
 }
 
 $ruleMatchFields = [
-    ['key' => 'names', 'label' => 'Names', 'add' => 'Add a name', 'hint' => 'The NPC name as OpenMW reports it.'],
-    ['key' => 'races', 'label' => 'Races', 'add' => 'Add a race', 'hint' => 'The race recorded for the NPC.'],
-    ['key' => 'classes', 'label' => 'Classes', 'add' => 'Add a class', 'hint' => 'The class recorded for the NPC.'],
-    ['key' => 'genders', 'label' => 'Genders', 'add' => 'Add a gender', 'hint' => 'The gender recorded for the NPC.'],
-    ['key' => 'factions', 'label' => 'Factions', 'add' => 'Add a faction', 'hint' => 'An OpenMW textual faction ID, not a numeric ID.'],
-    ['key' => 'content_files', 'label' => 'Content Files', 'add' => 'Add a content file', 'hint' => 'The content file the NPC record comes from.'],
+    ['key' => 'names', 'label' => 'NPC Name', 'icon' => '👤', 'add' => 'Add a name', 'hint' => 'The NPC name as OpenMW reports it.'],
+    ['key' => 'races', 'label' => 'Race', 'icon' => '🧬', 'add' => 'Add a race', 'hint' => 'The race recorded for the NPC.'],
+    ['key' => 'genders', 'label' => 'Gender', 'icon' => '⚧', 'add' => 'Add a gender', 'hint' => 'The gender recorded for the NPC.'],
+    ['key' => 'factions', 'label' => 'Faction', 'icon' => '⚔', 'add' => 'Add a faction', 'hint' => 'An OpenMW textual faction ID, not a numeric ID.'],
+    ['key' => 'content_files', 'label' => 'Source Mods', 'icon' => '🧩', 'add' => 'Add a content file', 'hint' => 'The content file the NPC record comes from.'],
+    ['key' => 'classes', 'label' => 'Class', 'icon' => '📜', 'add' => 'Add a class', 'hint' => 'The class recorded for the NPC.'],
 ];
 
 $additionalStylesheets = ['herika-profiles.css?v=' . (string) filemtime(dirname(__DIR__) . '/css/herika-profiles.css')];
@@ -257,10 +257,13 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
                     <form class="profile-rules-form" id="profile-rules-form" data-profile-rules-form novalidate hidden>
                         <div class="profile-rules-editor-header">
-                            <h3 class="profile-rules-form-title" data-profile-rules-form-title>New assignment rule</h3>
+                            <div class="profile-rules-title-row">
+                                <h3 class="profile-rules-form-title" data-profile-rules-form-title>New Rule</h3>
+                                <span class="profile-rules-pill" data-profile-rules-form-state></span>
+                            </div>
                             <div class="profile-rules-editor-actions">
-                                <button class="btn-save" type="submit" form="profile-rules-form" data-profile-rules-save hidden>Save rule</button>
-                                <button class="btn-base" type="button" data-profile-rules-cancel hidden>Cancel</button>
+                                <button class="btn-save" type="submit" form="profile-rules-form" data-profile-rules-save hidden>✓ Save</button>
+                                <button class="btn-base" type="button" data-profile-rules-cancel hidden>× Cancel</button>
                             </div>
                         </div>
                         <p class="profile-rules-error" data-profile-rules-error role="alert" hidden></p>
@@ -268,35 +271,29 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <div class="profile-rules-field profile-rules-field-wide">
                                 <label for="profile-rules-description">Rule Name</label>
                                 <input id="profile-rules-description" type="text" maxlength="200" autocomplete="off" aria-required="true" aria-describedby="profile-rules-description-hint" data-profile-rules-description>
-                                <p class="hint" id="profile-rules-description-hint">A short name so you can recognise this rule in the list.</p>
+                                <p class="sr-only" id="profile-rules-description-hint">A short name so you can recognise this rule in the list.</p>
                             </div>
                             <div class="profile-rules-field">
                                 <label for="profile-rules-profile">Assign Profile</label>
                                 <select id="profile-rules-profile" aria-required="true" aria-describedby="profile-rules-profile-hint" data-profile-rules-profile></select>
-                                <p class="hint" id="profile-rules-profile-hint">The Core Profile given to a matching new NPC.</p>
-                            </div>
-                            <div class="profile-rules-field">
-                                <label for="profile-rules-priority">Priority</label>
-                                <input id="profile-rules-priority" type="number" min="-100000" max="100000" step="1" inputmode="numeric" aria-describedby="profile-rules-priority-hint" data-profile-rules-priority>
-                                <p class="hint" id="profile-rules-priority-hint">A whole number. Higher numbers are checked first.</p>
+                                <p class="sr-only" id="profile-rules-profile-hint">The Core Profile given to a matching new NPC.</p>
                             </div>
                             <div class="profile-rules-field profile-rules-field-check">
                                 <div class="profile-rules-check-line">
                                     <input id="profile-rules-enabled" type="checkbox" aria-describedby="profile-rules-enabled-hint" data-profile-rules-enabled>
                                     <label for="profile-rules-enabled">Enabled</label>
                                 </div>
-                                <p class="hint" id="profile-rules-enabled-hint">A disabled rule is kept but never checked.</p>
+                                <p class="sr-only" id="profile-rules-enabled-hint">A disabled rule is kept but never checked.</p>
                             </div>
                         </div>
 
                         <section class="profile-rules-match" aria-labelledby="profile-rules-match-heading">
-                            <h3 id="profile-rules-match-heading">Match NPCs When</h3>
-                            <p class="hint profile-rules-match-hint">Fill at least one field. An empty field is ignored.</p>
+                            <h3 id="profile-rules-match-heading">Match NPCs When <span class="profile-rules-match-hint">Any value inside a field; all populated fields must match. Fill at least one field.</span></h3>
                             <div class="profile-rules-match-grid">
                                 <?php foreach ($ruleMatchFields as $matchField): $matchBase = 'profile-rules-' . str_replace('_', '-', $matchField['key']); ?>
-                                    <fieldset class="profile-rules-match-field" data-profile-rules-match="<?php echo lorkhan_ui_h($matchField['key']); ?>">
-                                        <legend><?php echo lorkhan_ui_h($matchField['label']); ?></legend>
-                                        <p class="hint" id="<?php echo lorkhan_ui_h($matchBase); ?>-hint"><?php echo lorkhan_ui_h($matchField['hint']); ?></p>
+                                    <div class="profile-rules-match-field" role="group" aria-labelledby="<?= lorkhan_ui_h($matchBase) ?>-label" data-profile-rules-match="<?php echo lorkhan_ui_h($matchField['key']); ?>">
+                                        <div class="profile-rules-picker-label" id="<?= lorkhan_ui_h($matchBase) ?>-label"><span class="profile-rules-picker-icon" aria-hidden="true"><?= lorkhan_ui_h($matchField['icon']) ?></span><?= lorkhan_ui_h($matchField['label']) ?></div>
+                                        <p class="sr-only" id="<?php echo lorkhan_ui_h($matchBase); ?>-hint"><?php echo lorkhan_ui_h($matchField['hint']); ?></p>
                                         <?php if (in_array($matchField['key'], ['factions','content_files'], true)): ?>
                                         <div class="profile-rules-detected-controls">
                                             <select data-profile-rules-detected aria-label="<?= lorkhan_ui_h('Select detected '.$matchField['label']) ?>"><option value="">Select a detected value</option></select>
@@ -304,17 +301,26 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                         </div>
                                         <?php endif; ?>
                                         <div class="profile-rules-match-add">
-                                            <label for="<?php echo lorkhan_ui_h($matchBase); ?>-input"><?php echo lorkhan_ui_h($matchField['add']); ?></label>
-                                            <input id="<?php echo lorkhan_ui_h($matchBase); ?>-input" type="text" maxlength="256" autocomplete="off" list="<?php echo lorkhan_ui_h($matchBase); ?>-options" aria-describedby="<?php echo lorkhan_ui_h($matchBase); ?>-hint" data-profile-rules-match-input>
+                                            <label class="sr-only" for="<?php echo lorkhan_ui_h($matchBase); ?>-input"><?php echo lorkhan_ui_h($matchField['add']); ?></label>
+                                            <input id="<?php echo lorkhan_ui_h($matchBase); ?>-input" type="text" placeholder="<?= lorkhan_ui_h($matchField['add']) ?>" maxlength="256" autocomplete="off" list="<?php echo lorkhan_ui_h($matchBase); ?>-options" aria-describedby="<?php echo lorkhan_ui_h($matchBase); ?>-hint" data-profile-rules-match-input>
                                             <datalist id="<?php echo lorkhan_ui_h($matchBase); ?>-options" data-profile-rules-options></datalist>
                                             <button class="btn-base" type="button" data-profile-rules-match-add><?= in_array($matchField['key'], ['factions','content_files'], true) ? '＋ Add Typed' : '＋ Add' ?></button>
                                         </div>
                                         <ul class="profile-rules-match-values" aria-label="<?php echo lorkhan_ui_h($matchField['label']); ?> in this rule" data-profile-rules-match-values hidden></ul>
-                                        <p class="profile-rules-match-empty" data-profile-rules-match-empty>Nothing added, so this field is ignored.</p>
-                                    </fieldset>
+                                        <p class="profile-rules-match-empty" data-profile-rules-match-empty>No values selected</p>
+                                    </div>
                                 <?php endforeach; ?>
                             </div>
                         </section>
+
+                        <details class="profile-rules-priority-options">
+                            <summary>Rule Priority</summary>
+                            <div class="profile-rules-field">
+                                <label for="profile-rules-priority">Priority</label>
+                                <input id="profile-rules-priority" type="number" min="-100000" max="100000" step="1" inputmode="numeric" aria-describedby="profile-rules-priority-hint" data-profile-rules-priority>
+                                <p class="hint" id="profile-rules-priority-hint">A whole number. Higher numbers are checked first.</p>
+                            </div>
+                        </details>
 
                         <div class="profile-rules-confirm" role="group" aria-label="Confirm deleting this rule" data-profile-rules-confirm hidden>
                             <p class="profile-rules-confirm-text" data-profile-rules-confirm-text></p>

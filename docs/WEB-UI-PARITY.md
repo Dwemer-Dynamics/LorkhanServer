@@ -11678,3 +11678,32 @@ was checked by the deployment wrapper. No game or paid provider was exercised.
 
 Visible-page copying and adaptation remain the priority. Missing runtime features
 remain separate from layout acceptance; this repair does not close the full matrix.
+
+## Profile Rules simple editor structure (2026-09-12)
+
+Copied the pinned Herika rule-edit-core and picker arrangement into the native
+Rules form: Name / Assign Profile / Enabled share the desktop row; the match
+heading has an inline explanation, labelled icon cards follow the reference
+field order, and native Class matching follows the shared fields. Extra visual
+help labels became accessible descriptions. Existing detected/custom pickers,
+exact-match semantics, saved values and all six native match keys are preserved.
+Priority is a separate disclosure rather than another main-field row. Invalid
+priority expands it before focus, and valid collapsed priority still submits.
+Editor titles now identify the rule and show its saved enabled status.
+
+rules-fields-compare.cjs compared actual live reference/native name and picker
+inputs, remove controls, cards and labels: padding, font size/family, radius and
+minimum height agree at desktop. Screenshots inspected at desktop and 390px;
+Rules remains a single-column, contained editor at narrow width. Extended existing
+temporary rule-pickers-review into rules-fields-review.cjs: both widths pass all
+six typed pickers, two detected selectors, duplicate/remove behavior, failed-save
+retention, invalid hidden-priority reveal/focus, negative priority submission,
+cancellation, delete confirmation and Escape/opener focus, with no live writes.
+rule-card-parity-review.cjs also passes measured card checks and mocked successful
+Save/reopen at both widths. PHP/JS syntax, 1036 server checks, 111 protocol files
+and all 858 exact deployed files pass. Original scoped rollback is
+/var/backups/lorkhanserver-profile-rule-fields.is3RYK; final deployment checkpoint
+is /var/backups/lorkhanserver-profile-rule-fields.33SJHV.
+
+Advanced regex/action metadata and native source-mod matching differences remain
+open runtime work; this does not claim those controls or full matrix completion.
