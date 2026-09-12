@@ -425,7 +425,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 </div>
                                 <section class="llm-mode-panel llm-connection-panel" data-llm-modes="configured"<?php echo $driver === 'configured' ? '' : ' hidden'; ?>>
                                     <div class="llm-group-heading"><span>Inherited connection</span><?php echo lorkhan_ui_feature_badge('config.llm.service', true); ?></div>
-                                    <p class="llm-help">The endpoint and the API key come from the LorkhanServer runtime. This mode has no per-connector endpoint or credential of its own.</p>
+                                    <p class="llm-help">The endpoint comes from the LorkhanServer runtime. API Key can inherit the runtime key, select another server-held key, or explicitly send no key.</p>
                                 </section>
                                 <section class="llm-mode-panel" data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
                                     <div class="llm-connection-field">
