@@ -11457,3 +11457,29 @@ effectiveSettingsForProfile uses the assigned Core or installation default. No
 mapping change was made or claimed. Live reference has an extra Voice Filter field
 absent from the pinned narrator source; do not silently add that later-reference
 feature. Broader Narrator/runtime and whole-project parity remain open.
+
+## NPC grouped override picker (2026-09-12)
+
+Replaced the flat NPC Add Override list with the reference grouped category/name/
+description layout from pinned ui/core/tmpl/override_editor.php. The existing 45
+supported leaves are grouped under Misc, Rechat, Memory, Prompt, Context and Oghma.
+Existing help is shown as a bounded 120-character preview and is included in search;
+empty categories disappear under filtering. Text nodes preserve escaping. Options
+remain actual buttons with stable accessible names, so keyboard use and existing
+edit/save wiring remain intact. This is not an expansion of the supported runtime
+catalogue, nor a claim that all reference settings exist.
+
+Copied row padding/background/radius and title/description typography. Initial
+visual inspection found global management styles overriding those rules; scoped
+picker rules now render 10px padding, #2a2a2a background, 6px radius, 14px names,
+12px descriptions and gold category headings. Inspected final narrow screenshot.
+`npc-picker-review.cjs` passed all 45 leaves, six categories, description-only
+UTF-8 search, category filtering, empty results, Enter-to-edit and Escape/focus
+restoration at 1280/390. `npc-overrides-browser.cjs` passed existing add/edit/remove,
+invalid JSON, parent-modal Escape and mocked 409 draft preservation (one intercepted
+POST, no live settings writes). PHP/JS syntax, 1036 server checks and 111 protocol
+files passed. Final scoped deployment backup:
+/var/backups/lorkhanserver-npc-picker.j92U3x; original pre-change backup:
+/var/backups/lorkhanserver-npc-picker.jTyjl4. Exact runtime verification: 858 matching
+files, no extras/old paths, private routes protected. Full NPC/runtime parity remains
+open, independently of this picker presentation improvement.

@@ -818,7 +818,13 @@ body .npc-relationships .npc-rel-detail-dialog input{height:40px;min-height:40px
 .npc-ovr-dialog footer {border-top:1px solid #4a4a4a;border-bottom:0;}
 .npc-ovr-body {padding:14px;overflow-y:auto;max-height:55vh;}
 .npc-ovr-options {display:flex;flex-direction:column;gap:8px;}
-.npc-ovr-options button {text-align:left;padding:10px;}
+.npc-ovr-options .npc-ovr-setting-option {display:block;width:100%;text-align:left;padding:10px;border:1px solid #4a4a4a;border-radius:6px;background:#2a2a2a;cursor:pointer;transition:all .15s ease;}
+.npc-ovr-options .npc-ovr-setting-option:hover {background:#333;}
+.npc-ovr-setting-option + .npc-ovr-setting-option {margin-top:8px;}
+.npc-ovr-option-category {margin:0 0 8px;color:#bc9d5a;font-weight:700;font-size:14px;}
+.npc-ovr-option-group + .npc-ovr-option-group {margin-top:8px;}
+.npc-ovr-setting-name {display:block;font-weight:600;color:#e9efff;margin-bottom:4px;font-size:14px;}
+.npc-ovr-setting-desc {display:block;color:#9fb1c9;font-size:12px;font-weight:400;white-space:normal;}
 .npc-setting-overrides :is(input,select,textarea) {box-sizing:border-box;max-width:100%;}
 .npc-setting-overrides [data-npc-override-text] {width:100%;min-height:140px;resize:vertical;}
 .npc-ovr-info .npc-ovr-value {max-height:5em;overflow:auto;white-space:pre-wrap;}
@@ -972,3 +978,9 @@ body.view-characters [data-npc-editor-panel="general"] .npc-editor-check:not(det
 .npc-rel-tier[data-affinity-tier="Resentful"] { color:#fca5a5; }
 .npc-rel-tier[data-affinity-tier="Hateful"] { color:#f87171; }
 .npc-rel-tier[data-affinity-tier="Hostile"] { color:#ef4444; }
+
+/* Keep global management button/heading rules out of the reference NPC picker. */
+body.view-characters .npc-setting-overrides .npc-ovr-options .npc-ovr-setting-option {padding:10px!important;margin:0!important;background:#2a2a2a!important;}
+body.view-characters .npc-setting-overrides .npc-ovr-options .npc-ovr-setting-option + .npc-ovr-setting-option {margin-top:8px!important;}
+body.view-characters .npc-setting-overrides .npc-ovr-options .npc-ovr-setting-option:hover {background:#333!important;}
+body.view-characters .npc-setting-overrides .npc-ovr-option-category {color:#bc9d5a!important;}

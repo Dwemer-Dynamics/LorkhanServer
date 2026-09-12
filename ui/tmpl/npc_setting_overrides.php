@@ -84,6 +84,13 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
                 'help'=>'Select optional context to include. All unchecked excludes this group; remove the override to inherit. Required speaker and action instructions remain. Details require their containing section.'];
         }
         if(isset($help[$path]))$overrideCatalog[$path]['help']=$help[$path].' Remove this override to restore inheritance.';
+        $overrideCatalog[$path]['category']=match($section){
+            'behavior'=>'Rechat','memory'=>'Memory','oghma'=>'Oghma',
+            'context','relationship'=>'Context','prompt'=>'Prompt',default=>'Misc'
+        };
+        if(in_array($path,['context.prompt_timestamp','context.location_blacklist','context.item_blacklist',
+            'context.magic_effects_blacklist','context.event_types','relationship.update_chance_percent'],true))
+            $overrideCatalog[$path]['category']='Prompt';
         if(array_key_exists($key,$content['settings_overrides'][$section]??[]))$overrideValues[$section][$key]=$content['settings_overrides'][$section][$key];
         if($section==='diary'&&array_key_exists($key,$content['diary']??[]))$overrideValues[$section][$key]=$content['diary'][$key];
     }

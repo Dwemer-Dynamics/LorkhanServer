@@ -94,9 +94,27 @@
         };
         const filter = () => {
             options.replaceChildren();
+            const groups = new Map(), query = search.value.toLowerCase();
             for (const [path, definition] of Object.entries(catalog)) {
-                if (!(definition.label + ' ' + path).toLowerCase().includes(search.value.toLowerCase())) continue;
-                options.append(button(definition.label, () => { openSetting(path); (selections.hidden ? text.hidden ? boolean.hidden ? number : boolean : text : selections.querySelector('input')).focus(); }));
+                if (!(definition.label + ' ' + path + ' ' + (definition.help || '')).toLowerCase().includes(query)) continue;
+                const category = definition.category || 'Misc';
+                if (!groups.has(category)) groups.set(category, []);
+                groups.get(category).push([path, definition]);
+            }
+            for (const [category, settings] of groups) {
+                const group = document.createElement('section'), heading = document.createElement('h3');
+                group.className = 'npc-ovr-option-group'; heading.className = 'npc-ovr-option-category';
+                heading.textContent = category; group.append(heading);
+                for (const [path, definition] of settings) {
+                    const option = button('', () => { openSetting(path); (selections.hidden ? text.hidden ? boolean.hidden ? number : boolean : text : selections.querySelector('input')).focus(); });
+                    option.className = 'npc-ovr-setting-option'; option.setAttribute('aria-label', definition.label);
+                    const name = document.createElement('span'), description = document.createElement('span');
+                    name.className = 'npc-ovr-setting-name'; name.textContent = definition.label;
+                    description.className = 'npc-ovr-setting-desc';
+                    const help = definition.help || ''; description.textContent = help.slice(0,120) + (help.length >= 120 ? '...' : '');
+                    option.append(name, description); group.append(option);
+                }
+                options.append(group);
             }
             if (!options.children.length) options.textContent = 'No settings match your search.';
         };
