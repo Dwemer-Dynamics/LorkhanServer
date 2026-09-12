@@ -20,9 +20,9 @@ $skillLabels=['mediumarmor'=>'Medium Armor','heavyarmor'=>'Heavy Armor','bluntwe
 <div class="form-item span-2 npc-observed-state"><details><summary>Current Equipment</summary><div class="npc-observed-body">
     <small class="hint">Equipment from the recorded target observation.</small>
 <?php if(($state['equipment']??[])===[]): ?><p>No equipment data found in metadata.</p>
-<?php else: ?><div class="npc-observed-grid"><?php foreach($state['equipment'] as$item): ?>
-    <div class="npc-observed-value"><span><?= lorkhan_ui_h(ucwords(str_replace('_',' ',$item['slot']??'Recorded slot'))) ?></span><strong><?= lorkhan_ui_h($item['display_name']??$item['record_id']??'—') ?></strong></div>
-<?php endforeach; ?></div><?php endif; ?>
+<?php else: ?><div class="npc-equipment-heading">Recorded Slots</div><div class="npc-equipment-panel"><dl class="npc-equipment-grid"><?php foreach($state['equipment'] as$item): ?>
+    <dt><?= lorkhan_ui_h(ucwords(str_replace('_',' ',$item['slot']??'Recorded slot'))) ?></dt><dd><?= lorkhan_ui_h($item['display_name']??$item['record_id']??'—') ?></dd>
+<?php endforeach; ?></dl></div><?php endif; ?>
 </div></details></div>
 <div class="form-item span-2 npc-observed-state"><details><summary>Character Stats</summary><div class="npc-observed-body">
 <?php if(($state['stats']??[])===[]&&($state['attributes']??[])===[]): ?><p>No stats data found in metadata.</p>
@@ -50,7 +50,7 @@ $skillLabels=['mediumarmor'=>'Medium Armor','heavyarmor'=>'Heavy Armor','bluntwe
 <?php foreach($state['spells']as$item): ?><tr><td><?= lorkhan_ui_h($item['name']??$item['display_name']??$item['id']??$item['record_id']??'—') ?></td><td><?= lorkhan_ui_h($item['id']??$item['record_id']??'—') ?></td></tr><?php endforeach; ?>
 </tbody></table></div><small class="hint">Recorded spells: <?= count($state['spells']) ?>. Up to 128 observed rows are displayed.</small><?php endif; ?>
 </div></details></div>
-<div class="form-item span-2 npc-observed-state"><details><summary>Metadata (JSON)</summary><div class="npc-observed-body">
+<div class="form-item span-2 npc-observed-state"><details class="npc-metadata-collapse"><summary>Metadata (JSON)</summary><div class="npc-metadata-collapse-body">
     <small class="hint">Read-only projection of the recorded actor state. Raw turn context and private fields are excluded.</small>
     <pre><?= lorkhan_ui_h(json_encode($observation?:new stdClass(),JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)) ?></pre>
 </div></details></div>

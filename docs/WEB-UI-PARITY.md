@@ -10420,3 +10420,23 @@ Identical shared drafts: one connector save and one profile submit. All four pas
 These mocked browser responses do not claim live database writes; the preceding
 management HTTP suite established the real revision-form redirect contracts.
 No game activity or provider requests. Remaining page matrix stays open.
+
+### NPC Info equipment and metadata presentation (2026-09-11)
+
+Compared the pinned Herika NPC Info markup and metadata disclosure rules directly.
+Current Equipment now uses its framed slot/value layout instead of generic stat
+pills. Lorkhan labels the group Recorded Slots: only exact-target observed slots
+are shown, with no invented Skyrim/modded slot inventory or assumption that an
+unrecorded slot is empty. Metadata now uses Herika's separate darker disclosure,
+10px/12px heading padding, right-side rotating chevron, dividing border and 12px
+body padding. Its read-only observation semantics are unchanged; editable general
+NPC metadata remains unfinished and is not excused as presentation parity.
+
+Evidence: 906 checks, PHP template lint, GET-only deployed NPC modal inspection at
+1280/390, exact disclosure style measurements, no overflow, and keyboard close.
+The live NPC had no equipment; a separate PHP-rendered template fixture verified
+two populated slots, escaped text and long-label wrapping at both widths. Images
+were inspected. Temporary evidence: npc-metadata-parity.cjs, npc-info-fixture.php,
+npc-equipment-fixture.cjs and their screenshot outputs. No fixture data was written
+to the live database. No game or provider activity. Full NPC editor/modal and
+override-catalogue review remains open.
