@@ -31,7 +31,11 @@
                 row.querySelector('[data-core-override-enabled]').checked = enabled; control.disabled = !enabled; control.setCustomValidity(''); row.classList.toggle('enabled', enabled);
                 const current = enabled ? value[section][key] : definition.value;
                 if (definition.type === 'boolean') control.checked = current;
-                else { const display = definition.type === 'textlist' ? current.join('\n') : String(current); if (control.value !== display) control.value = display; }
+                else {
+                    // Keep an unfinished new line while typing; the JSON draft already holds normalized entries.
+                    const display = definition.type === 'textlist' ? current.join('\n') : String(current);
+                    if (control.value !== display && !(definition.type === 'textlist' && document.activeElement === control && enabled)) control.value = display;
+                }
             }
         } catch (exception) { raw.setCustomValidity(exception.message); error(exception); }
     };
