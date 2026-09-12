@@ -839,7 +839,7 @@ function lorkhan_ui_chim_profile_cards(array $rows,array $voiceOptions,array $pr
         $canReset=in_array($identity['kind']??'',['actor','npc','creature'],true)&&trim((string)($identity['record_id']??''))!==''&&trim((string)($identity['content_file']??''))!=='';
         echo'<form class="npc-modal-header-form" method="post" action="'.lorkhan_ui_h($managementBasePath.'/forms/profile-reset-biography').'" data-confirm="Reload non-empty biography template fields? Voice, connectors, identity and history stay unchanged. This creates a restorable profile revision."><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'"><input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'"><input type="hidden" name="base_revision" value="'.(int)$row['current_revision'].'"><input type="hidden" name="confirm_reset" value="1">';lorkhan_ui_hidden_state($listState);echo'<button class="btn-cancel" type="submit"'.(!$canReset?' disabled title="Bind this profile to an NPC before resetting its biography"':' title="Reload non-empty biography template fields"').'>Reset NPC</button></form>';
         echo'<a class="btn-cancel" target="_blank" rel="noopener" href="'.lorkhan_ui_h($diaryUrl).'">View Diary</a>';
-        echo'<a class="btn-cancel" href="#'.$modalKey.'-versions-title">Profile Versions</a>';
+        echo'<a class="btn-cancel" href="#'.$modalKey.'-versions-title" data-npc-versions-open="'.$modalKey.'-versions">Profile Versions</a>';
 
         if(!$locked){echo'<form class="npc-modal-header-form" method="post" action="'.lorkhan_ui_h($managementBasePath.'/forms/profile-generate').'"><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'"><input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'">';lorkhan_ui_hidden_state($listState);echo'<button type="submit" class="btn-cancel">AI Generate Profile</button></form>';}
         echo'<button type="button" class="btn-cancel" data-npc-modal-close>Close</button></div></header><div class="npc-modal-body"><div class="npc-editor-viewport"><div class="npc-editor-content">';
@@ -850,9 +850,8 @@ function lorkhan_ui_chim_profile_cards(array $rows,array $voiceOptions,array $pr
         echo'<details><summary>Clone profile</summary>';
         lorkhan_ui_management_form(['route'=>'profile-clone','id'=>'npc-profile-clone-'.$profileId,'legend'=>'Create independent profile copy','hidden'=>['profile_id'=>$profileId]+$listState,'fields'=>[['name','New profile name','text',$name.' Copy']]],$managementBasePath,$csrf);
         echo'<p class="management-note">The copy starts at revision 1 with the same roleplay and connector settings. Actor bindings and the private portrait file stay with the original.</p></details>';
-        echo'<section class="npc-profile-versions" aria-labelledby="'.$modalKey.'-versions-title"><h3 id="'.$modalKey.'-versions-title">Profile Versions</h3><p class="management-note">Saved revisions of this NPC profile. In-game narrative events are on the History tab.</p>';
-        lorkhan_ui_revision_actions('profile',$profileId,is_array($row['revisions']??null)?$row['revisions']:[],(int)($row['current_revision']??1),$managementBasePath,$csrf,null,true,'',$listState);
-        echo'</section></div>';
+        echo'</div>';
+        include __DIR__.'/npc_profile_versions.php';
         echo'</div></div></div></section></div>';
         echo'<div class="npc-modal-overlay" id="'.$modalKey.'-delete" data-npc-modal hidden><section class="npc-modal npc-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="'.$modalKey.'-delete-title"><header><h2 id="'.$modalKey.'-delete-title">Delete '.lorkhan_ui_h($name).'</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body"><p>This permanently removes the current LORKHAN profile and its OpenMW actor bindings.</p><form method="post" action="'.lorkhan_ui_h($managementBasePath.'/forms/profile-delete').'"><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'"><input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'">';lorkhan_ui_hidden_state($listState);echo'<button class="btn-base btn-danger" type="submit">Delete profile</button></form></div></section></div>';
     }
@@ -1446,4 +1445,5 @@ $relationshipConversionNotice=$view==='characters'?lorkhan_ui_relationship_conve
 <?php if ($view === 'characters'): ?><script type="module" src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/profile-json-editor.js?v=<?= filemtime(dirname(__DIR__).'/js/profile-json-editor.js') ?>"></script><?php endif; ?>
 <?php if ($view === 'characters'): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/npc-setting-overrides.js?v=<?php echo filemtime(dirname(__DIR__).'/js/npc-setting-overrides.js'); ?>" defer></script><?php endif; ?>
 <?php if ($view === 'characters'): ?><script src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/npc-biography-import.js?v=<?= filemtime(dirname(__DIR__).'/js/npc-biography-import.js') ?>" defer></script><?php endif; ?>
+<?php if ($view === 'characters'): ?><script src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/npc-profile-versions.js?v=<?= filemtime(dirname(__DIR__).'/js/npc-profile-versions.js') ?>" defer></script><?php endif; ?>
 <?php include $uiRootDir . '/tmpl/footer.html'; ?>

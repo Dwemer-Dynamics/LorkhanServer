@@ -104,6 +104,7 @@ final class ManagementRouter
                 return new Response(200,'',['Content-Type'=>'application/sql','Content-Disposition'=>'attachment; filename="LorkhanServer-'.$m[1].'.sql"'],$stream);
             }
             if($r->method==='GET'&&preg_match('#^/exports/profiles/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProfile($m[1]);
+            if($r->method==='GET'&&preg_match('#^/api/v1/npc-profile-versions/([0-9a-f-]{36})/([1-9][0-9]{0,8})$#D',$path,$m))return Response::json(200,$this->npcProfileVersion($m[1],(int)$m[2]));
             if($r->method==='GET'&&preg_match('#^/exports/core-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportCoreProfileSettings($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/core-profiles/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportCoreProfileBundle($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/player-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportSpecialProfileSettings($m[1],'player');
@@ -731,7 +732,7 @@ final class ManagementRouter
             'memory-embedding-backfill'=>$this->requestMemoryEmbeddingBackfill($v,$scope),
             'profile-biography-revise'=>$this->reviseNpcProfile($v),
             'biography-template-revise'=>$this->repository->saveBiographyTemplate($v),
-            'profile-rollback'=>$this->service->rollback('profile',$this->need($v,'profile_id'),(int)($v['revision']??0),'management rollback'),
+            'profile-rollback'=>isset($v['base_revision'])?$this->restoreNpcProfileVersion($v):$this->service->rollback('profile',$this->need($v,'profile_id'),(int)($v['revision']??0),'management rollback'),
             'profile-delete'=>$this->service->deleteRevisioned('profile',$this->need($v,'profile_id')),
             'profile-generate'=>$this->repository->enqueueProfileGeneration($this->need($v,'profile_id')),
             'profile-bulk-generate'=>$this->bulkGenerateProfiles($v,$scope),
@@ -791,6 +792,7 @@ final class ManagementRouter
         }
         if($domain==='profile-bulk-switch'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]+$result);
         if($domain==='profile-import-to')return Response::json(200,['ok'=>true,'profile_id'=>$result['profile_id'],'revision'=>$result['current_revision']]);
+        if($domain==='profile-rollback'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true,'profile_id'=>$result['profile_id'],'revision'=>$result['current_revision']]);
         if($domain==='provider-revise'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]);
         if($domain==='connector-import'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true,'configuration_id'=>$result['configuration_id']]);
         if($domain==='core-profile-import'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true,
@@ -2038,6 +2040,27 @@ final class ManagementRouter
         return$this->service->restorePlaythrough($document);
     }
 
+    /** Read one NPC snapshot and its predecessor for the version viewer without exposing private credentials. */
+    private function npcProfileVersion(string $id,int $revision):array
+    {
+        $this->uuid($id,'profile_id');$profile=$this->repository->getRevisioned('profile',$id);
+        $identity=$profile['actor_identity'];if(is_string($identity))$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);
+        if(!is_array($identity)||!in_array($identity['kind']??'actor',['actor','npc','creature'],true))throw new InvalidArgumentException('profile_not_editable');
+        $content=$this->repository->revisionContent('profile',$id,$revision);
+        $previous=$revision>1?$this->repository->revisionContent('profile',$id,$revision-1):[];
+        if($this->containsSecretKey($content)||$this->containsSecretKey($previous))throw new RuntimeException('profile_revision_rejected');
+        return['profile_id'=>$id,'revision'=>$revision,'current_revision'=>(int)$profile['current_revision'],'content'=>$content,'previous_content'=>$previous];
+    }
+
+    /** Restore immutable content only if the NPC still matches the editor's starting revision. */
+    private function restoreNpcProfileVersion(array $values):array
+    {
+        $revision=filter_var($values['revision']??null,FILTER_VALIDATE_INT);$base=filter_var($values['base_revision']??null,FILTER_VALIDATE_INT);
+        if($revision===false||$revision<1||$base===false||$base<1)throw new InvalidArgumentException('invalid_expected_revision');
+        $id=$this->need($values,'profile_id');$version=$this->npcProfileVersion($id,$revision);
+        return$this->service->revise('profile',$id,$version['content'],'rollback:'.$revision.' management rollback',$base);
+    }
+
     /** Import biography fields into a revision-guarded existing NPC without changing its identity or routing. */
     private function importNpcBiography(array $values):array
     {
@@ -3224,6 +3247,7 @@ final class ManagementRouter
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/')
+        &&!(str_ends_with($r->path,'/forms/profile-rollback')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/profile-import-to')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/core-profile-import')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/connector-import')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))

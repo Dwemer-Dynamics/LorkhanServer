@@ -3870,4 +3870,28 @@ for retained in ['routing','settings_overrides','portrait']:
 assert subprocess.run([*pg_test,'SELECT count(*) FROM lorkhan_internal.profiles'],check=True,capture_output=True,text=True).stdout.strip()==npc_count_before
 assert request(npc_import_path,'POST',npc_import_fields,accept='application/json').status==409
 
+# Profile Versions reads immutable snapshots and restores into a new guarded revision.
+versions_root='/LorkhanServer/manage/api/v1/npc-profile-versions/'+npc_import_id+'/'
+latest_revision=npc_import_result['revision']
+latest_version=json.load(request(versions_root+str(latest_revision),accept='application/json'))
+previous_version=json.load(request(versions_root+str(latest_revision-1),accept='application/json'))
+assert latest_version['revision']==latest_revision and latest_version['current_revision']==latest_revision
+assert latest_version['previous_content']==previous_version['content']
+assert json.load(request(versions_root+'1',accept='application/json'))['previous_content']==[]
+assert request(versions_root+'999999999',accept='application/json').status==404
+assert request('/LorkhanServer/manage/api/v1/npc-profile-versions/'+str(uuid.uuid4())+'/1',accept='application/json').status==404
+try:
+    urllib.request.urlopen(urllib.request.Request(base+versions_root+'1',headers={'Accept':'application/json'}),timeout=5)
+    raise AssertionError('unauthenticated profile revision exposed')
+except urllib.error.HTTPError as error: assert error.code==401
+_,versions_html=parse(request('/LorkhanServer/ui/core/npc_master.php?embed=1'))
+assert 'data-npc-versions-open' in versions_html and 'NPC Profile Versions' in versions_html
+version_restore={'_csrf':npc_import_fields['_csrf'],'profile_id':npc_import_id,'base_revision':str(latest_revision),'revision':str(latest_revision-1)}
+assert request('/LorkhanServer/manage/forms/profile-rollback','POST',dict(version_restore,_csrf='wrong'),accept='application/json').status in (401,403)
+restored_version=json.load(request('/LorkhanServer/manage/forms/profile-rollback','POST',version_restore,accept='application/json'))
+assert restored_version.get('ok') and restored_version['revision']==latest_revision+1,restored_version
+restored_content=json.load(request(versions_root+str(latest_revision+1),accept='application/json'))
+assert restored_content['content']==previous_version['content'] and restored_content['previous_content']==latest_version['content']
+assert request('/LorkhanServer/manage/forms/profile-rollback','POST',version_restore,accept='application/json').status==409
+
 print('browser-like management HTTP forms passed')

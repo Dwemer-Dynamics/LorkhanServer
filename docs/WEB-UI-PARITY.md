@@ -12245,3 +12245,28 @@ already creates a new revision. The next page change should reuse those paths
 and copy the reference viewer layout, including changed-field highlighting and
 restore confirmation. Actor identity and Core assignment live outside historical
 content and must not be presented as historical snapshots without actual evidence.
+
+## NPC Profile Versions viewer (2026-09-12)
+
+Replaced the generic in-editor revision section with Herika's separate version
+list/detail layout, selected snapshot preview, preceding-version highlights and
+confirmed restore. The native immutable profile revisions remain the data source.
+Actor identity and Core assignment are explicitly outside snapshot content.
+Restores create a new revision and reject stale editor revisions. Authenticated
+reads exclude special profiles and reject secret-bearing historical content.
+No AI evolution report button is added: that separate feature remains open.
+
+Desktop header, body, list spacing and 15px text follow the reference viewer.
+Gold highlights remain native. At narrow widths the list stacks above the detail;
+the reference's fixed 320px list otherwise leaves no usable detail width.
+
+Evidence: 1083 server checks, 111 protocol files, PHP/JS lint and full isolated
+management HTTP suite pass (npc-versions-http.txt). Deployed browser checks at
+1280/390 pass selection, escaped content, highlights, failed read retry, canceled
+restore, conflict/stale handling, Escape draft retention and same-NPC return.
+Browser writes were mocked; actual restore persistence and authentication were
+checked in the isolated HTTP suite. Screenshots were inspected.
+Local deployment completed with rollback /var/backups/lorkhanserver-code.3bckP7;
+all 867 runtime files match source, private/auth/NPC probes pass, and existing
+configuration, credentials and voice contents are preserved. Workflow remains
+disabled_manually. No game launch or paid provider calls. Full parity is still open.

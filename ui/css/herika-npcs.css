@@ -984,3 +984,21 @@ body.view-characters .npc-setting-overrides .npc-ovr-options .npc-ovr-setting-op
 body.view-characters .npc-setting-overrides .npc-ovr-options .npc-ovr-setting-option + .npc-ovr-setting-option {margin-top:8px!important;}
 body.view-characters .npc-setting-overrides .npc-ovr-options .npc-ovr-setting-option:hover {background:#333!important;}
 body.view-characters .npc-setting-overrides .npc-ovr-option-category {color:#bc9d5a!important;}
+/* Herika NPC Profile Versions viewer, with a stacked narrow-screen detail panel. */
+.npc-versions-dialog{box-sizing:border-box;width:95vw;max-width:1100px;max-height:95vh;padding:30px;background:#232323;color:#cfd9ea;border:1px solid #404040;border-radius:14px;overflow:hidden}
+.npc-versions-dialog::backdrop{background:rgba(0,0,0,.75)}
+.npc-versions-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;background:#2b2b2b;border-radius:12px 12px 0 0;border-bottom:1px solid #4a4a4a}
+.npc-versions-header h2{font:700 24px/1.5 MagicCards,serif;margin:0;color:#fff;word-spacing:6px}
+.npc-versions-body{height:75vh;max-height:calc(95vh - 130px);display:flex;gap:10px}
+.npc-versions-list{flex:0 0 320px;max-width:320px;border-right:1px solid #4a4a4a;overflow:auto;padding:8px}
+.npc-versions-list button{display:block;box-sizing:border-box;width:100%;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #4a4a4a;border-radius:8px;padding:8px;margin-bottom:6px;background:#232323;color:#cfd9ea;cursor:pointer;font:inherit}
+.npc-versions-list button[aria-current=true]{background:#333;border-color:#bc9d5a}
+.npc-versions-detail{flex:1 1 auto;min-width:0;overflow:auto;padding:8px}
+.npc-versions-note{font-size:12px;color:#9fb1c9;margin:0 0 8px}.npc-versions-toolbar{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px}
+.npc-versions-fields{display:grid;grid-template-columns:220px 1fr;gap:6px}.npc-versions-fields strong{color:#bc9d5a}.npc-versions-fields>div{border:1px solid #4a4a4a;border-radius:6px;padding:6px;white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}.npc-versions-fields .is-changed{background:#333}
+.npc-versions-dialog button:focus-visible{outline:2px solid #bc9d5a;outline-offset:2px}
+@media(max-width:720px){.npc-versions-dialog{padding:12px}.npc-versions-body{flex-direction:column;max-height:calc(95vh - 110px)}.npc-versions-list{flex:0 0 150px;max-width:none;border-right:0;border-bottom:1px solid #4a4a4a}.npc-versions-fields{grid-template-columns:1fr}.npc-versions-toolbar{flex-wrap:wrap}.npc-versions-header h2{font-size:20px}}
+.npc-versions-list button strong{display:block;color:#e9efff}.npc-versions-list button small{display:block;color:#9fb1c9;font-size:11px}
+.npc-version-metadata{grid-column:1/-1}.npc-version-metadata pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+
+.npc-versions-dialog,.npc-versions-dialog form{font-size:15px;line-height:1.5}
