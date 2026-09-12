@@ -12030,3 +12030,16 @@ Evidence:
 
 These close the two recorded import workflow mismatches, not the full webpage
 parity goal. The outstanding runtime-backed controls remain listed in the matrix.
+
+### Remaining sidebar import workflows found in the same audit
+
+- Core Profiles: the pinned reference opens `import_profile_modal` from the sidebar
+  (`ui/core/core_profiles.php:3552`); native `?import=1` still replaces the editor
+  with a Settings Preset JSON form. The prior return-path tests establish correct
+  navigation, not modal or full-profile import parity. Keep this open separately
+  from the already implemented named-preset picker.
+- TTS Connectors: the reference sidebar opens a multiple-file CSV picker
+  (`ui/core/tts_connectors.php:657,929-936`); native Import still navigates to a
+  single portable JSON editor. Align the visible workflow and audit the import
+  data contract. The earlier seventeen-provider editor review did not close this
+  sidebar interaction. Do not claim native JSON is interchangeable with Herika CSV.
