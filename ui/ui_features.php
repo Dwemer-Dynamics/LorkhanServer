@@ -76,7 +76,7 @@ function lorkhan_ui_feature_registry(): array
         'config.llm.saved-only' => ['title' => 'Saved Connector Control', 'state' => 'not-applicable', 'description' => 'This control becomes available after the connector has been saved.'],
         'config.tts' => ['title' => 'TTS', 'state' => 'live', 'description' => 'Revisioned speech connectors and defaults.'],
         'config.tts.api-key' => ['title' => 'Connector API Badge', 'state' => 'live', 'description' => 'TTS connectors select a server-owned credential reference for speech and automatic voice cloning. Secret values remain in API Keys; portable imports and exports remove the reference.'],
-        'config.tts.import-format' => ['title' => 'Portable TTS Import', 'state' => 'replaced', 'description' => 'LORKHAN imports redacted portable JSON connector records instead of Herika connector CSV files.'],
+        'config.tts.import-format' => ['title' => 'Portable TTS Import', 'state' => 'live', 'description' => 'Import Herika-style TTS connector CSV or existing Lorkhan JSON exports. Source IDs and API Badges are not assigned; select a local badge after importing.'],
         'config.tts.delete-protected' => ['title' => 'Protected Connector Deletion', 'state' => 'not-applicable', 'description' => 'The installation default or a connector assigned to a Core Profile, NPC, or active session cannot be deleted.'],
         'config.tts.saved-only' => ['title' => 'Saved Connector Control', 'state' => 'not-applicable', 'description' => 'This control becomes available after the connector has been saved.'],
         'config.tts-studio' => ['title' => 'TTS Studio', 'state' => 'live', 'description' => 'Voice samples, provider catalogues, and synchronization.'],

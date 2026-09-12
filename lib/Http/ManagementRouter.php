@@ -112,6 +112,7 @@ final class ManagementRouter
             if($r->method==='GET'&&preg_match('#^/exports/providers/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProvider($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/prompts/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportPrompt($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/connectors/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportConnector($m[1]);
+            if($r->method==='GET'&&preg_match('#^/exports/connectors/([0-9a-f-]{36})\.csv$#D',$path,$m))return$this->exportConnector($m[1],true);
             if($r->method==='GET'&&preg_match('#^/exports/backups/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->downloadConfigurationBackup($m[1]);
             if($r->method==='GET'&&$path==='/exports/descriptions/example.csv')return$this->exampleDescriptionsCsv();
             if($r->method==='GET'&&$path==='/exports/descriptions/custom.csv')return$this->exportDescriptionsCsv($this->queryUuid($r,'installation_id'));
@@ -787,6 +788,7 @@ final class ManagementRouter
         }
         if($domain==='profile-bulk-switch'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]+$result);
         if($domain==='provider-revise'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]);
+        if($domain==='connector-import'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true,'configuration_id'=>$result['configuration_id']]);
         if(in_array($domain,['narrator-profile-settings-import','player-profile-settings-import','global-settings-import'],true)&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]);
         if($domain==='configuration-revise'&&($v['prompt_text_editor']??'')==='1'&&!$this->htmlRequest($r))
             return Response::json(200,['ok'=>true,'revision'=>(int)$result['current_revision']]);
@@ -1760,7 +1762,7 @@ final class ManagementRouter
     }
 
     /** Download one portable speech connector without ownership, revisions, or credentials. */
-    private function exportConnector(string $configurationId):Response
+    private function exportConnector(string $configurationId,bool $csv=false):Response
     {
         $this->uuid($configurationId,'configuration_id');$kind=$this->repository->resourceKind($configurationId);
         if(!in_array($kind,['tts_provider','stt_provider'],true))throw new RuntimeException('not_found');
@@ -1770,6 +1772,11 @@ final class ManagementRouter
         $document=['schema'=>'lorkhan.connector-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),'kind'=>$kind,
             'name'=>(string)$row['name'],'content'=>$content===[]?(object)[]:$content];
         $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='lorkhan-connector';
+        if($csv){
+            if($kind!=='tts_provider')throw new RuntimeException('not_found');
+            return new Response(200,\LorkhanServer\Application\TtsConnectorCsv::encode((string)$row['name'],$content),
+                ['Content-Type'=>'text/csv; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'.csv"','X-Content-Type-Options'=>'nosniff']);
+        }
         return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
             ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'.json"','X-Content-Type-Options'=>'nosniff']);
     }
@@ -1799,11 +1806,16 @@ final class ManagementRouter
     /** Import a portable speech connector into the explicitly selected installation. */
     private function importConnector(array $values,array $scope):array
     {
-        $kind=$this->speechConnectorKind($values);$document=$this->jsonField($values,'connector_json');$keys=array_keys($document);sort($keys);
+        $kind=$this->speechConnectorKind($values);
+        $document=$kind==='tts_provider'&&isset($values['connector_csv'])
+            ?\LorkhanServer\Application\TtsConnectorCsv::decode($this->need($values,'connector_csv')):$this->jsonField($values,'connector_json');
+        $keys=array_keys($document);sort($keys);
         if($keys!==['content','exported_at','kind','name','schema']||($document['schema']??null)!=='lorkhan.connector-export.v1'
             ||($document['kind']??null)!==$kind||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['content']??null)||$this->containsSecretKey($document))throw new InvalidArgumentException('invalid_connector_export');
         $name=trim((string)($document['name']??''));if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_connector_export');
+        if($kind==='tts_provider'&&isset($values['connector_csv']))$name=$this->repository->importedTtsConnectorName(
+            $scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$name);
         // A portable endpoint must never acquire a credential already held by its destination.
         $document['content']['credential']='none';
         return$this->service->createRevisioned($kind,['installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
@@ -3121,6 +3133,7 @@ final class ManagementRouter
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/')
+        &&!(str_ends_with($r->path,'/forms/connector-import')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/provider-revise')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/provider-test')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/relationship-preview')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))

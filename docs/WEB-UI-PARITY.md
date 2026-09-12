@@ -12043,3 +12043,67 @@ parity goal. The outstanding runtime-backed controls remain listed in the matrix
   single portable JSON editor. Align the visible workflow and audit the import
   data contract. The earlier seventeen-provider editor review did not close this
   sidebar interaction. Do not claim native JSON is interchangeable with Herika CSV.
+
+## TTS sidebar file workflow and CSV mapping (2026-09-12)
+
+The TTS sidebar now opens a multiple-file picker directly, matching pinned Herika
+`ui/core/tts_connectors.php:321-454,657,929-940`. Export downloads the same seven
+CSV columns: id, label, driver, metadata, api_badge_id, url and voice_field.
+The original native JSON download endpoint and JSON import remain supported.
+The old JSON editor remains only as the existing non-JavaScript/direct-route
+fallback; it is no longer the sidebar button's JavaScript workflow.
+
+Derived/adapted files are `ui/core/tts_connectors.php`,
+`ui/js/tts-connector-import.js` and `connector/TtsConnectorCsv.php`. The import
+handler uses the existing revisioned connector service, not direct writes to the
+Herika-compatible projection. CSV service aliases, model/voice fields, languages,
+xVASynth keys, paralinguistic options and typed numeric/boolean metadata map to the
+native settings. JSON metadata quoting and Unicode labels are retained. Native
+model/timeout values that have no separate reference column use metadata keys
+`lorkhan_model` (where model is the voice field) and `lorkhan_timeout_ms`.
+
+Source IDs, API badge IDs and the reference's API_KEY metadata are not assigned.
+Imported connectors use a new identity and credential `none`; they do not become
+active automatically. Repeated CSV names receive the reference-style numeric
+suffix, using all installation-owned names rather than the first UI page.
+Unknown services and malformed CSV fail visibly instead of changing service.
+Files contain one connector, as produced by the reference exporter. The picker
+accepts up to twenty CSV/JSON files of at most 1 MiB each and reports confirmed
+partial progress without automatic retries. On success it opens the first imported
+connector and preserves installation, embedded and partial-editor URL scope.
+
+Local-binding limit: a nonempty Herika Zonos `cached_voice_path` cannot safely be
+attached to an unrelated local voice sample. Import rejects that field with an
+explicit instruction to clear it and bind the local sample afterward; it is not
+stored as an inert setting. Existing native scoped cache overrides remain supported.
+This does not claim arbitrary Herika metadata or every cross-server voice resource
+is interchangeable, and no live provider was invoked to prove speech acceptance.
+
+Evidence:
+
+- 1078 server checks and 111 protocol files pass. The added existing-suite cases
+  cover all twenty-two native connector defaults, credential removal, quoted and
+  Unicode labels, distinct model/voice values, provider-key aliases, typed Herika
+  metadata and malformed/foreign-cache rejection. No new test file was added.
+- Full isolated management HTTP suite passes in `tts-csv-http.txt`. CSV download
+  headers, persisted round trip, new identity, duplicate suffix, credential `none`,
+  invalid CSRF and malformed-file rejection are exercised alongside the existing
+  JSON/clone/default/rollback lifecycle. Temporary timeout is 30 seconds; the
+  default-5-second CI configuration was not run.
+- `tts-csv-picker-review.cjs` passes at 1280/390 against the deployed page: direct
+  multiple chooser, CSV download link, complete pre-read validation, failed second
+  import retaining edits/focus and reporting the first confirmation, mixed CSV/JSON
+  success, first-editor selection and embedded return. All browser writes are
+  mocked. Server persistence is proven by the separate isolated HTTP suite.
+- Reference and native selected Inworld editor/sidebar screenshots were captured
+  at both widths, with narrow images inspected. Different saved connector counts
+  change the list height; no blank rows were introduced to align origins. This
+  closes the sidebar transfer workflow, not a new whole-provider styling review.
+- Full local deployment completed, rollback
+  `/var/backups/lorkhanserver-code.uQ6184`. All 862 runtime files match source,
+  with no extras or old paths; private URLs remain 403, unauthenticated session
+  access 401, and existing/missing NPC pages 200/404. Existing configuration,
+  credentials and voice file hashes were preserved. Workflow 330702270 remains
+  `disabled_manually`.
+
+The Core Profile sidebar import modal and other matrix gaps remain unfinished.

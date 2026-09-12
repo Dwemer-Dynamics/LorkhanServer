@@ -1106,6 +1106,25 @@ import_tts_id=connector_editor_id(body,tts_export['name'])
 imported_tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?edit='+import_tts_id))
 assert next(f for f in imported_tts_page.forms if f['action'].endswith('/forms/connector-revise'))['fields']['credential']=='none'
 r=request('/LorkhanServer/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':import_tts_id,'kind':'tts_provider'}); assert r.status==200
+
+# Sidebar CSV exports use Herika's columns without source badge or identity ownership.
+tts_csv_response=request('/LorkhanServer/manage/exports/connectors/'+tts_id+'.csv'); tts_csv=tts_csv_response.read().decode()
+assert tts_csv_response.status==200 and tts_csv_response.headers['Content-Type'].startswith('text/csv')
+csv_rows=list(csv.DictReader(io.StringIO(tts_csv)))
+assert len(csv_rows)==1 and list(csv_rows[0])==['id','label','driver','metadata','api_badge_id','url','voice_field']
+assert csv_rows[0]['id']=='' and csv_rows[0]['api_badge_id']=='' and 'fixture-tts-badge-key' not in tts_csv
+csv_values=dict(import_tts['fields'],_csrf=csrf,installation_id=valid['installation_id'],kind='tts_provider',connector_csv=tts_csv)
+r=request(import_tts['action'],'POST',dict(csv_values,_csrf='wrong'),accept='application/json'); assert r.status==401,r.status
+r=request(import_tts['action'],'POST',dict(csv_values,connector_csv='invalid'),accept='application/json'); assert r.status==422,r.status
+r=request(import_tts['action'],'POST',csv_values,accept='application/json'); csv_imported=json.loads(r.read()); assert r.status==200 and csv_imported['ok'],(r.status,csv_imported)
+csv_id=csv_imported['configuration_id']; assert csv_id!=tts_id
+csv_export=json.loads(request('/LorkhanServer/manage/exports/connectors/'+csv_id+'.json').read())
+original_export=json.loads(request('/LorkhanServer/manage/exports/connectors/'+tts_id+'.json').read())
+assert csv_export['content']==original_export['content'] and csv_export['content']['credential']=='none'
+assert csv_export['name']==original_export['name']+' 2'
+csv_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?edit='+csv_id+'&embed=1'))
+assert next(f for f in csv_page.forms if f['action'].endswith('/forms/connector-revise'))['fields']['credential']=='none'
+assert request('/LorkhanServer/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':csv_id,'kind':'tts_provider'}).status==200
 tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id)); activate_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/connector-selection') and f['fields'].get('configuration_id')==tts_id)
 r=request(activate_tts['action'],'POST',dict(activate_tts['fields'],_csrf=csrf)); body=r.read().decode(); assert r.status==200,(r.status,r.geturl(),body)
 body=request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id).read().decode(); assert 'This active connector cannot be deleted.' in body,body

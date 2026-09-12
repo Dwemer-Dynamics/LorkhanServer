@@ -3154,6 +3154,38 @@ foreach([['not-json'."\n",'import_record_invalid'],['[]'."\n",'import_record_inv
     $check($reason===$expected,'SQL data rejects malformed JSON and overlong records: '.$expected);
 }
 
+foreach (ConnectorCatalog::all('tts_provider') as $definition) {
+    $driver=$definition['driver'];
+    $original=ConnectorCatalog::validate('tts_provider',ConnectorCatalog::defaults('tts_provider',$driver)+[
+        'driver'=>$driver,'timeout_ms'=>41000,'credential'=>'LORKHAN_TTS_INWORLD_API_KEY',
+        'options'=>['fallback_male'=>'maleargonian','fallback_female'=>'femaledunmer']]);
+    $csv=\LorkhanServer\Application\TtsConnectorCsv::encode("Quoted \"é\", connector\nsecond line",$original);
+    $decoded=\LorkhanServer\Application\TtsConnectorCsv::decode("\xEF\xBB\xBF".$csv);
+    $original['credential']='none';
+    $check($decoded['content']===$original && $decoded['name']==="Quoted \"é\", connector\nsecond line",'TTS CSV native round trip and credential removal: '.$driver);
+}
+$ttsCsvStream=fopen('php://temp','w+b');
+fputcsv($ttsCsvStream,\LorkhanServer\Application\TtsConnectorCsv::COLUMNS,',','"','\\');
+fputcsv($ttsCsvStream,['22','Herika ElevenLabs','ELEVEN_LABS',json_encode(['model_id'=>'eleven_v3','optimize_streaming_latency'=>'0','speed'=>1.1,'use_speaker_boost'=>false,'API_KEY'=>'not-imported']), '7','https://api.elevenlabs.io','voice_id'],',','"','\\');
+rewind($ttsCsvStream);$herikaCsv=(string)stream_get_contents($ttsCsvStream);fclose($ttsCsvStream);
+$decoded=\LorkhanServer\Application\TtsConnectorCsv::decode($herikaCsv);
+$check($decoded['content']['driver']==='11labs' && $decoded['content']['model']==='eleven_v3'
+    && $decoded['content']['options']===['optimize_streaming_latency'=>0,'speed'=>1.1,'use_speaker_boost'=>false]
+    && $decoded['content']['credential']==='none','Herika TTS CSV maps provider metadata and ignores foreign badges and secrets');
+foreach (['xvasynth'=>['model_type'=>'xVAPitch','waveglow_path'=>'resources/quoted "path".pt','distro'=>'Local Test'],
+    'chatterbox'=>['paralinguistic_tags_enabled'=>true,'paralinguistic_tags_prompt'=>'Say "hello".','paralinguistic_tags_list'=>'[laugh],[sigh]']] as $driver=>$options) {
+    $content=ConnectorCatalog::validate('tts_provider',array_replace(ConnectorCatalog::defaults('tts_provider',$driver),
+        ['driver'=>$driver,'voice'=>'DistinctVoice','model'=>'DistinctModel','credential'=>'none','options'=>$options]));
+    $roundTrip=\LorkhanServer\Application\TtsConnectorCsv::decode(\LorkhanServer\Application\TtsConnectorCsv::encode('Mapped fields',$content));
+    $check($roundTrip['content']===$content,'TTS CSV preserves aliased provider fields and distinct model/voice: '.$driver);
+}
+try {\LorkhanServer\Application\TtsConnectorCsv::decode(str_replace(['ELEVEN_LABS','API_KEY'],['ZONOS_GRADIO','cached_voice_path'],$herikaCsv));$check(false,'foreign voice cache requires binding');}
+catch (InvalidArgumentException $error) {$check($error->getMessage()==='tts_csv_cached_voice_requires_local_binding','foreign voice cache requires binding');}
+foreach (['bad header',str_replace('metadata,','label,',$herikaCsv),str_replace('ELEVEN_LABS','unknown-driver',$herikaCsv),$herikaCsv."unexpected,extra,row\n"] as $badCsv) {
+    try {\LorkhanServer\Application\TtsConnectorCsv::decode($badCsv);$check(false,'invalid TTS CSV rejected');}
+    catch (InvalidArgumentException) {$check(true,'invalid TTS CSV rejected');}
+}
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

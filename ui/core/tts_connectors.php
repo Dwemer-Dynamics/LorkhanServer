@@ -60,6 +60,7 @@ foreach ($rows as $row) {
     if ($selectedId !== '' && hash_equals((string) $row['configuration_id'], $selectedId)) $selected = $row;
 }
 $mode = isset($_GET['import']) ? 'import' : (isset($_GET['create']) ? 'create' : ($selected !== null ? 'edit' : 'none'));
+$importedCount=filter_var($_GET['imported']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1,'max_range'=>20]]) ?: 0;
 $pageUrl = $webRoot . '/ui/core/tts_connectors.php';
 $queryFor = static function (array $values) use ($pageUrl, $installationId, $embedded, $partialEditor): string {
     if ($installationId !== '') $values['installation_id'] = $installationId;
@@ -100,8 +101,8 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
             <p class="page-subtitle lorkhan-page-head-note">Text-to-Speech Setup Options.</p>
         </div>
 
-        <?php if (isset($_GET['status'])): ?>
-            <div class="notice" role="status"><?php echo lorkhan_ui_h($_GET['status'] === 'tested' ? 'Test completed: ' . ($_GET['detail'] ?? 'valid audio') : 'TTS connector saved.'); ?></div>
+        <?php if (isset($_GET['status']) || $importedCount): ?>
+            <div class="notice" role="status"><?php echo lorkhan_ui_h($importedCount ? 'Imported '.$importedCount.' TTS connector'.($importedCount===1?'':'s').'. Select a local API Badge before using an imported cloud connector.' : ($_GET['status'] === 'tested' ? 'Test completed: ' . ($_GET['detail'] ?? 'valid audio') : 'TTS connector saved.')); ?></div>
         <?php endif; ?>
 
         <?php if ($installations === []): ?>
@@ -113,8 +114,16 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 <aside class="left-col">
                     <div class="btn-row sidebar-action-grid">
                         <a class="btn-save" href="<?php echo lorkhan_ui_h($queryFor(['create' => '1'])); ?>">New</a>
-                        <a class="btn-primary" href="<?php echo lorkhan_ui_h($queryFor(['import' => '1'])); ?>" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.tts.import-format')['description']); ?>">Import</a>
+                        <a class="btn-primary" data-tts-import-open href="<?php echo lorkhan_ui_h($queryFor(['import' => '1'])); ?>" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.tts.import-format')['description']); ?>">Import</a>
                     </div>
+                    <form id="tts-quick-import" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-import" hidden>
+                        <?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php if ($partialEditor): ?><input type="hidden" name="partial" value="editor"><?php endif; ?><?php endif; ?>
+                        <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                        <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
+                        <input type="hidden" name="kind" value="tts_provider">
+                    </form>
+                    <input id="tts-import-picker" type="file" accept=".csv,.json,text/csv,application/json" multiple hidden aria-label="Import TTS connector files">
+                    <p id="tts-import-status" class="field-help" role="status" hidden></p>
                     <div class="list-wrap" id="tts_connector_list" aria-label="TTS Connectors">
                         <?php foreach ($rows as $row):
                             $content = is_array($row['content'] ?? null) ? $row['content'] : [];
@@ -164,7 +173,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <button class="btn-save" type="submit" form="<?php echo lorkhan_ui_h($formId); ?>">Save</button>
                             <?php if (!$creating): ?>
                                 <button class="btn-primary" type="button" id="tts-test-open" aria-haspopup="dialog" aria-controls="tts-test-dialog">Test</button>
-                                <a class="btn-save" href="<?php echo lorkhan_ui_h($managementBasePath); ?>/exports/connectors/<?php echo lorkhan_ui_h($selected['configuration_id']); ?>.json">Export</a>
+                                <a class="btn-save" href="<?php echo lorkhan_ui_h($managementBasePath); ?>/exports/connectors/<?php echo lorkhan_ui_h($selected['configuration_id']); ?>.csv">Export</a>
                                 <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-clone"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php if ($partialEditor): ?><input type="hidden" name="partial" value="editor"><?php endif; ?><?php endif; ?><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><input type="hidden" name="name" value="<?php echo lorkhan_ui_h($selected['name'] . ' copy'); ?>"><button class="btn-primary" type="submit">Clone</button></form>
                                 <?php $inUse = filter_var($selected['active'], FILTER_VALIDATE_BOOL) || (int) ($selected['profile_usage'] ?? 0) > 0 || (int) ($selected['active_session_usage'] ?? 0) > 0; ?>
                                 <?php if (!$inUse): ?><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-delete" data-confirm="Delete this TTS connector?"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php if ($partialEditor): ?><input type="hidden" name="partial" value="editor"><?php endif; ?><?php endif; ?><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><button class="btn-danger" type="submit">Delete</button></form><?php else: ?><span class="toolbar-disabled"><button class="btn-danger" type="button" disabled aria-disabled="true" title="This connector is in use and cannot be deleted.">Delete</button></span><?php endif; ?>
@@ -231,4 +240,5 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 <?php if ($ttsPreview !== null) include __DIR__ . '/tmpl/tts_connector_test.php'; ?>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>" defer></script>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/tts-connector-test.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/tts-connector-test.js'); ?>" defer></script>
+<script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/tts-connector-import.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/tts-connector-import.js'); ?>" defer></script>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>
