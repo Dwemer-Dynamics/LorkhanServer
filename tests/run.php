@@ -2515,15 +2515,27 @@ $check($effective['settings']['behavior']['rechat']===true
     &&$effective['routing']['oghma_configuration_id']==='00000000-0000-4000-8000-000000000222',
     'Explicit NPC Rechat overrides Core Profile behavior while system routing remains separately owned');
 $npcExplicit = ['settings_overrides'=>['behavior'=>['rechat'=>false,'rechat_probability_percent'=>0],
-    'memory'=>['recent_turn_limit'=>3,'short_term_enabled'=>false], 'response'=>['max_words'=>0]]];
+    'memory'=>['recent_turn_limit'=>3,'short_term_enabled'=>false,'short_term_max_summaries'=>2],
+    'response'=>['max_words'=>0,'core_lang'=>'fr','lang_llm_xtts'=>true]]];
 $npcResolved=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcExplicit);
 $check($npcResolved['settings']['behavior']['rechat']===false
     &&$npcResolved['settings']['behavior']['rechat_probability_percent']===0
     &&$npcResolved['settings']['memory']['recent_turn_limit']===3
     &&$npcResolved['settings']['memory']['short_term_enabled']===false
     &&$npcResolved['settings']['response']['max_words']===0
+    &&$npcResolved['settings']['memory']['short_term_max_summaries']===2
+    &&$npcResolved['settings']['response']['core_lang']==='fr'
+    &&$npcResolved['settings']['response']['lang_llm_xtts']===true
     &&$npcResolved['sources']['settings.response.max_words']==='npc',
     'NPC false and zero overrides survive typed precedence and report their source');
+$npcPromptSelection=$sceneSelection;
+$npcPromptOverrides=$npcExplicit;
+$npcPromptOverrides['settings_overrides']['memory']['short_term_enabled']=true;
+$npcPromptSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcPromptOverrides);
+$npcPrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$npcPromptSelection);
+$check(count($npcPrompt['trace']['memory_retrieval']['result_ids'])===2
+    &&str_contains($npcPrompt['provider_input']['_assembled_prompt'],'un personnage'),
+    'NPC summary cap and Core language reach actual prompt assembly');
 $npcInherited=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,[]);
 $check($npcInherited['settings']['memory']['recent_turn_limit']===7
     &&$npcInherited['sources']['settings.memory.recent_turn_limit']==='core_profile',

@@ -45,7 +45,7 @@
                 const icon = document.createElement('span'); icon.textContent = section === 'quest_comments' ? '🧭' : section === 'memory' ? '🧠' : section === 'behavior' ? '🔁' : '⚙️';
                 const info = document.createElement('div'); info.className = 'npc-ovr-info';
                 const label = document.createElement('strong'); label.textContent = definition.label;
-                const value = document.createElement('span'); value.className = 'npc-ovr-value'; value.textContent = String(values[section][key]) + (definition.type === 'choice' ? '%' : ''); info.append(label, value);
+                const value = document.createElement('span'); value.className = 'npc-ovr-value'; value.textContent = definition.labels?.[values[section][key]] ?? String(values[section][key]) + (definition.suffix || ''); info.append(label, value);
                 const actions = document.createElement('div'); actions.className = 'npc-ovr-actions';
                 const edit = button('Edit', () => { opener = edit; openSetting(path); dialog.showModal(); });
                 edit.setAttribute('aria-label', 'Edit ' + definition.label);
@@ -68,12 +68,13 @@
             const label = root.querySelector('[data-npc-override-label]'); label.textContent = definition.label;
             const isBoolean = definition.type === 'boolean', isChoice = definition.type === 'choice';
             boolean.hidden = !(isBoolean || isChoice); number.hidden = isBoolean || isChoice;
-            boolean.replaceChildren(...(isChoice ? definition.choices.map(value => new Option(value + '%', String(value))) : [new Option('On','true'),new Option('Off','false')]));
+            boolean.replaceChildren(...(isChoice ? definition.choices.map(value => new Option(definition.labels?.[value] ?? String(value) + (definition.suffix || ''), String(value))) : [new Option('On','true'),new Option('Off','false')]));
             label.htmlFor = isBoolean || isChoice ? boolean.id : number.id;
             const current = values[section]?.[key] ?? definition.value;
             if (isBoolean || isChoice) boolean.value = String(current);
             else { number.required = true; number.min = definition.range[0]; number.max = definition.range[1]; number.value = current; }
-            root.querySelector('[data-npc-override-help]').textContent = isBoolean ? 'An explicit On or Off overrides the inherited setting.' : isChoice ? 'Choose one of the listed percentages. Removing this override restores inheritance.' : 'Allowed range: ' + definition.range.join('–') + '. Removing this override restores inheritance.';
+            root.querySelector('[data-npc-override-help]').textContent = isBoolean ? 'An explicit On or Off overrides the inherited setting.' : isChoice ? 'Choose one of the listed values. Removing this override restores inheritance.' : 'Allowed range: ' + definition.range.join('–') + '. Removing this override restores inheritance.';
+            if (definition.help) root.querySelector('[data-npc-override-help]').textContent = definition.help;
         };
         const filter = () => {
             options.replaceChildren();
@@ -94,8 +95,12 @@
         save.addEventListener('click', () => {
             const definition = catalog[selected], [section,key] = selected.split('.');
             if (definition.type === 'integer' && !number.reportValidity()) return;
-            if (definition.type === 'choice' && !definition.choices.includes(Number(boolean.value))) return;
-            values[section] ||= {}; values[section][key] = definition.type === 'boolean' ? boolean.value === 'true' : definition.type === 'choice' ? Number(boolean.value) : Number(number.value);
+            const choice = definition.type === 'choice' ? definition.choices.find(value => String(value) === boolean.value) : undefined;
+            if (definition.type === 'choice' && choice === undefined) return;
+            let value = Number(number.value);
+            if (definition.type === 'boolean') value = boolean.value === 'true';
+            else if (definition.type === 'choice') value = choice;
+            values[section] ||= {}; values[section][key] = value;
             sync(); dialog.close();
         });
         root.querySelector('[data-npc-override-apply]').addEventListener('click', () => {

@@ -10440,3 +10440,28 @@ were inspected. Temporary evidence: npc-metadata-parity.cjs, npc-info-fixture.ph
 npc-equipment-fixture.cjs and their screenshot outputs. No fixture data was written
 to the live database. No game or provider activity. Full NPC editor/modal and
 override-catalogue review remains open.
+
+### NPC language and short-term summary overrides (2026-09-11)
+
+Expanded the typed NPC override catalogue with Core Language, LLM Output Language
+and Max Summaries. These use the same effective-settings and prompt consumers as
+Core Profiles, now with explicit NPC precedence. The language switch asks the LLM
+for a spoken-language code for XTTS/Chatterbox; it is not a general translation
+switch. The editor explains this, the built-in-instruction language scope and the
+1–50 short-term summary limit. Removal restores inherited behavior.
+
+The picker now retains each choice's declared type instead of coercing every
+choice to a number. Language codes and blank remain strings; existing quest chances
+remain integers with percent labels. Missing language defaults remain blank/false.
+No arbitrary extra metadata or global-only controls were exposed. Dynamic-profile
+history still reads its Core source in the evolution worker and needs separate
+runtime work before an NPC override would be meaningful.
+
+Evidence: 907 existing-suite checks including NPC-resolved French instructions and
+a two-summary cap in actual prompt assembly; complete isolated management HTTP
+suite covering saved/preserved/removed overrides and rejection of invalid language,
+boolean and summary-limit values. GET-only deployed browser edits at 1280/390
+verified typed picker results, existing percentages, removal and invalid raw JSON;
+no live writes. Temporary npc-language-overrides.cjs, screenshots and
+npc-language-overrides-http.txt. No game launch or provider calls. Full catalogue
+and page-matrix closure remain unfinished.

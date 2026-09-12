@@ -9,17 +9,32 @@ $overrideLabels = [
     'memory.recent_turn_limit'=>'Context History', 'memory.short_term_enabled'=>'Short Term Memory',
     'memory.mid_term_enabled'=>'Middle Term Memory', 'memory.long_term_enabled'=>'Long Term Memory',
     'response.max_words'=>'Maximum Response Words',
+    'memory.short_term_max_summaries'=>'Max Summaries',
+    'response.core_lang'=>'Core Language', 'response.lang_llm_xtts'=>'LLM Output Language',
 ];
+$help=[
+            'response.core_lang'=>'Language of built-in roleplay instructions. Blank uses English; custom prompts and output translation are unchanged.',
+            'response.lang_llm_xtts'=>'Ask the LLM for the spoken language and use it for XTTS/Chatterbox. Missing or unsupported codes keep the configured voice language.',
+            'memory.short_term_max_summaries'=>'Maximum past-scene summaries included in a response (1–50). Used only when Short Term Memory is enabled.',
+        ];
 $overrideCatalog=[];$overrideValues=[];
 foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $section=>$fields) {
     foreach ($fields as $key) {
         $path=$section.'.'.$key;
         $range=\LorkhanServer\Application\SettingsCatalog::ranges()[$path] ?? ($path==='response.max_words'?[0,10000]:null);
+        if($path==='memory.short_term_max_summaries')$range=[1,50];
         $default=$effectiveSettings['settings'][$section][$key]
             ?? \LorkhanServer\Application\SettingsCatalog::clientDefaults()[$section][$key] ?? ($range?0:true);
+        if($path==='response.core_lang')$default=$effectiveSettings['settings']['response']['core_lang']??'';
+        if($path==='response.lang_llm_xtts')$default=$effectiveSettings['settings']['response']['lang_llm_xtts']??false;
         $overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>$range?'integer':'boolean','range'=>$range,'value'=>$default];
         if($path==='quest_comments.chance_percent')$overrideCatalog[$path]=[
-            'label'=>$overrideLabels[$path],'type'=>'choice','choices'=>[10,25,50,75,100],'value'=>$default];
+            'label'=>$overrideLabels[$path],'type'=>'choice','choices'=>[10,25,50,75,100],'suffix'=>'%','value'=>$default];
+        if($path==='response.core_lang')$overrideCatalog[$path]=[
+            'label'=>$overrideLabels[$path],'type'=>'choice',
+            'choices'=>array_keys(\LorkhanServer\Application\CoreProfileLanguage::LABELS),
+            'labels'=>\LorkhanServer\Application\CoreProfileLanguage::LABELS,'value'=>$default];
+        if(isset($help[$path]))$overrideCatalog[$path]['help']=$help[$path].' Remove this override to restore inheritance.';
         if(array_key_exists($key,$content['settings_overrides'][$section]??[]))$overrideValues[$section][$key]=$content['settings_overrides'][$section][$key];
     }
 }
