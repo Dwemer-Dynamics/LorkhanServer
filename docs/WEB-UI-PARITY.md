@@ -10749,3 +10749,30 @@ or paid provider calls.
 - Temporary evidence: ambient-unit.txt, ambient-http.txt, ambient-core-proof.cjs,
   ambient-global-proof.cjs and corresponding screenshots.
 - Final HTTP result: full browser-like management forms suite passed.
+
+## TTS primary editor audit and Zonos guidance (2026-09-11)
+
+- Compared current rendered primary input catalogues for all seventeen shared
+  drivers: PocketTTS, Chatterbox, XTTS FastAPI, Inworld, Cartesia, OmniVoice,
+  Piper, xVASynth, MeloTTS, Mimic3, Azure, ElevenLabs, OpenAI, Kokoro,
+  KoboldCPP, Zonos and Deepgram. Field types and primary field inventory match
+  after native name mappings except the two cases below. This is field-inventory
+  evidence, not full provider interaction or all-page visual acceptance.
+- Zonos Cached Voice Path remains read-only in Lorkhan; the reference renders an
+  editable text field. Its runtime checks cached-file availability and falls back
+  to upload. A native edit must preserve endpoint/sample/digest and NPC-voice
+  isolation; this remains required work, not an accepted parity exception.
+- Mimic3 Volume exists in the reference form but is consumed only by
+  `ttsMimicOld`, not active `tts`. Do not add an inert setting as functional parity.
+- Reference numeric Zonos inputs have no min/max constraints; their help recommends
+  speaking rate 5-30 and CFG 1.1-5. Native help now includes these recommendations
+  while explicitly retaining its existing accepted ranges (1-40 and 0-20).
+  No previously accepted connector setting is invalidated by this presentation fix.
+- Native 1280/390 checks prove numeric boundary validity, revised help, advanced
+  JSON draft retention on disclosure close/reopen, and the current read-only cache
+  behavior. Narrow screenshot inspected. No production POST or provider request.
+- PHP deployment preflight passed and all 815 runtime files match source, with
+  private routes protected and credentials/voice files preserved. Temporary
+  evidence: tts-current-field-audit.cjs/.json, zonos-final-proof.cjs and screenshots.
+  Lower revision surfaces, editable cache and broader provider interactions remain
+  open. The audit does not close the entire TTS or hub page.

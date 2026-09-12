@@ -70,8 +70,8 @@ $fieldHelp = [
     'zonos_gradio'=>['language'=>'Language','model'=>'Model to use.',
         'option__dynamic_tones'=>'Enhance emotional quality by requesting values from the LLM. If disabled, emotions follow the LLM-selected mood.',
         'option__pitch_std'=>'Pitch standard deviation [0-300]',
-        'option__speaking_rate'=>'Speaking rate. Higher is faster. [1-40]',
-        'option__cfg_scale'=>'CFG scale. Controls how closely the audio matches the sample voice. Higher numbers will be a closer match. [0-20]'],
+        'option__speaking_rate'=>'Speaking rate. Higher is faster. Recommended: 5-30. Accepted range: 1-40.',
+        'option__cfg_scale'=>'CFG scale. Controls how closely the audio matches the sample voice. Higher numbers will be a closer match. Recommended: 1.1-5. Accepted range: 0-20.'],
     'piper-tts'=>[
         'option__length_scale'=>'speaking time scale. Use a value over 1.0 to play slower, a value under 1.0 is faster.',
         'option__noise_scale'=>'speaking variability. Leave 0 to use voice model internal value. Experiment with values around 0.667',
