@@ -18,6 +18,9 @@ if ! pg_ctl -D "$TMP/data" -o "-h 127.0.0.1 -k $TMP -p $PORT" -l "$TMP/postgres.
 fi
 createdb -h 127.0.0.1 -p "$PORT" lorkhan_test
 createdb -h 127.0.0.1 -p "$PORT" lorkhan_migrations_test
+mkdir "$TMP/factory"
+bash "$ROOT/scripts/build-factory-database.sh" "$TMP/factory"
+LORKHAN_TEST_FACTORY_DIR="$TMP/factory" \
 LORKHAN_TEST_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=lorkhan_test" \
 LORKHAN_RESPONSE_CAPTURE="${LORKHAN_RESPONSE_CAPTURE:-}" php "$ROOT/tests/integration.php"
 LORKHAN_SCHEMA_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=lorkhan_test" \
@@ -30,7 +33,3 @@ RESTORED_TABLES=$(psql -h 127.0.0.1 -p "$PORT" -d lorkhan_restore_test -Atc \
 [ "$RESTORED_TABLES" = "4" ] || { printf 'backup restore schema check failed\n' >&2; exit 1; }
 LORKHAN_TEST_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=lorkhan_migrations_test" \
 php "$ROOT/tests/migrations_jobs.php"
-
-# Source-only factory archive must round-trip in its own socket-only cluster before reset can consume it.
-mkdir "$TMP/factory"
-bash "$ROOT/scripts/build-factory-database.sh" "$TMP/factory"

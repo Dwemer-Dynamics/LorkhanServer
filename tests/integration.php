@@ -3596,4 +3596,69 @@ try {
     try{$products->queueDebugCommand($browserSession,'player.dialogue.submit',array_replace($speechParameters,['text'=>'Changed']),$speechId);$assert(false,'browser request ID reused for changed text');}
     catch(InvalidArgumentException $error){$assert($error->getMessage()==='browser_speech_request_conflict','unexpected browser retry error');}
 } finally {$db->rollBack();}
+
+// Execute factory reset only on this disposable fixture, after the other runtime assertions.
+$factoryDirectory=getenv('LORKHAN_TEST_FACTORY_DIR')?:'';
+if($factoryDirectory!==''){
+    $factoryRoot=sys_get_temp_dir().'/lorkhan-factory-worker-'.bin2hex(random_bytes(8));
+    $factoryConfig=['database_dsn'=>$dsn,'database_user'=>getenv('LORKHAN_TEST_DB_USER')?:'',
+        'database_password'=>getenv('LORKHAN_TEST_DB_PASSWORD')?:'','backup_storage_path'=>$factoryRoot,
+        'factory_storage_path'=>$factoryDirectory,'voice_storage_path'=>$factoryRoot.'/voices'];
+    $manifestPath=$factoryDirectory.'/factory.json';$manifestText=(string)file_get_contents($manifestPath);
+    $factoryManifest=json_decode($manifestText,true,16,JSON_THROW_ON_ERROR);
+    $factoryFingerprint=hash('sha256',$factoryManifest['migration_fingerprint']."\0".$factoryManifest['catalog_fingerprint']);
+    $factoryJobs=new JobRepository($db);
+    $factoryHandler=new class(new \LorkhanServer\Application\DatabaseFactoryResetJobHandler($db,$factoryConfig)) implements \LorkhanServer\Application\JobHandler {
+        public array $errors=[];
+        public function __construct(private readonly \LorkhanServer\Application\JobHandler $inner){}
+        public function supports(string $type,int $version):bool{return $this->inner->supports($type,$version);}
+        public function handle(array $payload,string $key,callable $heartbeat):void{
+            try{$this->inner->handle($payload,$key,$heartbeat);}catch(\Throwable $error){$this->errors[]=$error->getMessage();throw $error;}
+        }
+    };
+    $factoryRegistry=new \LorkhanServer\Application\JobHandlerRegistry([$factoryHandler]);
+    $factoryWorker=new Worker($factoryJobs,$factoryRegistry,'factory-fixture',30,1,1,1,60,['database.factory_reset']);
+    $db->exec("CREATE TABLE public.factory_removed(value text); INSERT INTO public.factory_removed VALUES('old-user-data')");
+    $eventCount=(int)$db->query('SELECT count(*) FROM source_events')->fetchColumn();
+    $assert($eventCount>0,'factory test needs existing history');
+    $controlDigest=static function()use($db):string{
+        return (string)$db->query("SELECT md5(COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY installation_id)::text FROM installations t),'')||COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY pairing_token_id)::text FROM pairing_tokens t),'')||COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY session_hash)::text FROM browser_sessions t),''))")->fetchColumn();
+    };
+    $originalControl=$controlDigest();
+    try{
+        $badJob=\LorkhanServer\Infrastructure\Uuid::v4();$badRollback=\LorkhanServer\Infrastructure\Uuid::v4();
+        $factoryJobs->enqueue($badJob,'database.factory_reset',1,$badJob,['fingerprint'=>str_repeat('0',64),'rollback_id'=>$badRollback],1);
+        $badStats=$factoryWorker->run();
+        $assert($badStats['dead']===1&&$badStats['retried']===0,'stale factory request retried or ran');
+        $assert(!is_file((new \LorkhanServer\Infrastructure\DatabaseSqlBackup($factoryConfig))->path($badRollback)),'stale reset created a backup');
+        $badManifest=$factoryManifest;$badManifest['seed_sha256']=str_repeat('0',64);
+        file_put_contents($manifestPath,json_encode($badManifest,JSON_THROW_ON_ERROR));
+        $failedJob=\LorkhanServer\Infrastructure\Uuid::v4();$failedRollback=\LorkhanServer\Infrastructure\Uuid::v4();
+        $factoryJobs->enqueue($failedJob,'database.factory_reset',1,$failedJob,['fingerprint'=>$factoryFingerprint,'rollback_id'=>$failedRollback],1);
+        $failedStats=$factoryWorker->run();
+        $assert($failedStats['dead']===1&&$failedStats['retried']===0,'mismatched factory state was committed or retried');
+        $assert((int)$db->query('SELECT count(*) FROM source_events')->fetchColumn()===$eventCount
+            &&$db->query('SELECT value FROM public.factory_removed')->fetchColumn()==='old-user-data'&&$controlDigest()===$originalControl,'failed reset lost data or authentication');
+        $assert($factoryHandler->errors===["factory_source_changed","factory_state_mismatch"],"factory failure did not reach expected validation stage");
+        file_put_contents($manifestPath,$manifestText);
+        $factoryJob=\LorkhanServer\Infrastructure\Uuid::v4();$rollback=\LorkhanServer\Infrastructure\Uuid::v4();
+        $factoryJobs->enqueue($factoryJob,'database.factory_reset',1,$factoryJob,['fingerprint'=>$factoryFingerprint,'rollback_id'=>$rollback],1);
+        $factoryStats=$factoryWorker->run();
+        $assert($factoryStats['succeeded']===1&&$factoryStats['dead']===0,'factory worker did not succeed');
+        $assert((int)$db->query('SELECT count(*) FROM source_events')->fetchColumn()===0
+            &&$db->query("SELECT to_regclass('public.factory_removed')")->fetchColumn()===null,'factory reset retained old history or relations');
+        $assert($controlDigest()===$originalControl,'factory reset changed login or pairing identities');
+        $assert((int)$db->query('SELECT count(*) FROM configuration_sets')->fetchColumn()>0,'factory reset did not provision defaults');
+        $backup=(new ProductRepository($db))->configurationBackupRecord($rollback);
+        $backupPath=(new \LorkhanServer\Infrastructure\DatabaseSqlBackup($factoryConfig))->path($rollback);
+        $assert(($backup['scope']['factory_reset']??false)===true&&$backup['scope']['rollback_for']===$factoryJob
+            &&hash_equals($backup['content_sha256'],hash_file('sha256',$backupPath)),'factory rollback backup missing or changed');
+    }finally{
+        file_put_contents($manifestPath,$manifestText);
+        foreach(glob($factoryRoot.'/sql/*')?:[] as $file)unlink($file);
+        if(is_dir($factoryRoot.'/sql'))rmdir($factoryRoot.'/sql');
+        if(is_dir($factoryRoot))rmdir($factoryRoot);
+    }
+}
+
 fwrite(STDOUT, "integration vertical slice passed\n");

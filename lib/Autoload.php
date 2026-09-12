@@ -73,6 +73,7 @@ spl_autoload_register(static function (string $class): void {
         'Application\\DatabaseCompactJobHandler' => '/service/DatabaseCompactJobHandler.php',
         'Application\\DatabaseBackupJobHandler' => '/service/DatabaseBackupJobHandler.php',
         'Application\\DatabaseReplayJobHandler' => '/service/DatabaseReplayJobHandler.php',
+        'Application\\DatabaseFactoryResetJobHandler' => '/service/DatabaseFactoryResetJobHandler.php',
         'Application\\DatabaseRestoreJobHandler' => '/service/DatabaseRestoreJobHandler.php',
         'Application\\RelationshipEvaluateJobHandler' => '/service/RelationshipEvaluateJobHandler.php',
         'Application\\SpeechPreviewCatalog' => '/tts/SpeechPreviewCatalog.php',
