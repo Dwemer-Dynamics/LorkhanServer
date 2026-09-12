@@ -12146,7 +12146,7 @@ Evidence for this workflow and shared embedded-font correction:
   pages, like Herika. Standalone navbar appearance is unchanged.
 - All fifteen configuration entry pages render at 1280/390 without a navbar
   stylesheet or unwanted body top offset in `embedded-font-review.cjs`; the
-  deployed rerun is tracked separately. These checks are for the shared change,
+  deployed rerun also passes in `embedded-font-deployed-review.cjs`. These checks are for the shared change,
   not a fresh claim that every page's content or runtime feature is complete.
 - Full local deployment completed, rollback
   `/var/backups/lorkhanserver-code.axjUEo`. All 864 runtime files match source,
@@ -12157,3 +12157,15 @@ Evidence for this workflow and shared embedded-font correction:
 
 The complete webpage goal remains active; other matrix gaps are not closed by
 this import/export and shared typography checkpoint.
+
+### Core import control-style follow-up
+
+The final deployed comparison also copies help-list margins/text colour, the
+file-selector button, title line height and Cancel button weight/line height.
+`core-import-style-diff.cjs` now reports no differences for the measured title,
+help card, file input, Cancel and slot styles (font family/weight/size/line height,
+padding, background/text colours, shadows, border/radius and height). This is a
+bounded control comparison, not whole-page pixel identity: product wording and
+saved profile counts differ. Deployed desktop/narrow import interaction checks
+pass again. All 864 runtime files match source after the CSS-only refresh;
+rollback CSS is `/var/backups/lorkhan-core-import-before-control-style.css`.

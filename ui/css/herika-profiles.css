@@ -2098,7 +2098,7 @@ body.profile-rules-open {
 #core-import-dialog { padding:0; width:min(95vw,700px); max-width:95vw; max-height:90vh; overflow:hidden; background:#2a2a2a; color:#e9efff; border:1px solid #4a4a4a; border-radius:10px; }
 #core-import-dialog::backdrop { background:rgba(0,0,0,.75); }
 #core-import-dialog .core-import-header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid #4a4a4a; }
-#core-import-title { margin:0; font-weight:700; color:rgb(188,157,90); font-family:MagicCards,serif; word-spacing:6px; font-size:1.6em; }
+#core-import-title { line-height:1.5; margin:0; font-weight:700; color:rgb(188,157,90); font-family:MagicCards,serif; word-spacing:6px; font-size:1.6em; }
 #core-import-dialog .core-import-header button { background:#3a3a3a; color:#fff; border:1px solid rgba(138,155,182,.35); border-radius:8px; padding:8px 14px; font-weight:700; }
 #core-import-dialog .core-import-body { padding:16px; overflow:auto; max-height:calc(90vh - 65px); }
 #core-import-dialog .core-import-help { margin-bottom:16px; padding:12px; background:#1a1a1a; border:1px solid #4a4a4a; border-radius:8px; }
@@ -2116,5 +2116,9 @@ body.profile-rules-open {
 #core-import-dialog { padding:30px; background:#232323; border-radius:14px; }
 #core-import-dialog .core-import-header { background:#2b2b2b; }
 #core-import-dialog .core-import-body { background:#232323; max-height:calc(90vh - 125px); }
-#core-import-dialog .core-import-help { font-size:12px; line-height:18px; }
+#core-import-dialog .core-import-help { font-size:12px; line-height:18px; color:#cfd9ea; }
 #core-import-dialog .core-import-label { font-family:"Futura CondensedLight",Arial,sans-serif; }
+
+#core-import-dialog .core-import-help li { margin:2px 0; }
+#core-import-file::file-selector-button { font:400 14px/21px "Futura CondensedLight",Arial,sans-serif; margin:0 10px 0 0; padding:8px 12px; color:#fff; background:#6c757d; border:0; border-radius:4px; cursor:pointer; }
+#core-import-dialog .core-import-actions [data-core-import-close] { font-weight:500; line-height:1.2; background:#3b3b3b !important; border-color:#565656 !important; }
