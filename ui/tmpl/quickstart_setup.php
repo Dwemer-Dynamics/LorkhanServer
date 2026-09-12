@@ -18,14 +18,14 @@ $localNetwork=\LorkhanServer\Application\QuickstartLocalLlm::networkIps();
         </fieldset>
         <p class="qs-preset-desc" id="qs_settings_preset_desc" role="status" aria-live="polite">Default settings for all Core Profiles, with profile backfill, relationship updates, memory summaries and semantic recall enabled.</p>
     </div>
-    <p class="qs-local-llm-note qs-local-llm-note-warn" id="qs_local_llm_player2_warning" role="status" aria-live="polite" hidden>Player2 is on. Player2 handles every LLM call, so these Local LLM fields are turned off and will not be used. Your values are kept if you switch Player2 back off.</p>
     <fieldset class="qs-local-llm" id="qs_local_llm_panel" hidden disabled>
         <div class="qs-local-llm-head"><h3 class="qs-local-llm-title">Local LLM Setup</h3></div>
+        <p class="qs-local-llm-note qs-local-llm-note-warn" id="qs_local_llm_player2_warning" role="status" aria-live="polite" hidden>Player2 is on. Player2 handles every LLM call, so these Local LLM fields are turned off and will not be used. Your values are kept if you switch Player2 back off.</p>
         <input type="hidden" name="local_key_configured" value="<?= $localKeyConfigured?'1':'0' ?>">
         <div class="qs-local-llm-grid">
-            <div class="qs-local-llm-field"><label for="qs-local-server">Server type</label><select class="form-control" id="qs-local-server" name="local_server">
+            <div class="qs-local-llm-field"><label for="qs-local-server">Server type</label><div class="qs-select-wrap"><select class="form-control" id="qs-local-server" name="local_server">
             <?php foreach(\LorkhanServer\Application\QuickstartLocalLlm::SERVERS as $value=>[$label,$port]): ?><option value="<?= $value ?>" data-port="<?= $port??'' ?>"<?= ($localState['server_type']??'lm_studio')===$value?' selected':'' ?>><?= lorkhan_ui_h($label) ?></option><?php endforeach; ?>
-            </select></div>
+            </select></div></div>
             <div class="qs-local-llm-field"><label for="qs-local-model">Model name</label><input class="form-control" id="qs-local-model" name="local_model" required maxlength="256" autocomplete="off" spellcheck="false" placeholder="llama-3.1-8b-instruct" value="<?= lorkhan_ui_h($localContent['model']??'') ?>"><small class="form-text">Enter the exact model id your server reports.</small></div>
             <div class="qs-local-llm-field qs-local-llm-field-wide"><label for="qs-local-endpoint">Server URL</label><input class="form-control" type="url" id="qs-local-endpoint" name="local_endpoint" required autocomplete="off" spellcheck="false" value="<?= lorkhan_ui_h($localContent['endpoint']??'http://'.($localNetwork['host_ip']?:'127.0.0.1').':1234/v1/chat/completions') ?>" aria-describedby="qs-local-url-help qs-local-loopback">
                 <div class="qs-local-llm-actions"><?php foreach(['host_ip'=>'Windows host','wsl_ip'=>'WSL'] as $key=>$label): ?><button type="button" class="qs-mini-btn" data-local-ip="<?= lorkhan_ui_h($localNetwork[$key]) ?>" title="<?= lorkhan_ui_h($localNetwork[$key]!==''?'Use '.$localNetwork[$key]:$label.' IP could not be detected on this server.') ?>"<?= $localNetwork[$key]===''?' disabled':'' ?>>Use <?= $label ?> IP</button><?php endforeach; ?></div>
@@ -45,9 +45,8 @@ $localNetwork=\LorkhanServer\Application\QuickstartLocalLlm::networkIps();
                 <div id="qs-local-key-status" data-key-status role="status" aria-live="polite" hidden></div>
             </div>
             <div class="qs-local-llm-field"><label for="qs-local-timeout">Timeout (seconds)</label><input class="form-control" type="number" id="qs-local-timeout" name="local_timeout" min="5" max="120" step="1" value="<?= (int)(($localContent['timeout_ms']??30000)/1000) ?>" required><small class="form-text">How long to wait for a reply before giving up. Default 30.</small></div>
-            <div class="qs-local-llm-field qs-local-llm-field-wide"><label class="qs-local-llm-check"><input type="checkbox" name="local_disable_streaming"<?= ($localContent['options']['stream']??true)===false?' checked':'' ?>> Disable streaming</label><small class="form-text">Off by default. Turn on only if your server returns broken or empty streamed replies.</small></div>
+            <div class="qs-local-llm-field qs-local-llm-field-wide"><div class="form-check qs-local-llm-check"><input class="form-check-input" type="checkbox" id="qs-local-disable-streaming" name="local_disable_streaming" value="1" aria-describedby="qs-local-streaming-help"<?= ($localContent['options']['stream']??true)===false?' checked':'' ?>><label class="form-check-label" for="qs-local-disable-streaming">Disable streaming</label></div><small class="form-text" id="qs-local-streaming-help">Off by default. Turn on only if your server returns broken or empty streamed replies.</small></div>
         </div></details>
         <div class="qs-local-llm-test"><button type="button" class="btn-primary qs-mini-btn qs-test-btn" id="qs_test_local_llm">Test connection</button><div class="qs-status qs-local-llm-status" id="qs_local_llm_status" role="status" aria-live="polite" hidden></div></div>
-        <p class="form-text">Saving applies this preset to all Core Profiles and updates default model routes. Local LLM also disables profile backfill, relationship updates, memory summaries and semantic recall, hides prompt timestamps, and uses item descriptions only. NPC-specific overrides and your current in-game slot stay unchanged.</p>
     </fieldset>
 </section>

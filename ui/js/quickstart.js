@@ -137,7 +137,7 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
         form.querySelector('[data-local-llm-note]').hidden=!local||player2;
         form.querySelector('[data-quick-key="openrouter"]').closest('.qs-section').hidden=player2;
         section.querySelector('#qs_settings_preset_desc').textContent=local?
-            'Shorter context and replies for all Core Profiles in this installation. Configure the local model below.':
+            'Minimal mode for a local model sharing your GPU with Morrowind. NPCs still talk and act, but prompts and replies are shorter and most optional background AI features are turned off.':
             'Default settings for all Core Profiles, with profile backfill, relationship updates, memory summaries and semantic recall enabled.';
         form.querySelector('[data-normal-recap]').hidden=local||player2;
         form.querySelector('[data-model-editor]').hidden=local||player2;

@@ -419,6 +419,7 @@ body > main.quickstart-page{max-width:none;margin:0;padding:80px 10px 40px;color
     }
 
     .quickstart-page .qs-local-llm-check .form-check-input {
+        accent-color: #bc9d5a;
         position: static;
         margin: 0;
         width: 16px;
@@ -510,7 +511,6 @@ body > main.quickstart-page{max-width:none;margin:0;padding:80px 10px 40px;color
 .quickstart-page .qs-switch-input:checked+.qs-switch-label .qs-switch-track::after{transform:translateX(24px)}
 .quickstart-page .qs-switch-input:checked+.qs-switch-label .qs-switch-copy::before{content:attr(data-on)}
 .quickstart-page .qs-switch-input:focus-visible+.qs-switch-label{outline:2px solid #bc9d5a;outline-offset:4px;border-radius:4px}
-.quickstart-page .qs-local-llm-check input{width:auto;display:inline-block;margin-right:6px}
 .quickstart-page .qs-local-llm .qs-key-input{flex-wrap:wrap}
 .quickstart-page .qs-local-llm .qs-key-input input{flex-basis:130px}
 @media(max-width:640px){
