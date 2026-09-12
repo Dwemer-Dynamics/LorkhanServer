@@ -12,6 +12,7 @@ final class MigrationRunner
 {
     private const LOCK_ID = 6_525_393_698_659_162;
     private const LEDGER = 'lorkhan_internal.schema_migrations';
+    private bool $atomicReplay = false;
 
     public function __construct(
         private readonly PDO $db,
@@ -136,6 +137,26 @@ final class MigrationRunner
             $this->revert($migration);
             $this->apply($migration);
             return $version;
+        });
+    }
+
+    /** Replay one applied migration and its dependants atomically; callers must confirm destructive changes and back up first. */
+    public function replayFrom(int $version): array
+    {
+        if($this->db->inTransaction())throw new RuntimeException('Migration replay requires its own transaction.');
+        return $this->locked(function()use($version):array{
+            $migrations=$this->discover();$applied=$this->applied();$this->assertNoDrift($migrations,$applied);
+            if(!isset($applied[$version]))throw new RuntimeException('Replay target must be an applied migration.');
+            $replay=array_values(array_filter($migrations,static fn(array $migration):bool=>$migration['version']>=$version&&isset($applied[$migration['version']])));
+            $this->transaction(function()use($replay,$migrations):void{
+                $this->atomicReplay=true;
+                try{
+                    foreach(array_reverse($replay)as$migration)$this->revert($migration);
+                    foreach($replay as$migration)$this->apply($migration);
+                    $this->assertNoDrift($migrations,$this->applied());
+                }finally{$this->atomicReplay=false;}
+            });
+            return array_column($replay,'version');
         });
     }
 
@@ -277,6 +298,12 @@ final class MigrationRunner
 
     private function transaction(callable $callback): void
     {
+        // A replay owns one outer transaction, including every schema and ledger change.
+        if($this->atomicReplay){
+            $this->db->exec('SET LOCAL search_path TO public, pg_temp');
+            $callback();
+            return;
+        }
         $this->db->beginTransaction();
         try {
             // Historical migrations intentionally build their source tables in public;

@@ -119,6 +119,38 @@ $check($runner->down(1) === [$latestVersion], 'down did not revert latest migrat
 $check($runner->up() === [$latestVersion], 'up did not restore reverted migration');
 $check($runner->rerun() === $latestVersion, 'rerun did not cycle latest migration');
 $check($runner->fresh() === $expectedVersions, 'fresh did not rebuild all migrations');
+$check($runner->replayFrom($latestVersion-1)===[$latestVersion-1,$latestVersion], 'atomic replay omitted dependent migrations');
+foreach([0,$latestVersion+1]as$invalidReplay){
+    try{$runner->replayFrom($invalidReplay);$check(false,'invalid replay target accepted');}
+    catch(RuntimeException $error){$check(str_contains($error->getMessage(),'applied migration'),'wrong invalid replay error');}
+}
+// A real downgrade guard fails after later migrations were reverted. All earlier DDL/data/ledger work must roll back.
+$replayInstallation=Uuid::v4();$replayDescription=Uuid::v4();
+$db->prepare('INSERT INTO installations(installation_id,token_fingerprint) VALUES(:id,:token)')->execute(['id'=>$replayInstallation,'token'=>str_repeat('b',64)]);
+$db->prepare("INSERT INTO item_descriptions(description_id,installation_id,content_file,record_id,display_name,description) VALUES(:id,:installation,'Replay.esp','replay_blank','','')")->execute(['id'=>$replayDescription,'installation'=>$replayInstallation]);
+$replayLedger=$db->query('SELECT * FROM lorkhan_internal.schema_migrations ORDER BY version')->fetchAll();
+try{$runner->replayFrom(90);$check(false,'lossy replay was accepted');}
+catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot restore required catalog fields'),'unexpected atomic replay failure');}
+$check(!$db->inTransaction()&&$db->query('SELECT * FROM lorkhan_internal.schema_migrations ORDER BY version')->fetchAll()===$replayLedger,'failed replay changed ledger or retained transaction');
+$check($db->query("SELECT to_regclass('lorkhan_internal.action_intents_conversation_end_session')")->fetchColumn()!==null,'failed replay lost later migration index');
+$check($db->query("SELECT count(*) FROM lorkhan_internal.action_catalog WHERE action_name='conversation.end'")->fetchColumn()===1,'failed replay lost later migration seed');
+$check($db->query("SELECT display_name='' AND description='' FROM item_descriptions WHERE record_id='replay_blank'")->fetchColumn()===true,'failed replay changed guarded data');
+$db->prepare('DELETE FROM item_descriptions WHERE description_id=:id')->execute(['id'=>$replayDescription]);
+$db->prepare('DELETE FROM installations WHERE installation_id=:id')->execute(['id'=>$replayInstallation]);
+$check($runner->replayFrom($latestVersion)===[$latestVersion],'replay could not recover after rollback');
+// Fail an up step after its down step succeeded; the same transaction must restore both.
+$db->exec("CREATE FUNCTION pg_temp.reject_replay_seed() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action_name='conversation.end' THEN RAISE EXCEPTION 'isolated_replay_seed_failure'; END IF; RETURN NEW; END $$");
+$db->exec('CREATE TRIGGER reject_replay_seed BEFORE INSERT ON lorkhan_internal.action_catalog FOR EACH ROW EXECUTE FUNCTION pg_temp.reject_replay_seed()');
+$replayLedger=$db->query('SELECT * FROM lorkhan_internal.schema_migrations ORDER BY version')->fetchAll();
+try{$runner->replayFrom(101);$check(false,'failed up replay was accepted');}
+catch(PDOException $error){$check(str_contains($error->getMessage(),'isolated_replay_seed_failure'),'unexpected up replay failure');}
+$check($db->query('SELECT * FROM lorkhan_internal.schema_migrations ORDER BY version')->fetchAll()===$replayLedger,'failed up replay changed ledger');
+$check($db->query("SELECT count(*) FROM lorkhan_internal.action_catalog WHERE action_name='conversation.end'")->fetchColumn()===1,'failed up replay lost original seed');
+$check($db->query("SELECT to_regclass('lorkhan_internal.action_intents_conversation_end_session')")->fetchColumn()!==null,'failed up replay lost original index');
+$db->exec('DROP TRIGGER reject_replay_seed ON lorkhan_internal.action_catalog');
+$db->exec('DROP FUNCTION pg_temp.reject_replay_seed()');
+
+
 
 // Optional catalog fields must not be filled with invented text by a downgrade.
 $db->beginTransaction();
