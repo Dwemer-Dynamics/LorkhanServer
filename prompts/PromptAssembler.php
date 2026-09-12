@@ -132,7 +132,7 @@ final class PromptAssembler
                 $final .= "\n".strtr($instruction, $replacements);
             }
         }
-        $historyMessages = $this->historyMessages($history, $turn, $actorName, $playerName, $moodTemplates, $contextPolicy['prompt_timestamp'] ?? false);
+        $historyMessages = $this->historyMessages($history, $turn, $actorName, $playerName, $moodTemplates, $contextPolicy['prompt_timestamp'] ?? false, $contextPolicy['hide_ambient_combat'] ?? false);
         $knowledgeStatus = (string)($selection['knowledge_retrieval']['status'] ?? 'grounded');
         $systemBudget = max(192, $this->maxInputBytes - strlen($final) - 256);
         $speechStyle = is_array($selection['speech_style'] ?? null) ? $selection['speech_style'] : [];
@@ -932,7 +932,7 @@ Return a tones object before mood and text in every utterance. Include all eight
     }
 
     /** @param list<array<string,mixed>> $rows @return list<array{role:string,content:string,_source_id:string,_complete:bool}> */
-    private function historyMessages(array $rows, array $turn, string $actorName, string $playerName, mixed $moodTemplates, bool $timestamp): array
+    private function historyMessages(array $rows, array $turn, string $actorName, string $playerName, mixed $moodTemplates, bool $timestamp, bool $hideAmbientCombat): array
     {
         if (($turn['payload']['ui_source'] ?? null) === 'lorkhan_rechat') {
             $latestPlayerInput = null;
@@ -951,6 +951,10 @@ Return a tones object before mood and text in every utterance. Include all eight
         foreach ($rows as $row) {
             $id = $this->sourceId('history', $row);
             $content = $row['content'] ?? null;
+            // Herika buildHistoricContext filters only death events containing this marker.
+            if ($hideAmbientCombat && is_array($content) && ($content['kind'] ?? '') === 'event'
+                && ($content['type'] ?? '') === 'death' && is_string($content['details']['text'] ?? null)
+                && stripos($content['details']['text'], 'has killed') !== false) continue;
             $message = $this->historyMessage($content, $turn, $actorName, $playerName, $moodTemplates);
             if ($message === null) continue;
             $message['_complete'] = strlen($message['content']) <= $this->maxSourceBytes;

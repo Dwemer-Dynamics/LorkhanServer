@@ -2066,6 +2066,8 @@ for timestamp_enabled in [True, False]:
     timestamp_values=dict(timestamp_form['fields'],_csrf=csrf,change_reason='HTTP temporal context toggle')
     timestamp_values.pop('context_prompt_timestamp',None)
     if timestamp_enabled: timestamp_values['context_prompt_timestamp']='1'
+    timestamp_values.pop('context_hide_ambient_combat',None)
+    if timestamp_enabled: timestamp_values['context_hide_ambient_combat']='1'
     timestamp_values.pop('context_power_awareness_enabled',None)
     if timestamp_enabled: timestamp_values['context_power_awareness_enabled']='1'
     timestamp_values.pop('context_ground_items_descriptions_only',None)
@@ -2078,6 +2080,7 @@ for timestamp_enabled in [True, False]:
     timestamp_fields=next(f['fields'] for f in timestamp_saved.forms if f['action'].endswith('/forms/global-settings-save'))
     assert ('context_prompt_timestamp' in timestamp_fields)==timestamp_enabled,timestamp_enabled
     assert ('context_power_awareness_enabled' in timestamp_fields)==timestamp_enabled,timestamp_enabled
+    assert ('context_hide_ambient_combat' in timestamp_fields)==timestamp_enabled,timestamp_enabled
     assert ('context_ground_items_descriptions_only' in timestamp_fields)==timestamp_enabled,timestamp_enabled
     assert ('context_inventory_items_descriptions_only' in timestamp_fields)==timestamp_enabled,timestamp_enabled
     assert '<h2>Context</h2>' in timestamp_body and '<h2>Context Selections' in timestamp_body

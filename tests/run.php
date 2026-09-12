@@ -1077,6 +1077,26 @@ $contextTurn['payload']['context']=[
 $contextTurn['_nearby_actor_profiles']=[['actor_identity'=>['kind'=>'npc','record_id'=>'chargen_boat_guard_1',
     'content_file'=>'Morrowind.esm','display_name'=>'Guard'],'content'=>['biography'=>'A watchful Imperial guard.']]];
 $contextPrompt=(new PromptAssembler(16384,1024))->assemble($contextTurn,$promptSelection)['provider_input']['_assembled_prompt'];
+$combatHistorySelection=$promptSelection;
+$combatHistorySelection['history']=[
+    ['history_id'=>'ambient','content'=>['kind'=>'event','type'=>'death','details'=>['text'=>'A cliff racer HAS KILLED a rat.']]],
+    ['history_id'=>'player-kill','content'=>['kind'=>'event','type'=>'death','details'=>['text'=>'The player has defeated a bandit.']]],
+    ['history_id'=>'unknown-death','content'=>['kind'=>'event','type'=>'death','details'=>['text'=>'A guar died.']]],
+    ['history_id'=>'ordinary-line','content'=>['kind'=>'speech','text'=>'He has killed before.','speaker'=>'Guard']],
+];
+$ambientGlobal=SettingsCatalog::globalDefaults();
+foreach ([false,true] as $hideAmbient) {
+    $ambientGlobal['context']['hide_ambient_combat']=$hideAmbient;
+    $combatHistorySelection['effective_settings']=(new EffectiveSettingsResolver())->resolve($ambientGlobal,[],[]);
+    $ambientPrompt=(new PromptAssembler(16384,1024))->assemble($contextTurn,$combatHistorySelection)['provider_input']['_assembled_prompt'];
+    $check(str_contains($ambientPrompt,'A cliff racer HAS KILLED a rat.')===!$hideAmbient,'Ambient death context follows global filter');
+    $check(str_contains($ambientPrompt,'The player has defeated a bandit.')&&str_contains($ambientPrompt,'A guar died.')&&str_contains($ambientPrompt,'He has killed before.'),
+        'Ambient filter preserves significant and unknown deaths and ordinary speech');
+}
+$combatHistorySelection['effective_settings']=(new EffectiveSettingsResolver())->resolve($ambientGlobal,['settings_overrides'=>['context'=>['hide_ambient_combat'=>false]]],[]);
+$check(str_contains((new PromptAssembler(16384,1024))->assemble($contextTurn,$combatHistorySelection)['provider_input']['_assembled_prompt'],'A cliff racer HAS KILLED a rat.'),
+    'Core Ambient Combat off overrides global filtering');
+$check(count($combatHistorySelection['history'])===4,'Ambient filtering does not mutate retained event history');
 $powerGlobal=SettingsCatalog::globalDefaults();$powerGlobal['context']['power_awareness_enabled']=true;
 $powerSelection=$promptSelection;$powerSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve($powerGlobal,[],[]);
 $powerTurn=$contextTurn;$powerTurn['payload']['context']['playerState']['stats']['level']=5;

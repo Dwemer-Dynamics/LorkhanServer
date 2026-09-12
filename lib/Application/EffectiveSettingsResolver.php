@@ -389,7 +389,7 @@ final class EffectiveSettingsResolver
         if (array_key_exists('context', $validation)) {
             $context = $validation['context'];
             if ($npc || !is_array($context) || array_is_list($context)
-                || array_diff(array_keys($context), ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled']) !== [])
+                || array_diff(array_keys($context), ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','hide_ambient_combat']) !== [])
                 throw new InvalidArgumentException('invalid_settings_overrides');
             foreach ($context as $value) if (!is_bool($value)) throw new InvalidArgumentException('invalid_settings_overrides');
             unset($validation['context']);
@@ -473,9 +473,9 @@ final class EffectiveSettingsResolver
     {
         $expected = SettingsCatalog::globalDefaults()['context'];
         if (!is_array($context) || array_is_list($context)) throw new InvalidArgumentException('invalid_global_settings');
-        $context += ['prompt_timestamp' => false, 'ground_items_descriptions_only' => false, 'inventory_items_descriptions_only' => false, 'power_awareness_enabled'=>false];
+        $context += ['prompt_timestamp' => false, 'ground_items_descriptions_only' => false, 'inventory_items_descriptions_only' => false, 'power_awareness_enabled'=>false, 'hide_ambient_combat'=>false];
         self::assertExactKeys($context, $expected, 'invalid_global_settings');
-        if (!is_bool($context['prompt_timestamp']) || !is_bool($context['ground_items_descriptions_only']) || !is_bool($context['inventory_items_descriptions_only']) || !is_bool($context['power_awareness_enabled'])) throw new InvalidArgumentException('invalid_global_settings');
+        if (!is_bool($context['prompt_timestamp']) || !is_bool($context['ground_items_descriptions_only']) || !is_bool($context['inventory_items_descriptions_only']) || !is_bool($context['power_awareness_enabled']) || !is_bool($context['hide_ambient_combat'])) throw new InvalidArgumentException('invalid_global_settings');
         foreach (['sections', 'details'] as $group) {
             if($group==='details'&&is_array($context[$group]))$context[$group]=SettingsCatalog::normalizeContextDetails($context[$group]);
             self::assertExactKeys($context[$group], $expected[$group], 'invalid_global_settings');

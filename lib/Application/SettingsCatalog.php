@@ -212,6 +212,7 @@ final class SettingsCatalog
             'context' => [
                 'prompt_timestamp' => false,
                 'power_awareness_enabled' => false,
+                'hide_ambient_combat' => false,
                 'ground_items_descriptions_only' => false,
                 'inventory_items_descriptions_only' => false,
                 'sections' => self::CONTEXT_SECTION_DEFAULTS,

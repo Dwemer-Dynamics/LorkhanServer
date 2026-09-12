@@ -10,13 +10,14 @@ foreach (['location_context_enabled'=>'Force Location Oghma', 'topic_count'=>'Og
         'value'=>$default, 'range'=>match($key){'topic_count'=>[1,3],'result_limit'=>[1,5],default=>[250,3000]}];
 }
 $coreOverrideCatalog['memory.oghma_knowledge_tags'] = ['label'=>'Oghma Knowledge Tags', 'type'=>'string', 'value'=>'', 'maxBytes'=>4096];
-foreach (['prompt_timestamp'=>'Prompt Timestamp','ground_items_descriptions_only'=>'Ground Items Descriptions Only','inventory_items_descriptions_only'=>'Inventory Items Descriptions Only'] as $key=>$label)
+foreach (['hide_ambient_combat'=>'Hide Ambient Combat','prompt_timestamp'=>'Prompt Timestamp','ground_items_descriptions_only'=>'Ground Items Descriptions Only','inventory_items_descriptions_only'=>'Inventory Items Descriptions Only'] as $key=>$label)
     $coreOverrideCatalog['context.'.$key]=['label'=>$label,'type'=>'boolean','value'=>false];
 $coreOverrideCatalog['prompt.prompt_head']=['label'=>'Prompt Head','type'=>'string','value'=>'','maxBytes'=>8192,'multiline'=>true];
 $coreOverrideCatalog['behavior.rechat_mode']=['label'=>'Rechat Mode','type'=>'choice','value'=>'random','choices'=>['tight','conversational','group','random']];
 $coreOverrideCatalog['relationship.enabled']=['label'=>'Relationship System Enabled','type'=>'boolean','value'=>($globalContent['relationship']['enabled']??false)===true];
 $coreOverrideCatalog['context.power_awareness_enabled']=['label'=>'Power Awareness Enabled','type'=>'boolean','value'=>false];
 $coreOverrideHelp = [
+    'context.hide_ambient_combat'=>'Hide ambient death events containing has killed from conversation context. Other death events and the stored event log are retained.',
     'context.power_awareness_enabled'=>'Compare observed character levels so NPCs can assess relative threats. The Nearby Actor Details Power selection must also be enabled. Missing levels produce no assessment.',
     'behavior.rechat_mode'=>'Tight uses the listener; Conversational prefers the current partner; Group rotates nearby NPCs; Random chooses a mode at the start of each chain. Existing chains retain their starting mode.',
     'relationship.enabled'=>'Enable relationship evaluation for this profile. The global update chance and Relationship Management connector still apply.',
