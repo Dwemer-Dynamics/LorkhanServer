@@ -539,6 +539,9 @@ upload_fields={'_csrf':csrf,'action':'upload','voice_name':'','upload_count':'2'
 for extra,expected_error in [(('bad.wav','audio/wav',b'not a wav'),'invalid_voice_sample'),((multi_a+'.wav','audio/wav',wav),'voice_sample_exists')]:
     r=multipart_request('/LorkhanServer/ui/core/voice_library.php',upload_fields,'voice_sample[]',multi_a+'.wav','audio/wav',wav,[('voice_sample[]',*extra)])
     text=r.read().decode(); assert expected_error in text and 'data-copy-voice="'+multi_a+'"' not in text
+    expected_message='Select a valid RIFF/WAVE voice sample' if expected_error=='invalid_voice_sample' else 'A local sample with that name already exists.'
+    assert expected_message in text and '<summary>Error details</summary>' in text
+    if os.environ.get('LORKHAN_VOICE_ERROR_EVIDENCE'): pathlib.Path(os.environ['LORKHAN_VOICE_ERROR_EVIDENCE']+'-'+expected_error+'.html').write_text(text,encoding='utf-8')
 r=multipart_request('/LorkhanServer/ui/core/voice_library.php',upload_fields,'voice_sample[]',multi_a+'.wav','audio/wav',wav)
 assert 'invalid_voice_upload_selection' in r.read().decode()
 multi_archive=io.BytesIO()

@@ -2,6 +2,43 @@
 
 declare(strict_types=1);
 
+/** Turn allowlisted controller errors into actionable UI text without exposing provider responses. */
+function lorkhan_voice_error_message(string $code):string
+{
+    return match($code){
+        'unauthorized'=>'Your management session expired. Reload the page before trying again.',
+        'voice_credential_missing'=>'The selected connector has no available API key. Check its API Badge in TTS Connectors.',
+        'voice_provider_http_401', 'voice_provider_http_403'=>'The voice provider refused access. Check the selected connector’s API key and account permissions.',
+        'voice_provider_http_429'=>'The voice provider rate limit was reached. Wait before trying again.',
+        'invalid_voice_name'=>'Enter a voice name using letters, numbers, spaces, underscores, plus signs, periods or hyphens. Start with a letter or number.',
+        'invalid_voice_language'=>'Select a supported voice language.',
+        'invalid_voice_sample'=>'Select a valid RIFF/WAVE voice sample between 44 bytes and 16 MB.',
+        'invalid_voice_archive'=>'The voice archive could not be imported. Check its format and contained voice samples.',
+        'invalid_voice_upload_selection'=>'Select valid voice sample files before uploading.',
+        'voice_sample_exists'=>'A local sample with that name already exists. Rename the new sample or manage the existing one first.',
+        'voice_sample_in_use'=>'This sample is still in use. Change the profiles or connectors listed below before deleting it.',
+        'voice_remote_in_use'=>'This provider voice is still in use. Change the profiles or connectors listed below before deleting it.',
+        'voice_not_managed'=>'This voice is not managed by Lorkhan and cannot be deleted here.',
+        'voice_upload_confirmation_required'=>'Confirm that you have permission to upload these voice samples.',
+        'voice_sample_not_found'=>'The selected local voice sample is no longer available. Refresh the library.',
+        'voice_registration_busy'=>'This voice is already being registered. Wait for that operation to finish, then refresh the library.',
+        'voice_sync_unsupported', 'voice_discovery_unsupported'=>'The selected connector does not support this voice-library operation.',
+        'voice_sync_unavailable', 'voice_discovery_unavailable'=>'The voice library is unavailable. Check the selected connector and service, then refresh.',
+        'voice_cache_unavailable'=>'The local voice cache is unavailable. Check the server logs and storage permissions.',
+        'voice_validation_failed'=>'The provider voice failed validation. Check the voice sample and connector settings.',
+        'voice_validation_cleanup_failed'=>'Voice validation and cleanup failed. Inspect the provider library before trying another upload.',
+        'voice_clone_reused_id'=>'The provider returned an existing voice ID. Inspect the provider library before trying another upload.',
+        'voice_upload_failed'=>'The local sample upload failed. Check the selected files and server storage permissions before trying again.',
+        'voice_sync_failed'=>'The provider upload could not be confirmed. Refresh the provider library before trying again.',
+        'voice_discovery_failed'=>'The provider voice list could not be loaded. Check the connector and service, then refresh.',
+        'voice_delete_failed'=>'The voice deletion could not be confirmed. Refresh the library before trying again.',
+        'invalid_voice_fallbacks'=>'The fallback voice selection is invalid. Review the race and voice mappings before saving.',
+        default=>preg_match('/^voice_provider_http_[0-9]{1,3}$/D',$code)
+            ?'The voice provider returned an error. Check the connector and service; refresh the library before retrying an upload.'
+            :'The voice operation could not be completed. Check the server logs and refresh the library before trying again.',
+    };
+}
+
 $studioTabs = [
     'xtts' => ['label' => 'XTTS', 'drivers' => ['xtts-fastapi', 'xtts']],
     'chatterbox' => ['label' => 'Chatterbox', 'drivers' => ['chatterbox']],
@@ -56,7 +93,7 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
     </nav>
 
     <?php if ($notice !== ''): ?><p class="page-status" role="status"><?php echo lorkhan_ui_h($notice); ?></p><?php endif; ?>
-    <?php if ($error !== ''): ?><div class="page-error" role="alert"><p><?php echo lorkhan_ui_h($error); ?></p><?php if ($errorReferences !== []): ?><ul><?php foreach ($errorReferences as $reference): ?><li><?php echo lorkhan_ui_h($reference); ?></li><?php endforeach; ?></ul><?php endif; ?></div><?php endif; ?>
+    <?php if ($error !== ''): ?><div class="page-error" role="alert"><p><?php echo lorkhan_ui_h(lorkhan_voice_error_message($error)); ?></p><details class="voice-error-details"><summary>Error details</summary><code><?php echo lorkhan_ui_h($error); ?></code></details><?php if ($errorReferences !== []): ?><ul><?php foreach ($errorReferences as $reference): ?><li><?php echo lorkhan_ui_h($reference); ?></li><?php endforeach; ?></ul><?php endif; ?></div><?php endif; ?>
 
     <?php if ($activeTab === 'pronunciations'):
         // The dictionary is global to every TTS connector, so it owns one tab instead of
