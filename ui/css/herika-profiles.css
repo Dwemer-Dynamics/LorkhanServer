@@ -1995,3 +1995,41 @@ body.profile-rules-open {
     background: #1d1d1d; border-color: #404040; border-radius: 8px; padding: 12px;
 }
 .profiles-page .profile-rules-check-line label { text-transform: none; color: #fff; font-size: 15px; }
+
+/* Reference rule editor action row and detected/custom match pickers. */
+.profiles-page .profile-rules-editor-header,
+.profiles-page .profile-rules-editor-actions { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+.profiles-page .profile-rules-editor-header { justify-content:space-between; margin-bottom:14px; }
+.profiles-page .profile-rules-detected-controls { display:flex; gap:6px; margin-top:7px; }
+.profiles-page .profile-rules-match-add { gap:7px; margin-top:7px; }
+.profiles-page .profile-rules-detected-controls select,
+.profiles-page .profile-rules-match-add input {
+    min-width:0; width:100%; background:#343434; border:1px solid #555;
+    border-radius:6px; color:#f8f9fa; padding:9px 10px;
+    font-family:'Futura CondensedLight', Arial, sans-serif; font-size:15px;
+}
+.profiles-page .profile-rules-detected-controls button,
+.profiles-page .profile-rules-match-add button {
+    background:#333; color:#fff; border:1px solid #505050; border-radius:7px;
+    padding:8px 12px; cursor:pointer; font-size:14px; font-weight:700; white-space:nowrap;
+}
+.profiles-page .profile-rules-match-values { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+.profiles-page .profile-rules-value {
+    display:inline-flex; align-items:center; gap:6px; max-width:100%;
+    border:1px solid #5a4a35; background:#30271d; color:#f2d1aa;
+    border-radius:999px; padding:4px 9px; font-size:13px;
+}
+.profiles-page .profile-rules-value-text { color:inherit; font-size:inherit; }
+.profiles-page .profile-rules-value-remove {
+    border:0; background:transparent; color:inherit; cursor:pointer;
+    padding:0; line-height:1; min-height:0; border-radius:0; font-size:inherit;
+}
+@media(max-width:600px) {
+    .profiles-page .profile-rules-detected-controls { flex-wrap:wrap; }
+}
+
+.profiles-page .profile-rules-match { border:0; padding:0; background:transparent; }
+.profiles-page .profile-rules-match > h3 {
+    margin:18px 0 10px; color:#fff; font-family:MagicCards, serif;
+    font-size:20px; word-spacing:5px;
+}

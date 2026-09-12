@@ -256,16 +256,22 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     </div>
 
                     <form class="profile-rules-form" id="profile-rules-form" data-profile-rules-form novalidate hidden>
-                        <h3 class="profile-rules-form-title" data-profile-rules-form-title>New assignment rule</h3>
+                        <div class="profile-rules-editor-header">
+                            <h3 class="profile-rules-form-title" data-profile-rules-form-title>New assignment rule</h3>
+                            <div class="profile-rules-editor-actions">
+                                <button class="btn-save" type="submit" form="profile-rules-form" data-profile-rules-save hidden>Save rule</button>
+                                <button class="btn-base" type="button" data-profile-rules-cancel hidden>Cancel</button>
+                            </div>
+                        </div>
                         <p class="profile-rules-error" data-profile-rules-error role="alert" hidden></p>
                         <div class="profile-rules-fields">
                             <div class="profile-rules-field profile-rules-field-wide">
-                                <label for="profile-rules-description">Description</label>
+                                <label for="profile-rules-description">Rule Name</label>
                                 <input id="profile-rules-description" type="text" maxlength="200" autocomplete="off" aria-required="true" aria-describedby="profile-rules-description-hint" data-profile-rules-description>
                                 <p class="hint" id="profile-rules-description-hint">A short name so you can recognise this rule in the list.</p>
                             </div>
                             <div class="profile-rules-field">
-                                <label for="profile-rules-profile">Core Profile to assign</label>
+                                <label for="profile-rules-profile">Assign Profile</label>
                                 <select id="profile-rules-profile" aria-required="true" aria-describedby="profile-rules-profile-hint" data-profile-rules-profile></select>
                                 <p class="hint" id="profile-rules-profile-hint">The Core Profile given to a matching new NPC.</p>
                             </div>
@@ -283,26 +289,32 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             </div>
                         </div>
 
-                        <fieldset class="profile-rules-match">
-                            <legend>Match fields</legend>
+                        <section class="profile-rules-match" aria-labelledby="profile-rules-match-heading">
+                            <h3 id="profile-rules-match-heading">Match NPCs When</h3>
                             <p class="hint profile-rules-match-hint">Fill at least one field. An empty field is ignored.</p>
                             <div class="profile-rules-match-grid">
                                 <?php foreach ($ruleMatchFields as $matchField): $matchBase = 'profile-rules-' . str_replace('_', '-', $matchField['key']); ?>
                                     <fieldset class="profile-rules-match-field" data-profile-rules-match="<?php echo lorkhan_ui_h($matchField['key']); ?>">
                                         <legend><?php echo lorkhan_ui_h($matchField['label']); ?></legend>
                                         <p class="hint" id="<?php echo lorkhan_ui_h($matchBase); ?>-hint"><?php echo lorkhan_ui_h($matchField['hint']); ?></p>
+                                        <?php if (in_array($matchField['key'], ['factions','content_files'], true)): ?>
+                                        <div class="profile-rules-detected-controls">
+                                            <select data-profile-rules-detected aria-label="<?= lorkhan_ui_h('Select detected '.$matchField['label']) ?>"><option value="">Select a detected value</option></select>
+                                            <button class="btn-base" type="button" data-profile-rules-detected-add>＋ Add</button>
+                                        </div>
+                                        <?php endif; ?>
                                         <div class="profile-rules-match-add">
                                             <label for="<?php echo lorkhan_ui_h($matchBase); ?>-input"><?php echo lorkhan_ui_h($matchField['add']); ?></label>
                                             <input id="<?php echo lorkhan_ui_h($matchBase); ?>-input" type="text" maxlength="256" autocomplete="off" list="<?php echo lorkhan_ui_h($matchBase); ?>-options" aria-describedby="<?php echo lorkhan_ui_h($matchBase); ?>-hint" data-profile-rules-match-input>
                                             <datalist id="<?php echo lorkhan_ui_h($matchBase); ?>-options" data-profile-rules-options></datalist>
-                                            <button class="btn-base" type="button" data-profile-rules-match-add>Add</button>
+                                            <button class="btn-base" type="button" data-profile-rules-match-add><?= in_array($matchField['key'], ['factions','content_files'], true) ? '＋ Add Typed' : '＋ Add' ?></button>
                                         </div>
                                         <ul class="profile-rules-match-values" aria-label="<?php echo lorkhan_ui_h($matchField['label']); ?> in this rule" data-profile-rules-match-values hidden></ul>
                                         <p class="profile-rules-match-empty" data-profile-rules-match-empty>Nothing added, so this field is ignored.</p>
                                     </fieldset>
                                 <?php endforeach; ?>
                             </div>
-                        </fieldset>
+                        </section>
 
                         <div class="profile-rules-confirm" role="group" aria-label="Confirm deleting this rule" data-profile-rules-confirm hidden>
                             <p class="profile-rules-confirm-text" data-profile-rules-confirm-text></p>
@@ -315,9 +327,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 </div>
                 <div class="modal-footer profile-rules-footer">
                     <button class="btn-base" type="button" data-profile-rules-reload hidden>Reload</button>
-                    <button class="btn-save" type="submit" form="profile-rules-form" data-profile-rules-save hidden>Save rule</button>
                     <button class="btn-danger" type="button" data-profile-rules-delete hidden>Delete rule</button>
-                    <button class="btn-base" type="button" data-profile-rules-cancel hidden>Cancel</button>
                     <button class="btn-base" type="button" data-profile-rules-close>Close</button>
                 </div>
             </div>

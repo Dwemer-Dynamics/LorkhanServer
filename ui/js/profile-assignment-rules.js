@@ -67,6 +67,8 @@
             host: host,
             input: host.querySelector('[data-profile-rules-match-input]'),
             add: host.querySelector('[data-profile-rules-match-add]'),
+            detected: host.querySelector('[data-profile-rules-detected]'),
+            addDetected: host.querySelector('[data-profile-rules-detected-add]'),
             values: host.querySelector('[data-profile-rules-match-values]'),
             empty: host.querySelector('[data-profile-rules-match-empty]'),
             options: host.querySelector('[data-profile-rules-options]'),
@@ -213,7 +215,14 @@
         matchFieldNodes.forEach((nodes, key) => {
             if (!nodes.options) return;
             nodes.options.textContent = '';
-            listOf(options[key]).forEach((value) => {
+            const selected = draft ? listOf(draft.match[key]).map(value => value.toLowerCase()) : [];
+            const available = [...new Set(listOf(options[key]))].filter(value => !selected.includes(value.toLowerCase()))
+                .sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
+            if (nodes.detected) {
+                nodes.detected.replaceChildren(new Option('Select a detected value', ''));
+                available.forEach(value => nodes.detected.add(new Option(value, value)));
+            }
+            available.forEach((value) => {
                 const option = document.createElement('option');
                 option.value = value;
                 nodes.options.append(option);
@@ -237,7 +246,8 @@
             const remove = document.createElement('button');
             remove.type = 'button';
             remove.className = 'profile-rules-value-remove';
-            remove.textContent = 'Remove';
+            remove.textContent = '×';
+            remove.title = 'Remove';
             remove.setAttribute('aria-label', 'Remove ' + value + ' from ' + MATCH_LABELS[key]);
             remove.addEventListener('click', () => {
                 draft.match[key] = listOf(draft.match[key]).filter((entry) => entry !== value);
@@ -249,6 +259,7 @@
             item.append(label, remove);
             nodes.values.append(item);
         });
+        renderOptionLists();
     };
 
     const addMatchValue = (key) => {
@@ -582,6 +593,11 @@
     };
 
     matchFieldNodes.forEach((nodes, key) => {
+        if (nodes.addDetected) nodes.addDetected.addEventListener('click', () => {
+            if (!nodes.detected.value) { nodes.detected.focus(); return; }
+            nodes.input.value = nodes.detected.value;
+            addMatchValue(key);
+        });
         if (nodes.add) nodes.add.addEventListener('click', () => addMatchValue(key));
         if (nodes.input) {
             nodes.input.addEventListener('keydown', (event) => {

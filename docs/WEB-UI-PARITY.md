@@ -11579,3 +11579,32 @@ Mocks intercept all mutations; no live rules changed. JS syntax, 1036 server che
 /var/backups/lorkhanserver-profile-rule-cards.hWdogs; final deployment backup:
 /var/backups/lorkhanserver-profile-rule-cards.SIFZgj. Exact runtime file verification
 is rerun for final source. Full Core/NPC and project parity remain open.
+
+## Profile Rules match pickers and editor actions (2026-09-12)
+
+Copied the reference detected/custom entry pattern for Factions and Source Mods,
+adapted to OpenMW factions/content files. Both offer detected-value dropdowns and
+separate typed entry. All six native match fields retain exact case-insensitive
+matching, typed values, datalist suggestions and existing limits. Suggestions are
+sorted and exclude selected values; removing a value restores its suggestion.
+Selected values now use reference rounded chips and an accessible cross button.
+Native content-file semantics remain any matching source, not Skyrim's required
+mod-set rule. No unsupported regex/metadata action controls were invented.
+
+Save/Cancel now sit in the inline editor header with the form association preserved.
+Rule Name/Assign Profile and Match NPCs When follow reference wording. Removed the
+extra outer match fieldset border/padding; individual accessible fieldsets remain.
+Copied picker input/button/chip styling with Lorkhan branding and narrow wrapping.
+
+rule-pickers-review.cjs passed six-field typed add, case-insensitive duplicate,
+remove, Enter, both detected dropdowns, selected-option removal/restoration, editor
+header action placement, failed-save retention and cancel/focus at 1280/390.
+Existing rule-card-parity-review.cjs also passed mocked save/refresh/reopen before
+the final heading-only adjustment. Inspected narrow picker screenshot and removed
+its redundant enclosing frame. All mutation requests were intercepted.
+JS/PHP syntax, 1036 server checks, 111 protocol files and whitespace checks passed.
+Original deployment backup: /var/backups/lorkhanserver-profile-rule-pickers.UOAURA;
+final backup: /var/backups/lorkhanserver-profile-rule-pickers.hFGiql. Full runtime
+comparison remains 858 files with no drift; no provider or game was invoked.
+Remaining rule advanced capabilities, detailed field layout and broader Core/global
+runtime catalogue requirements are still open; this is not project completion.
