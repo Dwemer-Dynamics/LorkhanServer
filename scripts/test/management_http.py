@@ -2135,10 +2135,10 @@ assert json.loads(json_request(rules_path+'?installation_id='+valid['installatio
 core_preset_response=request('/LorkhanServer/manage/exports/core-profile-settings/'+core_edit.group(1)+'.json')
 core_preset=json.loads(core_preset_response.read().decode())
 assert core_preset['settings_overrides']['oghma']=={'enabled':False,'result_limit':1}
-assert core_preset['settings_overrides']['relationship']=={'enabled':False}
+assert core_preset['settings_overrides']['relationship']=={'enabled':False,'update_chance_percent':37}
 assert core_preset['settings_overrides']['context']==core_advanced['context'] and core_preset['settings_overrides']['prompt']==core_advanced['prompt']
 assert core_preset_response.status==200 and sorted(core_preset)==['exported_at','name','schema','settings_overrides']
-assert core_preset['schema']=='lorkhan.core-profile-settings.v2' and core_preset['settings_overrides']['behavior']=={'rechat':True,'rechat_max_depth':5,'rechat_probability_percent':65,'rechat_allow_actions':True,'combat_bark_period_seconds':600,'rechat_mode':'group'}
+assert core_preset['schema']=='lorkhan.core-profile-settings.v2' and core_preset['settings_overrides']['behavior']=={'rechat':True,'rechat_max_depth':5,'rechat_probability_percent':65,'rechat_allow_actions':True,'combat_bark_period_seconds':600,'rechat_mode':'group','open_rechat':False,'rechat_strict_targeting':True,'end_conversation_cooldown_seconds':0}
 assert core_preset['settings_overrides']['memory']=={'recent_turn_limit':24,'short_term_enabled':True,'mid_term_enabled':True,'long_term_enabled':True,'short_term_max_summaries':37,'oghma_knowledge_tags':'Morrowind,Tribunal'}
 assert core_preset['settings_overrides']['response']=={'max_words':60,'core_lang':'de','lang_llm_xtts':True}
 assert core_preset['settings_overrides']['rpg_comments']=={'events':['sleep','wait'],'chance_percent':73}
@@ -2186,6 +2186,9 @@ assert imported_form['fields']['setting_behavior_rechat_allow_actions']=='1'
 assert imported_form['fields']['setting_diary_context_turn_limit']=='150' and '>Record only witnessed events.</textarea>' in body
 assert all(imported_form['fields'].get(field,'')=='' for field in ['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','diary_generation_configuration_id','tts_configuration_id'])
 assert imported_form['fields'].get('slot','')=='' and 'default_npc' not in imported_form['fields']
+imported_portable=json.loads(request('/LorkhanServer/manage/exports/core-profile-settings/'+imported_core_id+'.json').read())
+for section in ['behavior','relationship']:
+    assert imported_portable['settings_overrides'][section]==core_preset['settings_overrides'][section],imported_portable['settings_overrides'][section]
 invalid_preset=dict(core_preset,unexpected='rejected')
 # Named presets are a catalogue, not the existing import-as-new-profile workflow.
 core_named_path='/LorkhanServer/manage/forms/core-profile-preset'

@@ -11659,3 +11659,22 @@ Live Herika's Narrator now exposes additional evolution scheduling controls beyo
 the pinned 529364c4 source; those were observed, not silently imported or counted
 as existing baseline parity. Broader Narrator Core semantics and page acceptance
 remain open independently of the ten prompt editor interaction checks.
+
+## Core portable preset round-trip repair (2026-09-12)
+
+The portable Core Profile allowlist dropped Open Rechat, Strict Targeting,
+End Conversation Cooldown and Relationship Update Chance despite saving those
+settings in the editor. Export and import now preserve the existing typed values.
+The existing management HTTP test now asserts all four fields and re-exports the
+imported profile to prove behavior and relationship settings survive the round trip.
+No routing assignments, credentials or new settings were added to the format.
+
+PHP lint, 1036 server checks, 111 protocol files and the complete isolated
+management HTTP suite passed (temporary HTTP client timeout 30 seconds rather
+than the default 5 seconds). Local server deployment completed with all 858
+runtime files matching source, no extra/old paths, health responding and private
+routes protected. Existing configuration, credential and voice content preservation
+was checked by the deployment wrapper. No game or paid provider was exercised.
+
+Visible-page copying and adaptation remain the priority. Missing runtime features
+remain separate from layout acceptance; this repair does not close the full matrix.
