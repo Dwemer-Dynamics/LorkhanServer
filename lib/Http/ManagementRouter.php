@@ -90,6 +90,7 @@ final class ManagementRouter
             if($session===null){if($r->method==='GET'&&$this->htmlRequest($r))return$this->openBrowserSession($r->path);throw new RuntimeException('unauthorized');}
             if($r->method==='GET'&&$path==='/api/v1/database-maintenance')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus()]);
             if($r->method==='GET'&&$path==='/api/v1/database-backup')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus('database.backup')]);
+            if($r->method==='GET'&&$path==='/api/v1/database-restore')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus('database.restore')]);
             if($r->method==='GET'&&preg_match('#^/exports/database/([0-9a-f-]{36})\\.sql$#D',$path,$m)){
                 $record=$this->repository->configurationBackupRecord($m[1]);
                 if(($record['scope']['kind']??'')!=='database_sql')throw new RuntimeException('not_found');
@@ -450,6 +451,12 @@ final class ManagementRouter
         }
         if($domain==='global-settings-preset')return $this->namedGlobalSettingsPreset($v,$scope);
         if($domain==='core-profile-preset')return $this->namedCoreProfilePreset($v,$scope);
+        if($domain==='database-restore'){
+            if(($v['confirm']??'')!=='Restore SQL')throw new InvalidArgumentException('confirmation_mismatch');
+            try{$this->management->queueDatabaseRestore($this->need($v,'backup_id'));$status='restore-queued';}
+            catch(RuntimeException $error){if($error->getMessage()!=='maintenance_busy')throw $error;$status='maintenance-busy';}
+            return $this->redirect($this->webRoot().'/ui/database_manager.php?'.http_build_query(['status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
+        }
         if($domain==='database-backup-settings'){
             $enabled=$v['enabled']??null;$max=isset($v['max_count'])?filter_var($v['max_count'],FILTER_VALIDATE_INT):null;
             if(($enabled!==null&&!in_array($enabled,['0','1'],true))||$max===false||($enabled===null&&$max===null))throw new InvalidArgumentException('invalid_backup_settings');

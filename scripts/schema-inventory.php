@@ -34,7 +34,7 @@ $relationKeys = array_fill_keys(array_map(
     $relations,
 ), true);
 
-// Scan maintained runtime PHP only; migrations/tests are evidence, not production readers or writers.
+// Scan runtime PHP and restore SQL; migrations/tests are evidence, not production readers or writers.
 function runtimeReferences(string $root, array $relations, array $relationKeys): array
 {
     $files = ['index.php' => (string) file_get_contents($root . '/index.php')];
@@ -47,6 +47,7 @@ function runtimeReferences(string $root, array $relations, array $relationKeys):
             }
         }
     }
+    foreach(glob($root.'/data/restore/*.sql')?:[] as $file)$files['data/restore/'.basename($file)]=(string)file_get_contents($file);
     ksort($files, SORT_STRING);
 
     $references = [];

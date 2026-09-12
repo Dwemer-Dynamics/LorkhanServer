@@ -14,6 +14,9 @@ final class JobRepository
 
     public function __construct(private readonly PDO $db) {}
 
+    public function enterRuntime():bool{return Connection::enterRuntime($this->db);}
+    public function leaveRuntime():void{Connection::leaveRuntime($this->db);}
+
     public function enqueue(
         string $jobId,
         string $type,

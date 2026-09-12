@@ -3160,4 +3160,95 @@ qs_default_export=json.load(request('/LorkhanServer/manage/exports/global-settin
 assert qs_default_export['memory_policies']['summary']['enabled'] and qs_default_export['memory_policies']['embedding']['enabled']
 assert qs_default_export['memory_policies']['summary']['provider_configuration_id']==qs_local_export['memory_policies']['summary']['provider_configuration_id']
 assert qs_default_export['memory_policies']['embedding']['endpoint']==qs_local_export['memory_policies']['embedding']['endpoint']
+
+# Restore tests run last: the transaction deliberately replaces this isolated fixture database.
+
+# Match deployment ownership: application tables/functions belong to a nonsuperuser; extensions do not.
+subprocess.run([*pg_test,"""
+CREATE ROLE restore_runtime LOGIN;
+GRANT USAGE,CREATE ON SCHEMA public,lorkhan_internal TO restore_runtime;
+DO $ownership$ DECLARE r record; BEGIN
+ FOR r IN SELECT n.nspname,c.relname,c.relkind FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+ WHERE n.nspname IN ('public','lorkhan_internal') AND c.relkind IN ('r','p','v','m','S')
+ AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype='e') ORDER BY c.relkind='S'
+ LOOP EXECUTE format('ALTER %s %I.%I OWNER TO restore_runtime',CASE r.relkind WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW' WHEN 'S' THEN 'SEQUENCE' ELSE 'TABLE' END,r.nspname,r.relname); END LOOP;
+ FOR r IN SELECT p.oid::regprocedure AS name FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+ WHERE n.nspname IN ('public','lorkhan_internal') AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e')
+ LOOP EXECUTE format('ALTER FUNCTION %s OWNER TO restore_runtime',r.name); END LOOP;
+END $ownership$;
+"""],check=True,capture_output=True)
+
+restore_page,_=parse(request('/LorkhanServer/ui/database_manager.php'))
+backup_form=next(f for f in restore_page.forms if f['action'].endswith('/forms/database-backup'))
+guard_id=str(uuid.uuid4())
+subprocess.run([*pg_test,"INSERT INTO lorkhan_internal.durable_jobs(job_id,job_type,schema_version,idempotency_key,payload) VALUES ('"+guard_id+"','fixture.restore_guard',1,'"+guard_id+"','{}')"],check=True,capture_output=True)
+assert request(backup_form['action'],'POST',dict(backup_form['fields'],confirm='Backup')).status==200
+restore_target=json.load(request(sql_status,accept='application/json'))['job']['job_id']
+backup_args=list(sql_worker.args);backup_args[-1]=restore_target
+backup_result=subprocess.run(backup_args,capture_output=True,text=True,timeout=60)
+assert backup_result.returncode==0 and json.loads(backup_result.stdout)['succeeded']==1,(backup_result.stdout,backup_result.stderr)
+subprocess.run([*pg_test,"UPDATE public.bio_templates SET core='Restore mutation sentinel' WHERE npc_name='ZZZ Literal %_ Name'"],check=True,capture_output=True)
+restore_page,_=parse(request('/LorkhanServer/ui/database_manager.php'))
+restore_form=next(f for f in restore_page.forms if f['action'].endswith('/forms/database-restore'))
+restore_fields=dict(restore_form['fields'],backup_id=restore_target,confirm='Restore SQL')
+assert request(restore_form['action'],'POST',dict(restore_fields,confirm='wrong')).status==422
+assert request(restore_form['action'],'POST',restore_fields).status==200
+restore_status='/LorkhanServer/manage/api/v1/database-restore'
+restore_job=json.load(request(restore_status,accept='application/json'))['job'];assert restore_job['state']=='queued'
+assert request(restore_form['action'],'POST',restore_fields).status==200
+assert json.load(request(restore_status,accept='application/json'))['job']['job_id']==restore_job['job_id']
+restore_backup_path=str(pathlib.Path(subprocess.run([*pg_test,'SHOW data_directory'],capture_output=True,text=True,check=True).stdout.strip()).parent/'control'/'backups')
+restore_code=r"require $argv[1].'/lib/Autoload.php'; $config=['database_dsn'=>'pgsql:host=127.0.0.1;port='.$argv[2].';dbname=lorkhan_management_http','database_user'=>'restore_runtime']; $db=LorkhanServer\Infrastructure\Connection::open($config,false); $config['backup_storage_path']=$argv[3]; $worker=new LorkhanServer\Application\Worker(new LorkhanServer\Infrastructure\JobRepository($db),new LorkhanServer\Application\JobHandlerRegistry([new LorkhanServer\Application\DatabaseRestoreJobHandler($db,$config)]),'restore-http',30,1,1,1,60,['database.restore']); echo json_encode($worker->run());"
+pairing_sql="SELECT md5(COALESCE(string_agg(row_to_json(t)::text,',' ORDER BY pairing_token_id),'')) FROM lorkhan_internal.pairing_tokens t"
+pairing_before=subprocess.run([*pg_test,pairing_sql],capture_output=True,text=True,check=True).stdout
+restore_result=subprocess.run(['php','-r',restore_code,str(repository_root),sys.argv[3],restore_backup_path],capture_output=True,text=True,timeout=60)
+assert restore_result.returncode==0 and json.loads(restore_result.stdout)['succeeded']==1,(restore_result.stdout,restore_result.stderr)
+# Same authenticated session still reads status; metadata and the automatic rollback backup survived.
+assert json.load(request(restore_status,accept='application/json'))['job']['state']=='succeeded'
+assert subprocess.run([*pg_test,pairing_sql],capture_output=True,text=True,check=True).stdout==pairing_before
+assert subprocess.run([*pg_test,"SELECT count(*) FROM lorkhan_internal.sessions WHERE state='active'"],capture_output=True,text=True,check=True).stdout.strip()=='0'
+restored_core=subprocess.run([*pg_test,"SELECT core FROM public.bio_templates WHERE npc_name='ZZZ Literal %_ Name'"],capture_output=True,text=True,check=True).stdout.strip()
+assert restored_core=='Literal wildcard summary',restored_core
+restored_guard=subprocess.run([*pg_test,"SELECT state FROM lorkhan_internal.durable_jobs WHERE job_id='"+guard_id+"'"],capture_output=True,text=True,check=True).stdout.strip()
+assert restored_guard=='dead',restored_guard
+rollback_id=subprocess.run([*pg_test,"SELECT backup_id FROM lorkhan_internal.backup_records WHERE scope->>'rollback_for'='"+restore_job['job_id']+"'"],capture_output=True,text=True,check=True).stdout.strip()
+assert request('/LorkhanServer/manage/exports/database/'+rollback_id+'.sql').status==200
+assert request('/LorkhanServer/manage/exports/database/'+restore_target+'.sql').status==200
+# A deliberately mismatched schema ledger makes import fail transactionally and retains the current row.
+restore_checksum=subprocess.run([*pg_test,"SELECT checksum FROM lorkhan_internal.schema_migrations WHERE version=97"],capture_output=True,text=True,check=True).stdout.strip()
+subprocess.run([*pg_test,"UPDATE public.bio_templates SET core='Must survive failed restore' WHERE npc_name='ZZZ Literal %_ Name'; UPDATE lorkhan_internal.schema_migrations SET checksum=repeat('a',64) WHERE version=97"],check=True,capture_output=True)
+assert request(restore_form['action'],'POST',restore_fields).status==200
+failed_restore=subprocess.run(['php','-r',restore_code,str(repository_root),sys.argv[3],restore_backup_path],capture_output=True,text=True,timeout=60)
+assert failed_restore.returncode==0 and json.loads(failed_restore.stdout)['dead']==1,(failed_restore.stdout,failed_restore.stderr)
+assert 'restore_schema_mismatch' in failed_restore.stderr,failed_restore.stderr
+retained_core=subprocess.run([*pg_test,"SELECT core FROM public.bio_templates WHERE npc_name='ZZZ Literal %_ Name'"],capture_output=True,text=True,check=True).stdout.strip()
+assert retained_core=='Must survive failed restore',retained_core
+
+
+
+# An installation added after the snapshot must not disappear through a cross-installation restore.
+extra_installation=str(uuid.uuid4())
+subprocess.run([*pg_test,"UPDATE lorkhan_internal.schema_migrations SET checksum='"+restore_checksum+"' WHERE version=97; INSERT INTO lorkhan_internal.installations(installation_id,token_fingerprint) VALUES ('"+extra_installation+"',repeat('b',64))"],check=True,capture_output=True)
+assert request(restore_form['action'],'POST',restore_fields).status==200
+foreign_restore=subprocess.run(['php','-r',restore_code,str(repository_root),sys.argv[3],restore_backup_path],capture_output=True,text=True,timeout=60)
+assert foreign_restore.returncode==0 and json.loads(foreign_restore.stdout)['dead']==1,(foreign_restore.stdout,foreign_restore.stderr)
+assert 'restore_installation_mismatch' in foreign_restore.stderr,foreign_restore.stderr
+assert subprocess.run([*pg_test,"SELECT count(*) FROM lorkhan_internal.installations WHERE installation_id='"+extra_installation+"'"],capture_output=True,text=True,check=True).stdout.strip()=='1'
+
+# The exclusive restore gate returns HTTP 503 and prevents workers from claiming work.
+gate_code=restore_code.split('$worker=')[0]+r"$db->query('SELECT pg_advisory_lock(7514,114)'); echo \"ready\n\"; fflush(STDOUT); fgets(STDIN);"
+gate_code=gate_code.replace(r'\"','"')
+gate=subprocess.Popen(['php','-r',gate_code,str(repository_root),sys.argv[3],restore_backup_path],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+try:
+    import select
+    ready,_,_=select.select([gate.stdout],[],[],5)
+    assert ready and gate.stdout.readline().strip()=='ready'
+    assert request(restore_status,accept='application/json').status==503
+    assert request('/LorkhanServer/ui/database_manager.php').status==503
+    paused_worker=subprocess.run(['php','-r',restore_code,str(repository_root),sys.argv[3],restore_backup_path],capture_output=True,text=True,timeout=10)
+    assert paused_worker.returncode==0 and json.loads(paused_worker.stdout)['claimed']==0,(paused_worker.stdout,paused_worker.stderr)
+finally:
+    gate.communicate('\n',timeout=10)
+assert request(restore_status,accept='application/json').status==200
+
 print('browser-like management HTTP forms passed')

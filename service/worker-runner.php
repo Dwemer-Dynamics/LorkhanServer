@@ -34,7 +34,8 @@ try {
     if ($types !== null && !is_array($types)) {
         throw new RuntimeException('Worker job types must be a list.');
     }
-    $database = Connection::open($config);
+    // Workers acquire the runtime gate per job, not while idle between jobs.
+    $database = Connection::open($config,false);
     $media = new MediaStore((string) ($config['media_storage_path'] ?? '/var/lib/lorkhanserver/media'),
         (int) ($config['media_max_bytes'] ?? 33_554_432), (int) ($config['media_quota_bytes'] ?? 268_435_456));
     $provider = ProviderFactory::dialogue($config);

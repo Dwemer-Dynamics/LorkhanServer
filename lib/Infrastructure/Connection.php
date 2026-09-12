@@ -7,7 +7,7 @@ use PDO;
 
 final class Connection
 {
-    public static function open(array $config): PDO
+    public static function open(array $config, bool $runtimeGate = true): PDO
     {
         $dsn = (string) ($config['database_dsn'] ?? '');
         $user = (string) ($config['database_user'] ?? '');
@@ -22,6 +22,18 @@ final class Connection
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
         $db->exec('SET search_path TO lorkhan_internal, public, pg_temp');
+        if($runtimeGate&&!self::enterRuntime($db))throw new \RuntimeException('database_restore_in_progress');
         return $db;
+    }
+
+    /** Hold for the connection/request lifetime so a restore cannot replace tables under active work. */
+    public static function enterRuntime(PDO $db): bool
+    {
+        return filter_var($db->query('SELECT pg_try_advisory_lock_shared(7514,114)')->fetchColumn(),FILTER_VALIDATE_BOOL);
+    }
+
+    public static function leaveRuntime(PDO $db): void
+    {
+        $db->query('SELECT pg_advisory_unlock_shared(7514,114)');
     }
 }

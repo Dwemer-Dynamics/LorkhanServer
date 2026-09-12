@@ -73,10 +73,26 @@ final class ManagementRepository
     /** Expose only the latest maintenance lifecycle, never worker payloads or database credentials. */
     public function databaseMaintenanceStatus(string $type = 'database.compact'): ?array
     {
-        if(!in_array($type,['database.compact','database.backup'],true))throw new \InvalidArgumentException('invalid_database_job_type');
+        if(!in_array($type,['database.compact','database.backup','database.restore'],true))throw new \InvalidArgumentException('invalid_database_job_type');
         $query=$this->db->prepare('SELECT job_id,state,created_at,updated_at FROM durable_jobs WHERE job_type=:type ORDER BY created_at DESC,job_id DESC LIMIT 1');
         $query->execute(['type'=>$type]);$row=$query->fetch(PDO::FETCH_ASSOC);
         return $row === false ? null : $row;
+    }
+
+    /** An explicit stored-file restore is single-attempt and gets a separate manual rollback backup. */
+    public function queueDatabaseRestore(string $backupId): string
+    {
+        if(!Uuid::isValid($backupId))throw new \InvalidArgumentException('invalid_backup_id');
+        $record=(new ProductRepository($this->db))->configurationBackupRecord($backupId);
+        if(($record['scope']['kind']??'')!=='database_sql')throw new RuntimeException('not_found');
+        if(!isset($record['scope']['archive_sha256']))throw new RuntimeException('restore_archive_unavailable');
+        if(!filter_var($this->db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn(),FILTER_VALIDATE_BOOL))throw new RuntimeException('maintenance_busy');
+        try{
+            $pending=$this->db->query("SELECT job_id,payload->>'backup_id' AS backup_id FROM durable_jobs WHERE job_type='database.restore' AND state IN ('queued','leased') ORDER BY created_at LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            if($pending){if($pending['backup_id']!==$backupId)throw new RuntimeException('maintenance_busy');return $pending['job_id'];}
+            $id=Uuid::v4();(new JobRepository($this->db))->enqueue($id,'database.restore',1,$id,['backup_id'=>$backupId,'rollback_id'=>Uuid::v4()],1);
+            return $id;
+        }finally{$this->db->query('SELECT pg_advisory_unlock(7514,113)');}
     }
 
     /** Compact only this server's application tables, with a lock and time-bounded explicit request. */
