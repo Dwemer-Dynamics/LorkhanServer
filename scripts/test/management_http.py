@@ -2549,7 +2549,7 @@ assert re.search(r'name="option_stream"\s+data-direct-default="true"\s+data-runt
 assert 'class="llm-help-details llm-connection-options" open' in direct_editor and direct_editor.index('<summary>Connection options</summary>') < direct_editor.index('id="llm_option_max_completion_tokens"'),direct_editor
 assert 'Enforce JSON' in direct_editor and 'Disable Streaming' in direct_editor and '<span>Direct connection</span>' not in direct_editor
 assert 'data-groq-catalogue="/LorkhanServer/manage/api/v1/llm-groq-models"' in direct_editor
-assert 'data-llm-import-open' in direct_editor and 'id="llm-import-picker"' in direct_editor and 'accept="application/json,.json" multiple hidden' in direct_editor
+assert 'data-llm-import-open' in direct_editor and 'id="llm-import-picker"' in direct_editor and 'accept="text/csv,.csv,application/json,.json" multiple hidden' in direct_editor
 assert 'data-llm-clear-advanced hidden>Clear advanced settings</button>' in direct_editor
 assert 'Imported 2 connectors.' in request('/LorkhanServer/ui/core/llm_connectors.php?imported=2').read().decode()
 assert 'Imported 21' not in request('/LorkhanServer/ui/core/llm_connectors.php?imported=21').read().decode()
@@ -2587,6 +2587,18 @@ r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); a
 direct_export=json.loads(request('/LorkhanServer/manage/exports/providers/'+direct_id+'.json').read().decode())
 assert direct_export['content']['credential']=='none' and direct_export['content']['options']['reasoning_model'] is True and 'local-parity-test-key' not in json.dumps(direct_export),direct_export
 assert direct_export['content']['options']['provider_order']==['together','google-vertex/us-east5'],direct_export
+csv_response=request('/LorkhanServer/manage/exports/providers/'+direct_id+'.csv')
+llm_csv=csv_response.read().decode()
+assert csv_response.status==200 and csv_response.headers['Content-Type'].startswith('text/csv')
+assert next(csv.reader(io.StringIO(llm_csv)))==['id','label','service','url','model','provider','driver','api_badge_id','max_tokens','temperature','presence_penalty','frequency_penalty','repetition_penalty','top_p','top_k','min_p','top_a','enforce_json','json_schema','prefill_json','reasoning_model','metadata']
+assert 'local-parity-test-key' not in llm_csv
+r=multipart_request('/LorkhanServer/manage/forms/provider-import',{'_csrf':csrf,'installation_id':valid['installation_id'],'provider_csv':llm_csv})
+body=r.read().decode(); assert r.status==200,(r.status,body)
+csv_id=connector_editor_id(body,direct_name+' 2')
+csv_export=json.load(request('/LorkhanServer/manage/exports/providers/'+csv_id+'.json'))
+assert csv_export['content']==direct_export['content'],csv_export
+r=multipart_request('/LorkhanServer/manage/forms/provider-import',{'_csrf':csrf,'installation_id':valid['installation_id'],'provider_csv':'bad csv'})
+assert r.status==422,(r.status,r.read().decode())
 direct_export['name']=direct_name+' portable'; direct_export['content']['credential']='custom'
 r=multipart_request('/LorkhanServer/manage/forms/provider-import',{'_csrf':csrf,'installation_id':valid['installation_id'],'provider_json':json.dumps(direct_export)}); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/llm_connectors.php?status=saved'),(r.status,body)
 portable_id=connector_editor_id(body,direct_export['name'])

@@ -92,25 +92,26 @@
             let current = '';
             try {
                 if (files.length > 20 || files.some(file => file.size > 1048576)) {
-                    throw new Error('Choose up to 20 JSON files, at most 1 MiB each.');
+                    throw new Error('Choose up to 20 CSV or JSON files, at most 1 MiB each.');
                 }
-                // Read and parse the entire selection before any import, so a broken JSON file makes no partial batch.
+                // Read the entire selection first; CSV validation is authoritative on the server.
                 const documents = [];
                 for (const file of files) {
                     current = file.name;
                     importStatus.textContent = 'Reading ' + current + '…';
                     const text = await file.text();
-                    const document = JSON.parse(text);
-                    if (!document || Array.isArray(document) || document.schema !== 'lorkhan.provider-export.v1') {
+                    const csv = /\.csv$/i.test(file.name);
+                    const document = csv ? null : JSON.parse(text);
+                    if (!csv && (!document || Array.isArray(document) || document.schema !== 'lorkhan.provider-export.v1')) {
                         throw new Error('Choose portable LORKHAN connector exports.');
                     }
-                    documents.push(text);
+                    documents.push({field:csv?'provider_csv':'provider_json',text});
                 }
                 for (let index = 0; index < documents.length; index++) {
                     current = files[index].name;
                     importStatus.textContent = 'Importing ' + (index + 1) + ' of ' + files.length + ': ' + current;
                     const body = new FormData(importForm);
-                    body.set('provider_json', documents[index]);
+                    body.set(documents[index].field, documents[index].text);
                     // No automatic retry: a lost response may follow an already committed import.
                     const controller = new AbortController();
                     const timer = setTimeout(() => controller.abort(), 30000);

@@ -3204,6 +3204,30 @@ foreach (['missing','wrong-kind','unused'] as $failure) {
     catch(InvalidArgumentException){$check(true,'Core bundle rejects '.$failure);}
 }
 
+
+// Herika-column CSV preserves native options but never carries badge ownership.
+foreach (['mock','configured','openrouter','openai','google','groq','nanogpt','player2','custom','local'] as $kind) {
+    $content=$kind==='mock'?['driver'=>'mock','model'=>'test','mock_prefix'=>'hello']:
+        ['driver'=>$kind==='configured'?'configured':'openai-compatible','model'=>$kind==='player2'?'':'test','credential'=>'custom','timeout_ms'=>12000,
+         'options'=>['temperature'=>0,'max_tokens'=>500,'json_mode'=>false,'stream'=>false,'provider_order'=>['a','b'],
+         'extra_parameters_yaml'=>"seed: 7\n",'extra_parameters_enabled'=>false]];
+    if(!in_array($kind,['mock','configured'],true))$content+=['service'=>$kind,'endpoint'=>'http://127.0.0.1:9999/v1/chat/completions'];
+    $expected=\LorkhanServer\Application\LlmConnector::validate($content);if($kind!=='mock')$expected['credential']='none';
+    $csv=\LorkhanServer\Application\LlmConnectorCsv::encode("CSV é, \"test\"\nline",$content);
+    $decoded=\LorkhanServer\Application\LlmConnectorCsv::decode("\xEF\xBB\xBF".$csv);
+    $check($decoded['content']==$expected && $decoded['name']==="CSV é, \"test\"\nline",'LLM CSV round trip '.$kind);
+}
+$stream=fopen('php://temp','w+b');fputcsv($stream,\LorkhanServer\Application\LlmConnectorCsv::COLUMNS,',','"','\\');
+$row=array_fill_keys(\LorkhanServer\Application\LlmConnectorCsv::COLUMNS,'');
+$row=array_replace($row,['id'=>'123','label'=>'Herika','service'=>'openrouter','driver'=>'openrouterjson','url'=>'https://openrouter.ai/api/v1/chat/completions','model'=>'test','api_badge_id'=>'9','enforce_json'=>'false','provider'=>'a,b','metadata'=>'{"disable_streaming":true,"extra_parameters":{"seed":3},"remove_action_prompt":true}']);
+fputcsv($stream,array_values($row),',','"','\\');rewind($stream);$foreign=(string)stream_get_contents($stream);fclose($stream);
+$decoded=\LorkhanServer\Application\LlmConnectorCsv::decode($foreign);
+$check($decoded['content']['credential']==='none' && $decoded['content']['options']['stream']===false && $decoded['content']['options']['json_mode']===false && $decoded['content']['options']['extra_parameters_enabled']===true,'Herika LLM CSV typed fields and detached badge');
+foreach (['bad', $foreign.$foreign, str_replace('false','invalid',$foreign),str_replace('https://openrouter.ai/api/v1/chat/completions','https://user:secret@example.com',$foreign)] as $bad) {
+    try {\LorkhanServer\Application\LlmConnectorCsv::decode($bad);$check(false,'invalid LLM CSV rejected');}
+    catch(InvalidArgumentException){$check(true,'invalid LLM CSV rejected');}
+}
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

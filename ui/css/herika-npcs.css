@@ -1002,3 +1002,4 @@ body.view-characters .npc-setting-overrides .npc-ovr-option-category {color:#bc9
 .npc-version-metadata{grid-column:1/-1}.npc-version-metadata pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
 
 .npc-versions-dialog,.npc-versions-dialog form{font-size:15px;line-height:1.5}
+.npc-versions-dialog .npc-versions-toolbar button.btn-save[type=submit]{background:#bc9d5a!important;border-color:#bc9d5a!important;color:#111!important;border-radius:6px;padding:6px 12px;font-weight:700}

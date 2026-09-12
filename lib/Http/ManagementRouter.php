@@ -112,6 +112,7 @@ final class ManagementRouter
             if($r->method==='GET'&&preg_match('#^/exports/global-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportGlobalSettings($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/playthroughs/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportPlaythroughState($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/providers/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProvider($m[1]);
+            if($r->method==='GET'&&preg_match('#^/exports/providers/([0-9a-f-]{36})\.csv$#D',$path,$m))return$this->exportProvider($m[1],true);
             if($r->method==='GET'&&preg_match('#^/exports/prompts/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportPrompt($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/connectors/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportConnector($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/connectors/([0-9a-f-]{36})\.csv$#D',$path,$m))return$this->exportConnector($m[1],true);
@@ -1753,7 +1754,7 @@ final class ManagementRouter
     }
 
     /** Download a validated portable connector without credentials or a binding to the recipient's saved keys. */
-    private function exportProvider(string $configurationId):Response
+    private function exportProvider(string $configurationId,bool $csv=false):Response
     {
         $this->uuid($configurationId,'configuration_id');$row=$this->repository->getRevisioned('provider',$configurationId);
         $content=is_array($row['content']??null)?$row['content']:[];
@@ -1763,6 +1764,7 @@ final class ManagementRouter
         $document=['schema'=>'lorkhan.provider-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
             'name'=>(string)$row['name'],'content'=>$content===[]?(object)[]:$content];
         $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='lorkhan-model-slot';
+        if($csv)return new Response(200,\LorkhanServer\Application\LlmConnectorCsv::encode((string)$row['name'],$content),['Content-Type'=>'text/csv; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'.csv"','X-Content-Type-Options'=>'nosniff']);
         return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
             ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'.json"','X-Content-Type-Options'=>'nosniff']);
     }
@@ -1778,7 +1780,7 @@ final class ManagementRouter
     /** Import one strict portable model-slot document into the explicitly selected installation. */
     private function importProvider(array $values,array $scope):array
     {
-        $document=$this->jsonField($values,'provider_json');$keys=array_keys($document);sort($keys);
+        $document=isset($values['provider_csv'])?\LorkhanServer\Application\LlmConnectorCsv::decode($this->need($values,'provider_csv')):$this->jsonField($values,'provider_json');$keys=array_keys($document);sort($keys);
         if($keys!==['content','exported_at','name','schema']||($document['schema']??null)!=='lorkhan.provider-export.v1'
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['content']??null)||$this->containsSecretKey($document))throw new InvalidArgumentException('invalid_provider_export');
@@ -1786,6 +1788,7 @@ final class ManagementRouter
         // Imported endpoints must not silently acquire an existing local API key.
         if($content['driver']!=='mock')$content['credential']='none';
         $name=trim((string)($document['name']??''));if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_provider_export');
+        if(isset($values['provider_csv']))$name=$this->repository->importedConnectorName($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$name,'provider');
         return$this->service->createRevisioned('provider',['installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
             'name'=>$name,'content'=>$content]);
     }
@@ -1876,8 +1879,8 @@ final class ManagementRouter
             ||($document['kind']??null)!==$kind||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['content']??null)||$this->containsSecretKey($document))throw new InvalidArgumentException('invalid_connector_export');
         $name=trim((string)($document['name']??''));if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_connector_export');
-        if($kind==='tts_provider'&&isset($values['connector_csv']))$name=$this->repository->importedTtsConnectorName(
-            $scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$name);
+        if($kind==='tts_provider'&&isset($values['connector_csv']))$name=$this->repository->importedConnectorName(
+            $scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$name,'tts_provider');
         // A portable endpoint must never acquire a credential already held by its destination.
         $document['content']['credential']='none';
         return$this->service->createRevisioned($kind,['installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),

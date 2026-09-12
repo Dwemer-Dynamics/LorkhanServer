@@ -265,7 +265,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php if ($partialEditor): ?><input type="hidden" name="partial" value="editor"><?php endif; ?><?php endif; ?>
                 <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
             </form>
-            <input id="llm-import-picker" type="file" accept="application/json,.json" multiple hidden>
+            <input id="llm-import-picker" type="file" accept="text/csv,.csv,application/json,.json" multiple hidden>
             <p id="llm-import-status" class="llm-help" role="status" hidden></p>
             <div id="llm_list" class="conn-list" aria-label="LLM Connectors">
                 <?php foreach ($rows as $row):
@@ -353,7 +353,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 <button class="btn-save" type="submit" form="<?php echo lorkhan_ui_h($formId); ?>"><?php echo $creating ? 'Create' : 'Save'; ?></button>
                                 <?php if (!$creating): ?>
                                 <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/provider-test" data-llm-test-form data-connector-name="<?php echo lorkhan_ui_h($selected['name']); ?>"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php if ($partialEditor): ?><input type="hidden" name="partial" value="editor"><?php endif; ?><?php endif; ?><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><button class="btn-primary llm-test-button" type="submit">Test</button></form>
-                                <a class="btn-save" href="<?php echo lorkhan_ui_h($managementBasePath); ?>/exports/providers/<?php echo lorkhan_ui_h($selected['configuration_id']); ?>.json">Export</a>
+                                <a class="btn-save" href="<?php echo lorkhan_ui_h($managementBasePath); ?>/exports/providers/<?php echo lorkhan_ui_h($selected['configuration_id']); ?>.csv">Export</a>
                                 <div class="llm-test-note">Test saves these settings first, then checks the connector. Provider charges may apply.</div>
                                 <noscript><div class="llm-test-note">With JavaScript off, save changes before pressing Test.</div></noscript>
                                 <?php endif; ?>

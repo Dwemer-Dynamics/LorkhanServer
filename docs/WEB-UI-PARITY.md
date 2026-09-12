@@ -12270,3 +12270,73 @@ Local deployment completed with rollback /var/backups/lorkhanserver-code.3bckP7;
 all 867 runtime files match source, private/auth/NPC probes pass, and existing
 configuration, credentials and voice contents are preserved. Workflow remains
 disabled_manually. No game launch or paid provider calls. Full parity is still open.
+
+## Remaining delivery checklist (2026-09-12, after NPC version viewer)
+
+The page matrix and dated evidence above remain authoritative; this checklist
+separates presentation work from runtime features instead of treating those
+features as exceptions. No missing item below is completed by shared CSS alone.
+
+### Page interactions and file formats
+
+- Finish LLM connector CSV import/export against the pinned 22-column reference.
+  Current implementation is under test; JSON remains a compatibility import.
+- NPC modal: review remaining controls against the actual reference, including
+  an AI evolution report. The new Profile Versions viewer does not supply it.
+- Core and NPC editors: finish the remaining supported override categories and
+  advanced Rules matching/action metadata, retaining their reference placement.
+- Narrator: finish the broader Core settings composition and full editor review;
+  distinguish additions on the newer live Herika instance from the pinned source.
+
+### Runtime features required by those pages
+
+- Global Context: remaining event-capture controls and scene classification.
+- NPC: continuous inventory updates and exact-profile Visit/Teleport/Return.
+- Core: Physical Diary, cumulative memory and client Core-slot selection.
+- Narrator: action support and remaining event/profile behavior mappings.
+- Playthroughs: future-history pruning, external import and full rollback.
+- Database Manager: uploaded/legacy SQL import with current restore safeguards.
+
+The evolution report reference is ui/core/npc_report.php. It deduplicates
+personality history, combines backstory/personality chronologically, and asks
+Background & Memory Tasks for a report. Native implementation must use the exact
+profile UUID (not NPC display-name matching), a durable request with scoped
+result storage and existing provider routing, and the reference report card.
+Viewing history must not trigger a provider request; a deliberate report action
+may queue one. Exercise generation using an isolated mock, not live credentials.
+
+Provider, microphone and game acceptance remain untested where stated in the
+matrix. They cannot be inferred from browser mocks or server unit checks.
+
+## LLM connector CSV file format (2026-09-12)
+
+The LLM sidebar now accepts CSV and legacy native JSON files; Export downloads
+Herika's exact 22-column CSV header. Sampling options, provider order, JSON flags,
+streaming and body parameters map to native validated settings. Native transport,
+timeout and original YAML formatting use metadata, preserving round trips for
+configured, mock and all eight direct service identities. Source connector and
+badge IDs are blank on export and ignored on import. Credentials always remain
+unbound. Duplicate CSV names use the existing all-row connector naming pattern.
+Unknown/invalid settings fail validation instead of silently enabling unsupported
+features. The reference-only Remove Action Prompt flag has no runtime consumer
+and is not added as an inert native setting. Imported provider calls are not run.
+
+1098 server checks and 111 protocol files pass. PHP/JS lint and diff checks pass.
+Full isolated management HTTP suite passes in llm-csv-http-final.txt, including
+CSV export/import/re-export equality, duplicate naming and malformed input.
+The first run stopped at an obsolete JSON-only picker assertion; the assertion
+was updated and the complete suite rerun. Deployed browser checks at 1280/390
+cover both file types, POST fields, error display, picker reset and retry with
+all writes mocked. A separate deployed GET-only check confirms the selected
+connector Export downloads CSV. Narrow error presentation was inspected.
+Deployment rollback: /var/backups/lorkhanserver-code.WCz9zT. All 868 runtime files
+match source; private/auth/NPC probes pass and configuration/credentials/voices
+are preserved. The GitHub workflow stays disabled. No game or paid-provider calls.
+
+The version viewer Restore button also now uses the reference accent treatment
+in native gold; the shared green-submit override was corrected after rendered
+inspection. Desktop/narrow viewer interaction checks still pass.
+
+Open import interaction: Herika selects the first imported connector. The native
+batch currently returns to its connector list. This is not closed by CSV format
+support and should be the next connector adjustment. Full page parity remains open.

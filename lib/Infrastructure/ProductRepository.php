@@ -608,18 +608,18 @@ final class ProductRepository
         return null;
     }
 
-    /** Name a copied TTS connector without colliding with entries beyond the first UI page. */
-    public function importedTtsConnectorName(string $installationId,string $base):string
+    /** Name a copied connector without colliding with entries beyond the first UI page. */
+    public function importedConnectorName(string $installationId,string $base,string $kind):string
     {
-        $query=$this->db->prepare("SELECT name FROM configuration_sets WHERE installation_id=:installation AND kind='tts_provider' AND deleted_at IS NULL");
-        $query->execute(['installation'=>$installationId]);
+        $query=$this->db->prepare("SELECT name FROM configuration_sets WHERE installation_id=:installation AND kind=:kind AND deleted_at IS NULL");
+        $query->execute(['installation'=>$installationId,'kind'=>$kind]);
         $used=[];foreach($query->fetchAll(\PDO::FETCH_COLUMN) as $name)$used[mb_strtolower(trim($name))]=true;
         if(!isset($used[mb_strtolower($base)]))return$base;
         for($index=2;$index<5000;$index++){
             $suffix=' '.$index;$candidate=mb_strcut($base,0,128-strlen($suffix),'UTF-8').$suffix;
             if(!isset($used[mb_strtolower($candidate)]))return$candidate;
         }
-        throw new RuntimeException('tts_import_name_unavailable');
+        throw new RuntimeException('connector_import_name_unavailable');
     }
 
     public function listRevisioned(string $kind, string $installationId): array
