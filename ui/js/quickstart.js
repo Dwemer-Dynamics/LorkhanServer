@@ -1,7 +1,9 @@
 document.querySelectorAll('[data-model-select]').forEach(function(select){
     // Show the chosen saved model, never a hardcoded price or a replacement route.
     function updateRecap(){
-        select.closest('.qs-connector-card').querySelector('[data-model-recap]').textContent=select.selectedOptions[0]?.dataset.model||'';
+        const option=select.selectedOptions[0],recap=document.querySelector('[data-model-recap="'+select.name+'"]');
+        recap.textContent=option?.value?option.textContent+(option.dataset.model?' ('+option.dataset.model+')':''):'No model selected';
+        if(!select.value)select.closest('details').open=true;
     }
     select.addEventListener('change',updateRecap);
     updateRecap();
@@ -137,7 +139,8 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
         section.querySelector('#qs_settings_preset_desc').textContent=local?
             'Shorter context and replies for all Core Profiles in this installation. Configure the local model below.':
             'Default settings for all Core Profiles, with profile backfill, relationship updates, memory summaries and semantic recall enabled.';
-        models[0]?.closest('.qs-connector-grid').toggleAttribute('hidden',local||player2);
+        form.querySelector('[data-normal-recap]').hidden=local||player2;
+        form.querySelector('[data-model-editor]').hidden=local||player2;
         form.querySelector('[data-local-recap]').hidden=!local||player2;
         const allLocal=local&&form.elements.local_scope.value==='all';
         form.querySelector('[data-general-connector-title]').textContent=local&&!player2?'Other AI tasks:':'Other Connectors Used:';

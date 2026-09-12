@@ -101,6 +101,8 @@ do not use an exception to excuse a generic substitute layout.
 
 ## Complete page matrix
 
+Current delivery order: close visible page structure and interactions directly from the pinned Herika templates first. Database-import infrastructure remains unfinished and deferred behind that page pass; it is not evidence of UI completion.
+
 | Lorkhan page | Herika counterpart | Current status |
 | --- | --- | --- |
 | `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty and desktop/narrow layout reviewed. Latest-diary author audio is wired, with populated-template playback/error checks; live-provider acceptance remains open |
@@ -11259,3 +11261,9 @@ No product code, database contents, admin routing or live settings were changed 
 - Capture requires a caller-owned directory that is not writable by group/others. Data is written to a private random partial file, synced, made read-only and published without overwriting any existing destination. Failed, empty, oversized and timed-out captures remove their partial files. The result remains untrusted JSON and must pass SqlImportData validation; file existence is not a completed import job.
 - An actual sandbox SIGTERM probe found that InterruptedError from the signal handler was swallowed by Python selectors. The handler now raises RuntimeError to unwind cleanup. The permanent existing-script regression verifies termination removes partial output and the owned sandbox process tree. Forced SIGKILL recovery and aggregate memory/CPU/PID containment still belong to the unfinished job/resource lifecycle.
 - Checks passed: 1034 server checks, 111 protocol files and the complete integration/archive/import/migration/job suite with real capture (Temp sql-import-capture.txt). The subsequently added actual-CLI cancellation regression and the existing exact-limit, stderr-limit, nonzero/empty, closed-pipe and inherited-pipe timeout cases passed through the same integration-script block (Temp sql-import-capture-regression.py). Inventory remains unchanged. The wrapper is not web-exposed or deployed as a worker entrypoint; aggregate limits, quarantine/job lifecycle, legacy compatibility and upload UI remain open.
+
+## Quickstart reference recap layout (2026-09-12)
+
+- Restored Herika's plain four-card model recap presentation in place of Lorkhan's dropdowns inside every card. Normal, Player2 and Local cards share the reference label/detail typography, 12px padding, 8px corners and desktop/narrow grid. Existing saved-model selectors remain in a collapsed secondary disclosure; nothing was removed from the revisioned save contract. Missing selections open that disclosure. Actual Lorkhan model names populate the cards; reference hardcoded prices are not presented as prices for unrelated configured models.
+- Fresh reference and source-rendered fixture screenshots were inspected at 1280/390 widths. Both have 467px desktop columns and 336px narrow cards. Browser checks cover recap modes, hidden/disabled selectors, draft retention, keyboard editing and intercepted successful submission of all four slot values, with no page errors or overflow (Temp quickstart-cards-current.cjs, quickstart-cards-reference.cjs and their PNGs).
+- PHP lint, 1034 server checks and 111 protocol files passed. The management HTTP run passed the Quickstart section and captured current rendered HTML, then timed out on an unrelated Database Manager GET at management_http.py line 3538 (Temp quickstart-current-http.txt); the entire HTTP suite is not claimed green. This closes the recap presentation gap, not the entire Quickstart or full parity goal.

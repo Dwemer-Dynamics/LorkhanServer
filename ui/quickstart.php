@@ -115,13 +115,14 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
         <section class="qs-section"><h2 class="qs-section-title">LLM Connectors Note</h2><p class="form-text" data-normal-llm-note>Four hot-swappable models for Interact. Standard is the default; saving does not reset your current in-game slot.</p>
             <p class="form-text" data-local-llm-note hidden>Local LLM profile selected. The recap below reflects the Local LLM Setup fields in the Setup section and is applied on Save and Continue.</p>
             <p class="form-text" data-player2-llm-note hidden>Player2 mode is active. Standard, Fast, Powerful, and Experimental all use the local Player2 connector.</p>
-            <div class="qs-connector-grid" data-player2-recap hidden><?php foreach(['🕹️ Standard','🏃 Fast','💪 Powerful','🧪 Experimental']as$index=>$label): ?><div class="qs-connector-card"><strong><?= $label ?></strong><div class="qs-model">Player2 Local</div><small class="form-text"><?= $index===0?'Uses the model selected in the Player2 app':'Same local Player2 connector as Standard' ?></small></div><?php endforeach; ?></div>
-            <div class="qs-connector-grid"><?php foreach(['llm_configuration_id'=>['Standard','🕹️'],'llm_fast_configuration_id'=>['Fast','🏃'],'llm_powerful_configuration_id'=>['Powerful','💪'],'llm_experimental_configuration_id'=>['Experimental','🧪']]as$field=>[$label,$icon]): $model=''; foreach($llms as$row)if(($routing[$field]??'')===$row['configuration_id'])$model=(string)($row['content']['model']??''); ?>
-            <div class="qs-connector-card"><label for="qs-<?php echo $field; ?>"><span aria-hidden="true"><?php echo $icon; ?></span> <strong><?php echo $label; ?></strong></label>
-                <select name="<?php echo $field; ?>" id="qs-<?php echo $field; ?>" class="form-control" required data-model-select><option value="">Choose a model</option><?php foreach($llms as$row): ?><option value="<?php echo lorkhan_ui_h($row['configuration_id']); ?>" data-model="<?php echo lorkhan_ui_h($row['content']['model']??''); ?>"<?php echo ($routing[$field]??'')===$row['configuration_id']?' selected':''; ?>><?php echo lorkhan_ui_h($row['name']); ?></option><?php endforeach; ?></select>
-                <div class="qs-model" data-model-recap><?php echo lorkhan_ui_h($model); ?></div>
+            <div class="qs-connector-grid" data-player2-recap hidden><?php foreach(['🕹️ Standard','🏃 Fast','💪 Powerful','🧪 Experimental']as$index=>$label): ?><div class="qs-connector-card"><div class="qs-connector-label"><b><?= $label ?></b></div><div class="qs-model">Player2 Local</div><small class="qs-connector-detail"><?= $index===0?'Uses the model selected in the Player2 app':'Same local Player2 connector as Standard' ?></small></div><?php endforeach; ?></div>
+            <?php $modelSlots=['llm_configuration_id'=>['Standard','🕹️'],'llm_fast_configuration_id'=>['Fast','🏃'],'llm_powerful_configuration_id'=>['Powerful','💪'],'llm_experimental_configuration_id'=>['Experimental','🧪']]; ?>
+            <div class="qs-connector-grid" data-normal-recap><?php foreach($modelSlots as$field=>[$label,$icon]):
+                $modelLabel='No model selected';foreach($llms as$row)if(($routing[$field]??'')===$row['configuration_id'])$modelLabel=$row['name'].(!empty($row['content']['model'])?' ('.$row['content']['model'].')':''); ?>
+            <div class="qs-connector-card"><div class="qs-connector-label"><span aria-hidden="true"><?= $icon ?></span> <b><?= $label ?></b></div>
+                <div class="qs-model" data-model-recap="<?= $field ?>"><?= lorkhan_ui_h($modelLabel) ?></div>
             </div><?php endforeach; ?></div>
-            <div class="qs-connector-grid" data-local-recap hidden><?php foreach(['🕹️ Standard','🏃 Fast','💪 Powerful','🧪 Experimental'] as $label): ?><div class="qs-connector-card"><strong><?= $label ?></strong><div class="qs-model" data-local-model></div><small class="form-text" data-local-endpoint></small></div><?php endforeach; ?></div>
+            <div class="qs-connector-grid" data-local-recap hidden><?php foreach(['🕹️ Standard','🏃 Fast','💪 Powerful','🧪 Experimental'] as $label): ?><div class="qs-connector-card"><div class="qs-connector-label"><b><?= $label ?></b></div><div class="qs-model" data-local-model></div><small class="qs-connector-detail" data-local-endpoint></small></div><?php endforeach; ?></div>
             <div class="qs-general-connector-wrap">
                 <div class="qs-general-connector-title" data-general-connector-title>Other Connectors Used:</div>
                 <div data-general-connector-saved>
@@ -131,6 +132,11 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
                 <div class="qs-general-connector-empty" data-general-connector-override hidden></div>
             </div>
             <p class="form-text">These are your saved connectors. <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/llm_connectors.php">Configure Models</a> · <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/api_keys.php">API Keys</a></p>
+            <details class="qs-model-selection" data-model-editor><summary>Change saved model selections</summary><div class="qs-connector-grid">
+                <?php foreach($modelSlots as$field=>[$label,$icon]): ?><div><label for="qs-<?= $field ?>"><?= $label ?></label>
+                    <select name="<?= $field ?>" id="qs-<?= $field ?>" class="form-control" required data-model-select><option value="">Choose a model</option><?php foreach($llms as$row): ?><option value="<?= lorkhan_ui_h($row['configuration_id']) ?>" data-model="<?= lorkhan_ui_h($row['content']['model']??'') ?>"<?= ($routing[$field]??'')===$row['configuration_id']?' selected':'' ?>><?= lorkhan_ui_h($row['name']) ?></option><?php endforeach; ?></select>
+                </div><?php endforeach; ?>
+            </div></details>
         </section>
         <p class="form-text">MiniMe and automatic summary settings are in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/config_hub.php?tab=globals">Global Settings</a>. The MiniMe check only tests reachability; it does not enable summaries or generate embeddings.</p>
         <?php if(!$ready): ?><p class="quickstart-notice" data-default-required>Create a Core Profile and at least one LLM connector before saving Quickstart, or choose Local LLM to create its connector.</p><?php endif; ?>

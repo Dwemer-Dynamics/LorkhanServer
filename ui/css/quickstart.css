@@ -18,6 +18,10 @@ body > main.quickstart-page{max-width:none;margin:0;padding:80px 10px 40px;color
 .quickstart-page .qs-connector-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:8px}
 .quickstart-page .qs-connector-card{background:#1f1f1f;border:1px solid #3b3b3b;border-radius:8px;padding:12px;min-width:0}
 .quickstart-page .qs-connector-card label{font-size:14px}
+.quickstart-page .qs-connector-label{font-size:14px;color:#cfd9ea}
+.quickstart-page .qs-connector-detail{display:block;margin-top:4px;color:#bbb;font-size:12px}
+.quickstart-page .qs-model-selection{margin-top:12px}
+.quickstart-page .qs-model-selection summary{cursor:pointer;color:#bbb;font-size:13px}
 .quickstart-page .qs-model{margin-top:6px;color:#bc9d5a;font-size:14px;overflow-wrap:anywhere}
 .quickstart-page .qs-actions{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
 .quickstart-page .qs-save-btn{min-width:180px}
