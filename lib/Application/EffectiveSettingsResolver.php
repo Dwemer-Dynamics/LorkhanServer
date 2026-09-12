@@ -132,7 +132,7 @@ final class EffectiveSettingsResolver
         }
         $coreOverrides = self::validateSettingsOverrides($coreProfileContent['settings_overrides'] ?? []);
         $allowedOverrides = [];
-        foreach (['rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_allow_actions', 'combat_bark_period_seconds'] as $field) {
+        foreach (['rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_allow_actions', 'combat_bark_period_seconds', 'rechat_mode'] as $field) {
             if (array_key_exists($field, $coreOverrides['behavior'] ?? [])) $allowedOverrides['behavior'][$field] = $coreOverrides['behavior'][$field];
         }
         foreach (['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled', 'short_term_max_summaries', 'oghma_knowledge_tags'] as $field) {
@@ -160,6 +160,10 @@ final class EffectiveSettingsResolver
                 $settings['relationship']['update_chance_percent'] = $legacyChance;
                 $sources['settings.relationship.update_chance_percent'] = 'core_profile_legacy';
             }
+        }
+        if (array_key_exists('enabled', $coreOverrides['relationship'] ?? [])) {
+            $settings['relationship']['update_chance_percent'] = $coreOverrides['relationship']['enabled'] ? $relationship['update_chance_percent'] : 0;
+            $sources['settings.relationship.update_chance_percent'] = 'core_profile';
         }
         if (!$settings['oghma']['extractor_fallback_enabled']) $routing['oghma_configuration_id'] = '';
         $allowedCoreRouting = array_fill_keys(SettingsCatalog::coreRoutingFields(), true);
@@ -439,7 +443,11 @@ final class EffectiveSettingsResolver
         }
         if (($validation['memory'] ?? null) === []) unset($validation['memory']);
         if(array_key_exists('relationship',$validation)){
-            self::validateSettingsShape(['relationship'=>$validation['relationship']],
+            if (is_array($validation['relationship']) && array_key_exists('enabled', $validation['relationship'])) {
+                if ($npc || !is_bool($validation['relationship']['enabled'])) throw new InvalidArgumentException('invalid_settings_overrides');
+                unset($validation['relationship']['enabled']);
+            }
+            if ($validation['relationship'] !== []) self::validateSettingsShape(['relationship'=>$validation['relationship']],
                 ['relationship'=>['update_chance_percent'=>0,'locked'=>false]],true);
             unset($validation['relationship']);
         }

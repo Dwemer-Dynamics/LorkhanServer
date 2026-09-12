@@ -1326,12 +1326,13 @@ final class ManagementRouter
             + (isset($overrides['oghma']) ? ['oghma'=>$overrides['oghma']] : [])
             + (isset($overrides['context']) ? ['context'=>$overrides['context']] : [])
             + (isset($overrides['prompt']) ? ['prompt'=>$overrides['prompt']] : [])
+            + (array_key_exists('enabled',$overrides['relationship']??[]) ? ['relationship'=>['enabled'=>$overrides['relationship']['enabled']]] : [])
             + (isset($overrides['profile_evolution']) ? ['profile_evolution'=>$overrides['profile_evolution']] : []) + ['response'=>['max_words'=>(int)($overrides['response']['max_words']??0),'core_lang'=>(string)($overrides['response']['core_lang']??''),'lang_llm_xtts'=>($overrides['response']['lang_llm_xtts']??false)===true],
             'behavior'=>['rechat'=>($overrides['behavior']['rechat']??false)===true,
             'rechat_max_depth'=>(int)($overrides['behavior']['rechat_max_depth']??2),
             'rechat_probability_percent'=>(int)($overrides['behavior']['rechat_probability_percent']??50),
             'rechat_allow_actions'=>($overrides['behavior']['rechat_allow_actions']??false)===true]
-                + array_intersect_key($overrides['behavior']??[],array_flip(['combat_bark_period_seconds'])),
+                + array_intersect_key($overrides['behavior']??[],array_flip(['combat_bark_period_seconds','rechat_mode'])),
             'memory'=>['recent_turn_limit'=>(int)($overrides['memory']['recent_turn_limit']??20),'short_term_max_summaries'=>(int)($overrides['memory']['short_term_max_summaries']??10)]+array_intersect_key($overrides['memory']??[],array_flip(['short_term_enabled','mid_term_enabled','long_term_enabled','oghma_knowledge_tags'])),
             'diary'=>['enabled'=>($overrides['diary']['enabled']??false)===true,
                 'automatic_enabled'=>($overrides['diary']['automatic_enabled']??false)===true,

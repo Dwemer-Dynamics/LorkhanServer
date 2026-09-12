@@ -13,7 +13,12 @@ $coreOverrideCatalog['memory.oghma_knowledge_tags'] = ['label'=>'Oghma Knowledge
 foreach (['prompt_timestamp'=>'Prompt Timestamp','ground_items_descriptions_only'=>'Ground Items Descriptions Only','inventory_items_descriptions_only'=>'Inventory Items Descriptions Only'] as $key=>$label)
     $coreOverrideCatalog['context.'.$key]=['label'=>$label,'type'=>'boolean','value'=>false];
 $coreOverrideCatalog['prompt.prompt_head']=['label'=>'Prompt Head','type'=>'string','value'=>'','maxBytes'=>8192,'multiline'=>true];
+$coreOverrideCatalog['behavior.rechat_mode']=['label'=>'Rechat Mode','type'=>'choice','value'=>'random','choices'=>['tight','conversational','group','random']];
+$coreOverrideCatalog['relationship.enabled']=['label'=>'Relationship System Enabled','type'=>'boolean','value'=>($globalContent['relationship']['enabled']??false)===true];
 $coreOverrideHelp = [
+    'behavior.rechat_mode'=>'Tight uses the listener; Conversational prefers the current partner; Group rotates nearby NPCs; Random chooses a mode at the start of each chain. Existing chains retain their starting mode.',
+    'relationship.enabled'=>'Enable relationship evaluation for this profile. The global update chance and Relationship Management connector still apply.',
+
     'context.prompt_timestamp'=>'Add rough timestamp dividers to event context to help NPCs understand when events happened.',
     'context.ground_items_descriptions_only'=>'Include only nearby items that have a record description.',
     'context.inventory_items_descriptions_only'=>'Include only inventory items that have a record description.',
@@ -39,7 +44,7 @@ unset($definition);
     <summary>🌐 Global Settings Overrides</summary>
     <p class="hint">Override global settings for this profile. Changes here take precedence over global configurations. Other profile settings use the controls above.</p>
     <div class="prof-ovr-list">
-    <?php foreach (['Context'=>['context'],'Oghma'=>['oghma','memory'],'Prompt'=>['prompt']] as $category=>$sections): ?>
+    <?php foreach (['Context'=>['context','relationship'],'Oghma'=>['oghma','memory'],'Prompt'=>['prompt'],'Rechat'=>['behavior']] as $category=>$sections): ?>
     <section class="prof-ovr-category"><h3 class="prof-ovr-category-title"><?= lorkhan_ui_h($category) ?></h3><div class="prof-ovr-category-settings">
     <?php foreach ($coreOverrideCatalog as $path=>$definition): [$section,$key]=explode('.', $path); if (!in_array($section,$sections,true)) continue; $enabled=array_key_exists($key,$overrides[$section]??[]); $value=$enabled?$overrides[$section][$key]:$definition['value']; $id='core-override-'.str_replace('.','-',$path); $globalPreview=is_bool($definition['value'])?($definition['value']?'true':'false'):($definition['value']===''?'Not set':(string)$definition['value']); $globalPreview=mb_strlen($globalPreview)>180?mb_substr($globalPreview,0,177).'…':$globalPreview; ?>
         <div class="prof-ovr-inline-item<?= $enabled?' enabled':'' ?>" data-path="<?= lorkhan_ui_h($path) ?>">
@@ -48,7 +53,9 @@ unset($definition);
                 <div class="prof-ovr-inherited-value">Global value: <?= lorkhan_ui_h($globalPreview) ?></div>
             </div>
             <div class="prof-ovr-inline-controls"><label class="prof-ovr-toggle"><input type="checkbox" data-core-override-enabled<?= $enabled?' checked':'' ?> aria-label="<?= lorkhan_ui_h('Override '.$definition['label']) ?>"> Override</label>
-                <?php if ($definition['multiline'] ?? false): ?>
+                <?php if ($definition['type'] === 'choice'): ?>
+                <select id="<?= lorkhan_ui_h($id) ?>" class="prof-ovr-inline-input" data-core-override-input<?= $enabled?'':' disabled' ?>><?php foreach ($definition['choices'] as $choice): ?><option value="<?= lorkhan_ui_h($choice) ?>"<?= $value===$choice?' selected':'' ?>><?= lorkhan_ui_h(ucfirst($choice)) ?></option><?php endforeach; ?></select>
+                <?php elseif ($definition['multiline'] ?? false): ?>
                 <textarea id="<?= lorkhan_ui_h($id) ?>" class="prof-ovr-inline-input" data-core-override-input rows="3" maxlength="<?= $definition['maxBytes'] ?>"<?= $enabled?'':' disabled' ?>><?= lorkhan_ui_h((string)$value) ?></textarea>
                 <?php else: ?>
                 <input id="<?= lorkhan_ui_h($id) ?>" class="prof-ovr-inline-input" data-core-override-input type="<?= $definition['type']==='boolean'?'checkbox':($definition['type']==='integer'?'number':'text') ?>"<?= $definition['type']==='boolean'?($value?' checked':''):' value="'.lorkhan_ui_h((string)$value).'"' ?><?= $definition['type']==='integer'?' step="1" required min="'.$definition['range'][0].'" max="'.$definition['range'][1].'"':'' ?><?= $definition['type']==='string'?' maxlength="4096"':'' ?><?= $enabled?'':' disabled' ?>>

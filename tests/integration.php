@@ -1289,6 +1289,12 @@ $relationshipContent['relationship']=['enabled'=>true,'update_chance_percent'=>1
 $relationshipContent['system_routing']['relationship_configuration_id']=$profileModelSlot['configuration_id'];
 $relationshipGlobal=$products->revise('global_settings',$relationshipGlobal['configuration_id'],$relationshipContent,
     'enable relationship test',$now);
+$relationshipOwner=$relationships->policy($installationId,$actorProfile['profile_id']);
+$relationshipCore=$products->getRevisioned('core_profile',$relationshipOwner['core_profile_id']);
+$relationshipOff=$relationshipCore['content'];$relationshipOff['settings_overrides']['relationship']['enabled']=false;
+$products->revise('core_profile',$relationshipCore['core_profile_id'],$relationshipOff,'Core relationship off fixture',$now);
+$assert($relationships->enqueue($delivery['message_id'])===null,'Core relationship off still queued an evaluation');
+$products->revise('core_profile',$relationshipCore['core_profile_id'],$relationshipCore['content'],'Restore Core relationship inheritance',$now);
 $relationshipJob=$relationships->enqueue($delivery['message_id']);
 $assert(is_array($relationshipJob),'eligible played response did not queue relationship evaluation');
 $relationshipProvider=new class implements \LorkhanServer\Application\ProfileGenerationProvider {
@@ -2601,6 +2607,14 @@ $eligibleProbe['payload']['context']['rechat']['participant_states']=[
     $participantRow($thirdTarget,'active'),
 ];
 $eligibleResolved=$rechatCoordinator->resolve($eligibleProbe);
+$db->beginTransaction();
+$modeOwner=$products->effectiveSettingsForActor($installationId,$session['playthrough_id'],$speakerIdentity)['core_profile'];
+$modeContent=$modeOwner['content'];$modeContent['settings_overrides']['behavior']['rechat_mode']='group';
+$products->revise('core_profile',$modeOwner['core_profile_id'],$modeContent,'Core mode fixture',$now);
+$modeProbe=$rechatCoordinator->resolve($eligibleProbe);
+$assert($modeProbe['payload']['context']['rechat']['configured_mode']==='group'
+    &&$modeProbe['payload']['context']['rechat']['mode']==='group','Rechat coordinator ignored initiating Core mode');
+$db->rollBack();
 $assert($eligibleResolved['payload']['target']===$thirdTarget
     &&$eligibleResolved['payload']['audience']===[$speakerIdentity,$secondaryTarget,$thirdTarget]
     &&count($eligibleResolved['payload']['context']['rechat']['participant_states'])===3,

@@ -2472,6 +2472,24 @@ foreach([-1,101,'50',null] as $invalidChance){
 }
 
 $combatCore=['settings_overrides'=>['behavior'=>['combat_bark_period_seconds'=>600]]];
+$modeCore=['settings_overrides'=>['behavior'=>['rechat_mode'=>'group'],'relationship'=>['enabled'=>true]]];
+$modeGlobal=SettingsCatalog::globalDefaults();$modeGlobal['relationship']['update_chance_percent']=75;
+$modeResolved=(new EffectiveSettingsResolver())->resolve($modeGlobal,$modeCore,[]);
+$check($modeResolved['settings']['behavior']['rechat_mode']==='group'
+    &&$modeResolved['settings']['relationship']['update_chance_percent']===75
+    &&$modeResolved['sources']['settings.relationship.update_chance_percent']==='core_profile',
+    'Core Rechat Mode and relationship enable override global defaults without replacing chance');
+$modeCore['settings_overrides']['relationship']['enabled']=false;$modeGlobal['relationship']['enabled']=true;
+$check((new EffectiveSettingsResolver())->resolve($modeGlobal,$modeCore,[])['settings']['relationship']['update_chance_percent']===0,
+    'Core relationship off blocks automatic evaluation even when globally enabled');
+$check(\LorkhanServer\Application\CoreProfilePreset::capture($modeCore)['settings_overrides']==$modeCore['settings_overrides'],
+    'Rechat Mode and explicit relationship off survive named presets');
+foreach ([['behavior'=>['rechat_mode'=>'invalid']], ['relationship'=>['enabled'=>'true']]] as $invalidMode) {
+    try { EffectiveSettingsResolver::validateSettingsOverrides($invalidMode); $check(false,'invalid Core mode or relationship switch rejected'); }
+    catch (InvalidArgumentException) { $check(true,'invalid Core mode or relationship switch rejected'); }
+}
+try { EffectiveSettingsResolver::validateSettingsOverrides(['relationship'=>['enabled'=>true]],true); $check(false,'Core relationship switch rejected in NPC overrides'); }
+catch (InvalidArgumentException) { $check(true,'Core relationship switch rejected in NPC overrides'); }
 $combatResolved=(new EffectiveSettingsResolver())->resolve([],$combatCore,[]);
 $check($combatResolved['settings']['behavior']['combat_bark_period_seconds']===600
     &&$combatResolved['sources']['settings.behavior.combat_bark_period_seconds']==='core_profile'

@@ -14,6 +14,7 @@
             if (!Object.hasOwn(value[section] || {}, key)) continue;
             const item = value[section][key];
             if (definition.type === 'boolean' ? typeof item !== 'boolean'
+                : definition.type === 'choice' ? !definition.choices.includes(item)
                 : definition.type === 'string' ? typeof item !== 'string' || new TextEncoder().encode(item).length > definition.maxBytes
                 : !Number.isInteger(item) || item < definition.range[0] || item > definition.range[1]) throw Error('Invalid value for ' + definition.label + '.');
         }
