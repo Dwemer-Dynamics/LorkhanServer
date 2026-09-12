@@ -79,6 +79,23 @@ final class ManagementRepository
         return $row === false ? null : $row;
     }
 
+    /** Delete only an explicitly selected automatic backup, never a queued restore source or manual rollback. */
+    public function deleteAutomaticDatabaseBackup(string $id,array $config):void
+    {
+        $db=$this->db;$path=(new DatabaseSqlBackup($config))->path($id);
+        if(!filter_var($db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn(),FILTER_VALIDATE_BOOL))throw new RuntimeException('maintenance_busy');
+        try{
+            $record=(new ProductRepository($db))->configurationBackupRecord($id);
+            if(($record['scope']['kind']??'')!=='database_sql'||($record['scope']['automatic']??false)!==true)throw new RuntimeException('not_found');
+            $pending=$db->prepare("SELECT 1 FROM durable_jobs WHERE job_type='database.restore' AND state IN ('queued','leased') AND payload->>'backup_id'=:id LIMIT 1");
+            $pending->execute(['id'=>$id]);if($pending->fetchColumn()!==false)throw new RuntimeException('backup_restore_pending');
+            if(is_link($path)||is_link($path.'.dump'))throw new RuntimeException('backup_integrity_failed');
+            foreach([$path,$path.'.dump'] as $file)if(is_file($file)&&!unlink($file))throw new RuntimeException('backup_delete_failed');
+            $delete=$db->prepare("DELETE FROM backup_records WHERE backup_id=:id AND scope->>'kind'='database_sql' AND scope->>'automatic'='true'");
+            $delete->execute(['id'=>$id]);
+        }finally{$db->query('SELECT pg_advisory_unlock(7514,113)');}
+    }
+
     /** An explicit stored-file restore is single-attempt and gets a separate manual rollback backup. */
     public function queueDatabaseRestore(string $backupId): string
     {

@@ -451,6 +451,13 @@ final class ManagementRouter
         }
         if($domain==='global-settings-preset')return $this->namedGlobalSettingsPreset($v,$scope);
         if($domain==='core-profile-preset')return $this->namedCoreProfilePreset($v,$scope);
+        if($domain==='database-backup-delete'){
+            if(($v['confirm']??'')!=='Delete')throw new InvalidArgumentException('confirmation_mismatch');
+            $status='backup-deleted';
+            try{$this->management->deleteAutomaticDatabaseBackup($this->need($v,'backup_id'),$this->providerConfig);}
+            catch(RuntimeException $error){$status=match($error->getMessage()){'maintenance_busy'=>'maintenance-busy','backup_restore_pending'=>'backup-restore-pending','backup_delete_failed'=>'backup-delete-failed',default=>throw $error};}
+            return $this->redirect($this->webRoot().'/ui/database_manager.php?'.http_build_query(['status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
+        }
         if($domain==='database-restore'){
             if(($v['confirm']??'')!=='Restore SQL')throw new InvalidArgumentException('confirmation_mismatch');
             try{$this->management->queueDatabaseRestore($this->need($v,'backup_id'));$status='restore-queued';}

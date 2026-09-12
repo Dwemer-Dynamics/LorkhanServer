@@ -5,6 +5,9 @@
     </header>
     <?php if (($_GET['status']??'')==='saved'): ?><p class="database-notice" role="status">Database operation completed.</p><?php endif; ?>
     <?php $maintenanceMessages=[
+        'backup-deleted'=>'Automatic backup deleted, including its private restore archive.',
+        'backup-restore-pending'=>'This backup is queued for restoration and cannot be deleted yet.',
+        'backup-delete-failed'=>'Backup deletion did not finish. A file may already have been removed; retry to finish deleting this backup.',
         'restore-queued'=>'SQL restore queued. Keep the game closed. The worker will first create a rollback backup, then restore in one transaction.',
         'backup-settings-saved'=>'Automatic backup settings saved. Older automatic backups are removed only after the next successful automatic backup.',
         'backup-queued'=>'Full SQL backup queued. Reload the backup list after the worker completes.',
@@ -36,11 +39,17 @@
             <div class="backup-filename"><?= lorkhan_ui_h($backup['backup_id']) ?>.sql</div>
             <div class="backup-badges"><span class="backup-scope-badge">LorkhanServer database · <?= !empty($backup['rollback_for'])?'Before restore':(($backup['automatic']??'')==='true'?'Automatic':'Manual') ?></span></div>
             <div class="backup-meta"><span><?= lorkhan_ui_table_value($backup['byte_count'],'bytes') ?></span><span>Created <?= lorkhan_ui_h($backup['created_utc']) ?> UTC</span><span><?= lorkhan_ui_h($backup['state']) ?></span></div>
-        </span><span class="server-file-radio-indicator" aria-hidden="true"></span></span></span></label><a class="backup-download" href="<?= lorkhan_ui_h($managementBasePath.'/exports/database/'.$backup['backup_id'].'.sql') ?>" aria-label="Download SQL backup <?= lorkhan_ui_h($backup['backup_id']) ?>">Download SQL</a></div><?php endforeach; ?>
+        </span><span class="server-file-radio-indicator" aria-hidden="true"></span></span></span></label><a class="backup-download" href="<?= lorkhan_ui_h($managementBasePath.'/exports/database/'.$backup['backup_id'].'.sql') ?>" aria-label="Download SQL backup <?= lorkhan_ui_h($backup['backup_id']) ?>">Download SQL</a>
+        <?php if(($backup['automatic']??'')==='true'): ?><button type="submit" form="delete-backup-<?= lorkhan_ui_h($backup['backup_id']) ?>" class="button backup-delete btn-danger" title="Delete this automatic backup" aria-label="Delete automatic backup <?= lorkhan_ui_h($backup['backup_id']) ?>">🗑️</button><?php endif; ?></div><?php endforeach; ?>
         </div>
         <label for="sql-restore-confirm">Type Restore SQL to confirm replacement</label><input id="sql-restore-confirm" type="text" name="confirm" required pattern="Restore SQL" autocomplete="off">
         <button class="button backup-restore" type="submit"<?= !$sqlCanRestore?' disabled':'' ?>>Restore SQL Backup</button>
         </form><?php endif; ?>
+        <?php foreach($sqlBackups as $backup): if(($backup['automatic']??'')!=='true')continue; ?>
+        <form id="delete-backup-<?= lorkhan_ui_h($backup['backup_id']) ?>" method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/database-backup-delete" data-backup-delete data-backup-name="<?= lorkhan_ui_h($backup['backup_id']) ?>.sql">
+            <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="backup_id" value="<?= lorkhan_ui_h($backup['backup_id']) ?>"><input type="hidden" name="confirm" value="Delete">
+            <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+        </form><?php endforeach; ?>
         <p role="status" data-database-maintenance data-kind="restore" data-endpoint="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/database-restore" data-state="<?= lorkhan_ui_h($sqlRestoreJob['state']??'') ?>">Latest SQL restore: <?= lorkhan_ui_h($sqlRestoreJob['state']??'none') ?>.</p>
         <nav class="backup-pagination" aria-label="SQL backup pages"><?php if($sqlPage>1): ?><a class="button" href="<?= lorkhan_ui_h($sqlPageUrl($sqlPage-1)) ?>">Previous</a><?php endif; ?><?php if($sqlHasNext): ?><a class="button" href="<?= lorkhan_ui_h($sqlPageUrl($sqlPage+1)) ?>">Next</a><?php endif; ?></nav>
         <a class="button" href="<?= lorkhan_ui_h($sqlPageUrl($sqlPage)) ?>">Refresh backup list</a>

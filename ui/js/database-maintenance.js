@@ -1,5 +1,8 @@
 /* Follow the explicit maintenance request without keeping its POST connection open. */
 (() => {
+    document.querySelectorAll('[data-backup-delete]').forEach(form => form.addEventListener('submit', event => {
+        if(!confirm('Delete automatic backup '+form.dataset.backupName+' and its restore archive? This cannot be undone.'))event.preventDefault();
+    }));
     document.querySelectorAll('[data-backup-auto-submit]').forEach(select => select.addEventListener('change', () => select.form.requestSubmit()));
     document.querySelectorAll('[data-database-maintenance]').forEach(status => {
     const backup = status.dataset.kind === 'backup';

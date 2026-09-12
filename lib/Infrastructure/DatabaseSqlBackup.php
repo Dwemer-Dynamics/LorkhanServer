@@ -140,6 +140,8 @@ final class DatabaseSqlBackup
         $old=$db->query("SELECT backup_id FROM backup_records WHERE scope->>'kind'='database_sql' AND scope->>'automatic'='true' ORDER BY created_at DESC,backup_id DESC OFFSET ".$settings['max_count'])->fetchAll(PDO::FETCH_COLUMN);
         foreach($old as $id){
             if($id===$replacementId)continue;
+            $pending=$db->prepare("SELECT 1 FROM durable_jobs WHERE job_type='database.restore' AND state IN ('queued','leased') AND payload->>'backup_id'=:id LIMIT 1");
+            $pending->execute(['id'=>$id]);if($pending->fetchColumn()!==false)continue;
             $candidate=$this->path($id);
             if(is_link($candidate)||is_link($candidate.'.dump'))throw new RuntimeException('backup_integrity_failed');
             if(is_file($candidate)&&!unlink($candidate))throw new RuntimeException('backup_retention_failed');
@@ -148,4 +150,6 @@ final class DatabaseSqlBackup
             $delete->execute(['id'=>$id]);
         }
     }
+
+
 }

@@ -463,6 +463,38 @@ subprocess.run([*pg_test,"UPDATE lorkhan_internal.database_backup_settings SET l
 request('/LorkhanServer/ui/home.php').read()
 assert json.load(request(sql_status,accept='application/json'))['job']['job_id']==failed_id
 
+# Automatic deletion and retention cannot remove a queued restore source; manual copies are protected.
+delete_page,_=parse(request('/LorkhanServer/ui/database_manager.php'))
+delete_form=next(f for f in delete_page.forms if f['action'].endswith('/forms/database-backup-delete'))
+delete_fields=dict(delete_form['fields'])
+assert delete_fields['backup_id']==auto_ids[-1]
+assert request(delete_form['action'],'POST',dict(delete_fields,confirm='wrong')).status==422
+request(delete_form['action'],'POST',dict(delete_fields,_csrf='invalid')).read()
+assert request('/LorkhanServer/manage/exports/database/'+auto_ids[-1]+'.sql').status==200
+assert request(delete_form['action'],'POST',dict(delete_fields,backup_id=sql_job['job_id'])).status==404
+assert request('/LorkhanServer/manage/forms/database-restore','POST',dict(delete_fields,confirm='Restore SQL')).status==200
+pending_restore=json.load(request('/LorkhanServer/manage/api/v1/database-restore',accept='application/json'))['job']['job_id']
+blocked_delete=request(delete_form['action'],'POST',delete_fields).read().decode()
+assert 'queued for restoration and cannot be deleted' in blocked_delete
+assert request(auto_form['action'],'POST',dict(auto_fields,enabled='1')).status==200
+request('/LorkhanServer/ui/home.php').read()
+replacement_id=json.load(request(sql_status,accept='application/json'))['job']['job_id']
+replacement_args=list(auto_args);replacement_args[-1]=replacement_id
+replacement_worker=subprocess.run(replacement_args,capture_output=True,text=True,timeout=60)
+assert replacement_worker.returncode==0 and json.loads(replacement_worker.stdout)['succeeded']==1,(replacement_worker.stdout,replacement_worker.stderr)
+assert request('/LorkhanServer/manage/exports/database/'+auto_ids[-1]+'.sql').status==200
+assert request(auto_form['action'],'POST',dict(auto_fields,enabled='0')).status==200
+subprocess.run([*pg_test,"UPDATE lorkhan_internal.durable_jobs SET state='dead',completed_at=clock_timestamp(),last_error_code='fixture_cancelled' WHERE job_id='"+pending_restore+"'"],check=True,capture_output=True)
+deleted=request(delete_form['action'],'POST',delete_fields).read().decode()
+assert 'Automatic backup deleted, including its private restore archive.' in deleted
+assert request('/LorkhanServer/manage/exports/database/'+auto_ids[-1]+'.sql').status==404
+backup_root=pathlib.Path(subprocess.run([*pg_test,'SHOW data_directory'],capture_output=True,text=True,check=True).stdout.strip()).parent/'control'/'backups'/'sql'
+assert not (backup_root/('sql-'+auto_ids[-1]+'.sql')).exists()
+assert not (backup_root/('sql-'+auto_ids[-1]+'.sql.dump')).exists()
+assert request('/LorkhanServer/manage/exports/database/'+replacement_id+'.sql').status==200
+assert request('/LorkhanServer/manage/exports/database/'+sql_job['job_id']+'.sql').status==200
+
+
 
 studio,text=parse(request('/LorkhanServer/ui/core/voice_library.php')); assert studio.current==1 and 'Add WAV voice samples' in text and 'flat ZIP batch' in text and 'Voice Library' in text and 'Configured TTS Connectors' in text and 'Provider Voice Browser' in text and 'never contacts a provider automatically' in text
 for provider_tab,provider_label in [('xtts','XTTS'),('chatterbox','Chatterbox'),('pockettts','PocketTTS'),('omnivoice','OmniVoice'),('cartesia','Cartesia'),('inworld','Inworld')]:
