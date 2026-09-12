@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
-$embedded = (string) ($_GET['embed'] ?? '') === '1';
+$partialPromptEditor = ($_GET['partial'] ?? '') === 'editor';
+if ($partialPromptEditor) $_GET['embed'] = '1';
+$embedded = $partialPromptEditor || (string) ($_GET['embed'] ?? '') === '1';
 $pageTitle = 'Prompts Manager';
 $topNavSection = 'configuration';
-$BODY_CLASS = 'hub-page prompts-manager-shell' . ($embedded ? ' embedded-page' : '');
+$BODY_CLASS = 'hub-page prompts-manager-shell' . ($embedded ? ' embedded-page' : '') . ($partialPromptEditor ? ' prompt-editor-only' : '');
 require __DIR__ . '/ui_bootstrap.php';
 $rows = $uiRepository->rows('prompts');
 $installations = $uiRepository->rows('installations');
@@ -16,6 +18,15 @@ $rows=array_values(array_filter($rows,static fn(array $row):bool=>$row['installa
 $narratorPromptRows=\LorkhanServer\Application\NarratorEventPrompts::rows($installationId,$rows);
 $rows=array_merge(array_values(array_filter($rows,static fn(array $row):bool=>!isset(\LorkhanServer\Application\NarratorEventPrompts::definitions()[$row['prompt_key']]))),$narratorPromptRows);
 usort($rows,static fn(array $left,array $right):int=>strcmp($left['prompt_key'],$right['prompt_key']));
+if ($partialPromptEditor) {
+    $selectedPrompt = (string) ($_GET['edit'] ?? '');
+    $rows = array_values(array_filter($rows, static fn(array $row): bool =>
+        $row['configuration_id'] === $selectedPrompt && empty($row['narrator_event_prompt'])));
+    if ($rows === []) {
+        http_response_code(404);
+        exit('Prompt unavailable. Close this editor and select an available prompt.');
+    }
+}
 $csvNotice='';$csvError='';
 if(($_GET['export']??'')==='csv'){
     header('Content-Type: text/csv; charset=utf-8');header('Content-Disposition: attachment; filename="custom_prompts.csv"');header('Cache-Control: no-store');
@@ -87,6 +98,12 @@ $renderPlayerMoodFields = static function (string $idPrefix, array $current) use
 $additionalStylesheets = ['herika-prompts.css?v=' . (string) filemtime(__DIR__ . '/css/herika-prompts.css')];
 include __DIR__ . '/tmpl/head.html';
 if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
+if ($partialPromptEditor) {
+    include __DIR__ . '/tmpl/prompt_dialogs.php';
+    echo '<script defer src="' . lorkhan_ui_h($webRoot) . '/ui/js/prompts-manager.js?v=' . filemtime(__DIR__ . '/js/prompts-manager.js') . '"></script>';
+    include __DIR__ . '/tmpl/footer.html';
+    exit;
+}
 ?>
 <main class="prompts-page">
     <header class="page-header lorkhan-page-head"><h1 class="lorkhan-page-head-title">Prompts Manager</h1><p class="lorkhan-page-head-note">Manage system and custom prompts used throughout LORKHAN</p><details class="prompt-document-tools"><summary class="prompt-button">Prompt documents</summary><div><button type="button" class="prompt-button" data-prompt-create>Create Prompt</button><button type="button" class="prompt-button" data-prompt-import>Import LORKHAN JSON</button></div></details></header>

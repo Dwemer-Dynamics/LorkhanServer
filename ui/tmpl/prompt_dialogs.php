@@ -1,7 +1,7 @@
 <?php foreach($rows as$row):
     $id=(string)$row['configuration_id'];$content=$row['content'];$formId='prompt-form-'.$id;
 ?>
-<dialog class="prompt-edit-modal modal-content" id="prompt-editor-<?= lorkhan_ui_h($id) ?>" aria-labelledby="prompt-title-<?= lorkhan_ui_h($id) ?>" data-prompt-dialog<?= !empty($narratorInlinePromptEditor)?' data-prompt-inline':'' ?>>
+<dialog class="prompt-edit-modal modal-content" id="prompt-editor-<?= lorkhan_ui_h($id) ?>" aria-labelledby="prompt-title-<?= lorkhan_ui_h($id) ?>" data-prompt-dialog<?= !empty($narratorInlinePromptEditor)?' data-prompt-inline':'' ?><?= !empty($partialPromptEditor)?' open data-prompt-partial':'' ?>>
     <header class="modal-header"><button type="button" class="prompt-close" data-prompt-close aria-label="Close">&times;</button><h2 id="prompt-title-<?= lorkhan_ui_h($id) ?>"><?= !empty($narratorInlinePromptEditor)?'':'✏️ ' ?>Edit Prompt: <span><?= lorkhan_ui_h($row['prompt_key']) ?></span></h2></header>
     <div class="prompt-modal-body modal-body">
         <form id="<?= lorkhan_ui_h($formId) ?>" method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/<?= !empty($row['narrator_event_prompt'])?'narrator-prompt-save':'configuration-revise' ?>" data-prompt-save>
@@ -22,7 +22,7 @@
             </div>
             <?php if(empty($row['narrator_event_prompt'])) $renderPlayerMoodFields('prompt-'.$id,is_array($content['player_mood_prompts']??null)?$content['player_mood_prompts']:[]); ?>
         </form>
-        <?php if(empty($row['narrator_event_prompt'])): ?>
+        <?php if(empty($row['narrator_event_prompt']) && empty($partialPromptEditor)): ?>
         <details class="prompt-management-tools"><summary>Revision history and management</summary>
             <p>Revision <?= (int)$row['current_revision'] ?> · <?= (int)$row['profile_usage'] ?> explicit profile assignments.</p>
             <?php lorkhan_ui_table(is_array($row['revisions'])?$row['revisions']:[]); ?>
@@ -31,7 +31,7 @@
             <?php if((int)$row['profile_usage']===0): ?><form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/configuration-delete" data-confirm="Delete this prompt document? This is separate from clearing its custom text."><input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="kind" value="prompt"><input type="hidden" name="configuration_id" value="<?= lorkhan_ui_h($id) ?>"><button type="submit" class="prompt-button danger">Delete prompt document</button></form>
             <?php else: ?><p>Assigned prompts cannot be deleted.</p><?php endif; ?>
         </details>
-        <?php else: ?><p class="prompt-format-hint">Shared with Narrator Management and Prompts Manager. Saved changes apply to future generation requests; queued work keeps its frozen instructions.</p><?php endif; ?>
+        <?php elseif(!empty($row['narrator_event_prompt'])): ?><p class="prompt-format-hint">Shared with Narrator Management and Prompts Manager. Saved changes apply to future generation requests; queued work keeps its frozen instructions.</p><?php endif; ?>
         <p data-prompt-save-status role="status" hidden></p>
     </div>
     <footer class="modal-footer"><button type="button" class="prompt-button" data-prompt-close>Cancel</button><button type="submit" class="prompt-button primary" form="<?= lorkhan_ui_h($formId) ?>"><?= !empty($narratorInlinePromptEditor)?'':'💾 ' ?>Save Custom Prompt</button></footer>

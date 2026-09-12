@@ -115,3 +115,9 @@ body.prompts-manager-shell.embedded-page { padding-top:0; }
 .prompt-edit-modal h2 span { font-family:'Futura CondensedLight',Arial,sans-serif; }
 body.prompts-manager-shell .lorkhan-page-head-title { color:#fff !important; }
 .prompt-edit-modal .prompt-form-group p { overflow-wrap:anywhere; }
+
+/* The Core Profile embeds this same editor without a second modal or document manager. */
+.prompt-editor-only .prompt-edit-modal { position:static; width:100%; max-width:none; max-height:none; margin:0; box-sizing:border-box; }
+.prompt-editor-only .prompt-edit-modal .prompt-modal-body { overflow:visible; }
+.prompt-editor-only [data-prompt-close] { display:none; }
+.prompt-editor-only .prompt-edit-modal > header h2 { font:700 1.2em/1.4 'Futura CondensedLight',Arial,sans-serif; }

@@ -51,11 +51,17 @@ document.addEventListener('DOMContentLoaded', () => {
       controls.forEach(([control]) => { control.disabled = true; });
       status.hidden = false; status.textContent = 'Saving custom prompt...';
       const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 15000);
+      let partialSaved = false;
       try {
         const response = await fetch(form.action, {method:'POST',body,headers:{Accept:'application/json'},signal:controller.signal});
         const result = await response.json();
         if (!response.ok || result.ok !== true) throw new Error(result.error || `HTTP ${response.status}`);
-        if (dialog.hasAttribute('data-prompt-inline')) {
+        if (dialog.hasAttribute('data-prompt-partial')) {
+          if (!Number.isInteger(result.revision) || result.revision < 1) throw new Error('Invalid save receipt');
+          form.elements.expected_revision.value = String(result.revision);
+          status.textContent = 'Prompt saved. Your Core Profile draft has not changed.';
+          partialSaved = true;
+        } else if (dialog.hasAttribute('data-prompt-inline')) {
           const key = form.elements.prompt_key.value;
           const row = [...document.querySelectorAll('[data-prompt-inline-row]')].find(item => item.dataset.promptInlineRow === key);
           const custom = String(body.get('custom_prompt') || '');
@@ -80,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } finally {
         clearTimeout(timeout); delete dialog.dataset.busy;
         controls.forEach(([control,disabled]) => { control.disabled = disabled; });
+        if (partialSaved) document.dispatchEvent(new CustomEvent('connector-saved', {detail:{snapshotCurrent:true}}));
       }
     });
   });

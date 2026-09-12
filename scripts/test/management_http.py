@@ -2384,7 +2384,10 @@ assert prompt_export_response.status==200 and prompt_export['schema']=='lorkhan.
 assert prompt_export['content']['player_mood_prompts']['playful']=='({PLAYER_NAME} answers in a {MOOD} way.)' and len(prompt_export['content']['player_mood_prompts'])==11
 assert 'installation_id' not in prompt_export and 'api_key' not in json.dumps(prompt_export).lower()
 r=request(revise['action'],'POST',values); assert r.status==409 and 'revision_conflict' in r.read().decode()
-clear_page,_=parse(request('/LorkhanServer/ui/prompts_manager.php'))
+assert request('/LorkhanServer/ui/prompts_manager.php?partial=editor&edit='+str(uuid.uuid4())).status==404
+clear_page,partial_body=parse(request('/LorkhanServer/ui/prompts_manager.php?partial=editor&edit='+prompt_id+'&installation_id='+valid['installation_id']))
+assert len(clear_page.forms)==1 and 'open data-prompt-partial' in partial_body and 'prompt-document-tools' not in partial_body
+assert 'prompt-clone' not in partial_body and 'prompt-editor-only' in partial_body
 clear_form=next(f for f in clear_page.forms if f['action'].endswith('/forms/configuration-revise') and f['fields'].get('configuration_id')==prompt_id)
 clear_values=dict(clear_form['fields'],_csrf=csrf,custom_prompt='',default_prompt='Cannot replace the server baseline')
 csv_url='/LorkhanServer/ui/prompts_manager.php?export=csv&installation_id='+valid['installation_id']

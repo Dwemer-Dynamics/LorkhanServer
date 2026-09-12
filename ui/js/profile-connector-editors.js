@@ -25,13 +25,15 @@
             doc.addEventListener('input', changed);
             doc.addEventListener('change', changed);
             doc.addEventListener('submit', () => { submitted = snapshot(doc); dirty = true; });
-            doc.addEventListener('connector-saved', () => {
-                initial = submitted;
+            doc.addEventListener('connector-saved', event => {
+                initial = event.detail?.snapshotCurrent ? snapshot(doc) : submitted;
                 changed();
             });
             entry.prepareSave = () => {
-                const editor = doc.querySelector('form[action$="/provider-revise"], form[action$="/connector-revise"]');
-                if (!editor || !editor.reportValidity()) throw new Error('Check the highlighted connector fields before saving.');
+                const editor = doc.querySelector('form[action$="/provider-revise"], form[action$="/connector-revise"], form[data-prompt-save]');
+                if (!editor || !editor.reportValidity()) throw new Error('Check the highlighted editor fields before saving.');
+                if (doc.querySelector('[data-busy="1"]')) throw new Error('Wait for the open editor to finish saving before using Save All.');
+                const promptEditor = editor.hasAttribute('data-prompt-save');
                 const body = new FormData(editor);
                 const id = body.get('configuration_id');
                 if (id !== selected) throw new Error('The open connector changed. Close and reopen its editor.');
@@ -42,15 +44,23 @@
                     signature: JSON.stringify(values.sort(([a], [b]) => a.localeCompare(b))),
                     save: async () => {
                         const response = await fetch(editor.action, { method: 'POST', body,
-                            headers: { Accept: 'text/html' }, credentials: 'same-origin',
+                            headers: { Accept: promptEditor ? 'application/json' : 'text/html' }, credentials: 'same-origin',
                             signal: AbortSignal.timeout(30000) });
+                        if (promptEditor) {
+                            const result = await response.json();
+                            if (!response.ok || result.ok !== true || !Number.isInteger(result.revision) || result.revision < 1) {
+                                throw new Error('Prompt save failed or its revision changed. Your draft is retained; the profile has not been submitted.');
+                            }
+                            editor.elements.expected_revision.value = String(result.revision);
+                            return;
+                        }
                         const receipt = new URL(response.url);
                         if (!response.ok || !response.redirected || receipt.origin !== location.origin
                             || receipt.searchParams.get('edit') !== id || receipt.searchParams.get('status') !== 'saved') {
                             throw new Error('Connector save failed. Your unsaved fields are still open; the profile has not been submitted.');
                         }
                     },
-                    markSaved: () => { initial = savedSnapshot; changed(); },
+                    markSaved: () => { initial = promptEditor ? snapshot(doc) : savedSnapshot; changed(); },
                 };
             };
             // A completed navigation after Save updates names, not profile route values.
@@ -63,7 +73,7 @@
             }
         });
         const close = () => {
-            if (dirty && !window.confirm('Discard unsaved connector changes?')) return false;
+            if (dirty && !window.confirm('Discard unsaved editor changes?')) return false;
             dirty = false;
             panel.hidden = true;
             card.classList.remove('editor-open');
