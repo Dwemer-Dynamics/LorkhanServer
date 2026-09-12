@@ -140,21 +140,30 @@ final class MigrationRunner
         });
     }
 
+    /** Identify the applied ledger and source set without exposing database contents. */
+    public function replayFingerprint():string
+    {
+        $state=array_map(static fn(array $row):array=>[$row['version'],$row['name'],$row['checksum'],$row['applied']],$this->status());
+        return hash('sha256',json_encode($state,JSON_THROW_ON_ERROR));
+    }
+
     /** Replay one applied migration and its dependants atomically; callers must confirm destructive changes and back up first. */
-    public function replayFrom(int $version, ?callable $before = null, ?callable $after = null): array
+    public function replayFrom(int $version, ?callable $before = null, ?callable $after = null, ?callable $progress = null): array
     {
         if($this->db->inTransaction())throw new RuntimeException('Migration replay requires its own transaction.');
-        return $this->locked(function()use($version,$before,$after):array{
+        return $this->locked(function()use($version,$before,$after,$progress):array{
             $migrations=$this->discover();$applied=$this->applied();$this->assertNoDrift($migrations,$applied);
             if(!isset($applied[$version]))throw new RuntimeException('Replay target must be an applied migration.');
             $replay=array_values(array_filter($migrations,static fn(array $migration):bool=>$migration['version']>=$version&&isset($applied[$migration['version']])));
-            $this->transaction(function()use($replay,$migrations,$before,$after):void{
+            $this->transaction(function()use($replay,$migrations,$before,$after,$progress):void{
                 $this->atomicReplay=true;
                 try{
                     if($before!==null)$before();
-                    foreach(array_reverse($replay)as$migration)$this->revert($migration);
-                    foreach($replay as$migration)$this->apply($migration);
+                    foreach(array_reverse($replay)as$migration){if($progress!==null)$progress();$this->revert($migration);}
+                    foreach($replay as$migration){if($progress!==null)$progress();$this->apply($migration);}
+                    if($progress!==null)$progress();
                     if($after!==null)$after();
+                    if($progress!==null)$progress();
                     $this->assertNoDrift($migrations,$this->applied());
                 }finally{$this->atomicReplay=false;}
             });

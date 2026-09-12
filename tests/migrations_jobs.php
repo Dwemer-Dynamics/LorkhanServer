@@ -1863,4 +1863,28 @@ $worker = new Worker($jobs, new JobHandlerRegistry([$handler]), 'bounded-worker'
 $stats = $worker->run();
 $check($stats === ['claimed' => 1, 'succeeded' => 1, 'retried' => 0, 'dead' => 0] && $handler->calls === 1, 'bounded worker failed');
 
+// Real backup and replay against the disposable migration fixture, never the deployed database.
+$replayRoot=sys_get_temp_dir().'/lorkhan-replay-'.bin2hex(random_bytes(8));
+$replayConfig=['database_dsn'=>$dsn,'database_user'=>getenv('LORKHAN_TEST_DB_USER')?:'','database_password'=>getenv('LORKHAN_TEST_DB_PASSWORD')?:'','backup_storage_path'=>$replayRoot];
+$replayRegistry=new JobHandlerRegistry([new \LorkhanServer\Application\DatabaseReplayJobHandler($db,$replayConfig)]);
+$replayId=Uuid::v4();$rollbackId=Uuid::v4();$fingerprint=$runner->replayFingerprint();
+$jobs->enqueue($replayId,'database.replay',1,'replay:success',['version'=>$latestVersion,'fingerprint'=>$fingerprint,'rollback_id'=>$rollbackId],1);
+try{
+    $replayWorker=new Worker($jobs,$replayRegistry,'replay-worker',30,1,1,1,60,['database.replay']);
+    $replayStats=$replayWorker->run();
+    $check($replayStats['succeeded']===1&&$replayStats['dead']===0,'replay worker did not finish through normal lifecycle');
+    $check($runner->replayFingerprint()===$fingerprint,'replay changed source or applied fingerprint');
+    $backupPath=(new \LorkhanServer\Infrastructure\DatabaseSqlBackup($replayConfig))->path($rollbackId);
+    $backupRecord=(new ProductRepository($db))->configurationBackupRecord($rollbackId);
+    $check(is_file($backupPath)&&is_file($backupPath.'.dump')&&hash_equals($backupRecord['content_sha256'],hash_file('sha256',$backupPath))&&hash_equals($backupRecord['scope']['archive_sha256'],hash_file('sha256',$backupPath.'.dump'))&&$backupRecord['scope']['rollback_for']===$replayId,'replay rollback archive missing');
+    $staleId=Uuid::v4();$staleBackup=Uuid::v4();
+    $jobs->enqueue($staleId,'database.replay',1,'replay:stale',['version'=>$latestVersion,'fingerprint'=>str_repeat('0',64),'rollback_id'=>$staleBackup],1);
+    $staleStats=$replayWorker->run();
+    $check($staleStats['dead']===1&&$staleStats['retried']===0,'stale replay was not refused without retry');
+    $check(!is_file((new \LorkhanServer\Infrastructure\DatabaseSqlBackup($replayConfig))->path($staleBackup))&&$runner->replayFingerprint()===$fingerprint,'stale replay mutated database or backup');
+}finally{
+    foreach(glob($replayRoot.'/sql/*')?:[] as $replayFile)unlink($replayFile);
+    if(is_dir($replayRoot.'/sql'))rmdir($replayRoot.'/sql');
+    if(is_dir($replayRoot))rmdir($replayRoot);
+}
 fwrite(STDOUT, "migration and durable job tests passed\n");
