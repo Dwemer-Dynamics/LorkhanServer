@@ -1897,3 +1897,53 @@ body.profile-rules-open {
 .profile-connector-edit { margin-top: 10px; }
 .profile-connector-editor iframe { display: block; width: 100%; height: 650px; border: 0; margin: 12px 0; }
 .profile-connector-editor[hidden] { display: none; }
+
+/* Profile Rules uses the reference modal shell and header actions. */
+.profiles-page .profile-rules-overlay {
+    align-items: center;
+    padding: 0;
+    background: rgba(0, 0, 0, .7);
+    backdrop-filter: blur(5px);
+}
+.profiles-page .profile-rules-shell {
+    width: 95vw;
+    max-height: 90vh;
+    padding: 30px;
+    border-radius: 14px;
+    background: #232323;
+}
+.profiles-page .profile-rules-header {
+    padding: 16px 20px;
+    flex-wrap: wrap;
+}
+.profiles-page .profile-rules-header .modal-title {
+    font-size: 30px;
+    font-weight: 700;
+}
+.profiles-page .profile-rules-header-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.profiles-page .profile-rules-body {
+    padding: 16px;
+    max-height: calc(85vh - 100px);
+    font-size: 16px;
+}
+.profiles-page .profile-rules-body .rule-help {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+    padding: 14px 16px;
+    background: #202020;
+    border: 1px solid #424242;
+    border-radius: 8px;
+    color: #cfd5df;
+    font-size: 15px;
+    line-height: 1.45;
+}
+.profiles-page .profile-rules-body .rule-help strong { color: #fff; }
+.profiles-page .profile-rules-header-actions [hidden] { display: none; }

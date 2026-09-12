@@ -237,12 +237,17 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         <div class="profile-rules-overlay" data-profile-rules-overlay hidden>
             <div class="profile-rules-shell" role="dialog" aria-modal="true" aria-labelledby="profile-rules-title" aria-describedby="profile-rules-intro" data-profile-rules-dialog data-profile-rules-endpoint="<?php echo lorkhan_ui_h($managementBasePath . '/api/v1/profile-assignment-rules'); ?>" data-profile-rules-csrf="<?php echo lorkhan_ui_h($csrf); ?>" data-profile-rules-installation="<?php echo lorkhan_ui_h($installationId); ?>">
                 <div class="modal-header profile-rules-header">
-                    <h2 class="modal-title" id="profile-rules-title">Core Profile Assignment Rules</h2>
-                    <button class="profile-rules-dismiss" type="button" data-profile-rules-close aria-label="Close assignment rules">&#215;</button>
+                    <h2 class="modal-title" id="profile-rules-title">Profile Rules</h2>
+                    <div class="modal-actions profile-rules-header-actions">
+                        <button class="btn-save" type="button" data-profile-rules-new hidden>+ New Rule</button>
+                        <button class="modal-close" type="button" data-profile-rules-close>Close</button>
+                    </div>
                 </div>
                 <div class="modal-body profile-rules-body">
-                    <p class="profile-rules-intro" id="profile-rules-intro">A rule runs only when a previously unknown NPC is first discovered. NPCs already assigned to a Core Profile, and any Core Profile you set by hand, are never changed by a rule.</p>
-                    <p class="hint profile-rules-help">Every field you fill in a rule must match. Several values in one field mean any of them. Text is compared without regard to capitals and must match in full. If more than one enabled rule matches, the highest priority wins, and the older rule wins a tie.</p>
+                    <div class="connector-help rule-help" id="profile-rules-intro">
+                        <strong>Profile Rules automatically assign profiles when NPCs are first activated.</strong>
+                        <span>Choose one or more values inside a field to match any of them. Different fields must all match. Existing NPC assignments are preserved. Text matches in full without regard to capitals; higher priority wins, then the older rule.</span>
+                    </div>
                     <p class="profile-rules-status" data-profile-rules-status role="status" aria-live="polite">Loading assignment rules.</p>
 
                     <div class="profile-rules-list-view" data-profile-rules-list-view>
@@ -309,7 +314,6 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     </form>
                 </div>
                 <div class="modal-footer profile-rules-footer">
-                    <button class="btn-save" type="button" data-profile-rules-new hidden>New rule</button>
                     <button class="btn-base" type="button" data-profile-rules-reload hidden>Reload</button>
                     <button class="btn-save" type="submit" form="profile-rules-form" data-profile-rules-save hidden>Save rule</button>
                     <button class="btn-danger" type="button" data-profile-rules-delete hidden>Delete rule</button>

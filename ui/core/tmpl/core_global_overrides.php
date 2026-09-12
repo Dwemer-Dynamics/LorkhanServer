@@ -84,7 +84,7 @@ unset($definition);
     <div class="provider-body profile-provider-body">
     <small class="core-override-intro">Override global settings for this profile. Changes here take precedence over global configurations.</small>
     <div class="prof-ovr-list">
-    <?php foreach (array_values(array_unique(array_column($coreOverrideCatalog, 'category'))) as $category): ?>
+    <?php foreach (['Misc','Context','Oghma','Prompt','Rechat'] as $category): ?>
     <section class="prof-ovr-category"><h3 class="prof-ovr-category-title"><?= lorkhan_ui_h($category) ?></h3><div class="prof-ovr-category-settings">
     <?php foreach ($coreOverrideCatalog as $path=>$definition): [$section,$key]=explode('.', $path); if ($definition['category'] !== $category) continue; $enabled=array_key_exists($key,$overrides[$section]??[]); $value=$enabled?$overrides[$section][$key]:$definition['value']; $id='core-override-'.str_replace('.','-',$path); $globalPreview=is_array($definition['value'])?implode(', ',$definition['type']==='booleanmap'?array_values(array_intersect_key($definition['choices'],array_filter($definition['value']))):$definition['value']):(is_bool($definition['value'])?($definition['value']?'true':'false'):($definition['value']===''?'Not set':(string)$definition['value'])); $globalPreview=mb_strlen($globalPreview)>180?mb_substr($globalPreview,0,177).'…':$globalPreview; ?>
         <div class="prof-ovr-inline-item<?= $enabled?' enabled':'' ?>" data-path="<?= lorkhan_ui_h($path) ?>">

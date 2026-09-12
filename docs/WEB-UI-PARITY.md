@@ -11524,3 +11524,30 @@ PHP lint, 1036 server checks, 111 protocol files and git diff --check passed.
 Scoped local deployment backup: /var/backups/lorkhanserver-core-override-groups.vPfBCy.
 Exact runtime verification reports 858 matching files and no extras/old paths;
 private routes remain protected. No provider call or game launch was performed.
+
+## Core Profile whole-page inventory and Rules shell (2026-09-12)
+
+Current deployed reference/native main Core heading inventories match from
+Profiles & Memories through Quest at desktop and narrow widths. Corrected the
+supported Global Settings Override category order to the reference subset:
+Misc, Context, Oghma, Prompt, Rechat. Missing categories remain missing features.
+
+Profile Rules previously used an 820px shell, 22.5px regular title, different
+padding, and a footer New Rule button. Copied the reference Profile Rules title,
+header action placement and help-panel structure, with native rule semantics
+retained in the help. Copied measured shell/header/body typography and geometry:
+95vw shell, 90vh maximum, 30px shell padding, 14px radius, 16px 20px header,
+30px bold MagicCards title, 16px body padding/text. Narrow header/help wrap instead
+of overflowing. Existing matching, priority, CRUD and error handling are unchanged.
+Rules list/editor contents still need comparison; this is not whole Rules parity.
+
+rules-layout-inventory.cjs reports matching shell/header/body measurements at
+1280/390. profile-rules-shell-review.cjs passed empty/populated list, New Rule,
+Cancel/focus, edit, mocked 409 save draft retention, delete cancellation and
+Escape/focus at both sizes. One intercepted POST per viewport; no live writes.
+Inspected desktop populated list and narrow editor screenshots. PHP lint,
+1036 server checks, 111 protocol files and diff whitespace checks passed.
+Scoped deployment backup: /var/backups/lorkhanserver-profile-rules-shell.mkcvWm.
+858 runtime files match source with no extras/old paths, protected private routes.
+No paid provider calls or game launch. Remaining Core/NPC/runtime requirements
+stay open; this checkpoint does not close full webpage parity.
