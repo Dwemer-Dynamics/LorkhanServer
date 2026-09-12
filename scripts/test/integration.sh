@@ -31,5 +31,27 @@ pg_restore -h 127.0.0.1 -p "$PORT" -d lorkhan_restore_test --exit-on-error "$TMP
 RESTORED_TABLES=$(psql -h 127.0.0.1 -p "$PORT" -d lorkhan_restore_test -Atc \
     "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'lorkhan_internal' AND table_name IN ('sessions','media_objects','durable_jobs','provider_attempts')")
 [ "$RESTORED_TABLES" = "4" ] || { printf 'backup restore schema check failed\n' >&2; exit 1; }
+# Uploaded SQL is read only in a namespace sandbox. Its result remains untrusted data, never restore SQL.
+pg_restore --no-owner --no-privileges --file="$TMP/import.sql" "$TMP/lorkhan.backup"
+bash "$ROOT/scripts/import-sql-sandbox.sh" "$TMP/import.sql" > "$TMP/import.jsonl"
+python3 - "$TMP/import.jsonl" <<'PY'
+import json,sys
+with open(sys.argv[1],encoding='utf-8') as stream:
+    records=(json.loads(line) for line in stream)
+    assert next(records)=={'kind':'header','format':'lorkhan.import-data.v1'}
+    tables=set(); rows=0; complete=False
+    for record in records:
+        assert not complete
+        if record['kind']=='table': tables.add((record['schema'],record['name']))
+        elif record['kind']=='row':
+            assert (record['schema'],record['table']) in tables
+            assert all(value is None or isinstance(value,str) for value in record['data'].values())
+            rows+=1
+        else:
+            assert record=={'kind':'complete'}
+            complete=True
+    assert complete and ('lorkhan_internal','installations') in tables and rows>100
+print('isolated SQL data export passed')
+PY
 LORKHAN_TEST_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=lorkhan_migrations_test" \
 php "$ROOT/tests/migrations_jobs.php"

@@ -99,3 +99,7 @@ not provisioned and their pre-beta compatibility schema has been retired.
 8. `docs/WSL-APACHE-SETUP.md`
 
 The sibling LORKHAN task is the parent assignment and owns shared schema reconciliation.
+
+## Isolated integration prerequisites
+
+`scripts/test/integration.sh` requires PostgreSQL 15 tools and extensions, PHP, Python 3 and Bubblewrap (`apt-get install bubblewrap` on Debian), with unprivileged user namespaces enabled. Run it as an unprivileged PostgreSQL-capable account. It uses disposable databases and includes the SQL-import reader isolation check; the reader is not yet exposed as a web upload feature.
