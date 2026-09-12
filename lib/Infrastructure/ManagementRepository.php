@@ -286,19 +286,20 @@ final class ManagementRepository
     public function globalSettingsPresets(string $installation): array
     {
         if (!Uuid::isValid($installation)) throw new \InvalidArgumentException('invalid_installation_id');
-        $query = $this->db->prepare('SELECT preset_id,name,revision FROM lorkhan_internal.global_settings_presets WHERE installation_id=:installation ORDER BY lower(name),preset_id');
+        $query = $this->db->prepare('SELECT preset_id,name,revision,CASE WHEN payload->>\'schema\'=\'lorkhan.named-global-preset.v2\' THEN 1 ELSE 0 END AS profiles_included FROM lorkhan_internal.global_settings_presets WHERE installation_id=:installation ORDER BY lower(name),preset_id');
         $query->execute(['installation' => $installation]);
         return $query->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function globalSettingsPreset(string $installation, string $id): array
+    public function globalSettingsPreset(string $installation, string $id, ?int $revision = null): array
     {
         if (!Uuid::isValid($installation) || !Uuid::isValid($id)) throw new \InvalidArgumentException('invalid_global_settings_preset');
-        $query = $this->db->prepare('SELECT payload FROM lorkhan_internal.global_settings_presets WHERE installation_id=:installation AND preset_id=:id');
+        $query = $this->db->prepare('SELECT payload,revision FROM lorkhan_internal.global_settings_presets WHERE installation_id=:installation AND preset_id=:id');
         $query->execute(['installation' => $installation, 'id' => $id]);
-        $payload = $query->fetchColumn();
-        if ($payload === false) throw new RuntimeException('not_found');
-        return json_decode($payload, true, 32, JSON_THROW_ON_ERROR);
+        $record = $query->fetch(PDO::FETCH_ASSOC);
+        if ($record === false) throw new RuntimeException('not_found');
+        if($revision!==null && (int)$record['revision']!==$revision)throw new RuntimeException('revision_conflict');
+        return json_decode($record['payload'], true, 32, JSON_THROW_ON_ERROR);
     }
 
     /** Serialize catalogue writes per installation and reject stale overwrites without touching runtime settings. */

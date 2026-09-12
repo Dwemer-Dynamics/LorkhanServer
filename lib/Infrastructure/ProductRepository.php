@@ -148,10 +148,27 @@ final class ProductRepository
         return $plan+['fingerprint'=>hash('sha256',json_encode($plan,JSON_THROW_ON_ERROR))];
     }
 
-    /** Quickstart's built-in changes all installation Core Profiles, preserving their identities and routes. */
-    public function applyQuickstartCorePreset(string $installation,string $preset,string $fingerprint,string $now):array
+    /** Read all stored Core settings in one statement for a global preset; omit identity and connector bindings. */
+    public function coreSettingsSnapshot(string $installation):array
     {
-        if(!in_array($preset,['builtin:default','builtin:local_llm'],true))throw new InvalidArgumentException('invalid_quickstart_preset');
+        $query=$this->db->prepare('SELECT c.core_profile_id,c.default_npc,r.content FROM core_profiles c '
+            .'JOIN core_profile_revisions r ON r.core_profile_id=c.core_profile_id AND r.revision=c.current_revision '
+            .'WHERE c.installation_id=:installation AND c.deleted_at IS NULL ORDER BY c.core_profile_id');
+        $query->execute(['installation'=>$installation]);
+        $snapshot=['default'=>\LorkhanServer\Application\CoreProfilePreset::capture([]),'items'=>[]];
+        foreach($query->fetchAll() as $row){
+            $preset=\LorkhanServer\Application\CoreProfilePreset::capture($this->json($row['content']));
+            $snapshot['items'][$row['core_profile_id']]=$preset;
+            if(filter_var($row['default_npc'],FILTER_VALIDATE_BOOL))$snapshot['default']=$preset;
+        }
+        return $snapshot;
+    }
+
+    /** Apply built-in or saved settings to all installation Core Profiles, preserving identities and connector routes. */
+    public function applyInstallationCorePreset(string $installation,string|array $preset,string $fingerprint,string $now):array
+    {
+        if(is_array($preset))$preset=\LorkhanServer\Application\GlobalSettingsPreset::profileSnapshot($preset);
+        elseif(!in_array($preset,['builtin:default','builtin:local_llm'],true))throw new InvalidArgumentException('invalid_quickstart_preset');
         return $this->transaction(function()use($installation,$preset,$fingerprint,$now):array{
             $lock=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:installation FOR UPDATE');
             $lock->execute(['installation'=>$installation]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
@@ -164,8 +181,10 @@ final class ProductRepository
             if($plan['preset_profiles']===[])throw new RuntimeException('default_core_profile_required');
             foreach($plan['preset_profiles'] as $target){
                 $profile=$this->getRevisioned('core_profile',$target['core_profile_id']);
-                $content=\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn($preset,$profile['content']);
-                $this->revise('core_profile',$target['core_profile_id'],$content,'Quickstart Core Profile preset',$now,(int)$target['current_revision']);
+                $content=is_array($preset)
+                    ? \LorkhanServer\Application\CoreProfilePreset::apply($preset['items'][$target['core_profile_id']]??$preset['default'],$profile['content'])
+                    : \LorkhanServer\Application\CoreProfilePreset::applyBuiltIn($preset,$profile['content']);
+                $this->revise('core_profile',$target['core_profile_id'],$content,'Installation Core Profile preset',$now,(int)$target['current_revision']);
             }
             return $this->quickstartLocalRoutingPlan($installation);
         });

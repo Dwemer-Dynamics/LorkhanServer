@@ -1618,8 +1618,10 @@ overwrite=dict(preset_values,operation='overwrite',preset_id=named_id,preset_rev
 r=preset_request(overwrite); result=json.loads(r.read()); assert r.status==200,(r.status,result)
 r=preset_request(overwrite); assert r.status==409,r.status
 r=preset_request(dict(overwrite,preset_id='default')); assert r.status==422,r.status
-apply_values={'_csrf':csrf,'installation_id':valid['installation_id'],'operation':'apply','preset_id':named_id}
+apply_values={'_csrf':csrf,'installation_id':valid['installation_id'],'operation':'apply','preset_id':named_id,'preset_revision':'2',
+    'setup_fingerprint':re.search(r'data-preset-fingerprint="([a-f0-9]{64})"',preset_html).group(1)}
 r=preset_request(apply_values); assert r.status==422,r.status
+r=preset_request(dict(apply_values,confirm='Apply',preset_revision='1')); assert r.status==409,r.status
 r=preset_request(dict(apply_values,confirm='Apply')); result=json.loads(r.read()); assert r.status==200 and result['applied'],(r.status,result)
 applied=json.loads(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json').read())
 assert applied['settings']['prompt']=={'prompt_head':'Unsaved preset prompt','emote_moods':'alert'}
@@ -3403,6 +3405,22 @@ for builtin,history,words,enabled in [('builtin:local_llm',20,60,False),('builti
     assert builtin_export['settings']['context']['location_blacklist']==qs_default_export['settings']['context']['location_blacklist']
     assert builtin_export['memory_policies']['summary']['provider_configuration_id']==qs_default_export['memory_policies']['summary']['provider_configuration_id']
     assert builtin_export['memory_policies']['embedding']['endpoint']==qs_default_export['memory_policies']['embedding']['endpoint']
+
+# A custom Global preset restores captured profiles, not just global controls.
+snapshot_page,snapshot_html=parse(request('/LorkhanServer/ui/global_settings.php'))
+snapshot_form=next(f for f in snapshot_page.forms if f['action'].endswith('/forms/global-settings-save'))
+snapshot_before=core_snapshot()
+snapshot_response=preset_request(dict(snapshot_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],operation='save_new',preset_name='Complete Core snapshot'))
+snapshot_result=json.load(snapshot_response); assert snapshot_response.status==200,snapshot_result
+snapshot_id=snapshot_result['preset_id'];assert any(p['preset_id']==snapshot_id and int(p['profiles_included'])==1 for p in snapshot_result['presets'])
+snapshot_plan=re.search(r'data-preset-fingerprint="([a-f0-9]{64})"',snapshot_html).group(1)
+changed=preset_request(dict(builtin_values,preset_id='builtin:local_llm',setup_fingerprint=snapshot_plan));assert changed.status==200,(changed.status,changed.read())
+_,snapshot_html=parse(request('/LorkhanServer/ui/global_settings.php'))
+snapshot_plan=re.search(r'data-preset-fingerprint="([a-f0-9]{64})"',snapshot_html).group(1)
+restored=preset_request(dict(builtin_values,preset_id=snapshot_id,preset_revision='1',setup_fingerprint=snapshot_plan));assert restored.status==200,(restored.status,restored.read())
+for before_core,restored_core in zip(snapshot_before,core_snapshot()):
+    assert restored_core['id']==before_core['id'] and restored_core['routing']==before_core['routing']
+    assert restored_core['settings']==before_core['settings'],(before_core,restored_core)
 
 # Restore tests run last: the transaction deliberately replaces this isolated fixture database.
 

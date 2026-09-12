@@ -60,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cancel = document.getElementById('gs-preset-cancel');
         const buttons = Array.from(presetRow.querySelectorAll('[data-preset-operation]'));
         let operation = '', opener = null, busy = false;
+        const includesProfiles = () => select.value.startsWith('builtin:') || select.selectedOptions[0]?.dataset.profiles === '1';
         const updateButtons = () => {
             select.disabled = busy;
             buttons.forEach((button) => { button.disabled = busy || (button.dataset.presetOperation === 'overwrite' && (select.value === 'default' || select.value.startsWith('builtin:'))); });
@@ -73,11 +74,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const title = select.selectedOptions[0].textContent;
             document.getElementById('gs-preset-title').textContent = operation === 'save_new' ? 'Save current setup as a preset' : `${operation === 'apply' ? 'Apply' : 'Overwrite'} ${title}?`;
             document.getElementById('gs-preset-description').textContent = operation === 'apply'
-                ? (select.value.startsWith('builtin:')
+                ? (includesProfiles()
                     ? `This applies ${title} to Global Settings, memory scheduling and all Core Profiles in this installation (${presetRow.dataset.presetProfileCount}) immediately. Unsaved edits will be lost. Existing connector assignments, service URLs, NPC overrides and profile identities are preserved. ${select.value === 'builtin:default' ? 'Default enables memory and may require a configured connector.' : ''}`
                     : 'This saves the included Global Settings and memory scheduling immediately. Unsaved edits will be lost. Connector choices, service URLs and NPC profiles stay unchanged.')
-                : operation === 'overwrite' ? 'Replace this preset with the Global Settings currently on screen, including unsaved edits? This cannot be undone. Connector choices, service URLs and NPC profiles stay unchanged.'
-                : 'Name this preset. It stores Global Settings currently on screen, including unsaved edits. Connector choices, service URLs and NPC profiles stay unchanged.';
+                : operation === 'overwrite' ? 'Replace this preset with the Global Settings currently on screen and all saved Core Profile settings? Unsaved global edits are included; unsaved profile edits are not. This cannot be undone. Connector bindings and NPC overrides are not captured.'
+                : 'Name this preset. It stores Global Settings currently on screen, including unsaved edits, and all saved Core Profile settings. Connector bindings and NPC overrides are not captured.';
             document.getElementById('gs-preset-name-field').hidden = operation !== 'save_new';
             name.required = operation === 'save_new';
             name.value = operation === 'save_new' ? '' : title;
@@ -95,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const body = new URLSearchParams(new FormData(settingsForm));
             body.set('operation', operation);
             body.set('preset_id', select.value);
-            if (operation === 'apply' && select.value.startsWith('builtin:')) body.set('setup_fingerprint', presetRow.dataset.presetFingerprint);
+            if (operation === 'apply' && includesProfiles()) body.set('setup_fingerprint', presetRow.dataset.presetFingerprint);
             body.set('preset_name', name.value.trim());
             body.set('preset_revision', select.selectedOptions[0].dataset.revision || '0');
             body.set('confirm', operation === 'apply' ? 'Apply' : 'Overwrite');
@@ -111,6 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 custom.replaceChildren(...result.presets.map((preset) => {
                     const option = new Option(preset.name, preset.preset_id);
                     option.dataset.revision = preset.revision;
+                    option.dataset.profiles = Number(preset.profiles_included) === 1 ? '1' : '0';
                     return option;
                 }));
                 select.value = result.preset_id;

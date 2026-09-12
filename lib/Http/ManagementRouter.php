@@ -2166,8 +2166,8 @@ final class ManagementRouter
             if(($values['confirm']??'')!=='Apply')throw new InvalidArgumentException('confirmation_mismatch');
             $this->repository->transaction(function()use($installation,$scope,$id,$values):void{
                 $builtIn=in_array($id,['builtin:default','builtin:local_llm'],true);
-                if($builtIn)$this->repository->applyQuickstartCorePreset($installation,$id,$this->need($values,'setup_fingerprint'),gmdate(DATE_ATOM));
-                $preset=$builtIn?null:($id==='default'?\LorkhanServer\Application\GlobalSettingsPreset::defaults():$this->management->globalSettingsPreset($installation,$id));
+                if($builtIn)$this->repository->applyInstallationCorePreset($installation,$id,$this->need($values,'setup_fingerprint'),gmdate(DATE_ATOM));
+                $preset=$builtIn?null:($id==='default'?\LorkhanServer\Application\GlobalSettingsPreset::defaults():$this->management->globalSettingsPreset($installation,$id,(int)($values['preset_revision']??0)));
                 $stored=$this->repository->globalSettingsForInstallation($installation);
                 $settings=EffectiveSettingsResolver::globalDocument($stored['content']??[],
                     $this->repository->oghmaSettings($installation),$this->repository->translationPolicyForInstallation($installation)['content'],
@@ -2182,7 +2182,10 @@ final class ManagementRouter
                     $fallback=(string)($core['content']['routing']['llm_fast_configuration_id']??'');
                     $memory=\LorkhanServer\Application\GlobalSettingsPreset::builtInMemory($id,$summary,$embedding,$fallback);
                     $applied=['settings'=>$settings]+$memory;
-                }else $applied=\LorkhanServer\Application\GlobalSettingsPreset::apply($preset,$settings,$summary,$embedding);
+                }else {
+                    $applied=\LorkhanServer\Application\GlobalSettingsPreset::apply($preset,$settings,$summary,$embedding);
+                    if(isset($preset['profiles']))$this->repository->applyInstallationCorePreset($installation,$preset['profiles'],$this->need($values,'setup_fingerprint'),gmdate(DATE_ATOM));
+                }
                 $document=['schema'=>'lorkhan.global-settings-preset.v3','exported_at'=>gmdate('c'),'name'=>'Named preset',
                     'settings'=>$applied['settings'],'memory_policies'=>['summary'=>$applied['summary'],'embedding'=>$applied['embedding']]];
                 $this->importGlobalSettings(['preset_json'=>json_encode($document,JSON_THROW_ON_ERROR)],$scope);
@@ -2198,7 +2201,7 @@ final class ManagementRouter
         $embedding=['schema'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::SCHEMA,
             'enabled'=>isset($values['memory_embedding_enabled']),'endpoint'=>trim((string)($values['memory_embedding_endpoint']??'')),
             'timeout_ms'=>filter_var($values['memory_embedding_timeout']??1500,FILTER_VALIDATE_INT)];
-        $payload=\LorkhanServer\Application\GlobalSettingsPreset::capture($this->globalSettingsContent($values),$summary,$embedding);
+        $payload=\LorkhanServer\Application\GlobalSettingsPreset::capture($this->globalSettingsContent($values),$summary,$embedding,$this->repository->coreSettingsSnapshot($installation));
         $id=$this->management->saveGlobalSettingsPreset($installation,$this->need($values,'preset_name'),$payload,
             $operation==='overwrite'?$id:null,(int)($values['preset_revision']??0));
         return Response::json(200,['preset_id'=>$id,'presets'=>$this->management->globalSettingsPresets($installation)]);
@@ -2626,7 +2629,7 @@ final class ManagementRouter
             if(!in_array($preset,['','builtin:default','builtin:local_llm'],true))throw new InvalidArgumentException('invalid_quickstart_preset');
             $presetPlan=null;
             if($preset!==''){
-                $presetPlan=$this->repository->applyQuickstartCorePreset($installation,$preset,$this->need($values,'setup_fingerprint'),gmdate(DATE_ATOM));
+                $presetPlan=$this->repository->applyInstallationCorePreset($installation,$preset,$this->need($values,'setup_fingerprint'),gmdate(DATE_ATOM));
                 ++$expected;$profile=$this->repository->getRevisioned('core_profile',$id);
                 $stored=$this->repository->globalSettingsForInstallation($installation);
                 $settings=EffectiveSettingsResolver::globalDocument($stored['content']??[],

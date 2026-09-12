@@ -2971,6 +2971,20 @@ $presetCurrent['client']['presentation']['transcript_rows'] = 12;
 $presetSummary = ['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>'00000000-0000-4000-8000-000000000098'];
 $presetEmbedding = \LorkhanServer\Application\MemoryEmbeddingPolicy::defaults();
 $presetEmbedding['endpoint'] = 'http://127.0.0.1:8181';
+$snapshotCore=\LorkhanServer\Application\CoreProfilePreset::capture(['settings_overrides'=>['response'=>['max_words'=>37]],'routing'=>[]]);
+$snapshotProfiles=['default'=>$snapshotCore,'items'=>['00000000-0000-4000-8000-000000000099'=>$snapshotCore]];
+$snapshotGlobal=\LorkhanServer\Application\GlobalSettingsPreset::capture($presetCurrent,$presetSummary,$presetEmbedding,$snapshotProfiles);
+$snapshotApplied=\LorkhanServer\Application\GlobalSettingsPreset::apply($snapshotGlobal,$presetCurrent,$presetSummary,$presetEmbedding);
+$check($snapshotGlobal['schema']==='lorkhan.named-global-preset.v2'&&$snapshotGlobal['profiles']===$snapshotProfiles
+    &&$snapshotApplied['settings']===$presetCurrent,'global snapshots validate portable Core settings without changing global application');
+foreach (['identity','connector','invalid_id'] as $invalidSnapshotKind) {
+    $invalidSnapshot=$snapshotProfiles;
+    if($invalidSnapshotKind==='identity')$invalidSnapshot['default']['name']='Forbidden identity';
+    elseif($invalidSnapshotKind==='connector')$invalidSnapshot['default']['routing']['llm_configuration_id']='00000000-0000-4000-8000-000000000099';
+    else $invalidSnapshot['items']=['invalid'=>$snapshotCore];
+    try{\LorkhanServer\Application\GlobalSettingsPreset::profileSnapshot($invalidSnapshot);$check(false,'unsafe Core snapshot rejected');}
+    catch(InvalidArgumentException){$check(true,'unsafe Core snapshot rejected');}
+}
 $quickLocal=\LorkhanServer\Application\GlobalSettingsPreset::applyBuiltIn('builtin:local_llm',$presetCurrent);
 $check(!$quickLocal['profile_management']['autofill_custom_profiles']&&!$quickLocal['relationship']['enabled']&&$quickLocal['relationship']['update_chance_percent']===0,'Local preset stops backfill and relationship updates');
 $check($quickLocal['context']['ground_items_descriptions_only']&&$quickLocal['context']['inventory_items_descriptions_only']&&!$quickLocal['context']['prompt_timestamp'],'Local preset uses descriptions without timestamp headings');

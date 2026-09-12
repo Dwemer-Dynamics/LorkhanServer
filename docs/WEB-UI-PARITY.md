@@ -108,7 +108,7 @@ Current delivery order: close visible page structure and interactions directly f
 | `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty and desktop/narrow layout reviewed. Latest-diary author audio is wired, with populated-template playback/error checks; live-provider acceptance remains open |
 | `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; MiniMe Service and its bounded reachability probe implemented; visible Setup/Local LLM, all-Core presets and network helpers implemented; Herika service choices now create or reuse installation-owned speech connectors while preserving custom endpoints and badges; Player2 switch, immutable routing overlay and four recap cards are implemented and mock/browser tested; whole-page desktop/narrow structure and complete save-flow checks are complete, including key errors/retry, local setup, service reuse and stale-revision rejection. Live-provider acceptance remains untested. Service process installation is not performed by this form in either product |
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. All 15 shared tab entry views now load and retain mounted documents at 1280/390, with draft values retained in the eleven entry views containing editable fields. Tab names/order/style and keyboard activation match the reference grouping, with excluded tabs absent. Shared shell review is complete; individual editor/runtime gaps remain tracked in their own rows |
-| `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Hide Ambient Combat, Power Awareness, Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Other Context event controls and profile-affecting built-ins remain open; see the dated checkpoints |
+| `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Hide Ambient Combat, Power Awareness, Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Default/Local LLM built-ins and named presets now apply saved settings across existing Core Profiles with revision guards. Other Context event controls, portable global export of Core settings and defaults for future profile creation remain open; see the dated checkpoints |
 | `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Advanced metadata is now merged with visible controls; Oghma overrides and knowledge tags reach retrieval and both preset formats. Oghma, Context, Prompt, Relationship and Rechat overrides use the reference inline Global Settings rows, with raw JSON synchronization and inherited values. Core Prompt Head, timestamps and description-only item filters reach prompt assembly; Rechat Mode reaches chain selection, Relationship System controls job eligibility, and Power Awareness uses exact observed actor levels. Metadata Text/Tree/Table switching, immediate serialization, invalid JSON handling and empty-object preservation are verified, including fresh deployed mode-switch checks. Remaining: other runtime-backed Global Settings override categories and page-wide interaction closure. Physical Diary, cumulative memory semantics and Core-slot client selection are separate unfinished runtime features. |
 | `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Typed per-NPC override leaves now include language, summaries, Diary Prompt/Cooldown/History, Dynamic Profile History, Context, Prompt Head, Oghma, Relationship Enabled/Update Chance, Rechat Mode/Strict Targeting/Open Rechat and End Conversation Cooldown. Prompt assembly, queued evolution history, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. General profile metadata now uses the reference vanilla-jsoneditor tree/text/table library, with revisioned native content and separate immutable Recorded State. Bounded target inventory capture and sorted count/total presentation are deployed in server d09d717 and client 1a35727; empty/unavailable states remain distinct. All 47 currently supported override editors apply typed values to drafts at desktop/narrow widths; grouped search, metadata mode switching and failed-save retention are checked. Remaining: full runtime-backed override catalogue, other page-wide editor/modal interactions, continuous inventory updates and NPC Visit/Teleport/Return. |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; generation success, failed/stale jobs, concurrent edits, retry idempotency and empty-result rejection are checked with browser mocks; live-provider acceptance remains untested |
@@ -11797,3 +11797,37 @@ expected history/word limits and global/memory switches, preserve routes,
 blacklists and existing memory endpoints/bindings, and reject stale fingerprints
 without changing the saved Core snapshot. The runner used a temporary 30-second
 HTTP client timeout; no default-5-second CI or live-provider claim is made.
+
+
+## Named Global Settings presets include Core settings (2026-09-12)
+
+Save as new and Overwrite now capture the on-screen global controls and saved
+Core Profile settings in a v2 named preset. Applying one restores each existing
+Core from its captured settings; a Core absent from the snapshot receives the
+captured default Core settings. This does not change defaults for profiles
+created after application. Legacy v1 named presets remain global-only.
+
+The existing locked installation setup fingerprint protects bulk application;
+the selected preset revision also rejects stale catalogue entries. Global and
+Core changes share one transaction. Snapshot validation excludes identity,
+connector bindings and unknown fields. NPC overrides, secrets and service URLs
+are not captured. The confirmation distinguishes new profile-inclusive presets
+from legacy presets and explains saved versus unsaved field scope.
+
+1048 server checks and 111 protocol files passed. Full integration and migration
+checks passed, including captured-Core restoration, absent-Core fallback and
+unchanged 176-relation schema inventory. Browser checks at 1280/390 cover saved
+catalogue metadata, escaped names, correct new/legacy confirmation and request
+scope, and conflict draft retention, with no live writes/provider calls.
+Desktop and narrow confirmation screenshots inspected. Full local deployment preserved
+configuration, credentials and voice file contents; all 858 runtime files match
+with no extra or old paths. Rollback: /var/backups/lorkhanserver-code.1egOj4.
+
+Portable global export/import remains v3 and global-only. Persistent defaults for
+future Core creation and the other unfinished matrix items remain separate work.
+
+The complete isolated management HTTP suite passed: stale named-preset revision
+is rejected, saved snapshot metadata is returned, and apply restores Core
+settings after a different built-in preset while retaining connector routing.
+The temporary HTTP client timeout was 30 seconds; default-5-second CI was not
+run. No live user preset was applied for these checks.

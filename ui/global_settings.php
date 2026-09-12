@@ -195,7 +195,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     <option value="<?= lorkhan_ui_h($presetId) ?>"<?= ($presetId === ($_GET['preset_id'] ?? 'builtin:default')) ? ' selected' : '' ?>><?= lorkhan_ui_h($presetLabel) ?></option>
                 <?php endforeach; ?></optgroup>
                 <optgroup label="Custom" id="gs-custom-presets"><?php foreach ($namedPresets as $preset): ?>
-                    <option value="<?php echo lorkhan_ui_h($preset['preset_id']); ?>" data-revision="<?php echo (int)$preset['revision']; ?>"<?php echo ($preset['preset_id'] === ($_GET['preset_id'] ?? null)) ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($preset['name']); ?></option>
+                    <option value="<?php echo lorkhan_ui_h($preset['preset_id']); ?>" data-revision="<?php echo (int)$preset['revision']; ?>" data-profiles="<?= (int)($preset['profiles_included'] ?? 0) ?>"<?php echo ($preset['preset_id'] === ($_GET['preset_id'] ?? null)) ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($preset['name']); ?></option>
                 <?php endforeach; ?></optgroup>
             </select>
             <div class="preset-actions">

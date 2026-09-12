@@ -15,7 +15,7 @@ final class GlobalSettingsPreset
         'rechat_allow_actions', 'end_conversation_cooldown_seconds'];
     private const TRANSLATION = ['translate_text', 'translate_audio', 'save_translated_text', 'source_language', 'target_language'];
 
-    public static function capture(array $settings, array $summary, array $embedding): array
+    public static function capture(array $settings, array $summary, array $embedding, ?array $profiles = null): array
     {
         $settings = EffectiveSettingsResolver::validateGlobalSettings($settings);
         MemorySummaryPolicy::validate($summary);
@@ -23,10 +23,25 @@ final class GlobalSettingsPreset
         $safe = array_intersect_key($settings, array_flip(self::SECTIONS));
         $safe['client'] = ['behavior' => array_intersect_key($settings['client']['behavior'], array_flip(self::BEHAVIOR))];
         $safe['translation'] = array_intersect_key($settings['translation'], array_flip(self::TRANSLATION));
-        return ['schema' => 'lorkhan.named-global-preset.v1', 'settings' => $safe,
+        return ($profiles === null ? [] : ['profiles' => self::profileSnapshot($profiles)]) +
+            ['schema' => $profiles === null ? 'lorkhan.named-global-preset.v1' : 'lorkhan.named-global-preset.v2', 'settings' => $safe,
             'summary' => ['enabled' => $summary['enabled'], 'summary_interval' => $summary['summary_interval'] ?? 0,
                 'minimum_events' => $summary['minimum_events'] ?? 4],
             'embedding' => ['enabled' => $embedding['enabled'], 'timeout_ms' => $embedding['timeout_ms']]];
+    }
+
+    /** Profile snapshots contain only portable settings keyed by native Core identity, plus a fallback. */
+    public static function profileSnapshot(array $snapshot): array
+    {
+        $keys=array_keys($snapshot);sort($keys);
+        if($keys!==['default','items'] || !is_array($snapshot['default']) || !is_array($snapshot['items'])
+            || ($snapshot['items']!==[] && array_is_list($snapshot['items']))) throw new InvalidArgumentException('invalid_profile_snapshot');
+        CoreProfilePreset::validate($snapshot['default']);
+        foreach($snapshot['items'] as $id=>$preset){
+            if(!is_string($id)||!\LorkhanServer\Infrastructure\Uuid::isValid($id)||!is_array($preset)) throw new InvalidArgumentException('invalid_profile_snapshot');
+            CoreProfilePreset::validate($preset);
+        }
+        return $snapshot;
     }
 
     public static function defaults(): array
@@ -75,7 +90,7 @@ final class GlobalSettingsPreset
     /** Merge against current settings so presets cannot silently reset hidden controls or routing. */
     public static function apply(array $preset, array $settings, array $summary, array $embedding): array
     {
-        if (($preset['schema'] ?? null) !== 'lorkhan.named-global-preset.v1'
+        if (!in_array($preset['schema'] ?? null, ['lorkhan.named-global-preset.v1','lorkhan.named-global-preset.v2'], true)
             || !is_array($preset['settings'] ?? null) || !is_array($preset['summary'] ?? null)
             || !is_array($preset['embedding'] ?? null)) throw new InvalidArgumentException('invalid_named_global_preset');
         // Older presets retain the original disabled behavior for added Context controls.
@@ -89,7 +104,12 @@ final class GlobalSettingsPreset
         $summary = array_replace($summary, $preset['summary']);
         $embedding = array_replace($embedding, $preset['embedding']);
         // Round-trip the allowlist as well as validating types; reject unknown or connector-bearing keys.
-        $captured = self::capture($candidate, $summary, $embedding);
+        $profiles=null;
+        if(($preset['schema']??null)==='lorkhan.named-global-preset.v2'){
+            if(!is_array($preset['profiles']??null))throw new InvalidArgumentException('invalid_profile_snapshot');
+            $profiles=self::profileSnapshot($preset['profiles']);
+        }
+        $captured = self::capture($candidate, $summary, $embedding, $profiles);
         if ($captured != $preset) throw new InvalidArgumentException('invalid_named_global_preset');
         return ['settings' => $candidate, 'summary' => $summary, 'embedding' => $embedding];
     }
