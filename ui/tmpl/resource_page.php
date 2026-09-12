@@ -830,7 +830,7 @@ function lorkhan_ui_chim_profile_cards(array $rows,array $voiceOptions,array $pr
         echo'</div></div></article>';
 
         $exportUrl=$managementBasePath.'/exports/profiles/'.$profileId.'.json';
-        $narrativeUrl=preg_replace('#/manage$#','/ui/narrative_manager.php',$managementBasePath)?:'/LorkhanServer/ui/narrative_manager.php';
+        $diaryUrl=(preg_replace('#/manage$#','/ui/diary_book.php',$managementBasePath)?:'/LorkhanServer/ui/diary_book.php').'?'.http_build_query(['installation_id'=>(string)$row['installation_id'],'person'=>$profileId]);
         $biographiesUrl=preg_replace('#/manage$#','/ui/core/npc_biographies.php',$managementBasePath)?:'/LorkhanServer/ui/core/npc_biographies.php';
         echo'<div class="npc-modal-overlay" id="'.$modalKey.'-edit" data-npc-modal hidden><section class="npc-modal npc-editor-modal" role="dialog" aria-modal="true" aria-labelledby="'.$modalKey.'-edit-title"><header class="npc-editor-header"><h2 id="'.$modalKey.'-edit-title">Edit NPC</h2><div class="npc-modal-actions">';
         echo'<button type="submit" class="btn-save" form="management-form-profile-'.lorkhan_ui_h($profileId).'">Save</button>';
@@ -838,7 +838,7 @@ function lorkhan_ui_chim_profile_cards(array $rows,array $voiceOptions,array $pr
         echo'<button type="button" class="btn-cancel" data-npc-import-to="'.lorkhan_ui_h($profileId).'" data-base-revision="'.(int)$row['current_revision'].'" data-import-url="'.lorkhan_ui_h($managementBasePath.'/forms/profile-import-to').'">Import Bio</button>';
         $canReset=in_array($identity['kind']??'',['actor','npc','creature'],true)&&trim((string)($identity['record_id']??''))!==''&&trim((string)($identity['content_file']??''))!=='';
         echo'<form class="npc-modal-header-form" method="post" action="'.lorkhan_ui_h($managementBasePath.'/forms/profile-reset-biography').'" data-confirm="Reload non-empty biography template fields? Voice, connectors, identity and history stay unchanged. This creates a restorable profile revision."><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'"><input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'"><input type="hidden" name="base_revision" value="'.(int)$row['current_revision'].'"><input type="hidden" name="confirm_reset" value="1">';lorkhan_ui_hidden_state($listState);echo'<button class="btn-cancel" type="submit"'.(!$canReset?' disabled title="Bind this profile to an NPC before resetting its biography"':' title="Reload non-empty biography template fields"').'>Reset NPC</button></form>';
-        echo'<a class="btn-cancel" href="'.lorkhan_ui_h($narrativeUrl).'">View Diary</a>';
+        echo'<a class="btn-cancel" target="_blank" rel="noopener" href="'.lorkhan_ui_h($diaryUrl).'">View Diary</a>';
         echo'<a class="btn-cancel" href="#'.$modalKey.'-versions-title">Profile Versions</a>';
 
         if(!$locked){echo'<form class="npc-modal-header-form" method="post" action="'.lorkhan_ui_h($managementBasePath.'/forms/profile-generate').'"><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'"><input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'">';lorkhan_ui_hidden_state($listState);echo'<button type="submit" class="btn-cancel">AI Generate Profile</button></form>';}

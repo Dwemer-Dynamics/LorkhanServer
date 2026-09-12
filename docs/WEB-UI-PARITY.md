@@ -12209,3 +12209,39 @@ manager in the same page. Herika opens `diary_book.php?person=...` in a new tab.
 The native book reader already exists but requires installation, playthrough and
 exact profile UUID scope; that selection must be wired without mixing saves.
 Other NPC/editor and full-matrix gaps remain open.
+
+## NPC View Diary navigation (2026-09-12)
+
+Herika's NPC editor opens the selected author in diary_book.php in a new tab.
+The native header previously opened the unfiltered Narratives manager in the
+same tab. It now links to the existing native book reader with exact installation
+and author UUIDs and target=_blank/rel=noopener, preserving editor drafts.
+
+The reader accepts an entry URL without a playthrough. One available playthrough
+redirects to its canonical scoped URL. Multiple playthroughs show an explicit
+selector before any entries are read; a chosen scope can be changed in the book.
+No playthroughs show an empty state. Fully specified unknown/mismatched scopes
+still return 404, malformed UUIDs return 400, and every entry query retains exact
+installation/playthrough/profile ownership. The selector is hidden when printing.
+
+PHP lint, 1083 server checks and 111 protocol files pass. Full isolated management
+HTTP suite passes in npc-diary-book-http.txt, including NPC header linkage, book
+entry selection, a second empty save, no cross-save content, and invalid scopes.
+Desktop browser new-tab / draft-retention checks pass in a populated fixture;
+its narrow chooser screenshot was inspected, and the test's GET-navigation wait
+was corrected. Local deployment completed with rollback `/var/backups/lorkhanserver-code.lqjNXS`.
+The corrected `npc-diary-book-deployed-review.cjs` passes at both 1280/390, with
+new-tab author scope, available playthrough selection, retained Roleplay draft,
+no overflow and no non-GET requests. The deployed narrow book was inspected.
+All 865 runtime files match source, private/auth/NPC probes pass, and existing
+configuration, credentials and voice hashes are preserved. No game/provider calls.
+The GitHub workflow remains disabled. This closes View Diary navigation, not the
+remaining Profile Versions or full page-matrix work.
+
+Next confirmed NPC header gap: Profile Versions jumps to the generic revision
+section instead of Herika's separate version-list/field-preview viewer. Native
+revisionContent() already reads a selected immutable revision, and profile rollback
+already creates a new revision. The next page change should reuse those paths
+and copy the reference viewer layout, including changed-field highlighting and
+restore confirmation. Actor identity and Core assignment live outside historical
+content and must not be presented as historical snapshots without actual evidence.

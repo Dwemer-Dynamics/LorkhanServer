@@ -11,3 +11,7 @@ body{background:#1a1a1a;color:#f8f9fa;margin:0;font-family:Arial,sans-serif}
 .entry{page-break-inside:avoid;margin:18px auto;max-width:900px}
 .entry .paper{background:url('../images/paper.jpg') center/cover;padding:36px;border-radius:6px;box-shadow:0 4px 8px #0008;color:#000;font-family:SkyrimBooks_Handwritten_Bold,Arial,sans-serif;font-size:21.6px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
 @media print{.actions{display:none}body{background:#fff;color:#000}.entry .paper{box-shadow:none}}
+
+.book-scope{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:20px 0;padding:14px;border:1px solid #404040;border-radius:6px;background:#232323}
+.book-scope label{font-weight:700}.book-scope select{flex:1;min-width:150px;max-width:100%;padding:8px;background:#1a1a1a;color:#f8f9fa;border:1px solid #555;border-radius:4px;font:inherit}.book-scope select:focus-visible{outline:2px solid #bc9d5a;outline-offset:2px}
+@media print{.book-scope{display:none}}

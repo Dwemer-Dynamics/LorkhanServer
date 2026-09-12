@@ -1383,6 +1383,21 @@ assert narrative_text in book_html and 'Print / Save as PDF' in book_html
 assert request(book_url.replace(playthrough_id,str(uuid.uuid4()))).status==404
 assert request(book_url.replace(valid['installation_id'],str(uuid.uuid4()))).status==404
 assert request('/LorkhanServer/ui/diary_book.php').status==400
+# NPC header opens its own author book in a new tab; no scope silently combines saves.
+book_entry='/LorkhanServer/ui/diary_book.php?'+urllib.parse.urlencode({'installation_id':valid['installation_id'],'person':profile_id})
+_,npc_diary_links=parse(request('/LorkhanServer/ui/core/npc_master.php'))
+assert 'target="_blank" rel="noopener" href="'+html.escape(book_entry,quote=True)+'">View Diary</a>' in npc_diary_links
+_,book_default=parse(request(book_entry))
+assert ('Choose a playthrough' in book_default and narrative_text not in book_default) or narrative_text in book_default
+other_book_scope=str(uuid.uuid4())
+subprocess.run([*pg_test,f"INSERT INTO lorkhan_internal.playthroughs(playthrough_id,installation_id,profile_id,name) VALUES ('{other_book_scope}','{valid['installation_id']}','{profile_id}','Separate diary save')"],check=True,capture_output=True)
+_,book_choice=parse(request(book_entry))
+assert 'book-playthrough' in book_choice and 'Separate diary save' in book_choice and narrative_text not in book_choice
+_,other_book=parse(request(book_entry+'&playthrough_id='+other_book_scope))
+assert narrative_text not in other_book and 'No diary entries for this author in this playthrough.' in other_book
+assert narrative_text in request(book_url).read().decode()
+assert request(book_entry+'&playthrough_id=invalid').status==400
+
 diary_export=request(diary_url+'&export=1')
 assert diary_export.headers.get('Content-Type','').startswith('text/csv') and narrative_text in diary_export.read().decode()
 # Isolated rows exercise the complete selected day, chronological ordering and Adventure CSV formatting.
