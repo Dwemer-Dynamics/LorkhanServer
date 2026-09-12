@@ -11968,5 +11968,15 @@ paths; private files remain forbidden. No live preset was applied, and there are
 zero configured creation-default snapshots in the live database. Updated new/legacy
 preset confirmation, request scope and conflict retention pass at 1280/390 using
 mocked writes; narrow screenshot inspected. Code rollback:
-/var/backups/lorkhanserver-code.imXVYZ. Portable global export/import of profile
-settings remains a separate unfinished feature; this does not close the full goal.
+/var/backups/lorkhanserver-code.imXVYZ. This does not close the full goal.
+
+## Portable global export scope correction (2026-09-12)
+
+The pinned HerikaServer `ui/cmd/settings_portability.php:377-385` global export
+branch exports only `chimPortableGlobalFields()` values. The selected preset name
+changes its filename, not its payload. Core snapshots belong to named presets,
+not the separate Global Settings Export/Import control. The earlier claim that
+portable global exports must include Core profiles was incorrect; do not expand
+Lorkhan's export format for that supposed parity gap. This source check establishes
+payload scope only, not complete field or visual parity. Keep the remaining runtime
+gaps separate from the visible-page layout work.
