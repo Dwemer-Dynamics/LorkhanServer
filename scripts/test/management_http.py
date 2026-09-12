@@ -2718,8 +2718,11 @@ model_choices=re.search(r'<select name="llm_configuration_id"[^>]*>(.*?)</select
 model_choice=re.search(r'<option value="([0-9a-f-]{36})"',model_choices.group(1)); assert model_choice,quickstart_body
 for field in ['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id']:
     quickstart_values[field]=model_choice.group(1)
+quickstart_values.update(tts_provider='service:omnivoice',stt_provider='service:parakeet')
 r=request(quickstart_form['action'],'POST',quickstart_values); saved_body=r.read().decode()
 assert r.status==200 and 'Quickstart settings saved.' in saved_body,(r.status,saved_body)
+for driver in ['omnivoice','parakeet']:
+    assert re.search(r'<option value="[0-9a-f-]{36}" data-driver="'+driver+r'"[^>]* selected',saved_body),driver
 r=request(quickstart_form['action'],'POST',quickstart_values); stale_body=r.read().decode()
 assert r.status in (409,422) and 'revision' in stale_body,(r.status,stale_body)
 # A stale player edit rolls back the Core Profile revision and connector selections as well.
@@ -2727,6 +2730,9 @@ fresh,body=parse(request('/LorkhanServer/ui/quickstart.php?installation_id='+val
 fresh_form=next(f for f in fresh.forms if f['action'].endswith('/forms/quickstart-save'))
 fresh_values=dict(fresh_form['fields'],_csrf=csrf)
 assert fresh_values['player_name']=='Quickstart Test Player'
+for kind in ['tts_provider','stt_provider']: assert uuid.UUID(fresh_values[kind])
+r=request(fresh_form['action'],'POST',dict(fresh_values,settings_preset='',tts_provider='service:whisper'))
+assert r.status==422 and 'invalid_quickstart_service' in r.read().decode()
 bad=dict(fresh_values,player_name='Must Not Be Saved',player_revision='1')
 r=request(fresh_form['action'],'POST',bad); body=r.read().decode()
 assert r.status in (409,422) and 'revision' in body,(r.status,body)

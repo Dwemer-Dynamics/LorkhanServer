@@ -1357,6 +1357,30 @@ final class ProductRepository
         });
     }
 
+    /** Quickstart can choose a service before a connector exists; reuse saved settings without rewriting them. */
+    public function ensureQuickstartSpeechConnector(string $installationId,string $kind,string $driver,string $now):string
+    {
+        $label=\LorkhanServer\Application\ConnectorCatalog::QUICKSTART_SPEECH_DRIVERS[$kind][$driver]??null;
+        if($label===null)throw new InvalidArgumentException('invalid_quickstart_service');
+        return $this->transaction(function()use($installationId,$kind,$driver,$label,$now):string{
+            $this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))')
+                ->execute(['key'=>'default-connectors:'.$installationId]);
+            $find=$this->db->prepare('SELECT c.configuration_id FROM configuration_sets c '
+                .'JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision '
+                .'LEFT JOIN installation_provider_selections s ON s.configuration_id=c.configuration_id AND s.installation_id=c.installation_id AND s.provider_kind=c.kind '
+                ."WHERE c.installation_id=:installation AND c.kind=:kind AND c.deleted_at IS NULL AND r.content->>'driver'=:driver "
+                .'ORDER BY (s.configuration_id IS NOT NULL) DESC,c.created_at,c.configuration_id LIMIT 1');
+            $find->execute(['installation'=>$installationId,'kind'=>$kind,'driver'=>$driver]);
+            $existing=$find->fetchColumn();if($existing!==false)return (string)$existing;
+            $definition=\LorkhanServer\Application\ConnectorCatalog::definition($kind,$driver);
+            $content=\LorkhanServer\Application\ConnectorCatalog::validate($kind,
+                ['driver'=>$driver,'credential'=>$definition['credential_environment']?:'none']
+                +\LorkhanServer\Application\ConnectorCatalog::defaults($kind,$driver));
+            $created=$this->createRevisioned($kind,['installation_id'=>$installationId,'name'=>$label,'content'=>$content],$now);
+            return (string)$created['configuration_id'];
+        });
+    }
+
     /** Select one installation-owned speech preset and return its redacted public snapshot. */
     public function selectConnector(string $installationId,string $kind,string $configurationId,string $now):array
     {

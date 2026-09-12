@@ -8,6 +8,11 @@ use InvalidArgumentException;
 
 final class ConnectorCatalog
 {
+    public const QUICKSTART_SPEECH_DRIVERS = [
+        'tts_provider' => ['omnivoice'=>'OmniVoice','pockettts'=>'PocketTTS','chatterbox'=>'Chatterbox','xtts-fastapi'=>'XTTS','inworld'=>'Inworld'],
+        'stt_provider' => ['parakeet'=>'Parakeet','deepgram'=>'Deepgram'],
+    ];
+
     /** Fetch only Groq's fixed discovery URL; the optional transport permits offline credential-boundary tests. */
     public static function groqModels(string $apiKey, ?\Closure $transport = null): array
     {

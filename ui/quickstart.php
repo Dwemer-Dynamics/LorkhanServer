@@ -74,11 +74,20 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
         <section class="qs-section qs-service-card"><h2 class="qs-section-title"><?php echo $label; ?></h2><div class="form-group qs-service-group<?php echo $kind==='stt_provider'?' qs-service-group-stt':''; ?>">
             <?php
             $recommendedDrivers=$kind==='tts_provider'?['omnivoice','pockettts','chatterbox']:['parakeet','deepgram'];
-            $serviceGroups=['Recommended'=>[],$kind==='tts_provider'?'Other TTS Services':'Other STT Services'=>[]];
-            foreach($rows as$row){
-                $group=in_array($row['content']['driver']??'',$recommendedDrivers,true)?'Recommended':($kind==='tts_provider'?'Other TTS Services':'Other STT Services');
-                $serviceGroups[$group][]=$row;
+            $otherGroup=$kind==='tts_provider'?'Other TTS Services':'Other STT Services';
+            $serviceGroups=['Recommended'=>[],$otherGroup=>[],'Saved connectors'=>[]];$used=[];
+            $selectedSpeech=$kind==='tts_provider'?($routing['tts_configuration_id']??$active[$kind]??''):($active[$kind]??'');
+            foreach(\LorkhanServer\Application\ConnectorCatalog::QUICKSTART_SPEECH_DRIVERS[$kind] as $driver=>$driverLabel){
+                $matching=array_values(array_filter($rows,static fn(array $row):bool=>($row['content']['driver']??'')===$driver));
+                $chosen=$matching[0]??null;
+                foreach($matching as$row)if($row['configuration_id']===($active[$kind]??''))$chosen=$row;
+                foreach($matching as$row)if($row['configuration_id']===$selectedSpeech)$chosen=$row;
+                $definition=\LorkhanServer\Application\ConnectorCatalog::definition($kind,$driver);
+                $chosen??=['configuration_id'=>'service:'.$driver,'content'=>['driver'=>$driver,'credential'=>$definition['credential_environment']?:'none']];
+                $used[]=$chosen['configuration_id'];$chosen['name']=$driverLabel;
+                $serviceGroups[in_array($driver,$recommendedDrivers,true)?'Recommended':$otherGroup][]=$chosen;
             }
+            foreach($rows as$row)if(!in_array($row['configuration_id'],$used,true))$serviceGroups['Saved connectors'][]=$row;
             ?>
             <label for="qs-<?php echo $kind; ?>"><?php echo $label; ?></label><select class="form-control" id="qs-<?php echo $kind; ?>" name="<?php echo $kind; ?>"><option value="">Keep current selection</option>
                 <?php foreach($serviceGroups as$groupLabel=>$groupRows): if($groupRows===[])continue; ?><optgroup label="<?php echo lorkhan_ui_h($groupLabel); ?>">
@@ -89,7 +98,7 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
                 <?php lorkhan_quickstart_key('deepgram','Deepgram','https://console.deepgram.com/',$keyStatuses['LORKHAN_TTS_DEEPGRAM_API_KEY']??[],$keyStoreReady); ?>
                 <p class="form-text" data-key-badge-warning hidden>This connector uses a different API badge. Change that key or badge in STT Connectors.</p>
             </div><?php endif; ?>
-            <small class="form-text"><?php echo $kind==='tts_provider'?"Select a saved voice connector for the Core Profile and installation default.":"Select a saved speech-recognition connector for the installation."; ?> For provider settings and endpoint editing, use <a href="<?php echo lorkhan_ui_h($webRoot.'/ui/core/'.$editor); ?>"><?php echo $kind==='tts_provider'?'TTS Connectors':'STT Connectors'; ?></a>.</small>
+            <small class="form-text">Choose a service. Saving reuses its saved connector or creates one with default settings. This does not install or start a service, test connectivity, or replace API keys. For provider settings and endpoint editing, use <a href="<?php echo lorkhan_ui_h($webRoot.'/ui/core/'.$editor); ?>"><?php echo $kind==='tts_provider'?'TTS Connectors':'STT Connectors'; ?></a>.</small>
         </div></section><?php endforeach; ?>
         <section class="qs-section"><h2 class="qs-section-title">LLM Connectors Note</h2><p class="form-text">Four hot-swappable models for Interact. Standard is the default; saving does not reset your current in-game slot.</p>
             <div class="qs-connector-grid"><?php foreach(['llm_configuration_id'=>['Standard','🕹️'],'llm_fast_configuration_id'=>['Fast','🏃'],'llm_powerful_configuration_id'=>['Powerful','💪'],'llm_experimental_configuration_id'=>['Experimental','🧪']]as$field=>[$label,$icon]): $model=''; foreach($llms as$row)if(($routing[$field]??'')===$row['configuration_id'])$model=(string)($row['content']['model']??''); ?>

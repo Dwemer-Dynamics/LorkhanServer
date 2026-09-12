@@ -3313,4 +3313,21 @@ try {
         'NPC observation crossed installation ownership');
 } finally { $db->rollBack(); }
 
+$db->beginTransaction();
+try {
+    $quickstartInstallation=\LorkhanServer\Infrastructure\Uuid::v4();
+    $db->prepare('INSERT INTO installations(installation_id,token_fingerprint) VALUES (:id,:fingerprint)')
+        ->execute(['id'=>$quickstartInstallation,'fingerprint'=>hash('sha256',$quickstartInstallation)]);
+    foreach (['tts_provider'=>'omnivoice','stt_provider'=>'parakeet'] as $kind=>$driver) {
+        $connectorId=$products->ensureQuickstartSpeechConnector($quickstartInstallation,$kind,$driver,$now);
+        $connector=$products->getRevisioned($kind,$connectorId);
+        $custom=$connector['content'];$custom['endpoint']='http://127.0.0.1:12345/custom';
+        $products->revise($kind,$connectorId,$custom,'keep custom settings on Quickstart reuse',$now);
+        $again=$products->ensureQuickstartSpeechConnector($quickstartInstallation,$kind,$driver,$now);
+        $reused=$products->getRevisioned($kind,$again);
+        $assert($again===$connectorId&&$reused['content']===$custom&&(int)$reused['current_revision']===2,
+            'Quickstart service choice duplicated a connector or overwrote its saved settings');
+    }
+} finally { $db->rollBack(); }
+
 fwrite(STDOUT, "integration vertical slice passed\n");

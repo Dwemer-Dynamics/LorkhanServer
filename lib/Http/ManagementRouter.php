@@ -2534,6 +2534,8 @@ final class ManagementRouter
             foreach(['tts_provider','stt_provider']as$kind){
                 $connector=trim((string)($values[$kind]??''));
                 if($connector==='')continue;
+                if(str_starts_with($connector,'service:'))$connector=$this->repository->ensureQuickstartSpeechConnector(
+                    $installation,$kind,substr($connector,8),gmdate(DATE_ATOM));
                 $this->service->selectConnector(['installation_id'=>$installation,'kind'=>$kind,'configuration_id'=>$connector]);
                 if($kind==='tts_provider')$content['routing']['tts_configuration_id']=$connector;
             }

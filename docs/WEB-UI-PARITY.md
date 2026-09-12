@@ -41,7 +41,7 @@ Lorkhan's Journal remains an OpenMW-specific entry.
 Quickstart MiniMe Service is implemented, including its bounded reachability probe.
 Managed Local LLM persistence, routing API and partial built-in profile application
 and the visible Setup/Local LLM workflow are implemented; see the dated checks below.
-Remaining connector availability gates, Player2 and complete page closure remain open. Do not present
+Service selection now creates or reuses native connectors. Player2 and complete page closure remain open; the pinned Herika Quickstart does not impose service-availability gates. Do not present
 partial or unwired controls as completed counterparts.
 
 Evidence is recorded in the dated checkpoints below. Current API Keys review uses
@@ -104,7 +104,7 @@ do not use an exception to excuse a generic substitute layout.
 | Lorkhan page | Herika counterpart | Current status |
 | --- | --- | --- |
 | `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty and desktop/narrow layout reviewed. Latest-diary author audio is wired, with populated-template playback/error checks; live-provider acceptance remains open |
-| `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; MiniMe Service and its bounded reachability probe implemented; visible Setup/Local LLM, all-Core presets and network helpers implemented; remaining connector availability, service provisioning and Player2 still pending |
+| `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; MiniMe Service and its bounded reachability probe implemented; visible Setup/Local LLM, all-Core presets and network helpers implemented; Herika service choices now create or reuse installation-owned speech connectors while preserving custom endpoints and badges; Player2 and full interaction closure remain pending. Service process installation is not performed by this form in either product |
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. Remaining children and full embedded interactions still pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Other Context event controls and profile-affecting built-ins remain open; see the dated checkpoints |
 | `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Remaining: full metadata/override composition and page-wide interaction closure. Physical Diary, cumulative memory semantics and Core-slot client selection are separate unfinished runtime features. |
@@ -10545,3 +10545,31 @@ or paid provider calls.
   controls still pass. No production POST or paid provider request was made.
 - General observed actor metadata remains read-only; full metadata composition,
   per-NPC combat behavior and other unfinished matrix items are not closed here.
+
+## Quickstart speech-service selection (2026-09-11)
+
+- Compared the pinned Herika Quickstart source and rendered TTS/STT cards. It
+  presents five TTS choices (OmniVoice, PocketTTS, Chatterbox, XTTS, Inworld) and
+  two STT choices (Parakeet, Deepgram). It does not disable these options based on
+  a service-availability probe. Earlier proposed availability gates were not
+  established reference behavior and are not being added.
+- Lorkhan now presents those same primary choices and groups, including services
+  with no existing connector. Save creates a missing connector using the typed
+  catalog defaults and credential references, or reuses existing saved settings.
+  The form keeps additional custom connectors selectable under Saved connectors.
+- Creation is installation-scoped, revisioned, transactional and serialized with
+  default connector provisioning. Existing custom endpoints, API badges, options
+  and revisions are not overwritten. The form does not install/start services,
+  make synthesis/recognition requests or copy secret values into the page.
+- Checks: 912 unit checks, full management HTTP suite, isolated connector-create
+  and repeat-reuse fixture, full integration/schema/backup-restore/migration/job
+  checks. The HTTP suite verifies actual selected UUIDs after service selection
+  and rejects a service outside the Quickstart allowlist.
+- Read-only browser comparisons at 1280/390 verified counterpart option labels
+  and groups. Deepgram badge visibility and switching back to Parakeet were
+  checked; passwords were blanked before screenshots and non-GET requests were
+  blocked. Evidence: quickstart-services-proof.cjs and quickstart-{product}-{card}
+  -{width}.png in the local temporary evidence directory.
+- Player2 and remaining whole-page workflows are still open. This change closes
+  speech-connector provisioning, not installation of external service processes
+  or the complete all-page goal.
