@@ -22,6 +22,7 @@ final class CoreProfilePreset
         'oghma'=>['enabled','topic_count','result_limit','racial_context_enabled','location_context_enabled','extractor_fallback_enabled','extractor_timeout_ms'],
         'diary'=>['enabled','automatic_enabled','automatic_wait_enabled','automatic_interval_seconds','include_in_context','latest_entry_in_context','context_turn_limit','prompt'],
         'profile_evolution'=>['enabled','fields','history_limit'],
+        'profile_management'=>['autofill_custom_profiles','autofill_custom_profiles_trigger'],
     ];
 
     /** Apply the native profile fields shared with CHIM's built-ins; never replace connector or prompt ownership. */

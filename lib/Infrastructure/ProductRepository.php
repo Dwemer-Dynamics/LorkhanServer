@@ -793,10 +793,8 @@ final class ProductRepository
                 .'WHERE p.profile_id=:profile AND p.deleted_at IS NULL FOR UPDATE OF p');
             $select->execute(['profile'=>$profileId,'playthrough'=>$playthroughId]);$row=$select->fetch();
             if(!$row)throw new RuntimeException('not_found');
-            $global=$this->globalSettingsForInstallation((string)$row['installation_id']);
-            $settings=EffectiveSettingsResolver::validateGlobalSettings(
-                is_array($global['content']??null)?$global['content']:SettingsCatalog::globalDefaults());
-            $policy=$settings['profile_management'];$trigger=(int)$policy['autofill_custom_profiles_trigger'];
+            $effective=$this->effectiveSettingsForProfile((string)$row['installation_id'],$profileId);
+            $policy=$effective['settings']['profile_management'];$trigger=(int)$policy['autofill_custom_profiles_trigger'];
             if(!$policy['autofill_custom_profiles'])return['queued'=>false,'reason'=>'disabled','observed'=>0,'required'=>$trigger];
             $identity=$this->json($row['actor_identity']);
             if(in_array($identity['kind']??'actor',['player','narrator','template'],true))

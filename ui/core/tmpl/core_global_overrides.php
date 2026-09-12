@@ -1,7 +1,10 @@
 <?php
 declare(strict_types=1);
 // Herika's Global Settings Overrides disclosure, limited to additional runtime-backed Core leaves.
-$coreOverrideCatalog = [];
+$coreOverrideCatalog = [
+    'profile_management.autofill_custom_profiles'=>['label'=>'Autofill Custom Profiles','type'=>'boolean','value'=>true],
+    'profile_management.autofill_custom_profiles_trigger'=>['label'=>'Autofill Custom Profiles Trigger','type'=>'integer','value'=>40,'range'=>[10,100]],
+];
 foreach (['location_context_enabled'=>'Force Location Oghma', 'topic_count'=>'Oghma Topic Count',
     'extractor_fallback_enabled'=>'Oghma Extractor Fallback', 'extractor_timeout_ms'=>'Oghma Extractor Timeout',
     'enabled'=>'Enable Oghma', 'result_limit'=>'Oghma Result Limit', 'racial_context_enabled'=>'Force Racial Oghma'] as $key=>$label) {
@@ -35,6 +38,8 @@ $coreOverrideHelp = [
     'context.details'=>'Select optional character, state and nearby details. The containing section must also be enabled. Turn off Override to inherit.',
     'prompt.emote_moods'=>'Moods and emotes offered in the prompt when the NPC has no custom mood list. Blank removes inherited suggestions; turn off Override to inherit. Maximum 4096 UTF-8 bytes.',
     'context.event_types'=>'One included event type per line: '.implode(', ',\LorkhanServer\Application\SettingsCatalog::eventTypes()).'. Blank excludes event history from this profile’s context without deleting it; turn off Override to inherit.',
+    'profile_management.autofill_custom_profiles'=>'Automatically fill an empty, unlocked NPC profile after enough witnessed dialogue. Does not enable periodic Dynamic Profile updates.',
+    'profile_management.autofill_custom_profiles_trigger'=>'Witnessed dialogue records required before automatic profile backfill (10–100).',
     'context.location_blacklist'=>'One location per line. These locations are omitted from prompt context. Blank clears the inherited blacklist; turn off Override to inherit. Maximum 256 entries, 256 UTF-8 bytes each.',
     'context.item_blacklist'=>'One item record ID or name per line. Matching items are omitted from prompt context. Blank clears the inherited blacklist; turn off Override to inherit. Maximum 256 entries, 256 UTF-8 bytes each.',
     'context.magic_effects_blacklist'=>'One magic effect per line. Matching effects are omitted from prompt context. Blank clears the inherited blacklist; turn off Override to inherit. Maximum 256 entries, 256 UTF-8 bytes each.',
@@ -65,6 +70,7 @@ $inheritedCoreOverrides = (new \LorkhanServer\Application\EffectiveSettingsResol
 foreach ($coreOverrideCatalog as $path=>&$definition) {
     [$section,$key] = explode('.', $path);
     $definition['category'] = match ($section) {
+        'profile_management' => 'Misc',
         'oghma', 'memory' => 'Oghma', 'prompt' => 'Prompt', 'behavior' => 'Rechat', default => 'Context'
     };
     if (in_array($path, ['context.prompt_timestamp','context.location_blacklist','context.item_blacklist',

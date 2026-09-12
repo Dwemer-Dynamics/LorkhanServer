@@ -110,7 +110,7 @@ Current delivery order: close visible page structure and interactions directly f
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. All 15 shared tab entry views now load and retain mounted documents at 1280/390, with draft values retained in the eleven entry views containing editable fields. Tab names/order/style and keyboard activation match the reference grouping, with excluded tabs absent. Shared shell review is complete; individual editor/runtime gaps remain tracked in their own rows |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Hide Ambient Combat, Power Awareness, Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Other Context event controls and profile-affecting built-ins remain open; see the dated checkpoints |
 | `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Advanced metadata is now merged with visible controls; Oghma overrides and knowledge tags reach retrieval and both preset formats. Oghma, Context, Prompt, Relationship and Rechat overrides use the reference inline Global Settings rows, with raw JSON synchronization and inherited values. Core Prompt Head, timestamps and description-only item filters reach prompt assembly; Rechat Mode reaches chain selection, Relationship System controls job eligibility, and Power Awareness uses exact observed actor levels. Metadata Text/Tree/Table switching, immediate serialization, invalid JSON handling and empty-object preservation are verified, including fresh deployed mode-switch checks. Remaining: other runtime-backed Global Settings override categories and page-wide interaction closure. Physical Diary, cumulative memory semantics and Core-slot client selection are separate unfinished runtime features. |
-| `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Typed per-NPC override leaves now include language, summaries, Diary Prompt/Cooldown/History, Dynamic Profile History, Context, Prompt Head, Oghma, Relationship Enabled/Update Chance, Rechat Mode/Strict Targeting/Open Rechat and End Conversation Cooldown. Prompt assembly, queued evolution history, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. General profile metadata now uses the reference vanilla-jsoneditor tree/text/table library, with revisioned native content and separate immutable Recorded State. Bounded target inventory capture and sorted count/total presentation are deployed in server d09d717 and client 1a35727; empty/unavailable states remain distinct. All 45 currently supported override editors apply typed values to drafts at desktop/narrow widths; grouped search, metadata mode switching and failed-save retention are checked. Remaining: full runtime-backed override catalogue, other page-wide editor/modal interactions, continuous inventory updates and NPC Visit/Teleport/Return. |
+| `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Typed per-NPC override leaves now include language, summaries, Diary Prompt/Cooldown/History, Dynamic Profile History, Context, Prompt Head, Oghma, Relationship Enabled/Update Chance, Rechat Mode/Strict Targeting/Open Rechat and End Conversation Cooldown. Prompt assembly, queued evolution history, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. General profile metadata now uses the reference vanilla-jsoneditor tree/text/table library, with revisioned native content and separate immutable Recorded State. Bounded target inventory capture and sorted count/total presentation are deployed in server d09d717 and client 1a35727; empty/unavailable states remain distinct. All 47 currently supported override editors apply typed values to drafts at desktop/narrow widths; grouped search, metadata mode switching and failed-save retention are checked. Remaining: full runtime-backed override catalogue, other page-wide editor/modal interactions, continuous inventory updates and NPC Visit/Teleport/Return. |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; generation success, failed/stale jobs, concurrent edits, retry idempotency and empty-result rejection are checked with browser mocks; live-provider acceptance remains untested |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; provider presets consolidated to 11 cards with all 32 built-in credential identities editable through saved/optional additional badges; standalone and actual hub preset/custom draft geometry reviewed at 1280/390, with failed-save and concurrent-edit retention rechecked using mocks; content-only shell now matches; live-provider acceptance remains untested |
@@ -11729,3 +11729,36 @@ Existing ten prompt-dialog tests and isolated management persistence tests remai
 separate evidence. Live reference Voice Filter/evolution schedule additions and
 broader Core semantics remain open features, not silently counted as matched.
 Scoped deployment: /var/backups/lorkhanserver-narrator-section-layout.9MQjvu.
+
+
+## Automatic profile backfill overrides (2026-09-12)
+
+Pinned Herika 529364c4 exposes AUTOFILL_CUSTOM_PROFILES and its 10–100 trigger
+under Misc; Core/NPC override loaders apply them to globals, and processor/comm
+uses them when marking empty profiles for autofill. Lorkhan's queue previously
+read only installation Global Settings. The effective policy now resolves Global
+→ Core Profile → NPC for those two fields. Auto-lock stays global; locked,
+non-actor and nonempty profiles still refuse backfill. No existing saved setting
+is rewritten and no client protocol/schema change is required.
+
+Core Global Settings Overrides and the NPC grouped picker now expose both typed
+fields with inherited values, descriptions and reference category/icon mapping.
+Portable and named Core presets preserve them. Existing resolver tests prove
+precedence, explicit false, bounds/type rejection and no client projection leak.
+Existing integration tests prove disabled and 100-record NPC policies reach the
+real scheduler, then reuse the successful ten-record queued generation fixture.
+1044 server checks, 111 protocol files and the full integration runner passed,
+including unchanged 176-relation schema inventory and migration/job checks.
+
+backfill-core-review.cjs compares 23 shared reference categories/icons and toggles
+every native override at 1280/390. backfill-core-draft-review.cjs additionally
+serializes false/100 correctly. npc-all-editors-current.cjs applies all 47 typed
+editors at both widths. No live writes or provider calls. New Core screenshots
+inspected at both widths. Full local deployment preserves configuration,
+credentials and voice content; all 858 runtime files match without extra/old
+paths. Rollback: /var/backups/lorkhanserver-code.nrAgVF.
+
+The complete isolated management HTTP suite also passed with the current source:
+Save All retains false/100 and export → import → re-export preserves the complete
+profile_management section. Temporary client timeout was 30 seconds, not the
+suite's default 5 seconds. Existing full-goal runtime/page gaps remain open.

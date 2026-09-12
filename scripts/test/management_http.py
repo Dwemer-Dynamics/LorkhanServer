@@ -2031,11 +2031,12 @@ core_values.update(profile_evolution_enabled='1',setting_profile_evolution_histo
 core_values['profile_evolution_fields[]']=['occupation','skills']
 core_values['profile_rpg_events[]']=['sleep','wait']
 core_values['setting_rpg_comments_chance_percent']='73'
-core_values['core_settings_overrides_json']=json.dumps({'memory':{'oghma_knowledge_tags':'Morrowind,Tribunal'},'response':{'max_words':999},'oghma':{'enabled':False,'result_limit':1},'context':{'prompt_timestamp':True,'ground_items_descriptions_only':False,'inventory_items_descriptions_only':True,'item_blacklist':['iron dagger'],'location_blacklist':[],'magic_effects_blacklist':['Fire Shield'],'event_types':['chat','book']},'prompt':{'prompt_head':'Core HTTP prompt.','emote_moods':'wary, hopeful'},'behavior':{'rechat_mode':'group','open_rechat':False,'rechat_strict_targeting':True,'end_conversation_cooldown_seconds':0},'relationship':{'enabled':False,'update_chance_percent':37}})
+core_values['core_settings_overrides_json']=json.dumps({'profile_management':{'autofill_custom_profiles':False,'autofill_custom_profiles_trigger':100},'memory':{'oghma_knowledge_tags':'Morrowind,Tribunal'},'response':{'max_words':999},'oghma':{'enabled':False,'result_limit':1},'context':{'prompt_timestamp':True,'ground_items_descriptions_only':False,'inventory_items_descriptions_only':True,'item_blacklist':['iron dagger'],'location_blacklist':[],'magic_effects_blacklist':['Fire Shield'],'event_types':['chat','book']},'prompt':{'prompt_head':'Core HTTP prompt.','emote_moods':'wary, hopeful'},'behavior':{'rechat_mode':'group','open_rechat':False,'rechat_strict_targeting':True,'end_conversation_cooldown_seconds':0},'relationship':{'enabled':False,'update_chance_percent':37}})
 core_response=request(core_form['action'],'POST',core_values); assert core_response.status==200
 core_body=core_response.read().decode(); core_page=Page(); core_page.feed(core_body)
 core_saved=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
 core_advanced=json.loads(html.unescape(re.search(r'id="core-settings-overrides-json"[^>]*>(.*?)</textarea>',core_body,re.S).group(1)))
+assert core_advanced['profile_management']=={'autofill_custom_profiles':False,'autofill_custom_profiles_trigger':100}
 assert core_advanced['memory']['oghma_knowledge_tags']=='Morrowind,Tribunal'
 assert core_advanced['oghma']=={'enabled':False,'result_limit':1}
 assert core_advanced['context']=={'prompt_timestamp':True,'ground_items_descriptions_only':False,'inventory_items_descriptions_only':True,'item_blacklist':['iron dagger'],'location_blacklist':[],'magic_effects_blacklist':['Fire Shield'],'event_types':['chat','book']}
@@ -2187,7 +2188,7 @@ assert imported_form['fields']['setting_diary_context_turn_limit']=='150' and '>
 assert all(imported_form['fields'].get(field,'')=='' for field in ['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','diary_generation_configuration_id','tts_configuration_id'])
 assert imported_form['fields'].get('slot','')=='' and 'default_npc' not in imported_form['fields']
 imported_portable=json.loads(request('/LorkhanServer/manage/exports/core-profile-settings/'+imported_core_id+'.json').read())
-for section in ['behavior','relationship']:
+for section in ['behavior','relationship','profile_management']:
     assert imported_portable['settings_overrides'][section]==core_preset['settings_overrides'][section],imported_portable['settings_overrides'][section]
 invalid_preset=dict(core_preset,unexpected='rejected')
 # Named presets are a catalogue, not the existing import-as-new-profile workflow.

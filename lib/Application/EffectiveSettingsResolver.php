@@ -85,6 +85,8 @@ final class EffectiveSettingsResolver
         $settings['diary'] = DiaryGenerationPolicy::defaults();
         $settings['response'] = ['max_words' => 0];
         $settings['profile_evolution'] = ['history_limit' => 50];
+        $settings['profile_management'] = array_intersect_key($global['profile_management'],
+            array_flip(['autofill_custom_profiles','autofill_custom_profiles_trigger']));
         $sources = [];
         $this->markLeaves($settings, $globalSettings === [] ? 'default' : 'global', 'settings', $sources);
         $this->markLeaves($settings['narrator'], 'default', 'settings.narrator', $sources);
@@ -146,6 +148,7 @@ final class EffectiveSettingsResolver
         if (isset($coreOverrides['bored_event'])) $allowedOverrides['bored_event'] = $coreOverrides['bored_event'];
         if (isset($coreOverrides['rpg_comments'])) $allowedOverrides['rpg_comments'] = $coreOverrides['rpg_comments'];
         if (isset($coreOverrides['oghma'])) $allowedOverrides['oghma'] = $coreOverrides['oghma'];
+        if (isset($coreOverrides['profile_management'])) $allowedOverrides['profile_management'] = $coreOverrides['profile_management'];
         if (isset($coreOverrides['profile_evolution']['history_limit']))
             $allowedOverrides['profile_evolution']['history_limit'] = $coreOverrides['profile_evolution']['history_limit'];
         $this->mergeSettings($settings, $allowedOverrides, 'core_profile', 'settings', $sources);
@@ -397,6 +400,18 @@ final class EffectiveSettingsResolver
             throw new InvalidArgumentException('invalid_settings_overrides');
         }
         $validation=$overrides;
+        if (array_key_exists('profile_management', $validation)) {
+            $policy=$validation['profile_management'];
+            if (!is_array($policy) || array_is_list($policy)
+                || array_diff(array_keys($policy), ['autofill_custom_profiles','autofill_custom_profiles_trigger'])!==[])
+                throw new InvalidArgumentException('invalid_settings_overrides');
+            if (array_key_exists('autofill_custom_profiles',$policy) && !is_bool($policy['autofill_custom_profiles']))
+                throw new InvalidArgumentException('invalid_settings_overrides');
+            if (array_key_exists('autofill_custom_profiles_trigger',$policy)
+                && (!is_int($policy['autofill_custom_profiles_trigger']) || $policy['autofill_custom_profiles_trigger']<10 || $policy['autofill_custom_profiles_trigger']>100))
+                throw new InvalidArgumentException('invalid_settings_overrides');
+            unset($validation['profile_management']);
+        }
         if (array_key_exists('context', $validation)) {
             $context = $validation['context'];
             if (!is_array($context) || array_is_list($context)

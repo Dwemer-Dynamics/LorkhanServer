@@ -950,6 +950,24 @@ foreach(['builtin:default','builtin:local_llm','builtin:passive'] as $builtin){
 }
 try{\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn('builtin:unknown',$corePresetSource);$check(false,'unknown builtin rejected');}
 catch(InvalidArgumentException){$check(true,'unknown builtin rejected');}
+$backfillCore=['settings_overrides'=>['profile_management'=>['autofill_custom_profiles'=>false,'autofill_custom_profiles_trigger'=>100]]];
+$backfillResolved=(new EffectiveSettingsResolver())->resolve([],$backfillCore,[]);
+$check($backfillResolved['settings']['profile_management']===$backfillCore['settings_overrides']['profile_management']
+    &&$backfillResolved['sources']['settings.profile_management.autofill_custom_profiles']==='core_profile',
+    'Core backfill policy overrides global defaults including explicit false');
+$backfillNpc=(new EffectiveSettingsResolver())->resolve([],$backfillCore,['settings_overrides'=>['profile_management'=>['autofill_custom_profiles'=>true,'autofill_custom_profiles_trigger'=>10]]]);
+$check($backfillNpc['settings']['profile_management']===['autofill_custom_profiles'=>true,'autofill_custom_profiles_trigger'=>10]
+    &&$backfillNpc['sources']['settings.profile_management.autofill_custom_profiles_trigger']==='npc'
+    &&!isset(EffectiveSettingsResolver::controlsProjection($backfillNpc)['settings']['profile_management']),
+    'NPC backfill overrides Core settings without changing the client protocol');
+$backfillPreset=\LorkhanServer\Application\CoreProfilePreset::capture($backfillCore);
+$check($backfillPreset['settings_overrides']['profile_management']===$backfillCore['settings_overrides']['profile_management'],
+    'Named Core presets retain both backfill settings');
+foreach ([['autofill_custom_profiles'=>'false'],['autofill_custom_profiles_trigger'=>9],['autofill_custom_profiles_trigger'=>101],
+    ['autofill_custom_profiles_trigger'=>'10'],['auto_lock_profile'=>false]] as $invalidBackfill) {
+    try { EffectiveSettingsResolver::validateSettingsOverrides(['profile_management'=>$invalidBackfill]);$check(false,'invalid backfill override rejected'); }
+    catch (InvalidArgumentException) { $check(true,'invalid backfill override rejected'); }
+}
 $evolutionResolved=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['profile_evolution'=>$evolutionDefaults]],[]);
 $check(EffectiveSettingsResolver::validateSettingsOverrides(['profile_evolution'=>$evolutionDefaults])['profile_evolution']===$evolutionDefaults
     &&$evolutionResolved['settings']['profile_evolution']===['history_limit'=>$evolutionDefaults['history_limit']]

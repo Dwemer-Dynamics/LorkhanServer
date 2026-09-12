@@ -5,6 +5,8 @@ declare(strict_types=1);
 if ($effectiveSettings === []) $effectiveSettings = (new \LorkhanServer\Application\EffectiveSettingsResolver())->resolve([], [], []);
 $contextSelectionGroups=require __DIR__.'/context_selection_groups.php';
 $overrideLabels = [
+    'profile_management.autofill_custom_profiles'=>'Autofill Custom Profiles',
+    'profile_management.autofill_custom_profiles_trigger'=>'Autofill Custom Profiles Trigger',
     'context.sections'=>'Context Sections','context.details'=>'Context Details',
     'context.event_types'=>'Event Type Filter','prompt.emote_moods'=>'Emote Moods',
     'context.location_blacklist'=>'Location Blacklist','context.item_blacklist'=>'Item Blacklist','context.magic_effects_blacklist'=>'Magic Effect Blacklist',
@@ -32,6 +34,8 @@ $overrideLabels = [
     'oghma.enabled'=>'Enable Oghma', 'oghma.result_limit'=>'Oghma Result Limit', 'oghma.racial_context_enabled'=>'Force Racial Oghma',
 ];
 $help=[
+    'profile_management.autofill_custom_profiles'=>'Automatically fill this NPC’s empty, unlocked profile after enough witnessed dialogue. Dynamic Profile updates remain separate.',
+    'profile_management.autofill_custom_profiles_trigger'=>'Witnessed dialogue records required before automatic profile backfill (10–100).',
             'behavior.rechat_strict_targeting'=>'Require this responder to address the previous speaker directly. Captured when the chain starts.',
             'behavior.open_rechat'=>'Allow nearby participants in new chains started by this NPC. Off keeps new chains listener-only; existing chains retain their mode.',
             'behavior.end_conversation_cooldown_seconds'=>'Seconds this NPC refuses AI conversation after a successful End Conversation action (0–300). Zero removes the cooldown; ordinary Rechat completion does not trigger it.',
@@ -53,6 +57,7 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
         if($path==='diary.automatic_interval_seconds')$range=[10,86400];
         if($path==='diary.context_turn_limit')$range=[0,400];
         if($path==='profile_evolution.history_limit')$range=[0,400];
+        if($path==='profile_management.autofill_custom_profiles_trigger')$range=[10,100];
         if($section==='oghma')$range=match($key){'topic_count'=>[1,3],'result_limit'=>[1,5],'extractor_timeout_ms'=>[250,3000],default=>null};
         $default=$effectiveSettings['settings'][$section][$key]
             ?? \LorkhanServer\Application\SettingsCatalog::clientDefaults()[$section][$key] ?? ($range?0:true);
@@ -93,6 +98,7 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
             $overrideCatalog[$path]['category']='Prompt';
         if(in_array($path,['behavior.rechat_strict_targeting','behavior.open_rechat','behavior.end_conversation_cooldown_seconds'],true))
             $overrideCatalog[$path]['category']='Misc';
+        if($section==='profile_management')$overrideCatalog[$path]['category']='Misc';
         if(array_key_exists($key,$content['settings_overrides'][$section]??[]))$overrideValues[$section][$key]=$content['settings_overrides'][$section][$key];
         if($section==='diary'&&array_key_exists($key,$content['diary']??[]))$overrideValues[$section][$key]=$content['diary'][$key];
     }

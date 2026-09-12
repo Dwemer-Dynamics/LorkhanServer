@@ -945,6 +945,19 @@ $backfillBeforeHistory=$products->maybeEnqueueAutomaticProfileBackfill($backfill
 $assert($backfillBeforeHistory['queued']===false&&$backfillBeforeHistory['reason']==='history_threshold'
     &&$backfillBeforeHistory['observed']===0&&$backfillBeforeHistory['required']===10,
     'automatic profile backfill did not wait for its configured history threshold');
+$backfillContent=$backfillProfile['content'];
+$backfillContent['settings_overrides']['profile_management']=['autofill_custom_profiles'=>false,'autofill_custom_profiles_trigger'=>100];
+$products->revise('profile',$backfillProfile['profile_id'],$backfillContent,'disable actor backfill override',$now);
+$backfillDisabled=$products->maybeEnqueueAutomaticProfileBackfill($backfillProfile['profile_id'],$session['playthrough_id']);
+$assert($backfillDisabled['reason']==='disabled'&&$backfillDisabled['required']===100,
+    'automatic backfill ignored NPC enablement or threshold overrides');
+$backfillContent['settings_overrides']['profile_management']['autofill_custom_profiles']=true;
+$products->revise('profile',$backfillProfile['profile_id'],$backfillContent,'enable actor threshold override',$now);
+$backfillThreshold=$products->maybeEnqueueAutomaticProfileBackfill($backfillProfile['profile_id'],$session['playthrough_id']);
+$assert($backfillThreshold['reason']==='history_threshold'&&$backfillThreshold['required']===100,
+    'automatic backfill did not use the effective NPC history threshold');
+$backfillContent['settings_overrides']['profile_management']['autofill_custom_profiles_trigger']=10;
+$products->revise('profile',$backfillProfile['profile_id'],$backfillContent,'use ten actor events',$now);
 $backfillData=$autoProfileData;$backfillData['request_id']=$newUuid(6160);$backfillData['payload']['actor']=$backfillTarget;
 [$backfillStatus]=$call($router,'POST',$base.'/gamedata',$headers($backfillData['request_id']),[],$backfillData);
 $backfillSource=$db->prepare("SELECT event_kind FROM source_events WHERE source_event_id=:source");
