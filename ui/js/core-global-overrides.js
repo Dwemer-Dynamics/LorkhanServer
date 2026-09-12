@@ -39,7 +39,7 @@
         const update = () => {
             try {
                 const value = read(); control.disabled = !toggle.checked;
-                control.setCustomValidity(toggle.checked && definition.type === 'string' && new TextEncoder().encode(control.value).length > definition.maxBytes ? 'Maximum 4096 UTF-8 bytes.' : '');
+                control.setCustomValidity(toggle.checked && definition.type === 'string' && new TextEncoder().encode(control.value).length > definition.maxBytes ? 'Maximum ' + definition.maxBytes + ' UTF-8 bytes.' : '');
                 if (toggle.checked && !control.checkValidity()) { status.textContent = 'Correct ' + definition.label + ' before saving.'; return; }
                 if (toggle.checked) { value[section] ||= {}; value[section][key] = definition.type === 'boolean' ? control.checked : definition.type === 'integer' ? Number(control.value) : control.value; }
                 else if (value[section]) { delete value[section][key]; if (!Object.keys(value[section]).length) delete value[section]; }

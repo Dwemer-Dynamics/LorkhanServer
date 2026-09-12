@@ -107,7 +107,7 @@ do not use an exception to excuse a generic substitute layout.
 | `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; MiniMe Service and its bounded reachability probe implemented; visible Setup/Local LLM, all-Core presets and network helpers implemented; Herika service choices now create or reuse installation-owned speech connectors while preserving custom endpoints and badges; Player2 and full interaction closure remain pending. Service process installation is not performed by this form in either product |
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. Remaining children and full embedded interactions still pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Other Context event controls and profile-affecting built-ins remain open; see the dated checkpoints |
-| `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Advanced metadata is now merged with visible controls; Oghma overrides and knowledge tags reach retrieval and both preset formats. Eight Oghma overrides use the reference inline Global Settings override rows, with raw JSON synchronization and inherited values. Remaining: other runtime-backed Global Settings override categories, full metadata editor interaction review and page-wide interaction closure. Physical Diary, cumulative memory semantics and Core-slot client selection are separate unfinished runtime features. |
+| `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Advanced metadata is now merged with visible controls; Oghma overrides and knowledge tags reach retrieval and both preset formats. Twelve Oghma, Context and Prompt overrides use the reference inline Global Settings rows, with raw JSON synchronization and inherited values. Core Prompt Head, timestamps and description-only item filters now reach prompt assembly. Remaining: other runtime-backed Global Settings override categories, full metadata editor interaction review and page-wide interaction closure. Physical Diary, cumulative memory semantics and Core-slot client selection are separate unfinished runtime features. |
 | `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Nineteen typed per-NPC override leaves now include language, summaries, Diary Prompt/Cooldown/History and Dynamic Profile History. Prompt assembly, queued evolution history, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. Remaining: editable general metadata, full runtime-backed override catalogue, complete editor/modal review, target inventory capture and NPC Visit/Teleport/Return. |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; generation success, failed/stale jobs, concurrent edits, retry idempotency and empty-result rejection are checked with browser mocks; live-provider acceptance remains untested |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
@@ -10647,3 +10647,30 @@ or paid provider calls.
   and PHP deployment preflight. Temporary evidence: core-inline-overrides-proof.cjs,
   core-inline-reference-proof.cjs, core-inline-http.txt and associated screenshots.
   This closes the supported Oghma inline controls, not the remaining Core categories.
+
+## Core Context and Prompt overrides (2026-09-11)
+
+- Added Prompt Head, Prompt Timestamp, Ground Items Descriptions Only and
+  Inventory Items Descriptions Only to the inline Core overrides. Context, Oghma
+  and Prompt use the reference grouped layout. Prompt Head is multiline; long
+  inherited-value previews are bounded like the reference.
+- Core policies override global values in the effective document, with source
+  ownership recorded. Prompt assembly and item-description selection already use
+  that document. Existing NPC Prompt Head precedence is unchanged. Blank Core
+  Prompt Head selects built-in text; removing the override restores the global
+  prompt. No XML-format option was reintroduced.
+- The strict override validator accepts only these four added Core leaves, with
+  boolean types and an 8192-byte UTF-8 prompt limit; NPC override payloads cannot
+  use them. Named and portable presets preserve all four values, including false.
+- Existing tests now exercise Core-owned Prompt Head in assembled provider input
+  and Core timestamp policy in temporal history headings. Browser tests cover all
+  twelve inline rows at 1280/390, raw synchronization, multiline/blank prompt,
+  UTF-8 limits and restoring inheritance. No production form or provider was run.
+- Remaining Context categories, blacklists and other global override policies are
+  still open; this is not full Core Profile or all-page completion.
+
+- Final proof: 922 unit checks; full management HTTP and integration/schema/
+  migration/durable-job suites passed. All 814 deployed files match source; private
+  routes remain protected and the GitHub server workflow remains disabled.
+  Temporary evidence: core-context-unit.txt, core-context-http.txt,
+  core-context-integration.txt, core-context-overrides-proof.cjs and screenshots.

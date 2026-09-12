@@ -1324,6 +1324,8 @@ final class ManagementRouter
             + (isset($overrides['bored_event']) ? ['bored_event'=>$overrides['bored_event']] : [])
             + (isset($overrides['rpg_comments']) ? ['rpg_comments'=>$overrides['rpg_comments']] : [])
             + (isset($overrides['oghma']) ? ['oghma'=>$overrides['oghma']] : [])
+            + (isset($overrides['context']) ? ['context'=>$overrides['context']] : [])
+            + (isset($overrides['prompt']) ? ['prompt'=>$overrides['prompt']] : [])
             + (isset($overrides['profile_evolution']) ? ['profile_evolution'=>$overrides['profile_evolution']] : []) + ['response'=>['max_words'=>(int)($overrides['response']['max_words']??0),'core_lang'=>(string)($overrides['response']['core_lang']??''),'lang_llm_xtts'=>($overrides['response']['lang_llm_xtts']??false)===true],
             'behavior'=>['rechat'=>($overrides['behavior']['rechat']??false)===true,
             'rechat_max_depth'=>(int)($overrides['behavior']['rechat_max_depth']??2),

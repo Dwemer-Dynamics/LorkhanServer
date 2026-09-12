@@ -225,15 +225,19 @@ final class EffectiveSettingsResolver
         }
 
 
-        $context = $global['context'];
+        $context = array_replace($global['context'], $coreOverrides['context'] ?? []);
+        $this->markLeaves($global['context'], $globalSettings === [] ? 'default' : 'global', 'context', $sources);
+        $this->markLeaves($coreOverrides['context'] ?? [], 'core_profile', 'context', $sources);
+        $promptSettings = array_replace($global['prompt'], $coreOverrides['prompt'] ?? []);
         $this->markLeaves($global['prompt'], $globalSettings === [] ? 'default' : 'global', 'prompt', $sources);
-        $document = ['schema' => 'lorkhan.effective-settings.v2', 'settings' => $settings, 'routing' => $routing, 'context' => $context, 'prompt'=>$global['prompt']];
+        $this->markLeaves($coreOverrides['prompt'] ?? [], 'core_profile', 'prompt', $sources);
+        $document = ['schema' => 'lorkhan.effective-settings.v2', 'settings' => $settings, 'routing' => $routing, 'context' => $context, 'prompt'=>$promptSettings];
         return [
             'document' => $document,
             'settings' => $settings,
             'routing' => $routing,
             'context' => $context,
-            'prompt' => $global['prompt'],
+            'prompt' => $promptSettings,
             'sources' => $sources,
             'sha256' => hash('sha256', self::canonical($document)),
         ];
@@ -378,6 +382,21 @@ final class EffectiveSettingsResolver
             throw new InvalidArgumentException('invalid_settings_overrides');
         }
         $validation=$overrides;
+        if (array_key_exists('context', $validation)) {
+            $context = $validation['context'];
+            if ($npc || !is_array($context) || array_is_list($context)
+                || array_diff(array_keys($context), ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only']) !== [])
+                throw new InvalidArgumentException('invalid_settings_overrides');
+            foreach ($context as $value) if (!is_bool($value)) throw new InvalidArgumentException('invalid_settings_overrides');
+            unset($validation['context']);
+        }
+        if (array_key_exists('prompt', $validation)) {
+            $prompt = $validation['prompt'];
+            if ($npc || !is_array($prompt) || array_keys($prompt) !== ['prompt_head'] || !is_string($prompt['prompt_head'])
+                || strlen($prompt['prompt_head']) > 8192 || !mb_check_encoding($prompt['prompt_head'], 'UTF-8'))
+                throw new InvalidArgumentException('invalid_settings_overrides');
+            unset($validation['prompt']);
+        }
         if (array_key_exists('quest_comments', $validation)) {
             self::validateQuestComments($validation['quest_comments'], true);
             unset($validation['quest_comments']);

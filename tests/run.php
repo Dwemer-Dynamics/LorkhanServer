@@ -953,6 +953,22 @@ $globalPromptSelection['effective_settings']['prompt']=['prompt_head'=>'Global r
 $globalPromptText=$assembler->assemble($promptTurn,$globalPromptSelection)['provider_input']['_assembled_prompt'];
 $check(str_contains($globalPromptText,'Global roleplay sentinel.')&&str_contains($globalPromptText,'curious, guarded'),
     'Global Prompt Head and Emote Moods fill absent NPC fields');
+$corePromptSelection=$globalPromptSelection;
+$corePromptOverrides=['prompt'=>['prompt_head'=>'Core roleplay sentinel.'],'context'=>['prompt_timestamp'=>true,'ground_items_descriptions_only'=>false,'inventory_items_descriptions_only'=>true]];
+$corePromptSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>$corePromptOverrides],[]);
+$corePromptText=$assembler->assemble($promptTurn,$corePromptSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($corePromptText,'Core roleplay sentinel.')
+    &&$corePromptSelection['effective_settings']['sources']['prompt.prompt_head']==='core_profile'
+    &&$corePromptSelection['effective_settings']['sources']['context.prompt_timestamp']==='core_profile',
+    'Core prompt and context overrides reach assembly with explicit ownership');
+$check(\LorkhanServer\Application\CoreProfilePreset::capture(['settings_overrides'=>$corePromptOverrides])['settings_overrides']==$corePromptOverrides,
+    'Core prompt and context overrides survive named preset capture');
+foreach ([['context'=>['prompt_timestamp'=>'true']], ['context'=>['sections'=>[]]], ['prompt'=>['emote_moods'=>'test']], ['prompt'=>['prompt_head'=>str_repeat('x',8193)]]] as $invalidCoreOverride) {
+    try { EffectiveSettingsResolver::validateSettingsOverrides($invalidCoreOverride); $check(false,'invalid Core prompt/context override rejected'); }
+    catch (InvalidArgumentException) { $check(true,'invalid Core prompt/context override rejected'); }
+}
+try { EffectiveSettingsResolver::validateSettingsOverrides($corePromptOverrides,true); $check(false,'Core-only prompt/context policy rejected for NPC overrides'); }
+catch (InvalidArgumentException) { $check(true,'Core-only prompt/context policy rejected for NPC overrides'); }
 $globalPromptSelection['profile']['content']['prompt_head']='NPC roleplay sentinel.';
 $globalPromptSelection['profile']['content']['emote_moods']='defiant';
 $npcPromptText=$assembler->assemble($promptTurn,$globalPromptSelection)['provider_input']['_assembled_prompt'];
@@ -1469,7 +1485,7 @@ $timedHistory['history'][0]['content']['game_time'] = 200000 - 7200;
 $timedHistory['history'][1]['content']['game_time'] = 200000 - 180;
 $timedHistory['history'][2]['content']['game_time'] = 200000 - 30;
 $untimedPrompt = (new PromptAssembler(8192,1024))->assemble($timedTurn,$timedHistory)['provider_input']['_assembled_prompt'];
-$timedHistory['effective_settings']['context']['prompt_timestamp'] = true;
+$timedHistory['effective_settings']['context'] = (new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['context'=>['prompt_timestamp'=>true]]],[])['context'];
 $timedPrompt = (new PromptAssembler(8192,1024))->assemble($timedTurn,$timedHistory)['provider_input']['_assembled_prompt'];
 $check(!str_contains($untimedPrompt, '--- Moments Ago ---')
     && str_contains($timedPrompt, "--- Moments Ago ---\n  Fargoth: I have not seen it.")
