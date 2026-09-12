@@ -1308,7 +1308,7 @@ assert '<option value="https://api-free.deepl.com/v2/translate" selected>Free ac
 assert 'translates NPC subtitles and speech audio' in body and not any(name in body for name in ['translation_player_audio','translation_save_player_text','translation_player_source_language','translation_player_target_language'])
 translation_values=dict(values,translation_provider='deepl',translation_text='1')
 context_names=re.findall(r'name="(context_(?:section|detail)_[a-z_]+)"',body)
-assert len(context_names)==len(set(context_names))==39
+assert len(context_names)==len(set(context_names))==40
 assert all(title in body for title in ['Top-Level Sections','Character Subsections','Appearance / State Subsections','Nearby Actor Details','Nearby Item Details'])
 assert all(len(re.findall(r'name="'+field+r'"',body))==1 for field in ['memory_summary_enabled','memory_summary_connector','oghma_configuration_id','oghma_extractor_enabled','relationship_enabled','relationship_configuration_id'])
 context_values=dict(values); context_values.pop('context_section_world',None); context_values.pop('context_detail_npc_summary',None)
@@ -2066,6 +2066,8 @@ for timestamp_enabled in [True, False]:
     timestamp_values=dict(timestamp_form['fields'],_csrf=csrf,change_reason='HTTP temporal context toggle')
     timestamp_values.pop('context_prompt_timestamp',None)
     if timestamp_enabled: timestamp_values['context_prompt_timestamp']='1'
+    timestamp_values.pop('context_power_awareness_enabled',None)
+    if timestamp_enabled: timestamp_values['context_power_awareness_enabled']='1'
     timestamp_values.pop('context_ground_items_descriptions_only',None)
     if timestamp_enabled: timestamp_values['context_ground_items_descriptions_only']='1'
     timestamp_values.pop('context_inventory_items_descriptions_only',None)
@@ -2075,6 +2077,7 @@ for timestamp_enabled in [True, False]:
     timestamp_saved,timestamp_body=parse(request('/LorkhanServer/ui/core/global_settings.php'))
     timestamp_fields=next(f['fields'] for f in timestamp_saved.forms if f['action'].endswith('/forms/global-settings-save'))
     assert ('context_prompt_timestamp' in timestamp_fields)==timestamp_enabled,timestamp_enabled
+    assert ('context_power_awareness_enabled' in timestamp_fields)==timestamp_enabled,timestamp_enabled
     assert ('context_ground_items_descriptions_only' in timestamp_fields)==timestamp_enabled,timestamp_enabled
     assert ('context_inventory_items_descriptions_only' in timestamp_fields)==timestamp_enabled,timestamp_enabled
     assert '<h2>Context</h2>' in timestamp_body and '<h2>Context Selections' in timestamp_body

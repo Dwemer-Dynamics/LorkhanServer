@@ -1281,6 +1281,21 @@ $assert($memoryWorkerStats['succeeded']===1&&($deliveredMemory['tier']??null)===
     'delivery-fenced recent-memory worker did not persist the correlated revisioned source');
 // Exercise the optional worker with a real played source; roll back only these synthetic fixtures.
 $db->beginTransaction();
+$powerState=$db->prepare("UPDATE turns SET context=jsonb_set(context,'{targetState}',CAST(:state AS jsonb),true) WHERE turn_id=:turn");
+$powerState->execute(['state'=>'{"stats":{"level":20}}','turn'=>$turn['turn_id']]);
+$powerProbe=$turn;$powerProbe['payload']['context']['nearbyActors']=[];
+$powerProbe['payload']['context']['targetState']['stats']['level']=5;
+$observedPower=$products->powerObservationsForTurn($powerProbe);
+$assert(count($observedPower)===1&&$observedPower[0]['level']===5,'Current observed target level did not take precedence');
+$powerProbe['payload']['context']['rechat']=[];
+$observedPower=$products->powerObservationsForTurn($powerProbe);
+$assert(count($observedPower)===1&&$observedPower[0]['level']===20,'Rerouted Rechat did not use exact recorded actor level');
+$wrongPowerScope=$powerProbe;$wrongPowerScope['playthrough_id']=$newUuid(98001);
+$assert($products->powerObservationsForTurn($wrongPowerScope)===[],'Power observations crossed playthrough scope');
+$powerProbe['payload']['target']['refnum']['index']+=1000;
+$assert($products->powerObservationsForTurn($powerProbe)===[],'Power observations crossed actor instance identity');
+$db->rollBack();
+$db->beginTransaction();
 $relationships=new \LorkhanServer\Infrastructure\RelationshipEvaluationRepository($db);
 $assert($relationships->enqueue($delivery['message_id'])===null,'default relationship policy launched work');
 $relationshipGlobal=$products->globalSettingsForInstallation($installationId);

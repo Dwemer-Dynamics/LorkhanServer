@@ -96,6 +96,7 @@ $contextGroups = [
         'nearby_actor_equipment' => ['Equipment', 'Nearby actor currently equipped gear and worn items.'],
         'nearby_actor_occupation' => ['Occupation', 'Nearby actors’ occupations.'],
         'nearby_actor_activity' => ['Current activity', 'What nearby actors are currently doing.'],
+        'nearby_actor_power' => ['Power', 'Relative level assessments when Power Awareness is enabled and observed levels are available.'],
     ]],
     'Nearby Item Details' => ['details', [
         'group_duplicate_items' => ['Group duplicates', 'Groups duplicate nearby ground items into counted entries.'],
@@ -190,6 +191,7 @@ $sections = [
             ['oghma_extractor_timeout_ms', 'Extractor Timeout', '&#x23F1;&#xFE0F;', 'integer', $oghmaSettings['extractor_timeout_ms'], 'Maximum connector-fallback time in milliseconds. Local deterministic retrieval does not use this budget.', ['min' => 250, 'max' => 3000, 'advanced'=>true]],
         ],
         'Context' => [
+            ['context_power_awareness_enabled', 'Power Awareness Enabled', '&#x2694;&#xFE0F;', 'boolean', $contextPolicy['power_awareness_enabled'] ?? false, 'Compare observed character levels so NPCs can assess relative threats. Missing levels produce no assessment.', []],
             ['context_ground_items_descriptions_only', 'Ground Items Descriptions Only', '&#x1FAA8;', 'boolean', $contextPolicy['ground_items_descriptions_only'] ?? false, 'Only include nearby ground items that have a saved description. Description text can remain hidden through Context Selections. Does not filter equipment or inventory.', []],
             ['context_inventory_items_descriptions_only', 'Inventory Items Descriptions Only', '&#x1F392;', 'boolean', $contextPolicy['inventory_items_descriptions_only'] ?? false, 'Only include inventory items with a saved description and a stack of five or fewer. Description text can remain hidden through Context Selections. Does not filter equipped or nearby ground items.', []],
             ['context_prompt_timestamp', 'Prompt Timestamp', '&#x1F552;', 'boolean', $contextPolicy['prompt_timestamp'] ?? false, 'Adds relative time dividers between conversation history groups, such as Moments Ago and Earlier in the day. Uses elapsed game time, not real-world time.', []],

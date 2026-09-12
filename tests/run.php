@@ -1077,6 +1077,28 @@ $contextTurn['payload']['context']=[
 $contextTurn['_nearby_actor_profiles']=[['actor_identity'=>['kind'=>'npc','record_id'=>'chargen_boat_guard_1',
     'content_file'=>'Morrowind.esm','display_name'=>'Guard'],'content'=>['biography'=>'A watchful Imperial guard.']]];
 $contextPrompt=(new PromptAssembler(16384,1024))->assemble($contextTurn,$promptSelection)['provider_input']['_assembled_prompt'];
+$powerGlobal=SettingsCatalog::globalDefaults();$powerGlobal['context']['power_awareness_enabled']=true;
+$powerSelection=$promptSelection;$powerSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve($powerGlobal,[],[]);
+$powerTurn=$contextTurn;$powerTurn['payload']['context']['playerState']['stats']['level']=5;
+$powerTurn['_power_observations']=[['actor_identity'=>$powerTurn['payload']['target'],'level'=>20],
+    ['actor_identity'=>$powerTurn['payload']['context']['nearbyActors']['items'][1],'level'=>30]];
+$powerPrompt=(new PromptAssembler(16384,1024))->assemble($powerTurn,$powerSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($powerPrompt,'appears overwhelmingly powerful')&&str_contains($powerPrompt,'appears far beneath you'),
+    'Power Awareness assesses player and nearby actors from the responding NPC perspective');
+$powerSelection['effective_settings']['context']['details']['nearby_actor_power']=false;
+$check(!str_contains((new PromptAssembler(16384,1024))->assemble($powerTurn,$powerSelection)['provider_input']['_assembled_prompt'],'Power Assessment'),
+    'Nearby Actor Details Power selection suppresses assessments');
+$powerSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve($powerGlobal,['settings_overrides'=>['context'=>['power_awareness_enabled'=>false]]],[]);
+$check(!str_contains((new PromptAssembler(16384,1024))->assemble($powerTurn,$powerSelection)['provider_input']['_assembled_prompt'],'Power Assessment'),
+    'Core Power Awareness off overrides global on');
+foreach ([10=>'appears overwhelmingly powerful',5=>'appears considerably stronger',2=>'appears somewhat stronger',-1=>'appears evenly matched',-4=>'appears somewhat weaker',-9=>'appears considerably weaker',-10=>'appears far beneath you'] as $difference=>$label)
+    $check(\LorkhanServer\Application\PowerAwareness::describe(20,20+$difference)===$label,'Herika Power Awareness threshold '.$difference);
+foreach ([null,'20',true,0,-1,20.5,INF] as $invalidLevel)
+    $check(\LorkhanServer\Application\PowerAwareness::describe($invalidLevel,20)==='', 'Missing or invalid observed level produces no assessment');
+$powerSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve($powerGlobal,[],[]);
+$powerTurn['payload']['context']['nearbyActors']['items'][1]['refnum']=['index'=>999,'content_file'=>'Morrowind.esm'];
+$powerPrompt=(new PromptAssembler(16384,1024))->assemble($powerTurn,$powerSelection)['provider_input']['_assembled_prompt'];
+$check(!str_contains($powerPrompt,'appears overwhelmingly powerful'),'Power Awareness does not reuse a namesake actor observation');
 $check(str_contains($contextPrompt,'### World')&&str_contains($contextPrompt,'- **Location:** Seyda Neen')
     &&str_contains($contextPrompt,"- **Date:** 16 Sun's Height 3E 427")
     &&str_contains($contextPrompt,'### People Present')&&str_contains($contextPrompt,'### Nearby Actors')

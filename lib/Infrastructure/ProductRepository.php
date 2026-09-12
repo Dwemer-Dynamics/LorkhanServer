@@ -3080,6 +3080,8 @@ SQL);
             'narrator_profile'=>$narratorProfile,
             'narrator_event_prompts'=>$promptKeys===[]?[]:$this->narratorEventPromptTexts($turn['installation_id'],$promptKeys),
             'nearby_actor_profiles'=>$contextSections['nearby_actors']?$this->nearbyActorProfilesForTurn($turn):[],
+            'power_observations'=>($contextPolicy['power_awareness_enabled']??false)&&$contextSections['nearby_actors']&&($contextPolicy['details']['nearby_actor_power']??true)
+                ?$this->powerObservationsForTurn($turn):[],
             'item_descriptions'=>($contextSections['record_descriptions']||($contextPolicy['ground_items_descriptions_only']??false)||($contextPolicy['inventory_items_descriptions_only']??false))?$this->itemDescriptionsForTurn($turn):[],
             'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),
             'memory_candidates'=>$memorySelection['candidates'],'memory_retrieval'=>$memorySelection['trace'],
@@ -3292,6 +3294,49 @@ SQL);
                 ?'prompt-memory-lexical-0.75+fake-vector-0.25+tier-v1'
                 :'prompt-memory-lexical-0.75+minime-0.25+deterministic-fallback+tier-v1',
             'created_at'=>$now,'prompt_section'=>'memory_context','scope'=>$scope]];
+    }
+
+    /** Fetch only known levels for exact actors in this playthrough; never infer them from profile prose. */
+    public function powerObservationsForTurn(array $turn): array
+    {
+        $context=$turn['payload']['context']??[];$nearby=$context['nearbyActors']??[];
+        if(is_array($nearby)&&!array_is_list($nearby))$nearby=$nearby['items']??[];
+        $target=$turn['payload']['target']??[];$identities=[];
+        foreach(array_merge([$target],array_slice(is_array($nearby)?$nearby:[],0,12)) as $identity){
+            if(!is_array($identity)||!in_array($identity['kind']??'', ['npc','creature'],true)
+                ||!is_string($identity['record_id']??null)||!is_string($identity['content_file']??null))continue;
+            $identities[$this->actorKey($identity)]=$identity;
+        }
+        if($identities===[])return[];
+        $statement=$this->db->prepare(<<<SQL
+SELECT c.identity::text AS identity,o.level::text AS level
+FROM jsonb_array_elements(CAST(:identities AS jsonb)) AS c(identity)
+JOIN LATERAL (
+ SELECT t.context#>'{targetState,stats,level}' AS level
+ FROM turns t JOIN sessions s ON s.session_id=t.session_id
+ WHERE s.installation_id=:installation AND s.playthrough_id=:playthrough
+   AND t.target->>'kind'=c.identity->>'kind' AND t.target->>'record_id'=c.identity->>'record_id'
+   AND t.target->>'content_file'=c.identity->>'content_file'
+   AND t.target->'refnum' IS NOT DISTINCT FROM c.identity->'refnum'
+   AND NOT jsonb_exists(t.context,'rechat')
+   AND jsonb_typeof(t.context#>'{targetState,stats,level}')='number'
+ ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT 1
+) o ON true
+SQL);
+        $statement->execute(['identities'=>json_encode(array_values($identities),JSON_THROW_ON_ERROR),
+            'installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id']]);
+        $levels=[];
+        foreach($statement->fetchAll() as $row){
+            $identity=$this->json($row['identity']);$level=json_decode($row['level'],true,8,JSON_THROW_ON_ERROR);
+            if(\LorkhanServer\Application\PowerAwareness::describe($level,$level)!=='')
+                $levels[$this->actorKey($identity)]=['actor_identity'=>$identity,'level'=>$level];
+        }
+        // Rechat may reroute the responder after capture, so its targetState cannot identify the new assessor.
+        $current=$context['targetState']['stats']['level']??null;
+        if(!isset($context['rechat'])&&($turn['payload']['ui_source']??'')!=='lorkhan_rechat'
+            &&isset($identities[$this->actorKey($target)])&&\LorkhanServer\Application\PowerAwareness::describe($current,$current)!=='')
+            $levels[$this->actorKey($target)]=['actor_identity'=>$target,'level'=>$current];
+        return array_values($levels);
     }
 
     /** Batch-load only profiles already bound to actors in the bounded current-turn context. */

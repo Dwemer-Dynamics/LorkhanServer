@@ -100,6 +100,7 @@ final class SettingsCatalog
         'nearby_actor_appearance' => true,
         'nearby_actor_occupation' => true,
         'nearby_actor_activity' => true,
+        'nearby_actor_power' => true,
         'nearby_actor_equipment' => true,
         'group_duplicate_items' => true,
         'item_descriptions' => true,
@@ -210,6 +211,7 @@ final class SettingsCatalog
             'oghma' => self::OGHMA_DEFAULTS + ['knowledge_tags' => '', 'extractor_enabled' => false],
             'context' => [
                 'prompt_timestamp' => false,
+                'power_awareness_enabled' => false,
                 'ground_items_descriptions_only' => false,
                 'inventory_items_descriptions_only' => false,
                 'sections' => self::CONTEXT_SECTION_DEFAULTS,
@@ -259,6 +261,7 @@ final class SettingsCatalog
         if (!array_key_exists('npc_rpg_skills', $details)) $details['npc_rpg_skills'] = false;
         if (!array_key_exists('npc_groups', $details)) $details['npc_groups'] = $details['npc_current_state'] ?? true;
         if (!array_key_exists('npc_group', $details)) $details['npc_group'] = true;
+        if (!array_key_exists('nearby_actor_power', $details)) $details['nearby_actor_power'] = true;
         return $details;
     }
 

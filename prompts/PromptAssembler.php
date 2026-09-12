@@ -379,7 +379,9 @@ Return a tones object before mood and text in every utterance. Include all eight
         if ($world !== '') $morrowind .= '<world>' . $world . '</world>';
         $people = $contextPolicy['sections']['people_present'] ? $this->peoplePresentXml($turn, $context) : '';
         if ($people !== '') $morrowind .= '<people_present>' . $people . '</people_present>';
-        $nearbyActors = $contextPolicy['sections']['nearby_actors'] ? $this->nearbyActorsXml($turn, $context, $details, $itemBlacklist) : '';
+        $assessorLevel = ($contextPolicy['power_awareness_enabled'] ?? false) && ($details['nearby_actor_power'] ?? true) && $contextPolicy['sections']['nearby_actors']
+            ? $this->observedPowerLevel($turn, $turn['payload']['target'] ?? []) : null;
+        $nearbyActors = $contextPolicy['sections']['nearby_actors'] ? $this->nearbyActorsXml($turn, $context, $details, $itemBlacklist, $assessorLevel) : '';
         if ($nearbyActors !== '') $morrowind .= '<nearby_actors>' . $nearbyActors . '</nearby_actors>';
         $nearbyItems = $contextPolicy['sections']['nearby_items'] ? $this->nearbyObjectsXml($context, ['items'], 'item', $itemBlacklist, $details['group_duplicate_items'], ($contextPolicy['ground_items_descriptions_only'] ?? false) ? ($turn['_item_descriptions'] ?? []) : null) : '';
         if ($nearbyItems !== '') $morrowind .= '<nearby_items>' . $nearbyItems . '</nearby_items>';
@@ -387,7 +389,7 @@ Return a tones object before mood and text in every utterance. Include all eight
         if ($pointsOfInterest !== '') $morrowind .= '<points_of_interest>' . $pointsOfInterest . '</points_of_interest>';
 
         $playerNarrator = '';
-        $player = $contextPolicy['sections']['player_narrator'] ? $this->playerXml($turn, $playerName, $details, $itemBlacklist, $magicBlacklist) : '';
+        $player = $contextPolicy['sections']['player_narrator'] ? $this->playerXml($turn, $playerName, $details, $itemBlacklist, $magicBlacklist, $assessorLevel) : '';
         if ($player !== '') $playerNarrator .= '<player_character>' . $player . '</player_character>';
         $narrator = $contextPolicy['sections']['player_narrator'] ? $this->narratorXml($turn) : '';
         if ($narrator !== '') $playerNarrator .= '<narrator>' . $narrator . '</narrator>';
@@ -643,7 +645,7 @@ Return a tones object before mood and text in every utterance. Include all eight
         return '<character>' . $xml . '</character>';
     }
 
-    private function playerXml(array $turn, string $playerName, array $details, array $itemBlacklist, array $magicBlacklist): string
+    private function playerXml(array $turn, string $playerName, array $details, array $itemBlacklist, array $magicBlacklist, mixed $assessorLevel = null): string
     {
         $xml = $this->xmlTag('name', $playerName);
         $player = $turn['_player_profile'] ?? null;
@@ -673,6 +675,8 @@ Return a tones object before mood and text in every utterance. Include all eight
         $stateXml = $this->actorStateXml($state, ['race', 'class', 'level', 'health', 'health_percent'],
             $details['npc_equipment'], $details['npc_inventory'], $details['npc_magic_effects'], $itemBlacklist, $magicBlacklist);
         if ($stateXml !== '') $xml .= '<current_state>' . $stateXml . '</current_state>';
+        $assessment = PowerAwareness::describe($assessorLevel, $state['stats']['level'] ?? null);
+        if ($assessment !== '') $xml .= $this->xmlTag('power_assessment', $assessment);
         return $xml;
     }
 
@@ -799,7 +803,7 @@ Return a tones object before mood and text in every utterance. Include all eight
         return $xml;
     }
 
-    private function nearbyActorsXml(array $turn, mixed $context, array $details, array $itemBlacklist): string
+    private function nearbyActorsXml(array $turn, mixed $context, array $details, array $itemBlacklist, mixed $assessorLevel = null): string
     {
         if (!is_array($context) || array_is_list($context)) return '';
         $activities = [];
@@ -814,6 +818,8 @@ Return a tones object before mood and text in every utterance. Include all eight
                 || $this->sameActor($actor, $turn['payload']['speaker'] ?? [])
                 || $this->sameActor($actor, $turn['payload']['target'] ?? [])) continue;
             $entry = $this->xmlTag('name', $this->identityName($actor, 'Unknown'));
+            $assessment = PowerAwareness::describe($assessorLevel, $this->observedPowerLevel($turn, $actor));
+            if ($assessment !== '') $entry .= $this->xmlTag('power_assessment', $assessment);
             $profile = $this->nearbyProfile($turn, $actor);
             if ($profile !== null) {
                 $content = is_array($profile['content'] ?? null) && !array_is_list($profile['content']) ? $profile['content'] : [];
@@ -841,6 +847,21 @@ Return a tones object before mood and text in every utterance. Include all eight
             $xml .= '<actor>' . $entry . '</actor>';
         }
         return $xml;
+    }
+
+    /** Exact runtime identity, including RefNum, prevents a namesake's observed level being reused. */
+    private function observedPowerLevel(array $turn, array $identity): mixed
+    {
+        if (!is_string($identity['record_id'] ?? null)) return null;
+        foreach ($turn['_power_observations'] ?? [] as $row) {
+            $actor = $row['actor_identity'] ?? null;
+            if (!is_array($actor)) continue;
+            foreach (['kind','record_id','content_file','refnum'] as $key) {
+                if (($actor[$key] ?? null) != ($identity[$key] ?? null)) continue 2;
+            }
+            return $row['level'] ?? null;
+        }
+        return null;
     }
 
     /** Match resolved description availability without relying on client-provided item prose. */

@@ -2326,6 +2326,7 @@ final class ManagementRouter
                 $content['context']['details'][$first] = $content['context']['details'][$second] = true;
         }
         $content['context']['prompt_timestamp'] = isset($values['context_prompt_timestamp']);
+        $content['context']['power_awareness_enabled'] = isset($values['context_power_awareness_enabled']);
         $content['context']['ground_items_descriptions_only'] = isset($values['context_ground_items_descriptions_only']);
         $content['context']['inventory_items_descriptions_only'] = isset($values['context_inventory_items_descriptions_only']);
         $eventTypes=$values['context_event_types']??[];if(!is_array($eventTypes))throw new InvalidArgumentException('invalid_context_event_types');

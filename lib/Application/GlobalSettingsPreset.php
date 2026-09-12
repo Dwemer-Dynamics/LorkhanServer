@@ -45,6 +45,7 @@ final class GlobalSettingsPreset
         $settings['relationship']['enabled']=!$local;
         $settings['relationship']['update_chance_percent']=$local?0:50;
         $settings['context']['prompt_timestamp']=false;
+        $settings['context']['power_awareness_enabled']=false;
         $settings['context']['ground_items_descriptions_only']=$local;
         $settings['context']['inventory_items_descriptions_only']=$local;
         // These options have direct native prompt consumers; do not conflate history or memory with character subsections.

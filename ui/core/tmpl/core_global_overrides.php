@@ -15,7 +15,9 @@ foreach (['prompt_timestamp'=>'Prompt Timestamp','ground_items_descriptions_only
 $coreOverrideCatalog['prompt.prompt_head']=['label'=>'Prompt Head','type'=>'string','value'=>'','maxBytes'=>8192,'multiline'=>true];
 $coreOverrideCatalog['behavior.rechat_mode']=['label'=>'Rechat Mode','type'=>'choice','value'=>'random','choices'=>['tight','conversational','group','random']];
 $coreOverrideCatalog['relationship.enabled']=['label'=>'Relationship System Enabled','type'=>'boolean','value'=>($globalContent['relationship']['enabled']??false)===true];
+$coreOverrideCatalog['context.power_awareness_enabled']=['label'=>'Power Awareness Enabled','type'=>'boolean','value'=>false];
 $coreOverrideHelp = [
+    'context.power_awareness_enabled'=>'Compare observed character levels so NPCs can assess relative threats. The Nearby Actor Details Power selection must also be enabled. Missing levels produce no assessment.',
     'behavior.rechat_mode'=>'Tight uses the listener; Conversational prefers the current partner; Group rotates nearby NPCs; Random chooses a mode at the start of each chain. Existing chains retain their starting mode.',
     'relationship.enabled'=>'Enable relationship evaluation for this profile. The global update chance and Relationship Management connector still apply.',
 
