@@ -11551,3 +11551,31 @@ Scoped deployment backup: /var/backups/lorkhanserver-profile-rules-shell.mkcvWm.
 858 runtime files match source with no extras/old paths, protected private routes.
 No paid provider calls or game launch. Remaining Core/NPC/runtime requirements
 stay open; this checkpoint does not close full webpage parity.
+
+## Profile Rules cards and inline drafts (2026-09-12)
+
+Copied the reference rule-card structure: title/status and Edit/Delete actions in
+the header, followed by assigned-profile and match chips. Existing native priority
+remains visible as a chip; empty matching remains an explicit never-runs warning,
+not the reference catch-all behavior. Text uses DOM textContent throughout.
+Copied 16px card padding, 8px radius, 20px bold title, status/chip typography,
+spacing, borders and backgrounds from the pinned reference.
+
+The existing revisioned editor now mounts inside its selected rule card; New Rule
+creates a temporary card. Other rules remain visible. A stable DOM anchor preserves
+the single form and its listeners across list refreshes. Card actions are disabled
+while a request is pending. Direct Delete opens the existing confirmation without
+sending a request. Match APIs, protected ownership, CRUD payloads and backend
+matching semantics are unchanged. Advanced regex/action metadata features and
+remaining detailed picker/form parity are still open, not completed exceptions.
+
+profile-rule-cards-review.cjs passes empty/populated, New/Edit/Cancel, inline form
+mount, mocked 409 retention, direct Delete/Keep, Escape/focus at 1280/390.
+rule-card-parity-review.cjs compares actual reference/native rendered card/title/
+status/chip padding, size, weight and radius, and verifies mocked successful save,
+refresh and reopen at both widths. Inspected the final narrow populated card.
+Mocks intercept all mutations; no live rules changed. JS syntax, 1036 server checks,
+111 protocol files and diff whitespace checks passed. Original rollback backup:
+/var/backups/lorkhanserver-profile-rule-cards.hWdogs; final deployment backup:
+/var/backups/lorkhanserver-profile-rule-cards.SIFZgj. Exact runtime file verification
+is rerun for final source. Full Core/NPC and project parity remain open.

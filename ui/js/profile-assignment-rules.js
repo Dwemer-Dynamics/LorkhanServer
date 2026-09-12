@@ -9,6 +9,8 @@
     const listHost = overlay.querySelector('[data-profile-rules-list]');
     const listOrder = overlay.querySelector('[data-profile-rules-order]');
     const form = overlay.querySelector('[data-profile-rules-form]');
+    const formAnchor = document.createComment('Rule editor home');
+    form.before(formAnchor);
     const formTitle = overlay.querySelector('[data-profile-rules-form-title]');
     const formError = overlay.querySelector('[data-profile-rules-error]');
     const descriptionInput = overlay.querySelector('[data-profile-rules-description]');
@@ -120,6 +122,7 @@
     };
 
     const renderList = () => {
+        formAnchor.after(form);
         listHost.textContent = '';
         const rules = sortedRules();
         listOrder.hidden = rules.length < 2;
@@ -132,6 +135,7 @@
         }
         rules.forEach((rule) => {
             const row = document.createElement('article');
+            row.dataset.ruleId = text(rule.rule_id);
             row.className = 'profile-rules-row' + (rule.enabled ? '' : ' is-off');
 
             const head = document.createElement('div');
@@ -142,40 +146,46 @@
             const state = document.createElement('span');
             state.className = 'profile-rules-pill profile-rules-pill-' + (rule.enabled ? 'on' : 'off');
             state.textContent = rule.enabled ? 'Enabled' : 'Disabled';
-            head.append(title, state);
+            const titleRow = document.createElement('div');
+            titleRow.className = 'profile-rules-title-row';
+            titleRow.append(title, state);
+            head.append(titleRow);
 
-            const facts = document.createElement('dl');
-            facts.className = 'profile-rules-row-facts';
-            const factPairs = [
-                ['Priority', String(Number(rule.priority || 0))],
-                ['Core Profile', text(rule.core_profile_label) || profileLabel(rule.core_profile_id)],
-            ];
-            factPairs.forEach((pair) => {
-                const key = document.createElement('dt');
-                key.textContent = pair[0];
-                const value = document.createElement('dd');
-                value.textContent = pair[1];
-                facts.append(key, value);
-            });
-
-            const summary = document.createElement('p');
+            const summary = document.createElement('div');
             summary.className = 'profile-rules-row-match';
-            const parts = matchSummary(rule.match);
-            summary.textContent = parts.length === 0
-                ? 'No match fields set, so this rule never runs.'
-                : 'Matches when ' + parts.join(' and ') + '.';
+            const target = document.createElement('strong');
+            target.className = 'profile-rules-summary-target';
+            target.textContent = (text(rule.core_profile_label) || profileLabel(rule.core_profile_id));
+            summary.append(target);
+            const matches = matchSummary(rule.match);
+            for (const caption of (matches.length ? matches : ['No match fields: this rule never runs'])) {
+                const chip = document.createElement('span');
+                chip.className = 'profile-rules-summary-chip';
+                chip.textContent = caption;
+                summary.append(chip);
+            }
+            const priority = document.createElement('span');
+            priority.className = 'profile-rules-summary-chip';
+            priority.textContent = 'Priority: ' + String(Number(rule.priority || 0));
+            summary.append(priority);
 
             const actions = document.createElement('div');
             actions.className = 'profile-rules-row-actions';
             const edit = document.createElement('button');
             edit.type = 'button';
             edit.className = 'btn-base';
-            edit.textContent = 'Edit';
+            edit.textContent = '✎ Edit';
             edit.setAttribute('aria-label', 'Edit rule ' + (text(rule.description) || 'Untitled rule'));
             edit.addEventListener('click', () => openForm(rule));
-            actions.append(edit);
-
-            row.append(head, facts, summary, actions);
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'btn-danger';
+            remove.textContent = '× Delete';
+            remove.setAttribute('aria-label', 'Delete rule ' + (text(rule.description) || 'Untitled rule'));
+            remove.addEventListener('click', () => { openForm(rule); showConfirm(); });
+            actions.append(edit, remove);
+            head.append(actions);
+            row.append(head, summary);
             listHost.append(row);
         });
     };
@@ -276,7 +286,26 @@
     const syncControls = () => {
         const inList = view === 'list';
         const noProfiles = !(data && Array.isArray(data.core_profiles) && data.core_profiles.length > 0);
-        listView.hidden = !inList;
+        listView.hidden = false;
+        formAnchor.after(form);
+        listHost.querySelector('[data-new-rule-card]')?.remove();
+        for (const row of listHost.querySelectorAll('[data-rule-id]')) {
+            const active = !inList && row.dataset.ruleId === editingId;
+            row.classList.toggle('editing', active);
+            row.querySelector('.profile-rules-row-match').hidden = active;
+            row.querySelector('.profile-rules-row-actions').hidden = active;
+            row.querySelectorAll('.profile-rules-row-actions button').forEach(button => { button.disabled = busy; });
+            if (active) row.append(form);
+        }
+        const empty = listHost.querySelector('.profile-rules-empty');
+        if (empty) empty.hidden = !inList;
+        if (!inList && editingId === null) {
+            const card = document.createElement('article');
+            card.className = 'profile-rules-row editing';
+            card.dataset.newRuleCard = '';
+            card.append(form);
+            listHost.prepend(card);
+        }
         form.hidden = inList;
         newButton.hidden = !inList || loadFailed;
         newButton.disabled = loading || noProfiles;

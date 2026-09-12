@@ -1947,3 +1947,51 @@ body.profile-rules-open {
 }
 .profiles-page .profile-rules-body .rule-help strong { color: #fff; }
 .profiles-page .profile-rules-header-actions [hidden] { display: none; }
+
+/* Reference rule cards: title/actions row followed by profile and match chips. */
+.profiles-page .profile-rules-list { gap: 12px; }
+.profiles-page .profile-rules-row {
+    display: block;
+    padding: 16px;
+    border-color: #454545;
+}
+.profiles-page .profile-rules-row.is-off { border-style: solid; opacity: 1; }
+.profiles-page .profile-rules-row-head { justify-content: space-between; gap: 12px; }
+.profiles-page .profile-rules-title-row {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0;
+}
+.profiles-page .profile-rules-row-title {
+    font-family: 'Futura CondensedLight', Arial, sans-serif;
+    font-weight: 700; color: #fff; font-size: 20px; letter-spacing: .2px;
+}
+.profiles-page .profile-rules-pill {
+    padding: 3px 9px; border-color: #505050; background: transparent;
+    text-transform: uppercase; letter-spacing: .04em;
+}
+.profiles-page .profile-rules-pill-on { color: #8ee2aa; border-color: #2f7749; background: #193323; }
+.profiles-page .profile-rules-pill-off { color: #aaa; }
+.profiles-page .profile-rules-row-actions { gap: 6px; }
+.profiles-page .profile-rules-row-match {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
+    margin-top: 11px; color: #cfd5df; font-size: 14px;
+}
+.profiles-page .profile-rules-summary-target { color: #fff; font-weight: 700; margin-right: 4px; }
+.profiles-page .profile-rules-summary-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    border: 1px solid #4b4b4b; background: #1c1c1c; border-radius: 999px;
+    padding: 4px 9px; font-size: 13px; overflow-wrap: anywhere; max-width: 100%;
+}
+
+.profiles-page .profile-rules-row.editing { border-color: rgb(188, 157, 90); }
+.profiles-page .profile-rules-row > .profile-rules-form { margin-top: 14px; }
+.profiles-page .profile-rules-row [hidden] { display: none; }
+.profiles-page .profile-rules-field label {
+    color: #d5dbe4; font-size: 14px; font-weight: 700;
+    margin-bottom: 7px; text-transform: uppercase; letter-spacing: .04em;
+}
+.profiles-page .profile-rules-fields { gap: 14px; align-items: end; }
+.profiles-page .profile-rules-match-grid { gap: 12px; }
+.profiles-page .profile-rules-match-field {
+    background: #1d1d1d; border-color: #404040; border-radius: 8px; padding: 12px;
+}
+.profiles-page .profile-rules-check-line label { text-transform: none; color: #fff; font-size: 15px; }
