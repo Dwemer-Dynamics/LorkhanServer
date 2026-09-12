@@ -124,23 +124,30 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
     let testing=false;
     function update(){
         const local=form.elements.settings_preset.value==='builtin:local_llm';
-        panel.hidden=!local;panel.disabled=!local;
-        models.forEach(select=>{select.disabled=local;});
-        save.disabled=local?!form.elements.core_profile_id.value:initialDisabled;
+        const player2=form.elements.player2_force_all_llm?.checked===true;
+        panel.hidden=!local;panel.disabled=!local||player2;
+        models.forEach(select=>{select.disabled=local||player2;});
+        save.disabled=local||player2?!form.elements.core_profile_id.value:initialDisabled;
+        section.querySelector('#qs_local_llm_player2_warning').hidden=!local||!player2;
+        form.querySelector('[data-player2-recap]').hidden=!player2;
+        form.querySelector('[data-player2-llm-note]').hidden=!player2;
+        form.querySelector('[data-normal-llm-note]').hidden=player2;
+        form.querySelector('[data-quick-key="openrouter"]').closest('.qs-section').hidden=player2;
         section.querySelector('#qs_settings_preset_desc').textContent=local?
             'Shorter context and replies for all Core Profiles in this installation. Configure the local model below.':
             'Default settings for all Core Profiles, with profile backfill, relationship updates, memory summaries and semantic recall enabled.';
-        models[0]?.closest('.qs-section').querySelector('.qs-connector-grid').toggleAttribute('hidden',local);
-        form.querySelector('[data-local-recap]').hidden=!local;
+        models[0]?.closest('.qs-connector-grid').toggleAttribute('hidden',local||player2);
+        form.querySelector('[data-local-recap]').hidden=!local||player2;
         form.querySelectorAll('[data-local-model]').forEach(e=>{e.textContent=form.elements.local_model.value||'Enter a model name';});
         form.querySelectorAll('[data-local-endpoint]').forEach(e=>{e.textContent=url.value;});
-        form.querySelector('[data-default-required]')?.toggleAttribute('hidden',local&&!!form.elements.core_profile_id.value);
+        form.querySelector('[data-default-required]')?.toggleAttribute('hidden',(local||player2)&&!!form.elements.core_profile_id.value);
         test.disabled=testing;
         try{const warning=section.querySelector('#qs-local-loopback'),host=new URL(url.value).hostname;
             warning.hidden=warning.dataset.mirrored==='1'||!['localhost','127.0.0.1','[::1]',warning.dataset.wslIp].includes(host);}
         catch{section.querySelector('#qs-local-loopback').hidden=true;}
     }
     form.querySelectorAll('[name="settings_preset"]').forEach(radio=>radio.addEventListener('change',update));
+    form.elements.player2_force_all_llm?.addEventListener('change',update);
     url.addEventListener('input',update);
     form.elements.local_model.addEventListener('input',update);
     section.querySelectorAll('[data-local-ip]').forEach(button=>button.addEventListener('click',()=>{

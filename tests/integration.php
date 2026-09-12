@@ -3437,4 +3437,62 @@ try {
     if(is_dir($dragonRoot.'/sql'))rmdir($dragonRoot.'/sql');
     if(is_dir($dragonRoot))rmdir($dragonRoot);
 }
+$db->beginTransaction();
+try {
+    $player2Routing=new \LorkhanServer\Infrastructure\Player2RoutingRepository($db);
+    $normalRouting=$products->effectiveSettingsForProfile($installationId,null)['routing'];
+    $sameLabel=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Player2 Local','content'=>['driver'=>'mock','model'=>'not-player2']],$now);
+    $enabled=$player2Routing->save($installationId,true,0,$now);
+    $assert($enabled['enabled']&&$enabled['revision']===1,'Player2 enable did not create a revision');
+    $assert($enabled['configuration_id']!==$sameLabel['configuration_id'],'Player2 adopted an unrelated connector label');
+    try{$products->deleteRevisioned('provider',$enabled['configuration_id'],$now);$assert(false,'active Player2 connector deleted');}
+    catch(InvalidArgumentException $error){$assert($error->getMessage()==='provider_in_use','unexpected Player2 delete error');}
+    try{$products->revise('provider',$enabled['configuration_id'],['driver'=>'mock','model'=>'repurposed'],'test',$now);$assert(false,'active Player2 connector repurposed');}
+    catch(InvalidArgumentException $error){$assert($error->getMessage()==='provider_in_use','unexpected Player2 revise error');}
+    $forced=$products->effectiveSettingsForProfile($installationId,null)['routing'];
+    foreach(\LorkhanServer\Application\SettingsCatalog::routingTypes()as$field=>$type){
+        if($type==='uuid_or_empty'&&!in_array($field,['tts_configuration_id','prompt_configuration_id'],true))
+            $assert($forced[$field]===$enabled['configuration_id'],'Player2 missed route '.$field);
+        else $assert(($forced[$field]??null)===($normalRouting[$field]??null),'Player2 changed non-LLM routing');
+    }
+    $assert($player2Routing->save($installationId,true,1,$now)===$enabled,'Player2 repeated enable was not idempotent');
+    $assert($player2Routing->forcedConnector('99999999-0000-4000-8000-000000000001')===null,'Player2 crossed installations');
+    try{$player2Routing->save($installationId,false,0,$now);$assert(false,'stale Player2 save accepted');}
+    catch(RuntimeException $error){$assert($error->getMessage()==='revision_conflict','unexpected Player2 conflict');}
+    $disabled=$player2Routing->save($installationId,false,1,$now);
+    $assert($disabled['revision']===2&&!$disabled['enabled']&&$products->effectiveSettingsForProfile($installationId,null)['routing']===$normalRouting,
+        'Disabling Player2 did not restore original routing');
+    $assert($player2Routing->save($installationId,true,2,$now)['configuration_id']===$enabled['configuration_id'],'Player2 did not reuse owned connector');
+    $scopeQuery=$db->prepare('SELECT profile_id,playthrough_id FROM playthroughs WHERE installation_id=:installation LIMIT 1');
+    $scopeQuery->execute(['installation'=>$installationId]);$memoryScope=$scopeQuery->fetch();
+    $memoryFixture=$memoryService->createMemory(['installation_id'=>$installationId]+$memoryScope+['tier'=>'mid','content'=>'Player2 frozen summary fixture.',
+        'provenance'=>['source'=>'memory.consolidate','provider'=>'first-party','model'=>'deterministic-extractive-v1']]);
+    $memoryId=$memoryFixture['memory_id'];
+    $db->prepare("UPDATE memory_records SET derivation_key='player2-summary-fixture',expires_at=NULL WHERE memory_id=:id")->execute(['id'=>$memoryId]);
+    $summaryPolicy=$products->memorySummaryPolicyForInstallation($installationId);
+    $ordinarySummary=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Ordinary summary regression',
+        'content'=>['driver'=>'mock','model'=>'ordinary-summary']],$now);
+    $summaryContent=['schema'=>'lorkhan.memory-policy.v1','enabled'=>true,'provider_configuration_id'=>$ordinarySummary['configuration_id']];
+    if($summaryPolicy===null)$products->createRevisioned('memory_policy',['installation_id'=>$installationId,'name'=>'Player2 regression policy','content'=>$summaryContent],$now);
+    else $products->revise('memory_policy',$summaryPolicy['configuration_id'],$summaryContent,'Player2 regression',$now);
+    $memoryRouting=new \LorkhanServer\Infrastructure\MemorySummaryRepository($db);
+    $memoryJob=$memoryRouting->enqueue($installationId,$memoryId);$assert($memoryJob!==null,'Player2 memory job not queued');
+    $jobQuery=$db->prepare('SELECT payload FROM durable_jobs WHERE job_id=:id');$jobQuery->execute(['id'=>$memoryJob['job_id']]);
+    $memoryPayload=json_decode($jobQuery->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
+    $assert($memoryPayload['provider_configuration_id']===$enabled['configuration_id']&&$memoryPayload['player2_policy_revision']===3,
+        'Memory job missed frozen Player2 policy');
+    $lease=\LorkhanServer\Infrastructure\Uuid::v4();
+    $db->prepare("UPDATE durable_jobs SET state='leased',attempt_count=1,lease_owner='player2-regression',lease_token=:lease,
+        leased_at=clock_timestamp(),heartbeat_at=clock_timestamp(),lease_expires_at=clock_timestamp()+interval '1 minute' WHERE job_id=:id")
+        ->execute(['lease'=>$lease,'id'=>$memoryJob['job_id']]);
+    $memoryPayload['_job']=['job_id'=>$memoryJob['job_id'],'lease_token'=>$lease,'attempt'=>1];
+    $player2Routing->save($installationId,false,3,$now);
+    $assert($memoryRouting->input($memoryPayload)!==null,'Switching off Player2 invalidated an accepted memory job');
+    $relationshipRouting=new \LorkhanServer\Infrastructure\RelationshipEvaluationRepository($db);
+    $frozenRelationship=$relationshipRouting->policy($installationId,$memoryScope['profile_id'],3);
+    $assert($frozenRelationship['provider_configuration_id']===$enabled['configuration_id']&&$frozenRelationship['player2_policy_revision']===3,
+        'Relationship policy did not preserve the accepted Player2 revision');
+    $badPayload=$memoryPayload;$badPayload['player2_policy_revision']=999;
+    $assert($memoryRouting->input($badPayload)===null,'Unrecorded Player2 revision accepted');
+} finally {$db->rollBack();}
 fwrite(STDOUT, "integration vertical slice passed\n");

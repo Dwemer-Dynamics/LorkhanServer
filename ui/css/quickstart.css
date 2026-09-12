@@ -491,6 +491,21 @@ body > main.quickstart-page{max-width:none;margin:0;padding:80px 10px 40px;color
 
 .quickstart-page fieldset.qs-local-llm{min-width:0;width:100%}
 .quickstart-page .qs-local-llm-title{font-family:inherit;word-spacing:normal;text-shadow:none}
+/* Player2 switch geometry from HerikaServer 529364c Quickstart. */
+.quickstart-page .qs-toggle-block{background:linear-gradient(180deg,rgba(34,34,34,.98),rgba(25,25,25,.98));border:1px solid #3b3b3b;border-radius:12px;padding:14px 16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
+.quickstart-page .qs-toggle-header{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.quickstart-page .qs-toggle-title{margin:0;color:#f1f4fa;font-weight:600;font-size:1rem}
+.quickstart-page .qs-toggle-control{display:inline-flex;align-items:center;justify-content:flex-end;min-width:112px}
+.quickstart-page .qs-switch-input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+.quickstart-page .qs-switch-label{display:inline-flex;align-items:center;gap:10px;margin:0;cursor:pointer;user-select:none}
+.quickstart-page .qs-switch-track{position:relative;width:56px;height:32px;border-radius:999px;background:#4a3b26;border:1px solid #735730;transition:background-color .2s,border-color .2s,box-shadow .2s;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+.quickstart-page .qs-switch-track::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#f7f3ed;box-shadow:0 2px 6px rgba(0,0,0,.35);transition:transform .2s}
+.quickstart-page .qs-switch-copy{min-width:28px;color:#d7deea;font-size:.9rem;text-align:right}
+.quickstart-page .qs-switch-copy::before{content:attr(data-off)}
+.quickstart-page .qs-switch-input:checked+.qs-switch-label .qs-switch-track{background:#245c43;border-color:#41a56f;box-shadow:0 0 0 4px rgba(65,165,111,.14)}
+.quickstart-page .qs-switch-input:checked+.qs-switch-label .qs-switch-track::after{transform:translateX(24px)}
+.quickstart-page .qs-switch-input:checked+.qs-switch-label .qs-switch-copy::before{content:attr(data-on)}
+.quickstart-page .qs-switch-input:focus-visible+.qs-switch-label{outline:2px solid #bc9d5a;outline-offset:4px;border-radius:4px}
 .quickstart-page .qs-local-llm-check input{width:auto;display:inline-block;margin-right:6px}
 .quickstart-page .qs-local-llm .qs-key-input{flex-wrap:wrap}
 .quickstart-page .qs-local-llm .qs-key-input input{flex-basis:130px}

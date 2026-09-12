@@ -35,6 +35,8 @@ final class MemorySummaryJobHandler implements JobHandler
         foreach(['memory_revision','policy_revision','provider_revision']as$key)
             if(!is_int($payload[$key]??null)||$payload[$key]<1)throw new InvalidArgumentException('invalid_memory_job_revision');
         $job=$payload['_job']??null;
+        if(isset($payload['player2_policy_revision'])&&(!is_int($payload['player2_policy_revision'])||$payload['player2_policy_revision']<1))
+            throw new InvalidArgumentException('invalid_memory_job_revision');
         if(!is_array($job)||!is_string($job['job_id']??null)||!is_string($job['lease_token']??null)
             ||!is_int($job['attempt']??null)||$job['attempt']<1)throw new InvalidArgumentException('invalid_job_fence');
         if(!$heartbeat())throw new OperationCancelled('lease_lost');

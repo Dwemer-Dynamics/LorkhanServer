@@ -2573,6 +2573,13 @@ final class ManagementRouter
         $expected=filter_var($values['base_revision']??null,FILTER_VALIDATE_INT);
         if($expected===false||$expected<1)throw new InvalidArgumentException('invalid_core_profile_revision');
         return$this->repository->transaction(function()use($values,$installation,$id,$expected):array{
+            $player2Routing=$this->repository->player2Routing();
+            $player2=$player2Routing->state($installation);
+            if(array_key_exists('player2_revision',$values)){
+                $revision=filter_var($values['player2_revision'],FILTER_VALIDATE_INT);
+                if($revision===false||$revision<0)throw new InvalidArgumentException('invalid_player2_revision');
+                $player2=$player2Routing->save($installation,isset($values['player2_force_all_llm']),$revision,gmdate(DATE_ATOM));
+            }
             $profile=$this->repository->getRevisioned('core_profile',$id);
             if($profile['installation_id']!==$installation)throw new InvalidArgumentException('invalid_core_profile');
             if((int)$profile['current_revision']!==$expected)throw new RuntimeException('revision_conflict');
@@ -2593,7 +2600,9 @@ final class ManagementRouter
                     ??['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''];
                 $embedding=$this->repository->memoryEmbeddingPolicyForInstallation($installation)['content']
                     ??\LorkhanServer\Application\MemoryEmbeddingPolicy::defaults();
-                $memory=\LorkhanServer\Application\GlobalSettingsPreset::builtInMemory($preset,$summary,$embedding,(string)($values['llm_fast_configuration_id']??''));
+                $summaryFallback=(string)($values['llm_fast_configuration_id']??($profile['content']['routing']['llm_fast_configuration_id']??''));
+                if($summaryFallback===''&&$player2['enabled'])$summaryFallback=$player2['configuration_id'];
+                $memory=\LorkhanServer\Application\GlobalSettingsPreset::builtInMemory($preset,$summary,$embedding,$summaryFallback);
                 foreach($memory as $kind=>$policy){
                     $enabled=$policy['enabled'];unset($policy['enabled']);if($enabled)$policy['enabled']='1';
                     if($kind==='summary')$this->saveMemoryPolicy($policy,['installation_id'=>$installation]);
@@ -2601,7 +2610,7 @@ final class ManagementRouter
                 }
                 $presetPlan=$this->repository->quickstartLocalRoutingPlan($installation);
             }
-            $local=$preset==='builtin:local_llm';$localId=null;
+            $local=$preset==='builtin:local_llm'&&!$player2['enabled'];$localId=null;
             if($local){
                 $timeout=filter_var($values['local_timeout']??null,FILTER_VALIDATE_INT);
                 if($timeout===false)throw new InvalidArgumentException('invalid_local_llm_setup');
@@ -2618,6 +2627,7 @@ final class ManagementRouter
             }
             $content=$profile['content'];
             foreach(['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id']as$field){
+                if($player2['enabled'])continue;
                 $connector=$localId??$this->need($values,$field);$this->uuid($connector,$field);
                 $row=$this->repository->getRevisioned('provider',$connector);
                 if($row['installation_id']!==$installation)throw new InvalidArgumentException('invalid_provider');

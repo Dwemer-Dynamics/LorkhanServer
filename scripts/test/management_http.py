@@ -2943,6 +2943,24 @@ after_values=next(f['fields'] for f in after.forms if f['action'].endswith('/for
 assert after_values['player_name']==fresh_values['player_name'] and after_values['base_revision']==fresh_values['base_revision']
 r=request(fresh_form['action'],'POST',dict(fresh_values,player_name='')); body=r.read().decode()
 assert r.status==422,(r.status,body)
+# Player2 forces runtime routing without replacing the saved four model selections.
+player2_page,player2_html=parse(request('/LorkhanServer/ui/quickstart.php?installation_id='+valid['installation_id']))
+player2_form=next(f for f in player2_page.forms if f['action'].endswith('/forms/quickstart-save'))
+player2_values=dict(player2_form['fields'],_csrf=csrf,settings_preset='',player2_force_all_llm='1')
+normal_models={k:v for k,v in player2_values.items() if k in ['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id']}
+for field in normal_models: player2_values.pop(field)
+r=request(player2_form['action'],'POST',player2_values); enabled_page,enabled_html=parse(r)
+assert r.status==200 and 'Quickstart settings saved.' in enabled_html
+enabled_fields=next(f['fields'] for f in enabled_page.forms if f['action'].endswith('/forms/quickstart-save'))
+assert enabled_fields['player2_force_all_llm']=='1' and enabled_fields['player2_revision']=='1'
+assert all(enabled_fields[k]==v for k,v in normal_models.items()),'Player2 overwrote stored models'
+if os.environ.get('LORKHAN_PLAYER2_EVIDENCE'): pathlib.Path(os.environ['LORKHAN_PLAYER2_EVIDENCE']).write_text(enabled_html,encoding='utf-8')
+r=request(player2_form['action'],'POST',dict(enabled_fields,_csrf=csrf,settings_preset='',player2_revision='0')); assert r.status in (409,422)
+disable_player2=dict(enabled_fields,_csrf=csrf,settings_preset=''); disable_player2.pop('player2_force_all_llm')
+r=request(player2_form['action'],'POST',disable_player2); disabled_page,disabled_html=parse(r); assert r.status==200
+disabled_fields=next(f['fields'] for f in disabled_page.forms if f['action'].endswith('/forms/quickstart-save'))
+assert 'player2_force_all_llm' not in disabled_fields and disabled_fields['player2_revision']=='2'
+assert all(disabled_fields[k]==v for k,v in normal_models.items()),'Normal models were not restored'
 # Copy-to-all is a confirmed, CSRF-protected exact-field write; stale sources cannot overwrite newer work.
 copy_body=request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
 copy_revision=int(re.search(r'data-profile-copy-revision="(\d+)"',copy_body).group(1))

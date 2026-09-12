@@ -30,6 +30,7 @@ final class ProductRepository
     public function __construct(private readonly PDO $db) {}
 
     public function dynamicOghma():DynamicOghmaRepository{return new DynamicOghmaRepository($this->db);}
+    public function player2Routing():Player2RoutingRepository{return new Player2RoutingRepository($this->db);}
 
     /** @param array<string,mixed> $input */
     public function createRevisioned(string $kind, array $input, string $now): array
@@ -432,6 +433,8 @@ final class ProductRepository
                 (new MemorySummaryRepository($this->db))->assertProvider($policy['installation_id'],$content);
             }
             $next = (int)$current + 1;
+            if($kind==='provider'&&($content['service']??'')!=='player2')
+                (new Player2RoutingRepository($this->db))->assertNotActive($id);
             $this->revision($revisions, $key, $id, $next, $content, $reason, $now);
             $this->db->prepare("UPDATE {$table} SET current_revision=:revision WHERE {$key}=:id")->execute(['revision'=>$next,'id'=>$id]);
             if($kind==='prompt')$this->syncPrompt($id,$content,$next,$now);
@@ -1326,6 +1329,7 @@ final class ProductRepository
             if($kind==='provider'){
                 $lock=$this->db->prepare("SELECT configuration_id FROM configuration_sets WHERE configuration_id=:id AND deleted_at IS NULL FOR UPDATE");
                 $lock->execute(['id'=>$id]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
+                (new Player2RoutingRepository($this->db))->assertNotActive($id);
                 $queued=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type IN ('profile.generate','memory.summarize','relationship.evaluate','relationship.build','relationship.convert','narrative.generate') AND state IN ('queued','leased') AND payload->>'provider_configuration_id'=:id LIMIT 1");
                 $queued->execute(['id'=>$id]);if($queued->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $policy=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
@@ -1528,6 +1532,7 @@ SQL);
             in_array($profileKind,['player','narrator'],true),
             $narratorContent,
         );
+        $resolved['routing']=(new Player2RoutingRepository($this->db))->apply($installationId,$resolved['routing']);
         return$resolved+['global_settings'=>$global,'core_profile'=>$core,'npc_profile'=>$profile];
     }
 

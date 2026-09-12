@@ -50,9 +50,12 @@ final class RelationshipEvaluationRepository
         $source=$this->source($payload['source_event_id']);if($source===null)return null;
         foreach(['installation_id','profile_id','playthrough_id','session_id','turn_id']as$field)
             if($source[$field]!==$payload[$field])return null;
-        $policy=$this->policy($source['installation_id'],$source['profile_id']);
+        $policy=$this->policy($source['installation_id'],$source['profile_id'],(int)($payload['player2_policy_revision']??0));
         if($policy===null||$policy['locked']||$policy['provider_configuration_id']==='')return null;
-        foreach($policy as$field=>$value)if(($payload[$field]??null)!==$value)return null;
+        foreach($policy as$field=>$value){
+            if($field==='player2_policy_revision'&&!array_key_exists($field,$payload)&&$value===0)continue;
+            if(($payload[$field]??null)!==$value)return null;
+        }
         $records=$this->records($source);
         if($records===null||!hash_equals($payload['relationship_fence'],$records['fence']))return null;
         $types=$this->typeCatalog($source);
@@ -157,7 +160,7 @@ final class RelationshipEvaluationRepository
     }
 
     /** Resolve the installation-wide relationship policy while fencing every owning revision. */
-    public function policy(string $installation,string $profile):?array
+    public function policy(string $installation,string $profile,?int $player2Revision=null):?array
     {
         $query=$this->db->prepare('SELECT profile_id,core_profile_id,current_revision FROM profiles '
             .'WHERE installation_id=:installation AND profile_id=:profile AND deleted_at IS NULL FOR SHARE');
@@ -179,7 +182,9 @@ final class RelationshipEvaluationRepository
         $globalContent=$global?json_decode($global['content'],true,32,JSON_THROW_ON_ERROR):[];
         $resolved=(new EffectiveSettingsResolver())->resolve($globalContent,
             $core?json_decode($core['content'],true,32,JSON_THROW_ON_ERROR):[],$content);
-        return ['profile_revision'=>(int)$owner['current_revision'],'core_profile_id'=>$core['core_profile_id']??null,
+        $player2=new Player2RoutingRepository($this->db);$player2State=$player2->state($installation,$player2Revision);
+        $resolved['routing']=$player2->apply($installation,$resolved['routing'],$player2State['revision']);
+        return ['player2_policy_revision'=>$player2State['revision'],'profile_revision'=>(int)$owner['current_revision'],'core_profile_id'=>$core['core_profile_id']??null,
             'core_profile_revision'=>isset($core['current_revision'])?(int)$core['current_revision']:null,
             'global_configuration_id'=>$global['configuration_id']??null,
             'global_revision'=>isset($global['current_revision'])?(int)$global['current_revision']:null,

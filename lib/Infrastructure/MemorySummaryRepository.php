@@ -38,13 +38,14 @@ final class MemorySummaryRepository
     {
         $owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();
         try{
+            $forced=(new Player2RoutingRepository($this->db))->forcedConnector($installation);
             $query=$this->db->prepare("SELECT m.memory_id,m.installation_id,m.profile_id,m.playthrough_id,m.current_revision,
                 c.configuration_id AS policy_configuration_id,c.current_revision AS policy_revision,
                 p.configuration_id AS provider_configuration_id,p.current_revision AS provider_revision
                 FROM memory_records m JOIN configuration_sets c ON c.installation_id=m.installation_id
                     AND c.kind='memory_policy' AND c.deleted_at IS NULL
                 JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
-                JOIN configuration_sets p ON p.configuration_id::text=r.content->>'provider_configuration_id'
+                JOIN configuration_sets p ON p.configuration_id::text=COALESCE(:forced_provider,r.content->>'provider_configuration_id')
                     AND p.installation_id=m.installation_id AND p.kind='provider' AND p.deleted_at IS NULL
                 WHERE m.memory_id=:memory AND m.installation_id=:installation AND m.deleted_at IS NULL
                     AND (m.expires_at IS NULL OR m.expires_at>clock_timestamp())
@@ -53,18 +54,19 @@ final class MemorySummaryRepository
                     AND r.content->'enabled'='true'::jsonb
                     AND NOT EXISTS(SELECT 1 FROM memory_model_summaries s WHERE s.memory_id=m.memory_id AND s.memory_revision=m.current_revision)
                 FOR UPDATE OF m FOR SHARE OF c,p");
-            $query->execute(['memory'=>$memoryId,'installation'=>$installation]);$row=$query->fetch();
+            $query->execute(['memory'=>$memoryId,'installation'=>$installation,'forced_provider'=>$forced['configuration_id']??null]);$row=$query->fetch();
             if(!$row||($expectedRevision!==null&&(int)$row['current_revision']!==$expectedRevision)){
                 if($owns)$this->db->commit();return null;
             }
             $payload=$row;$payload['memory_revision']=(int)$payload['current_revision'];unset($payload['current_revision']);
             foreach(['policy_revision','provider_revision']as$field)$payload[$field]=(int)$payload[$field];
+            if($forced!==null)$payload['player2_policy_revision']=$forced['policy_revision'];
             $pending=$this->db->prepare("SELECT job_id,state FROM durable_jobs WHERE job_type='memory.summarize'
                 AND state IN ('queued','leased') AND payload->>'memory_id'=:memory AND payload->>'memory_revision'=:revision LIMIT 1");
             $pending->execute(['memory'=>$memoryId,'revision'=>(string)$payload['memory_revision']]);$active=$pending->fetch();
             if($active){if($owns)$this->db->commit();return $active;}
             $key='memory.summary:'.$memoryId.':'.$payload['memory_revision'].':'.$payload['policy_configuration_id']
-                .':'.$payload['policy_revision'].':'.$payload['provider_revision'];
+                .':'.$payload['policy_revision'].':'.$payload['provider_configuration_id'].':'.$payload['provider_revision'];
             $insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority)
                 VALUES(:id,'memory.summarize',1,:key,CAST(:payload AS jsonb),3,25)
                 ON CONFLICT(job_type,idempotency_key) DO NOTHING");
@@ -82,7 +84,10 @@ final class MemorySummaryRepository
                 AND c.kind='memory_policy' AND c.deleted_at IS NULL
             JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
             JOIN configuration_revisions frozen ON frozen.configuration_id=c.configuration_id AND frozen.revision=:policy_revision
-                AND frozen.content->'enabled'='true'::jsonb AND frozen.content->>'provider_configuration_id'=:provider
+                AND frozen.content->'enabled'='true'::jsonb AND (
+                    (:player2_revision=0 AND frozen.content->>'provider_configuration_id'=:provider)
+                    OR EXISTS(SELECT 1 FROM player2_routing forced WHERE forced.installation_id=m.installation_id
+                        AND forced.revision=:player2_revision AND forced.enabled AND forced.configuration_id::text=:provider))
             JOIN durable_jobs j ON j.job_id=:job AND j.state='leased' AND j.lease_token=:lease
                 AND j.attempt_count=:attempt AND j.lease_expires_at>clock_timestamp()
             WHERE m.memory_id=:memory AND m.current_revision=:revision AND m.installation_id=:installation
@@ -124,6 +129,7 @@ final class MemorySummaryRepository
         return ['memory'=>$payload['memory_id'],'revision'=>$payload['memory_revision'],
             'policy'=>$payload['policy_configuration_id'],'installation'=>$payload['installation_id'],
             'policy_revision'=>$payload['policy_revision'],'provider'=>$payload['provider_configuration_id'],
+            'player2_revision'=>$payload['player2_policy_revision']??0,
             'profile'=>$payload['profile_id'],'playthrough'=>$payload['playthrough_id'],
             'job'=>$payload['_job']['job_id'],'lease'=>$payload['_job']['lease_token'],'attempt'=>$payload['_job']['attempt']];
     }

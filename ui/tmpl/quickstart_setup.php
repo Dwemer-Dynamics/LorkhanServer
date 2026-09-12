@@ -18,6 +18,7 @@ $localNetwork=\LorkhanServer\Application\QuickstartLocalLlm::networkIps();
         </fieldset>
         <p class="qs-preset-desc" id="qs_settings_preset_desc" role="status" aria-live="polite">Default settings for all Core Profiles, with profile backfill, relationship updates, memory summaries and semantic recall enabled.</p>
     </div>
+    <p class="qs-local-llm-note qs-local-llm-note-warn" id="qs_local_llm_player2_warning" role="status" aria-live="polite" hidden>Player2 is on. Player2 handles every LLM call, so these Local LLM fields are turned off and will not be used. Your values are kept if you switch Player2 back off.</p>
     <fieldset class="qs-local-llm" id="qs_local_llm_panel" hidden disabled>
         <div class="qs-local-llm-head"><h3 class="qs-local-llm-title">Local LLM Setup</h3></div>
         <input type="hidden" name="local_key_configured" value="<?= $localKeyConfigured?'1':'0' ?>">

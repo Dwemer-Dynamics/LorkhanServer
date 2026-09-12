@@ -16,6 +16,7 @@ foreach($profiles as$profile){
 }
 if($selected===null&&$selectedId==='')$selected=$profiles[0]??null;
 $routing=$selected['content']['routing']??[];
+$player2=$productRepository->player2Routing()->state($installationId);
 $llms=$scoped($uiRepository->rows('llm'));$tts=$scoped($uiRepository->rows('tts'));$stt=$scoped($uiRepository->rows('stt'));
 $active=[];
 foreach(['tts_provider'=>$tts,'stt_provider'=>$stt]as$kind=>$rows)foreach($rows as$row)
@@ -51,6 +52,7 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
         <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
         <input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($selected['core_profile_id']??''); ?>">
         <input type="hidden" name="base_revision" value="<?php echo (int)($selected['current_revision']??0); ?>">
+        <input type="hidden" name="player2_revision" value="<?= $player2['revision'] ?>">
         <section class="qs-section"><h2 class="qs-section-title">Player</h2>
             <div class="form-group qs-field">
             <?php if($player!==null): ?><input type="hidden" name="player_revision" value="<?php echo (int)$player['revision']; ?>">
@@ -100,7 +102,16 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
             </div><?php endif; ?>
             <small class="form-text">Choose a service. Saving reuses its saved connector or creates one with default settings. This does not install or start a service, test connectivity, or replace API keys. For provider settings and endpoint editing, use <a href="<?php echo lorkhan_ui_h($webRoot.'/ui/core/'.$editor); ?>"><?php echo $kind==='tts_provider'?'TTS Connectors':'STT Connectors'; ?></a>.</small>
         </div></section><?php endforeach; ?>
-        <section class="qs-section"><h2 class="qs-section-title">LLM Connectors Note</h2><p class="form-text">Four hot-swappable models for Interact. Standard is the default; saving does not reset your current in-game slot.</p>
+        <section class="qs-section"><h2 class="qs-section-title">Player2 Connector</h2>
+            <div class="form-group qs-field"><div class="qs-toggle-block"><div class="qs-toggle-header">
+                <label class="qs-toggle-title" for="qs_player2_force_all_llm">Use Player 2 for LLMs</label><div class="qs-toggle-control">
+                    <input class="form-check-input qs-switch-input" type="checkbox" id="qs_player2_force_all_llm" name="player2_force_all_llm" value="1"<?= $player2['enabled']?' checked':'' ?>>
+                    <label class="form-check-label qs-switch-label" for="qs_player2_force_all_llm"><span class="qs-switch-track"></span><span class="qs-switch-copy" data-off="Off" data-on="On"></span></label>
+                </div></div></div><small class="form-text">Route all LLM calls through your local Player2 connector. Model choice stays in the Player2 app.</small></div>
+        </section>
+        <section class="qs-section"><h2 class="qs-section-title">LLM Connectors Note</h2><p class="form-text" data-normal-llm-note>Four hot-swappable models for Interact. Standard is the default; saving does not reset your current in-game slot.</p>
+            <p class="form-text" data-player2-llm-note hidden>Player2 mode is active. Standard, Fast, Powerful, and Experimental all use the local Player2 connector.</p>
+            <div class="qs-connector-grid" data-player2-recap hidden><?php foreach(['🕹️ Standard','🏃 Fast','💪 Powerful','🧪 Experimental']as$label): ?><div class="qs-connector-card"><strong><?= $label ?></strong><div class="qs-model">Player2 Local</div><small class="form-text">Model selected in Player2 app</small></div><?php endforeach; ?></div>
             <div class="qs-connector-grid"><?php foreach(['llm_configuration_id'=>['Standard','🕹️'],'llm_fast_configuration_id'=>['Fast','🏃'],'llm_powerful_configuration_id'=>['Powerful','💪'],'llm_experimental_configuration_id'=>['Experimental','🧪']]as$field=>[$label,$icon]): $model=''; foreach($llms as$row)if(($routing[$field]??'')===$row['configuration_id'])$model=(string)($row['content']['model']??''); ?>
             <div class="qs-connector-card"><label for="qs-<?php echo $field; ?>"><span aria-hidden="true"><?php echo $icon; ?></span> <strong><?php echo $label; ?></strong></label>
                 <select name="<?php echo $field; ?>" id="qs-<?php echo $field; ?>" class="form-control" required data-model-select><option value="">Choose a model</option><?php foreach($llms as$row): ?><option value="<?php echo lorkhan_ui_h($row['configuration_id']); ?>" data-model="<?php echo lorkhan_ui_h($row['content']['model']??''); ?>"<?php echo ($routing[$field]??'')===$row['configuration_id']?' selected':''; ?>><?php echo lorkhan_ui_h($row['name']); ?></option><?php endforeach; ?></select>

@@ -30,6 +30,8 @@ final class RelationshipEvaluateJobHandler implements JobHandler
         }
         foreach(['profile_revision','provider_revision']as$field)
             if(!is_int($payload[$field]??null)||$payload[$field]<1)throw new \InvalidArgumentException('invalid_relationship_job');
+        if(isset($payload['player2_policy_revision'])&&(!is_int($payload['player2_policy_revision'])||$payload['player2_policy_revision']<0))
+            throw new \InvalidArgumentException('invalid_relationship_job');
         if(!is_int($payload['update_chance_percent']??null)||$payload['update_chance_percent']<1||$payload['update_chance_percent']>100
             ||($payload['locked']??null)!==false)throw new \InvalidArgumentException('invalid_relationship_job');
         if(!array_key_exists('core_profile_id',$payload)||!array_key_exists('core_profile_revision',$payload)
