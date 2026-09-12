@@ -215,6 +215,8 @@ body.narrator-page-shell.embedded-page { padding-top: 0; }
 }
 
 .narrator-dynamic-profile-card h3 { margin: 0; color: rgb(188, 157, 90); font-size: 1.15em; font-weight: 600; }
+.narrator-field-selection-label { margin-top:8px; display:block; color:#bc9d5a; font-weight:600; font-size:.95em; }
+.narrator-field-chip .chip-text { color:#cfd8e3; font-size:.95em; font-weight:500; }
 .narrator-field-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
 .narrator-field-chip { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid #4a4a4a; border-radius: 8px; background: rgba(42, 42, 42, .8); color: #cfd8e3; cursor: pointer; transition: background .2s ease, border-color .2s ease; }
 .narrator-field-chip:hover { background: rgba(52,52,52,.9); border-color: #5a5a5a; }

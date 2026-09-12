@@ -11433,3 +11433,27 @@ All browser POSTs were blocked; no settings, secrets, providers or game changed.
 No product code or redeployment was needed for this review. Individual page/editor
 and runtime requirements remain open in their own matrix rows; the shared shell
 must not be repeatedly treated as an unreviewed fifteen-page feature gap.
+
+## Narrator Dynamic Profile picker presentation (2026-09-12)
+
+Copied the reference field-selection heading, instruction line and chip-text
+markup/style into the Narration Dynamic Profile card. The title is no longer
+rendered as muted help. The three checkbox names/values and persistence remain
+unchanged; native speech_style maps to reference speechstyle. Added an accessible
+name to the checkbox group. Gold branding remains.
+
+Current native/reference browser comparison at 1280/390 reports identical title
+size/weight/top margin (14.25px/600/8px) and chip text (12.768px/500). All three
+checkboxes toggle and restore with Space in both products, without POSTs. No page
+overflow; narrow native screenshot inspected. Probe: narrator-field-picker-review.cjs.
+PHP lint, 1036 server checks and 111 protocol checks passed. Scoped final deployment
+backup: /var/backups/lorkhanserver-narrator-field-picker.y0DY9P; pre-change backup:
+/var/backups/lorkhanserver-narrator-field-picker.h54oz3. Exact runtime verification
+passed with 858 files, no mismatches/extras/old paths, and protected private routes.
+
+Investigated the apparent narrator default-Core selector discrepancy first. It was
+not a bug: ManagementUiRepository sorts default_npc first, and ProductRepository's
+effectiveSettingsForProfile uses the assigned Core or installation default. No
+mapping change was made or claimed. Live reference has an extra Voice Filter field
+absent from the pinned narrator source; do not silently add that later-reference
+feature. Broader Narrator/runtime and whole-project parity remain open.

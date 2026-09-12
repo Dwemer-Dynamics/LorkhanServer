@@ -268,8 +268,9 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <input type="hidden" name="dynamic_profile_fields_present" value="1">
                         <label class="narrator-toggle-row"><span class="narrator-toggle-switch"><input type="checkbox" name="dynamic_profile" value="1" aria-describedby="narrator-dynamic-help"<?php echo ($content['dynamic_profile']??false)===true?' checked':''; ?>><span class="narrator-toggle-slider" aria-hidden="true"></span></span><span class="narrator-toggle-label">Enable Dynamic Profile</span></label>
                         <span class="narrator-hint" id="narrator-dynamic-help">Every 20 minutes, evolve the selected fields from witnessed dialogue. Locked narrator profiles are never changed.</span>
-                        <span class="narrator-hint">Field Selection (choose 1-3)</span>
-                        <div class="narrator-field-chips"><?php foreach(['personality'=>'Personality','speech_style'=>'Speech Style','goals'=>'Goals']as$key=>$label): ?><label class="narrator-field-chip"><input type="checkbox" name="dynamic_profile_fields[]" value="<?php echo lorkhan_ui_h($key); ?>"<?php echo in_array($key,$dynamicProfileFields,true)?' checked':''; ?>> <?php echo lorkhan_ui_h($label); ?></label><?php endforeach; ?></div>
+                        <label class="narrator-field-selection-label" id="narrator-field-selection-label">Field Selection (choose 1-3)</label>
+                        <span class="narrator-hint">Select which fields should be dynamically updated:</span>
+                        <div class="narrator-field-chips" role="group" aria-labelledby="narrator-field-selection-label"><?php foreach(['personality'=>'Personality','speech_style'=>'Speech Style','goals'=>'Goals']as$key=>$label): ?><label class="narrator-field-chip"><input type="checkbox" name="dynamic_profile_fields[]" value="<?php echo lorkhan_ui_h($key); ?>"<?php echo in_array($key,$dynamicProfileFields,true)?' checked':''; ?>> <span class="chip-text"><?php echo lorkhan_ui_h($label); ?></span></label><?php endforeach; ?></div>
                     </div>
 
                     <label for="narrator-core">Core Summary</label>
