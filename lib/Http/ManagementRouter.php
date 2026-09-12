@@ -1381,7 +1381,7 @@ final class ManagementRouter
         return$this->service->createRevisioned('core_profile',[
             'installation_id'=>(string)$profile['installation_id'],'name'=>$name,'slot'=>null,'default_npc'=>false,
             'content'=>EffectiveSettingsResolver::validateCoreProfile($profile['content']),
-        ]);
+        ],false);
     }
 
     /** Download only the validated settings overrides from one Core Profile. */
@@ -1415,7 +1415,7 @@ final class ManagementRouter
             'installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
             'name'=>$name,'default_npc'=>false,'slot'=>null,
             'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>$overrides],
-        ]);
+        ],false);
     }
 
     /** Keep portable Core Profile presets limited to explicit response, history, and diary behavior. */

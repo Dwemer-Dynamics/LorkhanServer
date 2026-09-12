@@ -72,6 +72,7 @@ try{
         throw new RuntimeException('rollback-local-setup-fixture');
     });
 }catch(RuntimeException $error){if($error->getMessage()!=='rollback-local-setup-fixture')throw$error;}
+if($products->coreCreationPreset($installationId)!==null)throw new RuntimeException('routing rollback retained creation defaults');
 if($products->quickstartLocalLlmForInstallation($installationId)!==null)throw new RuntimeException('outer rollback retained local setup');
 // Local setup changes default/Narrator routes as one transaction, preserving unrelated profiles.
 try{
@@ -105,6 +106,8 @@ try{
         }
         $summary=$products->memorySummaryPolicyForInstallation($installationId)['content'];
         if($summary['enabled']!==false||$summary['provider_configuration_id']!==$saved['configuration_id'])throw new RuntimeException('summary route or enabled state changed incorrectly');
+        if($products->coreSettingsSnapshot($installationId)['default']!=\LorkhanServer\Application\CoreProfilePreset::capture([]))
+            throw new RuntimeException('unconfigured creation defaults copied the NPC default profile');
         // Setup presets affect every Core, not just the profiles used for default routing.
         $presetPlan=$products->quickstartLocalRoutingPlan($installationId);$beforePreset=[];
         foreach($presetPlan['preset_profiles'] as $target)$beforePreset[$target['core_profile_id']]=$products->getRevisioned('core_profile',$target['core_profile_id']);
@@ -122,6 +125,7 @@ try{
         // A profile absent from the snapshot receives its saved default settings on Apply.
         unset($snapshot['items'][$other['core_profile_id']]);
         $snapshot['default']['settings_overrides']['response']['max_words']=41;
+        $snapshot['default']['settings_overrides']['context']['item_blacklist']=['fixture_item'];
         $afterPreset=$products->applyInstallationCorePreset($installationId,$snapshot,$afterPreset['fingerprint'],$now);
         if($products->getRevisioned('core_profile',$other['core_profile_id'])['content']['settings_overrides']['response']['max_words']!==41)
             throw new RuntimeException('Core snapshot fallback did not apply to an uncaptured profile');
@@ -137,9 +141,28 @@ try{
         try{$products->applyInstallationCorePreset($installationId,'builtin:default',$afterPreset['fingerprint'],$now);throw new RuntimeException('stale non-default Core preset accepted');}
         catch(RuntimeException $error){if($error->getMessage()!=='revision_conflict')throw$error;}
         if($products->quickstartLocalRoutingPlan($installationId)!==$currentPlan)throw new RuntimeException('rejected preset changed profiles');
+        $minimal=['schema'=>'lorkhan.core-profile.v1','prompt'=>'Owned prompt','routing'=>[],'settings_overrides'=>[]];
+        $created=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Future defaults','content'=>$minimal],$now);
+        if(($created['content']['settings_overrides']['response']['max_words']??null)!==41
+            ||($created['content']['settings_overrides']['context']['item_blacklist']??null)!==['fixture_item'])
+            throw new RuntimeException('new Core did not inherit stored creation defaults');
+        $explicit=$minimal;$explicit['settings_overrides']=['response'=>['max_words'=>0],'behavior'=>['rechat'=>false],'context'=>['item_blacklist'=>[]]];
+        $created=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Explicit choices','content'=>$explicit],$now);
+        foreach($explicit['settings_overrides'] as $section=>$fields)foreach($fields as $key=>$value)
+            if($created['content']['settings_overrides'][$section][$key]!==$value)throw new RuntimeException('creation defaults replaced an explicit value');
+        $preserved=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Imported settings','content'=>$minimal],$now,false);
+        if($preserved['content']!=$minimal)throw new RuntimeException('explicit clone/import inherited creation defaults');
+        if($products->withCoreCreationDefaults('00000000-0000-4000-8000-000000000002',$minimal)!==$minimal)
+            throw new RuntimeException('creation defaults crossed installation scope');
+        $defaultCore=$products->defaultCoreProfileForInstallation($installationId);
+        $changed=$defaultCore['content'];$changed['settings_overrides']['response']['max_words']=99;
+        $products->revise('core_profile',$defaultCore['core_profile_id'],$changed,'Independent NPC edit',$now);
+        if($products->coreSettingsSnapshot($installationId)['default']['settings_overrides']['response']['max_words']!==41)
+            throw new RuntimeException('NPC default edit changed creation defaults');
         throw new RuntimeException('rollback-local-routing-fixture');
     });
 }catch(RuntimeException $error){if($error->getMessage()!=='rollback-local-routing-fixture')throw$error;}
+if($products->coreCreationPreset($installationId)!==null)throw new RuntimeException('routing rollback retained creation defaults');
 if($products->quickstartLocalLlmForInstallation($installationId)!==null)throw new RuntimeException('routing rollback retained managed connector');
 $presetStore=new \LorkhanServer\Infrastructure\ManagementRepository($db);
 $presetPayload=\LorkhanServer\Application\CoreProfilePreset::capture(['settings_overrides'=>['response'=>['max_words'=>60]]]);

@@ -108,7 +108,7 @@ Current delivery order: close visible page structure and interactions directly f
 | `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty and desktop/narrow layout reviewed. Latest-diary author audio is wired, with populated-template playback/error checks; live-provider acceptance remains open |
 | `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; MiniMe Service and its bounded reachability probe implemented; visible Setup/Local LLM, all-Core presets and network helpers implemented; Herika service choices now create or reuse installation-owned speech connectors while preserving custom endpoints and badges; Player2 switch, immutable routing overlay and four recap cards are implemented and mock/browser tested; whole-page desktop/narrow structure and complete save-flow checks are complete, including key errors/retry, local setup, service reuse and stale-revision rejection. Live-provider acceptance remains untested. Service process installation is not performed by this form in either product |
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. All 15 shared tab entry views now load and retain mounted documents at 1280/390, with draft values retained in the eleven entry views containing editable fields. Tab names/order/style and keyboard activation match the reference grouping, with excluded tabs absent. Shared shell review is complete; individual editor/runtime gaps remain tracked in their own rows |
-| `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Hide Ambient Combat, Power Awareness, Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Default/Local LLM built-ins and named presets now apply saved settings across existing Core Profiles with revision guards. Other Context event controls, portable global export of Core settings and defaults for future profile creation remain open; see the dated checkpoints |
+| `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Hide Ambient Combat, Power Awareness, Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Default/Local LLM built-ins and named presets apply saved settings across existing Core Profiles with revision guards and persist independent defaults for future Core creation. Other Context event controls and portable global export of Core settings remain open; see the dated checkpoints |
 | `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Advanced metadata is now merged with visible controls; Oghma overrides and knowledge tags reach retrieval and both preset formats. Oghma, Context, Prompt, Relationship and Rechat overrides use the reference inline Global Settings rows, with raw JSON synchronization and inherited values. Core Prompt Head, timestamps and description-only item filters reach prompt assembly; Rechat Mode reaches chain selection, Relationship System controls job eligibility, and Power Awareness uses exact observed actor levels. Metadata Text/Tree/Table switching, immediate serialization, invalid JSON handling and empty-object preservation are verified, including fresh deployed mode-switch checks. All 17 main section titles/order match the reference; the native audit note is inside Advanced Metadata. All 15 enabled toggles, 10 slider pairs and 15 typed Copy to all dialogs are checked at 1280/390, including chained copy-to-preset revision handling. Sidebar create/clone/save/import/default/rollback/delete return paths and import/history interactions are now verified in standalone/embedded modes. Remaining: other runtime-backed Global Settings override categories and advanced Rules matching/action metadata. Physical Diary, cumulative memory semantics and Core-slot client selection are separate unfinished runtime features. |
 | `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Typed per-NPC override leaves now include language, summaries, Diary Prompt/Cooldown/History, Dynamic Profile History, Context, Prompt Head, Oghma, Relationship Enabled/Update Chance, Rechat Mode/Strict Targeting/Open Rechat and End Conversation Cooldown. Prompt assembly, queued evolution history, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. General profile metadata now uses the reference vanilla-jsoneditor tree/text/table library, with revisioned native content and separate immutable Recorded State. Bounded target inventory capture and sorted count/total presentation are deployed in server d09d717 and client 1a35727; empty/unavailable states remain distinct. All 47 currently supported override editors apply typed values to drafts at desktop/narrow widths; grouped search, metadata mode switching and failed-save retention are checked. All six editor tabs retain the eight Roleplay drafts and Notes through keyboard navigation and form serialization. Remaining: full runtime-backed override catalogue, other editor/modal interactions, continuous inventory updates and NPC Visit/Teleport/Return. |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; generation success, failed/stale jobs, concurrent edits, retry idempotency and empty-result rejection are checked with browser mocks; live-provider acceptance remains untested |
@@ -11925,3 +11925,48 @@ Use a migration and existing settings validation, not an unversioned config file
 or a reserved entry in the user's named-preset catalogue. Verify apply -> create,
 explicit false/zero/list overrides, rollback on failed bulk application and
 installation isolation before claiming this feature complete.
+
+
+## Persisted creation defaults for global presets (2026-09-12)
+
+Migration 102 adds a nullable settings-only Core preset to installation profile
+preferences. Built-in and v2 named global preset application now saves that
+snapshot in the same transaction as existing Core revisions. The setup inventory
+fingerprint includes it. Global snapshot capture reads current Core revisions
+and creation defaults together in one statement. With no stored snapshot, capture
+keeps the normal creation behavior rather than borrowing the default NPC's edits.
+Existing saved v2 presets retain their own captured fallback settings.
+
+New Core creation fills missing settings from the stored snapshot, preserving
+explicit false, zero and whole lists. The New Profile form renders those values
+and resolves inherited controls against them. Core creation serializes with bulk
+preset application; clone/import explicitly bypass creation inheritance and keep
+the existing portable-import normalization. Default NPC selection or later edits
+do not rewrite creation defaults. The default-Core bootstrap uses the same seed
+when it must create a record. No extra configuration page/control was added.
+
+The final integration runner passes initial/no-default behavior, built-in and
+custom persistence, explicit overrides, clone/import bypass, installation scope,
+independent NPC default edits and outer transaction rollback. Migration, factory,
+SQL restoration and durable-job checks pass. Schema inventory is 176 relations
+and 1618 columns, hash 1f9b38f242061c1da3538a947cb891dab9d5612351b48da746e3196f200a39fa.
+1048 server checks, 111 protocol files and PHP/JS syntax pass. The first integration
+attempt used strict PHP key-order equality for JSONB; that test comparison was
+corrected. The first HTTP attempt expected sparse imports to stay sparse, but the
+existing importer normalizes four setting groups. The revised check verifies that
+normalization stays identical through cloning and gains no global preset fields.
+The final full HTTP run passed. Both built-ins seed the actual New Profile form
+with the expected history/word limits. Saving explicit word limits and an unchecked
+Rechat flag retains those edits; sparse import and clone keep the existing
+normalization without receiving global preset-only fields. Temporary Core records
+are removed after verification. The HTTP client timeout was temporarily 30 seconds;
+default-5-second CI was not run.
+
+Full local deployment applies the nullable migration and preserves configuration,
+credentials and voice file contents. All 860 runtime files match with no extra/old
+paths; private files remain forbidden. No live preset was applied, and there are
+zero configured creation-default snapshots in the live database. Updated new/legacy
+preset confirmation, request scope and conflict retention pass at 1280/390 using
+mocked writes; narrow screenshot inspected. Code rollback:
+/var/backups/lorkhanserver-code.imXVYZ. Portable global export/import of profile
+settings remains a separate unfinished feature; this does not close the full goal.

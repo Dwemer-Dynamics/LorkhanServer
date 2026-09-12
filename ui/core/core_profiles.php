@@ -177,6 +177,8 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     </form>
                 <?php elseif ($showCreate):
                     $content = ['schema' => 'lorkhan.core-profile.v1', 'prompt' => '', 'routing' => [], 'settings_overrides' => []];
+                    $content = $productRepository->withCoreCreationDefaults($installationId, $content);
+                    $effectiveCoreSettings = (new EffectiveSettingsResolver())->resolve($globalContent, $content, []);
                     $profileMeta = ['label' => '', 'slot' => null, 'default_npc' => false];
                     $coreProfileMode = 'create';
                 ?>

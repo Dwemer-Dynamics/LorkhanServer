@@ -33,9 +33,9 @@ final class ProductRepository
     public function player2Routing():Player2RoutingRepository{return new Player2RoutingRepository($this->db);}
 
     /** @param array<string,mixed> $input */
-    public function createRevisioned(string $kind, array $input, string $now): array
+    public function createRevisioned(string $kind, array $input, string $now, bool $inheritCoreDefaults = true): array
     {
-        return $this->transaction(function () use ($kind, $input, $now): array {
+        return $this->transaction(function () use ($kind, $input, $now, $inheritCoreDefaults): array {
             if(in_array($kind,['memory_policy','memory_embedding_policy','translation_policy'],true)){
                 if(isset($input['profile_id']))throw new \InvalidArgumentException($kind.'_is_installation_scoped');
             }
@@ -45,6 +45,10 @@ final class ProductRepository
             $id = Uuid::v4();
             $reason = (string) ($input['change_reason'] ?? 'created');
             if ($kind === 'core_profile') {
+                // Serialize new profiles with installation-wide preset application.
+                $this->db->prepare('SELECT installation_id FROM installations WHERE installation_id=:installation FOR UPDATE')
+                    ->execute(['installation'=>$input['installation_id']]);
+                if($inheritCoreDefaults)$input['content']=$this->withCoreCreationDefaults($input['installation_id'],$input['content']);
                 $defaultNpc = ($input['default_npc'] ?? false) === true;
                 if ($defaultNpc) {
                     $this->db->prepare('UPDATE core_profiles SET default_npc=false WHERE installation_id=:installation AND default_npc=true')
@@ -141,6 +145,7 @@ final class ProductRepository
         $query=$this->db->prepare('SELECT core_profile_id,current_revision FROM core_profiles WHERE installation_id=:installation AND deleted_at IS NULL ORDER BY core_profile_id');
         $query->execute(['installation'=>$installation]);$presetProfiles=$query->fetchAll();
         $plan=['installation_id'=>$installation,'core_profiles'=>$cores,'preset_profiles'=>$presetProfiles,'narrators'=>$narrators,
+            'creation_defaults'=>$this->coreCreationPreset($installation),
             'connector_id'=>$managed['configuration_id']??null,'connector_revision'=>(int)($managed['connector']['current_revision']??0),
             'global_id'=>$global['configuration_id']??null,'global_revision'=>(int)($global['current_revision']??0),
             'summary_id'=>$summary['configuration_id']??null,'summary_revision'=>(int)($summary['current_revision']??0),
@@ -151,17 +156,39 @@ final class ProductRepository
     /** Read all stored Core settings in one statement for a global preset; omit identity and connector bindings. */
     public function coreSettingsSnapshot(string $installation):array
     {
-        $query=$this->db->prepare('SELECT c.core_profile_id,c.default_npc,r.content FROM core_profiles c '
-            .'JOIN core_profile_revisions r ON r.core_profile_id=c.core_profile_id AND r.revision=c.current_revision '
-            .'WHERE c.installation_id=:installation AND c.deleted_at IS NULL ORDER BY c.core_profile_id');
+        $query=$this->db->prepare('SELECT c.core_profile_id,r.content,p.core_creation_preset FROM installations i '
+            .'LEFT JOIN installation_profile_preferences p ON p.installation_id=i.installation_id '
+            .'LEFT JOIN core_profiles c ON c.installation_id=i.installation_id AND c.deleted_at IS NULL '
+            .'LEFT JOIN core_profile_revisions r ON r.core_profile_id=c.core_profile_id AND r.revision=c.current_revision '
+            .'WHERE i.installation_id=:installation ORDER BY c.core_profile_id');
         $query->execute(['installation'=>$installation]);
-        $snapshot=['default'=>\LorkhanServer\Application\CoreProfilePreset::capture([]),'items'=>[]];
-        foreach($query->fetchAll() as $row){
+        $rows=$query->fetchAll();$stored=$rows[0]['core_creation_preset']??null;
+        $creationDefaults=$stored===null?null:\LorkhanServer\Application\CoreProfilePreset::validate($this->json($stored));
+        $snapshot=['default'=>$creationDefaults??\LorkhanServer\Application\CoreProfilePreset::capture([]),'items'=>[]];
+        foreach($rows as $row){
+            if($row['core_profile_id']===null)continue;
             $preset=\LorkhanServer\Application\CoreProfilePreset::capture($this->json($row['content']));
             $snapshot['items'][$row['core_profile_id']]=$preset;
-            if(filter_var($row['default_npc'],FILTER_VALIDATE_BOOL))$snapshot['default']=$preset;
         }
         return $snapshot;
+    }
+
+    /** Creation defaults are installation settings, independent of the default NPC's current profile. */
+    public function coreCreationPreset(string $installation):?array
+    {
+        $query=$this->db->prepare('SELECT core_creation_preset FROM installation_profile_preferences WHERE installation_id=:installation');
+        $query->execute(['installation'=>$installation]);$value=$query->fetchColumn();
+        return $value===false||$value===null?null:\LorkhanServer\Application\CoreProfilePreset::validate($this->json($value));
+    }
+
+    /** Seed missing fields only; explicit false, zero and whole lists remain the caller's choices. */
+    public function withCoreCreationDefaults(string $installation,array $content):array
+    {
+        $preset=$this->coreCreationPreset($installation);if($preset===null)return$content;
+        foreach($preset['settings_overrides'] as $section=>$values)
+            $content['settings_overrides'][$section]=array_replace($values,$content['settings_overrides'][$section]??[]);
+        $content['routing']=array_replace($preset['routing'],$content['routing']??[]);
+        return EffectiveSettingsResolver::validateCoreProfile($content);
     }
 
     /** Apply built-in or saved settings to all installation Core Profiles, preserving identities and connector routes. */
@@ -186,6 +213,11 @@ final class ProductRepository
                     : \LorkhanServer\Application\CoreProfilePreset::applyBuiltIn($preset,$profile['content']);
                 $this->revise('core_profile',$target['core_profile_id'],$content,'Installation Core Profile preset',$now,(int)$target['current_revision']);
             }
+            $creationDefaults=is_array($preset)?$preset['default']:\LorkhanServer\Application\CoreProfilePreset::capture(
+                \LorkhanServer\Application\CoreProfilePreset::applyBuiltIn($preset,['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]));
+            $this->db->prepare('INSERT INTO installation_profile_preferences(installation_id,core_creation_preset,updated_at) VALUES(:installation,CAST(:preset AS jsonb),:now) '
+                .'ON CONFLICT(installation_id) DO UPDATE SET core_creation_preset=EXCLUDED.core_creation_preset,updated_at=EXCLUDED.updated_at')
+                ->execute(['installation'=>$installation,'preset'=>$this->encode($creationDefaults),'now'=>$now]);
             return $this->quickstartLocalRoutingPlan($installation);
         });
     }
@@ -266,6 +298,7 @@ final class ProductRepository
             if($firstId!==false){$this->db->prepare('UPDATE core_profiles SET default_npc=true WHERE core_profile_id=:id')->execute(['id'=>$firstId]);return$find()??throw new RuntimeException('core_profile_default_failed');}
             $id=$this->deterministicUuid('lorkhan:core-profile:default:v1:'.$installationId);
             $content=['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]];
+            $content=$this->withCoreCreationDefaults($installationId,$content);
             $this->db->prepare('INSERT INTO core_profiles(core_profile_id,installation_id,label,default_npc,slot,created_at) VALUES(:id,:installation,\'Default\',true,1,:now)')
                 ->execute(['id'=>$id,'installation'=>$installationId,'now'=>$now]);
             $this->revision('core_profile_revisions','core_profile_id',$id,1,$content,'default core profile created',$now);

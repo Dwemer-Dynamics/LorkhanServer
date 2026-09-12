@@ -7,9 +7,9 @@
     },
     "server_encoding": "UTF8",
     "client_encoding": "UTF8",
-    "inventory_sha256": "be8bfbf9ae6c3097ecd6cbb0e0c362867efc9b161ec39864ee32a24e179748c0",
+    "inventory_sha256": "1f9b38f242061c1da3538a947cb891dab9d5612351b48da746e3196f200a39fa",
     "relation_count": 176,
-    "column_count": 1617,
+    "column_count": 1618,
     "relation_kinds": {
         "table": 167,
         "view": 9

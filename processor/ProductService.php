@@ -12,7 +12,7 @@ final class ProductService
     public function __construct(private readonly ProductRepository $repository, private readonly DeterministicClock $clock) {}
 
     /** @param array<string,mixed> $input */
-    public function createRevisioned(string $kind, array $input): array
+    public function createRevisioned(string $kind, array $input, bool $inheritCoreDefaults = true): array
     {
         $allowed = ['profile', 'core_profile', 'playthrough', 'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings', 'memory_policy', 'memory_embedding_policy', 'translation_policy'];
         if (!in_array($kind, $allowed, true)) throw new InvalidArgumentException('invalid_resource_kind');
@@ -34,7 +34,7 @@ final class ProductService
         // LLM and speech credential references have exact typed validation; nested secret keys remain forbidden.
         if ($kind !== 'provider') $this->assertNoSecrets(in_array($kind, ['tts_provider','stt_provider'], true) ? array_diff_key($input['content'], ['credential'=>true]) : $input['content']);
         $input['content']=$this->validateConfiguration($kind,$input['content']);
-        return $this->repository->createRevisioned($kind, $input, $this->clock->iso());
+        return $this->repository->createRevisioned($kind, $input, $this->clock->iso(), $inheritCoreDefaults);
     }
 
     /** @param array<string,mixed> $content */

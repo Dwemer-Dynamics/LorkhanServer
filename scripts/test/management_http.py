@@ -3440,6 +3440,33 @@ for builtin,history,words,enabled in [('builtin:local_llm',20,60,False),('builti
     assert builtin_export['memory_policies']['summary']['provider_configuration_id']==qs_default_export['memory_policies']['summary']['provider_configuration_id']
     assert builtin_export['memory_policies']['embedding']['endpoint']==qs_default_export['memory_policies']['embedding']['endpoint']
 
+    # Applying a global built-in also seeds new editor fields, but explicit choices and imports win.
+    future_page=Page();future_page.feed(request('/LorkhanServer/ui/core/core_profiles.php?create=1&embed=1&installation_id='+valid['installation_id']).read().decode())
+    future_form=next(f for f in future_page.forms if f['action'].endswith('/forms/core-profile-create'))
+    assert future_form['fields']['setting_response_max_words']==str(words),future_form['fields']['setting_response_max_words']
+    assert future_form['fields']['setting_memory_recent_turn_limit']==str(history)
+    future_values=dict(future_form['fields'],_csrf=csrf,label='Future Core '+uuid.uuid4().hex,setting_response_max_words='77')
+    future_values.pop('setting_behavior_rechat',None)
+    _,_,future_id=core_return(request(future_form['action'],'POST',future_values))
+    future_export=json.load(request('/LorkhanServer/manage/exports/core-profile-settings/'+future_id+'.json'))
+    assert future_export['settings_overrides']['response']['max_words']==77
+    assert future_export['settings_overrides']['behavior']['rechat'] is False
+    assert future_export['settings_overrides']['memory']['recent_turn_limit']==history
+    sparse_document={'schema':'lorkhan.core-profile-settings.v2','exported_at':'2026-09-12T00:00:00Z','name':'Sparse import '+uuid.uuid4().hex,'settings_overrides':{'response':{'max_words':79}}}
+    sparse_page,_,sparse_id=core_return(request('/LorkhanServer/manage/forms/core-profile-settings-import','POST',{'_csrf':csrf,'installation_id':valid['installation_id'],'embed':'1','preset_json':json.dumps(sparse_document)}))
+    sparse_clone=next(f for f in sparse_page.forms if f['action'].endswith('/forms/core-profile-clone') and f['fields'].get('core_profile_id')==sparse_id)
+    _,_,sparse_clone_id=core_return(request(sparse_clone['action'],'POST',dict(sparse_clone['fields'],_csrf=csrf)))
+    normalized_sparse=None
+    for preserved_id in [sparse_id,sparse_clone_id]:
+        preserved=json.load(request('/LorkhanServer/manage/exports/core-profile-settings/'+preserved_id+'.json'))
+        preserved=preserved['settings_overrides']
+        assert set(preserved)=={'response','behavior','memory','diary'},preserved
+        assert preserved['response']['max_words']==79 and preserved['memory']['recent_turn_limit']==20 and preserved['behavior']['rechat'] is False
+        if normalized_sparse is not None: assert preserved==normalized_sparse,preserved
+        normalized_sparse=preserved
+    for remove_id in [future_id,sparse_id,sparse_clone_id]:
+        core_return(request('/LorkhanServer/manage/forms/core-profile-delete','POST',{'_csrf':csrf,'core_profile_id':remove_id,'embed':'1'}),'')
+
 # A custom Global preset restores captured profiles, not just global controls.
 snapshot_page,snapshot_html=parse(request('/LorkhanServer/ui/global_settings.php'))
 snapshot_form=next(f for f in snapshot_page.forms if f['action'].endswith('/forms/global-settings-save'))
