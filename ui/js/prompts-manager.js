@@ -56,8 +56,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const response = await fetch(form.action, {method:'POST',body,headers:{Accept:'application/json'},signal:controller.signal});
         const result = await response.json();
         if (!response.ok || result.ok !== true) throw new Error(result.error || `HTTP ${response.status}`);
+        if ((dialog.hasAttribute('data-prompt-partial') || dialog.hasAttribute('data-prompt-inline'))
+            && (!Number.isInteger(result.revision) || result.revision < 1)) throw new Error('Invalid save receipt');
         if (dialog.hasAttribute('data-prompt-partial')) {
-          if (!Number.isInteger(result.revision) || result.revision < 1) throw new Error('Invalid save receipt');
           form.elements.expected_revision.value = String(result.revision);
           status.textContent = 'Prompt saved. Your Core Profile draft has not changed.';
           partialSaved = true;

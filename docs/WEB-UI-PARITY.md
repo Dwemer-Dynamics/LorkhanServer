@@ -11635,3 +11635,27 @@ routing behavior changed. Scoped deployment backup:
 checkpoint covers management persistence; current checks here are browser drafts
 and intercepted Save/Test, not live provider acceptance. Other page/runtime rows
 and the full goal remain open.
+
+## Narration prompt editor interaction verification (2026-09-12)
+
+Reproduced a concrete inline prompt save bug using a mocked success response
+without revision: the modal closed and expected_revision became "undefined".
+Prompts Manager's inline Narration branch now requires the same positive integer
+revision receipt as the embedded Core editor before changing previews, default
+values or closing. Missing/malformed receipts retain the draft and previous revision.
+The ordinary Prompts Manager reload path is unchanged.
+
+narrator-receipt-probe.cjs reproduces the before state and verifies the fixed
+retained editor/error. narrator-all-prompts-review.cjs exercised all ten deployed
+Narration prompt dialogs at 1280/390: missing, zero and string revisions rejected;
+valid save, reopen, exact custom text, Clear/default restoration, and preservation
+of an unsaved Narrator Name. Fifty intercepted requests per viewport, zero live
+writes and no page errors. This is UI receipt handling, not paid generation proof.
+
+JS syntax, 1036 server checks, 111 protocol files and diff whitespace checks pass.
+Scoped backup: /var/backups/lorkhanserver-narrator-prompt-receipt.gGAcFZ. All 858
+runtime files match source with protected private routes and no extra/old paths.
+Live Herika's Narrator now exposes additional evolution scheduling controls beyond
+the pinned 529364c4 source; those were observed, not silently imported or counted
+as existing baseline parity. Broader Narrator Core semantics and page acceptance
+remain open independently of the ten prompt editor interaction checks.
