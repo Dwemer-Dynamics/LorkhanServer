@@ -118,7 +118,8 @@ final class Router
         return $this->repository->serializedIdempotency($m['installation_id'], $m['message_id'], '/sessions', function () use ($m): Response {
             return $this->idempotent($m['installation_id'], $m['message_id'], '/sessions', $m, function () use ($m): array {
                 $sessionId = Uuid::v4();
-                $session = $this->repository->createSession($m,$sessionId,$this->pairingTokenHash,$this->bootstrapMacKey());
+                $beforeReplace=isset($m['loaded_save'])?fn()=>(new \LorkhanServer\Infrastructure\DragonBreakSnapshot($this->providerConfig))->capture($m):null;
+                $session = $this->repository->createSession($m,$sessionId,$this->pairingTokenHash,$this->bootstrapMacKey(),$beforeReplace);
                 // The installation is materialized by createSession, so the player profile can now satisfy its foreign key.
                 $this->products?->ensurePlayerProfile((string)$m['installation_id'],(string)$m['created_at']);
                 $settings=$this->clientSettings((string)$m['installation_id']);

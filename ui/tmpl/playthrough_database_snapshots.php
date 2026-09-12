@@ -55,7 +55,7 @@ $snapshotCalendar=\LorkhanServer\Application\MorrowindCalendar::parse($liveDatab
             $timeDifference=$calendar!==null&&$snapshotLiveCalendar!==null?$calendar['minute']-$snapshotLiveCalendar['minute']:null;
             $daysApart=$timeDifference===null?0:(int)floor(abs($timeDifference)/1440);
         ?>
-            <article class="backup-item<?= $isSource?' selected':'' ?>">
+            <article class="backup-item<?= filter_var($snapshot['dragon_break']??false,FILTER_VALIDATE_BOOL)?' dragonbreak':'' ?><?= $isSource?' selected':'' ?>">
                 <div class="backup-info">
                     <h3><?php if($isSource): ?><span class="snapshot-source-badge">✓ SOURCE OF PUBLIC</span><?php endif; ?><?= lorkhan_ui_h($snapshot['name']) ?></h3>
                     <div class="backup-meta"><span><?= lorkhan_ui_h($playthroughUtc($snapshot['created_at'])) ?> UTC</span><span><?= lorkhan_ui_table_value($snapshot['byte_count'],'bytes') ?></span><?php if($snapshot['rollback_for']): ?><span>Automatic rollback</span><?php endif; ?></div>

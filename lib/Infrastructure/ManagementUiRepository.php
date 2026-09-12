@@ -164,7 +164,8 @@ SQL);
     {
         return $this->one(
             "SELECT s.installation_id,s.playthrough_id,s.state,s.created_at,s.openmw_version,s.lua_api_revision,s.client_version,s.platform,"
-            . "p.name AS profile_name,pt.name AS playthrough_name,latest.player_name,latest.dialogue_mode,latest.calendar_data,"
+            . "p.name AS profile_name,pt.name AS playthrough_name,latest.player_name,latest.dialogue_mode,"
+            . "CASE WHEN loaded.received_at IS NOT NULL AND (latest.accepted_at IS NULL OR loaded.received_at>=latest.accepted_at) THEN loaded.calendar ELSE latest.calendar_data END AS calendar_data,"
             . "latest.player_stats,latest.player_attributes,latest.player_skills,latest.accepted_at AS observed_at,"
             . "GREATEST(s.created_at,latest.accepted_at) AS last_played,COALESCE(preference.llm_model_slot,'standard') AS model_slot "
             . "FROM sessions s LEFT JOIN profiles p ON p.profile_id=s.profile_id "
@@ -177,6 +178,9 @@ SQL);
             . "t.context#>'{playerState,skills}' AS player_skills FROM turns t JOIN sessions history ON history.session_id=t.session_id "
             . "WHERE history.installation_id=s.installation_id AND history.playthrough_id=s.playthrough_id "
             . "ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT 1) latest ON true "
+            . "LEFT JOIN LATERAL (SELECT e.payload->'loaded_save' AS calendar,e.received_at FROM source_events e JOIN sessions history ON history.session_id=e.session_id "
+            . "WHERE history.installation_id=s.installation_id AND history.playthrough_id=s.playthrough_id AND history.profile_id=s.profile_id "
+            . "AND e.event_kind='session.init' AND jsonb_exists(e.payload,'loaded_save') ORDER BY e.received_at DESC,e.source_event_id DESC LIMIT 1) loaded ON true "
             . "ORDER BY (s.state='active') DESC,s.created_at DESC LIMIT 1"
         );
 

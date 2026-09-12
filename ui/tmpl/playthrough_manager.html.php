@@ -10,7 +10,8 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
         <div class="playthrough-help"><strong>How it works:</strong><br>
             • <b>Active Database</b> = The data currently used by the server.<br>
             • <b>Stored Snapshots</b> = Full database copies kept separately from active data.<br>
-            • <b>Copy to Public</b> = Saves a rollback snapshot, then replaces active data. Game saves and external files are separate.
+            • <b>Copy to Public</b> = Saves a rollback snapshot, then replaces active data. Game saves and external files are separate.<br>
+            • <b>Dragon Breaks</b> = Automatic snapshots when you load a save at least three recorded game days behind.
         </div>
     </header>
     <?php if(isset($_GET['status'])&&$_GET['status']==='saved'): ?><p class="playthrough-notice" role="status">Profile record operation completed.</p><?php endif; ?>

@@ -54,7 +54,17 @@ final class Validator
     /** @param array<string, mixed> $message */
     private function session(array $message): void
     {
-        $this->keys($message, ['schema','message_id','installation_id','profile_id','playthrough_id','generation','created_at','runtime','content_fingerprint']);
+        $keys=['schema','message_id','installation_id','profile_id','playthrough_id','generation','created_at','runtime','content_fingerprint'];
+        if(array_key_exists('loaded_save',$message)){
+            $keys[]='loaded_save';$calendar=$message['loaded_save'];
+            if($calendar!==null){
+                if(!is_array($calendar))throw new ValidationException('invalid_schema');
+                $this->keys($calendar,['year','month','day','hour']);
+                if(!(is_int($calendar['hour'])||is_float($calendar['hour']))||!is_finite((float)$calendar['hour'])
+                    ||$calendar['hour']<0||$calendar['hour']>=24||\LorkhanServer\Application\MorrowindCalendar::parse($calendar)===null)throw new ValidationException('invalid_schema');
+            }
+        }
+        $this->keys($message, $keys);
         $this->common($message, 'lorkhan.session.init.v1', ['message_id','installation_id','profile_id','playthrough_id']);
     }
 

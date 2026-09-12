@@ -3359,4 +3359,72 @@ try {
     }
 } finally { $db->rollBack(); }
 
+// Loaded-save capture uses committed old state while session replacement holds its installation fence.
+$dragonTurn=$db->query('SELECT t.turn_id,s.installation_id,s.profile_id,s.playthrough_id FROM turns t JOIN sessions s ON s.session_id=t.session_id ORDER BY t.accepted_at DESC LIMIT 1')->fetch();
+$dragonMessage=json_decode((string)file_get_contents(dirname(__DIR__).'/protocol/fixtures/v1/valid/session-loaded-save.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+foreach(['installation_id','profile_id','playthrough_id'] as $key)$dragonMessage[$key]=$dragonTurn[$key];
+$dragonMessage['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+$dragonGeneration=$db->prepare('SELECT max(generation) FROM sessions WHERE installation_id=:id');
+$dragonGeneration->execute(['id'=>$dragonMessage['installation_id']]);
+$dragonMessage['generation']=(int)$dragonGeneration->fetchColumn()+1;
+$dragonCurrent=\LorkhanServer\Infrastructure\Uuid::v4();
+$repo->createSession($dragonMessage,$dragonCurrent,$tokenHash);
+$db->prepare("UPDATE turns SET context=jsonb_set(context,'{world}',CAST(:world AS jsonb)),accepted_at=clock_timestamp() WHERE turn_id=:id")
+    ->execute(['world'=>json_encode(['calendar'=>['year'=>427,'month'=>7,'day'=>19,'hour'=>9.5]]),'id'=>$dragonTurn['turn_id']]);
+$dragonRoot=sys_get_temp_dir().'/lorkhan-dragon-'.bin2hex(random_bytes(8));
+$dragonConfig=['database_dsn'=>$dsn,'database_user'=>getenv('LORKHAN_TEST_DB_USER')?:'',
+    'database_password'=>getenv('LORKHAN_TEST_DB_PASSWORD')?:'','backup_storage_path'=>$dragonRoot];
+$dragonCapture=new \LorkhanServer\Infrastructure\DragonBreakSnapshot($dragonConfig);
+$dragonCount=static fn():int=>(int)$db->query("SELECT count(*) FROM backup_records WHERE jsonb_exists(scope,'dragon_break')")->fetchColumn();
+$dragonBefore=$dragonCount();
+try {
+    $under=$dragonMessage;$under['loaded_save']['day']=17;$dragonCapture->capture($under);
+    $assert($dragonCount()===$dragonBefore,'subthreshold loaded save captured a snapshot');
+    $called=false;
+    try {$repo->createSession($dragonMessage,\LorkhanServer\Infrastructure\Uuid::v4(),$tokenHash,null,function()use(&$called):void{$called=true;});}
+    catch(RuntimeException $error){$assert($error->getMessage()==='stale_generation','unexpected stale loaded-save failure');}
+    $assert(!$called,'stale loaded save reached snapshot callback');
+    ++$dragonMessage['generation'];$dragonMessage['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+    $repo->createSession($dragonMessage,\LorkhanServer\Infrastructure\Uuid::v4(),$tokenHash,null,
+        function()use($db,$dragonCurrent,$dragonCapture,$dragonMessage,$assert):void{
+            $state=$db->prepare('SELECT state FROM sessions WHERE session_id=:id');$state->execute(['id'=>$dragonCurrent]);
+            $assert($state->fetchColumn()==='active','old session replaced before snapshot callback');
+            $dragonCapture->capture($dragonMessage);
+        });
+    $assert($dragonCount()===$dragonBefore+1,'three-day rollback did not capture a real database snapshot');
+    $dragonCapture->capture($dragonMessage);
+    $assert($dragonCount()===$dragonBefore+1,'repeated loaded-save snapshot was not deduplicated');
+    $dragonRecord=$db->query("SELECT backup_id,scope FROM backup_records WHERE jsonb_exists(scope,'dragon_break') ORDER BY created_at DESC LIMIT 1")->fetch();
+    $dragonScope=json_decode($dragonRecord['scope'],true,64,JSON_THROW_ON_ERROR);
+    $dragonPath=(new \LorkhanServer\Infrastructure\DatabaseSqlBackup($dragonConfig))->path($dragonRecord['backup_id']);
+    $assert(is_file($dragonPath.'.dump')&&filesize($dragonPath)>0
+        &&str_starts_with($dragonScope['snapshot']['name'],'Dragon Break ('),'automatic snapshot archive or stored presentation missing');
+    $dragonSql=(string)file_get_contents($dragonPath);
+    $assert(preg_match('/COPY lorkhan_internal\.sessions \(([^)]+)\) FROM stdin;\n(.*?)\n\\\\\./s',$dragonSql,$sessionCopy)===1,
+        'snapshot lacks the native session COPY data');
+    $sessionColumns=explode(', ',$sessionCopy[1]);$capturedOldState=null;
+    foreach(explode("\n",$sessionCopy[2]) as $line){
+        $values=explode("\t",$line);
+        if(($values[array_search('session_id',$sessionColumns,true)]??null)===$dragonCurrent)
+            $capturedOldState=$values[array_search('state',$sessionColumns,true)]??null;
+    }
+    $assert($capturedOldState==='active','archive captured the old session after replacement');
+    $busyConnection=Connection::open($dragonConfig,false);
+    $busyConnection->query('SELECT pg_advisory_lock(7514,113)');
+    try {
+        ++$dragonMessage['generation'];$dragonMessage['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+        $dragonMessage['loaded_save']['day']=12;
+        $continued=$repo->createSession($dragonMessage,\LorkhanServer\Infrastructure\Uuid::v4(),$tokenHash,null,
+            fn()=>$dragonCapture->capture($dragonMessage));
+        $assert($continued['generation']===$dragonMessage['generation']&&$dragonCount()===$dragonBefore+1,
+            'busy snapshot maintenance blocked normal session replacement');
+        $failure=$db->prepare("SELECT detail->>'reason' FROM operational_audit WHERE action='dragon_break_failed' AND scope->>'request_id'=:id");
+        $failure->execute(['id'=>$dragonMessage['message_id']]);
+        $assert($failure->fetchColumn()==='maintenance_busy','snapshot failure was not audited');
+    } finally {$busyConnection->query('SELECT pg_advisory_unlock(7514,113)');}
+} finally {
+    foreach(glob($dragonRoot.'/sql/*')?:[] as $file)unlink($file);
+    if(is_dir($dragonRoot.'/sql'))rmdir($dragonRoot.'/sql');
+    if(is_dir($dragonRoot))rmdir($dragonRoot);
+}
 fwrite(STDOUT, "integration vertical slice passed\n");

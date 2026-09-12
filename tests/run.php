@@ -652,6 +652,8 @@ $validator = new Validator();
 $fixtureRoot = dirname(__DIR__) . '/protocol/fixtures/v1/valid';
 foreach ([
     'session-init.json' => 'lorkhan.session.init.v1',
+    'session-loaded-save.json' => 'lorkhan.session.init.v1',
+    'session-loaded-save-unknown.json' => 'lorkhan.session.init.v1',
     'turn.json' => 'lorkhan.turn.v1',
     'gamedata-captured-dialogue.json' => 'lorkhan.gamedata.v1',
     'gamedata-automatic-diary.json' => 'lorkhan.gamedata.v1',
@@ -665,6 +667,11 @@ foreach ([
     $document = json_decode((string) file_get_contents($fixtureRoot . '/' . $fixture), true, 64, JSON_THROW_ON_ERROR);
     $validator->validate($document['instance'], $schema);
     $check(true, $fixture . ' validates');
+}
+foreach (['session-loaded-save-leap-day','session-loaded-save-hour'] as $fixture) {
+    $document=json_decode((string)file_get_contents(dirname($fixtureRoot).'/invalid/'.$fixture.'.json'),true,64,JSON_THROW_ON_ERROR);
+    try {$validator->validate($document['instance'],'lorkhan.session.init.v1');$check(false,$fixture.' rejected');}
+    catch (ValidationException $error) {$check($error->getMessage()==='invalid_schema',$fixture.' rejected');}
 }
 $actorProfileGameData=json_decode((string)file_get_contents($fixtureRoot.'/gamedata-captured-dialogue.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
 $actorProfileGameData['type']='actor_profile';

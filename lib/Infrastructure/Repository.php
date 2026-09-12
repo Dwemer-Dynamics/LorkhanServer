@@ -130,9 +130,9 @@ final class Repository
         if ($stored === null || $stored['status'] !== $status || $stored['body'] != $body) throw new \DomainException('duplicate_conflict');
     }
 
-    public function createSession(array $message, string $sessionId, string $tokenHash, ?string $macKey=null): array
+    public function createSession(array $message, string $sessionId, string $tokenHash, ?string $macKey=null, ?callable $beforeReplace=null): array
     {
-        return $this->transaction(function () use ($message, $sessionId, $tokenHash,$macKey): array {
+        return $this->transaction(function () use ($message, $sessionId, $tokenHash,$macKey,$beforeReplace): array {
             $this->ensureInstallation($message['installation_id'], $tokenHash,$macKey);
             $lock = $this->db->prepare('SELECT installation_id FROM installations WHERE installation_id = :id FOR UPDATE');
             $lock->execute(['id' => $message['installation_id']]);
@@ -141,6 +141,8 @@ final class Repository
             $latest->execute(['id' => $message['installation_id']]);
             $previous = $latest->fetchColumn();
             if ($previous !== null && $message['generation'] <= (int) $previous) throw new \UnexpectedValueException('stale_generation');
+            // The installation fence and generation checks precede backup capture; no prior session work has been cancelled yet.
+            if($beforeReplace!==null)$beforeReplace();
             $active=$this->db->prepare("SELECT session_id FROM sessions WHERE installation_id=:id AND state='active' FOR UPDATE");
             $active->execute(['id'=>$message['installation_id']]);$activeSessions=$active->fetchAll(PDO::FETCH_COLUMN);
             foreach($activeSessions as $activeSession)$this->cancelOutstandingTurns((string)$activeSession,'session_replaced');

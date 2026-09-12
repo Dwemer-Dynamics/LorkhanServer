@@ -7,7 +7,7 @@ $snapshotSaveJob=$managementRepository->snapshotSaveStatus();
 $snapshotRestoreJob=$managementRepository->databaseMaintenanceStatus('database.restore');
 $snapshotSource=$database->query('SELECT s.backup_id,s.name,s.copied_at,EXISTS(SELECT 1 FROM backup_records b WHERE b.backup_id=s.backup_id) AS stored FROM lorkhan_internal.database_snapshot_source s WHERE singleton')->fetch(PDO::FETCH_ASSOC);
 $snapshotPage=max(1,min(100000,(int)($_GET['snapshot_page']??1)));
-$storedSnapshots=$database->query("SELECT backup_id,byte_count,created_at,scope#>>'{snapshot,name}' AS name,scope#>>'{snapshot,notes}' AS notes,scope->'game_metadata' AS game_metadata,scope->>'rollback_for' AS rollback_for FROM backup_records WHERE scope->>'kind'='database_sql' AND jsonb_exists(scope,'snapshot') ORDER BY COALESCE((scope#>>'{game_metadata,calendar,minute}')::bigint,0) DESC,created_at DESC,backup_id DESC LIMIT 26 OFFSET ".(($snapshotPage-1)*25))->fetchAll(PDO::FETCH_ASSOC);
+$storedSnapshots=$database->query("SELECT backup_id,byte_count,created_at,scope#>>'{snapshot,name}' AS name,scope#>>'{snapshot,notes}' AS notes,scope->'game_metadata' AS game_metadata,scope->>'rollback_for' AS rollback_for,jsonb_exists(scope,'dragon_break') AS dragon_break FROM backup_records WHERE scope->>'kind'='database_sql' AND jsonb_exists(scope,'snapshot') ORDER BY COALESCE((scope#>>'{game_metadata,calendar,minute}')::bigint,0) DESC,created_at DESC,backup_id DESC LIMIT 26 OFFSET ".(($snapshotPage-1)*25))->fetchAll(PDO::FETCH_ASSOC);
 $snapshotsHasNext=count($storedSnapshots)>25;$storedSnapshots=array_slice($storedSnapshots,0,25);
 $snapshotPageUrl=static fn(int $number):string=>'?'.http_build_query(['snapshot_page'=>$number,'embed'=>$embedded?'1':'0']);
 $liveDatabase=$uiRepository->dashboard();

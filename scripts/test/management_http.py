@@ -3347,4 +3347,32 @@ assert request('/LorkhanServer/manage/exports/database/'+restore_target+'.sql').
 assert subprocess.run([*pg_test,'SELECT backup_id FROM lorkhan_internal.database_snapshot_source WHERE singleton'],capture_output=True,text=True,check=True).stdout.strip()==restore_target
 assert subprocess.run([*pg_test,"SELECT core FROM public.bio_templates WHERE npc_name='ZZZ Literal %_ Name'"],capture_output=True,text=True,check=True).stdout.strip()=='Must survive failed restore'
 
+# A signed native loaded-save request captures the previous database and renders its real snapshot card.
+import datetime, hashlib, hmac
+dragon=json.loads((repository_root/'protocol/fixtures/v1/valid/session-loaded-save.json').read_text())['instance']
+dragon.update(installation_id=valid['installation_id'],profile_id=profile_id,playthrough_id=playthrough_id,
+              message_id=str(uuid.uuid4()),generation=999010,
+              created_at=datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
+dragon['loaded_save']['day']=17
+subprocess.run([*pg_test,f"UPDATE lorkhan_internal.turns SET context=jsonb_set(context,'{{world,calendar,day}}','20'::jsonb),accepted_at=clock_timestamp() WHERE session_id='{snapshot_session}'"],check=True,capture_output=True)
+dragon_key=subprocess.run([*pg_test,f"SELECT encode(mac_key,'hex') FROM lorkhan_internal.pairing_tokens WHERE installation_id='{valid['installation_id']}' AND state='active' ORDER BY created_at DESC LIMIT 1"],check=True,capture_output=True,text=True).stdout.strip()
+if not dragon_key:
+    assert subprocess.run([*pg_test,'SELECT count(*) FROM lorkhan_internal.pairing_tokens'],check=True,capture_output=True,text=True).stdout.strip()=='0'
+    dragon_key=subprocess.run([*pg_test,f"SELECT token_fingerprint FROM lorkhan_internal.installations WHERE installation_id='{valid['installation_id']}'"],check=True,capture_output=True,text=True).stdout.strip()
+assert len(dragon_key)==64
+dragon_bytes=json.dumps(dragon,separators=(',',':')).encode()
+dragon_nonce=uuid.uuid4().hex;dragon_digest=hashlib.sha256(dragon_bytes).hexdigest()
+dragon_path='/LorkhanServer/api/v1/sessions';dragon_type='application/json'
+dragon_canonical='\n'.join(['hmac-sha256-v1','POST',dragon_path,dragon_type,dragon_digest,valid['installation_id'],dragon['created_at'],dragon_nonce])
+dragon_headers={'Content-Type':dragon_type,'Idempotency-Key':dragon['message_id'],
+    'X-LORKHAN-Auth':'hmac-sha256-v1','X-LORKHAN-Installation-Id':valid['installation_id'],
+    'X-LORKHAN-Timestamp':dragon['created_at'],'X-LORKHAN-Nonce':dragon_nonce,
+    'X-LORKHAN-Content-SHA256':dragon_digest,'X-LORKHAN-Signature':hmac.new(bytes.fromhex(dragon_key),dragon_canonical.encode(),hashlib.sha256).hexdigest()}
+with urllib.request.urlopen(urllib.request.Request(base+dragon_path,data=dragon_bytes,headers=dragon_headers),timeout=30) as accepted:
+    assert accepted.status==201 and json.load(accepted)['generation']==dragon['generation']
+dragon_html=request('/LorkhanServer/ui/playthrough_manager.php').read().decode()
+assert 'class="backup-item dragonbreak"' in dragon_html and 'Dragon Break (0427-08-20 -&gt; 0427-08-17)' in dragon_html
+assert 'Last in-game date:</b> 17 Last Seed, 3E 427' in dragon_html and '3 days ahead' in dragon_html
+if os.environ.get('LORKHAN_DRAGON_EVIDENCE'):
+    pathlib.Path(os.environ['LORKHAN_DRAGON_EVIDENCE']).write_text(dragon_html,encoding='utf-8')
 print('browser-like management HTTP forms passed')

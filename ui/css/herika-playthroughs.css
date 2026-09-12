@@ -43,3 +43,7 @@ body.playthrough-shell .playthrough-page button.timeline-node.active{background:
 .playthrough-page .timeline-notch.major{height:14px;background:#e0e0e0;opacity:.9}
 .playthrough-page .timeline-tick-label{position:absolute;top:-30px;transform:translateX(-50%);color:#9fb1c9;font-size:11px;white-space:nowrap;pointer-events:none}
 .playthrough-page .snapshot-time{font-size:12px;color:#9fb1c9}.playthrough-page .snapshot-time.behind{color:#dc2626}.playthrough-page .snapshot-time.ahead{color:#16a34a}
+
+/* Match the reference snapshot distinction while preserving the active source highlight. */
+.playthrough-page .backup-item.dragonbreak:not(.selected){background-color:#1e2a3a}
+.playthrough-page .backup-item.dragonbreak:not(.selected):hover{background-color:#223044}
