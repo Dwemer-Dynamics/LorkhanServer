@@ -113,7 +113,7 @@ do not use an exception to excuse a generic substitute layout.
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; provider presets consolidated to 11 cards with all 32 built-in credential identities editable through saved/optional additional badges; standalone and actual hub preset/custom draft geometry reviewed at 1280/390, with failed-save and concurrent-edit retention rechecked using mocks; content-only shell now matches; live-provider acceptance remains untested |
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key selection is now wired and browser save/reload tested; hub selection and unsaved draft retention, narrow editor bounds and failed-save Test refusal are verified; remaining provider/advanced interaction review stays open. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
-| `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired; remaining provider controls listed in the latest audit below |
+| `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired. Zonos Cached Voice Path is editable, revisioned and applied once to its exact endpoint/sample; remaining provider interactions are listed in the latest audit below |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, API Badge, independent service drafts and editable Name are implemented. Google Free STT remains missing: Herika uses browser recognition plus a game-injection bridge; a dictation-only test would not supply parity. Complete STT editor interaction review remains open. |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management and OmniVoice language/readiness/direct-import/provider-delete flows are implemented with mock HTTP/browser evidence below; exact remaining provider presentation, errors, batch states and hub comparisons remain |
 | `core/npc_biographies.php` | `npc_upload.php` | Header, summary, Add/Edit, Extended Profiles, inline Oghma and full-catalog search/paging aligned. Batch guidance, complete global/installation custom export and confirmed factory reset are implemented; ownership and native fallback protections are explicit. Final tests/deployment evidence below. |
@@ -10776,3 +10776,33 @@ or paid provider calls.
   evidence: tts-current-field-audit.cjs/.json, zonos-final-proof.cjs and screenshots.
   Lower revision surfaces, editable cache and broader provider interactions remain
   open. The audit does not close the entire TTS or hub page.
+
+## Zonos editable Cached Voice Path (2026-09-11)
+
+- Replaced the read-only cache value with the reference editable text input in
+  the same position. Regular Save and embedded Save All submit the path. Empty
+  requests a fresh upload; nonempty selects a cached path on the configured Zonos
+  service. Help explains default-voice scope and changing endpoint/voice first.
+- Edits are stored in connector revisions with an opaque endpoint/sample/digest
+  scope and edit ID. Saving does not call the provider or mutate its upload cache.
+  The speech adapter applies each edit once, then retains the successful upload
+  path. A missing/expired remote file triggers normal upload; different voices,
+  endpoints and replaced sample bytes cannot reuse the edit.
+- Strict shape, UTF-8/size and control-character checks preserve the existing
+  secret-field guard. The edit marker is named edit_id, not a credential token.
+  Save compares with the authoritative saved connector, so clearing a pending
+  edit works even when a form client omits advanced JSON.
+- 962 unit checks passed. Nine mocked synthesis calls through the real adapter
+  verified outgoing paths, reuse, one-time clear, different voice/sample and
+  expiration recovery (five uploads and five availability checks). No paid provider
+  was invoked. Full integration/schema/migration/durable-job checks passed.
+- Browser checks at 1280/390 verify editing, empty serialization, driver-switch
+  draft retention, numeric bounds and Advanced disclosure retention. Narrow
+  screenshot inspected. Production writes were blocked; no game was launched.
+- Evidence: zonos-edit-unit.txt, zonos-edit-probe.py, zonos-edit-proof.cjs,
+  zonos-edit-integration.txt and zonos-edit screenshots in the temporary folder.
+  This closes the cache-edit interaction, not the remaining full TTS/hub page audit.
+- Final checks: full management HTTP suite passed (zonos-edit-http-verified.txt),
+  including save/reload, clear and invalid-input rejection. Populated and empty
+  narrow editor screenshots inspected. All 815 deployed files match source;
+  private routes remain protected, credentials/voices preserved.

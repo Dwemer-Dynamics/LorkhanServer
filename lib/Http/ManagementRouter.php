@@ -1067,6 +1067,21 @@ final class ManagementRouter
             'model'=>trim((string)($values['model']??'')),'voice'=>trim((string)($values['voice']??'')),
             'language'=>trim((string)($values['language']??'en')),'timeout_ms'=>(int)($values['timeout_ms']??30000),
             'options'=>$options];
+        if ($kind === 'tts_provider' && $driver === 'zonos_gradio' && array_key_exists('cached_voice_path', $values)) {
+            $root=(string)($this->providerConfig['voice_storage_path']??'');
+            $scope=\LorkhanServer\Application\ZonosGradioSpeechProvider::cacheScope($root,$content['endpoint'],$content['voice']);
+            if ($scope === '' && $values['cached_voice_path'] !== '') throw new InvalidArgumentException('zonos_cache_requires_voice_sample');
+            // A draft from another endpoint/sample must never redirect this voice's cached upload.
+            if ($scope !== '' && ($values['cached_voice_scope']??'') === $scope) {
+                $path=$values['cached_voice_path'];
+                $edit=\LorkhanServer\Application\ZonosGradioSpeechProvider::validateCacheOverride(['scope'=>$scope,'path'=>$path,'edit_id'=>bin2hex(random_bytes(16))]);
+                $savedOptions=isset($values['configuration_id'])
+                    ?($this->repository->getRevisioned($kind,$this->need($values,'configuration_id'))['content']['options']??[]):$options;
+                $current=\LorkhanServer\Application\ZonosGradioSpeechProvider::cachedVoicePath($root,$content['endpoint'],$content['voice'],$savedOptions);
+                if ($path !== $current) $content['options']['cached_voice_override']=$edit;
+                elseif (isset($savedOptions['cached_voice_override'])) $content['options']['cached_voice_override']=$savedOptions['cached_voice_override'];
+            }
+        }
         if(array_key_exists('credential',$values))$content['credential']=$values['credential'];
         return $content;
     }

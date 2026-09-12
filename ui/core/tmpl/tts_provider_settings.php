@@ -160,13 +160,13 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
         $fields['option__paralinguistic_tags_list']['help']='Comma-separated list of supported paralinguistic tags (e.g., [laugh],[sigh],[gasp]). Tags are case-insensitive.';
     }
     if ($providerDriver === 'zonos_gradio') $fields['cached_voice_path'] = [
-        'name'=>'cached_voice_path','label'=>'Cached Voice Path','type'=>'readonly',
-        'help'=>'Path to the sample audio stored in Zonos. Set automatically for this connector\'s default voice; NPC voices use separate cached uploads.'];
+        'name'=>'cached_voice_path','label'=>'Cached Voice Path','type'=>'string','maxlength'=>2048,
+        'help'=>'Path to the sample audio stored in Zonos. Leave as default; it is set automatically. Clear and Save to upload again on the next request. Applies to the current default voice only; after changing voice or endpoint, save and reload before editing this path.'];
     $primary = $primaryFields[$providerDriver] ?? array_keys($fields);
     $advanced = array_diff(array_keys($fields), $primary);
     $values = $providerContent + $connectorDefaults[$providerDriver] + ['timeout_ms'=>30000];
     if ($providerDriver === 'zonos_gradio') $values['cached_voice_path'] = \LorkhanServer\Application\ZonosGradioSpeechProvider::cachedVoicePath(
-        (string)($config['voice_storage_path'] ?? ''), (string)$values['endpoint'], (string)$values['voice']);
+        (string)($config['voice_storage_path'] ?? ''), (string)$values['endpoint'], (string)$values['voice'], $providerOptions);
     foreach ($providerOptions as $name=>$value) $values['option__'.$name]=$value;
     if (in_array($providerDriver,['chatterbox','xtts-fastapi'],true)) $values += [
         'option__paralinguistic_tags_list'=>\LorkhanServer\Application\ParalinguisticSpeech::DEFAULT_TAGS];
@@ -192,6 +192,7 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
     ];
 ?>
     <section class="meta-group<?php echo $activeDriver ? ' active' : ''; ?> runtime-settings" data-tts-provider-fields="<?php echo lorkhan_ui_h($providerDriver); ?>"<?php echo $activeDriver ? '' : ' hidden'; ?>>
+        <?php if ($providerDriver === 'zonos_gradio'): ?><input type="hidden" name="cached_voice_scope" form="<?= lorkhan_ui_h($formId) ?>" value="<?= lorkhan_ui_h(\LorkhanServer\Application\ZonosGradioSpeechProvider::cacheScope((string)($config['voice_storage_path']??''),(string)$values['endpoint'],(string)$values['voice'])) ?>"<?= $activeDriver ? '' : ' disabled' ?>><?php endif; ?>
         <h3><?php echo lorkhan_ui_h($providerTitles[$providerDriver] ?? $providerLabel); ?> Settings</h3>
         <?php if ($primary === []): ?><div class="settings-empty-note">Additional runtime options are available below.</div><?php else: ?>
         <div class="inline-two"><?php foreach ($primary as $name) lorkhan_tts_provider_field($fields[$name], $values[$name] ?? '', $providerDriver, $activeDriver, $formId); ?></div>

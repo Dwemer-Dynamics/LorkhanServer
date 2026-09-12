@@ -2289,9 +2289,22 @@ $check(ZonosGradioSpeechProvider::cachedVoicePath($voiceRoot,'http://127.0.0.1:8
     &&ZonosGradioSpeechProvider::cachedVoicePath($voiceRoot,'http://127.0.0.1:9000','cache-test')===''
     &&ZonosGradioSpeechProvider::cachedVoicePath($voiceRoot,'http://127.0.0.1:8999','../cache-test')==='',
     'Zonos upload cache is scoped to the endpoint and confined sample identity');
+$cacheScope=ZonosGradioSpeechProvider::cacheScope($voiceRoot,'http://127.0.0.1:8999','cache-test');
+$cacheEdit=['scope'=>$cacheScope,'path'=>'/tmp/manual.wav','edit_id'=>str_repeat('a',32)];
+$check(ZonosGradioSpeechProvider::cachedVoicePath($voiceRoot,'http://127.0.0.1:8999','cache-test',['cached_voice_override'=>$cacheEdit])==='/tmp/manual.wav', 'Pending Zonos edit is displayed before provider execution');
+$check(ZonosGradioSpeechProvider::cachedVoicePath($voiceRoot,'http://127.0.0.1:9000','cache-test',['cached_voice_override'=>$cacheEdit])==='', 'Pending Zonos edit cannot cross endpoints');
+file_put_contents($cachePath,json_encode(['path'=>'/tmp/reuploaded.wav','edit_id'=>$cacheEdit['edit_id']]));
+$check(ZonosGradioSpeechProvider::cachedVoicePath($voiceRoot,'http://127.0.0.1:8999','cache-test',['cached_voice_override'=>$cacheEdit])==='/tmp/reuploaded.wav', 'Applied Zonos edit does not replace a subsequent successful upload');
+$clearEdit=['scope'=>$cacheScope,'path'=>'','edit_id'=>str_repeat('b',32)];
+$check(ZonosGradioSpeechProvider::cachedVoicePath($voiceRoot,'http://127.0.0.1:8999','cache-test',['cached_voice_override'=>$clearEdit])==='', 'Clearing Zonos path requests a fresh upload once');
+foreach ([['path'=>"bad\npath"],['path'=>str_repeat('x',2049)],['scope'=>'../escape'],['edit_id'=>'invalid'],['path'=>[]]] as $badEdit) {
+    try { ZonosGradioSpeechProvider::validateCacheOverride(array_replace($cacheEdit,$badEdit)); $check(false,'Invalid Zonos cache edit rejected'); }
+    catch (InvalidArgumentException) { $check(true,'Invalid Zonos cache edit rejected'); }
+}
 file_put_contents($cacheSample,str_repeat('b',44));
 $check(ZonosGradioSpeechProvider::cachedVoicePath($voiceRoot,'http://127.0.0.1:8999','cache-test')==='',
     'Replacing a voice sample invalidates its Zonos upload cache');
+$check(ZonosGradioSpeechProvider::cachedVoicePath($voiceRoot,'http://127.0.0.1:8999','cache-test',['cached_voice_override'=>$cacheEdit])==='', 'Replacing sample bytes also invalidates pending edits');
 unlink($cachePath);rmdir(dirname($cachePath));unlink($cacheSample);rmdir($voiceRoot);
 $xvaPreset=['kind'=>'tts_provider','content'=>['driver'=>'xvasynth','endpoint'=>'http://127.0.0.1:8999',
     'model'=>'default','voice'=>'default','language'=>'en-US','timeout_ms'=>30000,'options'=>[]]];

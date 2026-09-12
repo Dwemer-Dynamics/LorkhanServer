@@ -855,12 +855,23 @@ azure_form=next(f for f in azure_page.forms if f['action'].endswith('/forms/conn
 assert azure_form['fields']['endpoint']=='https://eastus.tts.speech.microsoft.com'
 assert azure_form['fields']['option__fixedMood']=='angry' and azure_form['fields']['option__countour']=='(11%, +15%)'
 assert azure_form['fields']['option__volume']=='20' and azure_form['fields']['option__rate']=='1.25'
+r=multipart_request('/LorkhanServer/ui/core/voice_library.php',{'_csrf':csrf,'action':'upload','voice_name':'zonos-cache-http'},'voice_sample','zonos-cache-http.wav','audio/wav',wav); assert r.status==200
 zonos_values=dict(azure_form['fields'],_csrf=csrf,driver='zonos_gradio',endpoint='http://127.0.0.1:7860',
-    model='Zyphra/Zonos-v0.1-hybrid',language='en-us',option__dynamic_tones='true',option__pitch_std='300')
+    model='Zyphra/Zonos-v0.1-hybrid',voice='zonos-cache-http',language='en-us',option__dynamic_tones='true',option__pitch_std='300')
 r=request('/LorkhanServer/manage/forms/connector-revise','POST',zonos_values); assert r.status==200
 zonos_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id))
 zonos_form=next(f for f in zonos_page.forms if f['action'].endswith('/forms/connector-revise'))
 assert zonos_form['fields']['option__dynamic_tones']=='true' and zonos_form['fields']['option__pitch_std']=='300'
+assert len(zonos_form['fields']['cached_voice_scope'])==64
+for cache_path in ['/tmp/manual-http.wav','']:
+    r=request('/LorkhanServer/manage/forms/connector-revise','POST',dict(zonos_form['fields'],_csrf=csrf,cached_voice_path=cache_path)); assert r.status==200,(r.status,r.read().decode())
+    zonos_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id))
+    zonos_form=next(f for f in zonos_page.forms if f['action'].endswith('/forms/connector-revise'))
+    assert zonos_form['fields']['cached_voice_path']==cache_path
+    zonos_saved=json.loads(request('/LorkhanServer/manage/exports/connectors/'+tts_id+'.json').read())
+    assert zonos_saved['content']['options'].get('cached_voice_override',{}).get('path')==cache_path,(cache_path,zonos_saved['content'],zonos_form['fields'].get('options_json'))
+r=request('/LorkhanServer/manage/forms/connector-revise','POST',dict(zonos_form['fields'],_csrf=csrf,cached_voice_path='bad\npath')); assert r.status==422
+
 r=request('/LorkhanServer/manage/forms/connector-revise','POST',dict(azure_form['fields'],_csrf=csrf)); assert r.status==200
 r=request('/LorkhanServer/manage/forms/connector-revise','POST',dict(azure_form['fields'],_csrf=csrf,option__region='evil.example/')); assert r.status==422
 tts_badge_html=request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id).read().decode()

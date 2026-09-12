@@ -55,7 +55,10 @@ final class ZonosGradioSpeechProvider implements SpeechProvider
             || !is_file($realSample) || filesize($realSample) < 44 || filesize($realSample) > 16_777_216) {
             throw new RuntimeException('provider_voice_sample_missing');
         }
-        $remotePath = self::cachedVoicePath($this->voiceRoot, $this->baseUrl, $voice);
+        $remotePath = self::cachedVoicePath($this->voiceRoot, $this->baseUrl, $voice, $this->options);
+        $edit = self::validateCacheOverride($this->options['cached_voice_override'] ?? []);
+        $editId = $edit !== [] && $edit['scope'] === self::cacheScope($this->voiceRoot, $this->baseUrl, $voice) ? $edit['edit_id'] : '';
+        $uploadedNew = false;
         if ($remotePath !== '') {
             try {
                 $this->request('/gradio_api/file=' . rawurlencode($remotePath), null, [], $cancellation, true);
@@ -67,6 +70,9 @@ final class ZonosGradioSpeechProvider implements SpeechProvider
             $uploaded = json_decode($upload, true);
             $remotePath = is_array($uploaded) && is_string($uploaded[0] ?? null) ? $uploaded[0] : '';
             if ($remotePath === '' || strlen($remotePath) > 2048 || str_contains($remotePath, "\0")) throw new RuntimeException('provider_invalid_output');
+            $uploadedNew = true;
+        }
+        if ($uploadedNew || ($editId !== '' && (self::cacheRecord($this->voiceRoot, $this->baseUrl, $voice)['edit_id'] ?? '') !== $editId)) {
             // Cache failure must not prevent otherwise valid speech. Atomic replacement tolerates concurrent uploads.
             $cacheFile = self::cacheFile($this->voiceRoot, $this->baseUrl, $voice);
             if ($cacheFile !== null) {
@@ -75,7 +81,7 @@ final class ZonosGradioSpeechProvider implements SpeechProvider
                 if (is_dir($directory) && !is_link($directory)) {
                     $temporary = @tempnam($directory, '.upload-');
                     if ($temporary !== false) {
-                        if (@file_put_contents($temporary, json_encode(['path'=>$remotePath], JSON_THROW_ON_ERROR)) !== false
+                        if (@file_put_contents($temporary, json_encode(['path'=>$remotePath,'edit_id'=>$editId], JSON_THROW_ON_ERROR)) !== false
                             && @chmod($temporary, 0660)) @rename($temporary, $cacheFile);
                         if (is_file($temporary)) @unlink($temporary);
                     }
@@ -160,14 +166,44 @@ final class ZonosGradioSpeechProvider implements SpeechProvider
         return $result;
     }
 
-    /** Read upload state for the current sample without creating files or contacting a provider. */
-    public static function cachedVoicePath(string $root, string $endpoint, string $voice): string
+    /** Validate a revisioned edit without accepting filesystem targets or unbounded remote paths. */
+    public static function validateCacheOverride(mixed $edit): array
+    {
+        if ($edit === []) return [];
+        if (!is_array($edit) || array_diff(array_keys($edit), ['scope','path','edit_id']) !== []
+            || !is_string($edit['scope'] ?? null) || preg_match('/^[a-f0-9]{64}$/D', $edit['scope']) !== 1
+            || !is_string($edit['edit_id'] ?? null) || preg_match('/^[a-f0-9]{32}$/D', $edit['edit_id']) !== 1
+            || !is_string($edit['path'] ?? null) || strlen($edit['path']) > 2048
+            || !mb_check_encoding($edit['path'], 'UTF-8') || preg_match('/[\x00-\x1f\x7f]/', $edit['path']))
+            throw new InvalidArgumentException('invalid_zonos_cache_edit');
+        return $edit;
+    }
+
+    /** Opaque fingerprint binds an editor draft to the endpoint and exact sample bytes. */
+    public static function cacheScope(string $root, string $endpoint, string $voice): string
     {
         $file = self::cacheFile($root, $endpoint, $voice);
-        if ($file === null || !is_file($file) || is_link($file) || filesize($file) > 4096) return '';
+        return $file === null ? '' : basename($file, '.json');
+    }
+
+    /** Read pending edits or upload state without creating files or contacting a provider. */
+    public static function cachedVoicePath(string $root, string $endpoint, string $voice, array $options = []): string
+    {
+        $record = self::cacheRecord($root, $endpoint, $voice);
+        $edit = self::validateCacheOverride($options['cached_voice_override'] ?? []);
+        if ($edit !== [] && $edit['scope'] === self::cacheScope($root, $endpoint, $voice)
+            && ($record['edit_id'] ?? '') !== $edit['edit_id']) return $edit['path'];
+        return $record['path'] ?? '';
+    }
+
+    /** Keep internal upload records bounded and reject links outside the private cache. */
+    private static function cacheRecord(string $root, string $endpoint, string $voice): array
+    {
+        $file = self::cacheFile($root, $endpoint, $voice);
+        if ($file === null || !is_file($file) || is_link($file) || filesize($file) > 4096) return [];
         $value = json_decode((string)@file_get_contents($file), true);
         $path = is_array($value) ? ($value['path'] ?? null) : null;
-        return is_string($path) && strlen($path) <= 2048 && !str_contains($path, "\0") ? $path : '';
+        return is_string($path) && strlen($path) <= 2048 && !str_contains($path, "\0") ? $value : [];
     }
 
     /** Bind a private upload record to endpoint, sample identity and current sample bytes. */

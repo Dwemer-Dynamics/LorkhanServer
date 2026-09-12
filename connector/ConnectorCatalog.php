@@ -272,6 +272,8 @@ final class ConnectorCatalog
         if (!is_array($options) || ($options !== [] && array_is_list($options)) || strlen(json_encode($options, JSON_THROW_ON_ERROR)) > 16_384) {
             throw new InvalidArgumentException('invalid_connector_options');
         }
+        if ($kind === 'tts_provider' && $driver === 'zonos_gradio' && array_key_exists('cached_voice_override', $options))
+            $options['cached_voice_override'] = ZonosGradioSpeechProvider::validateCacheOverride($options['cached_voice_override']);
         if ($kind === 'tts_provider' && $driver === 'inworld' && isset($options['workspace'])) {
             if (!is_string($options['workspace'])) throw new InvalidArgumentException('invalid_inworld_workspace');
             $options['workspace'] = CloudVoiceLibrary::normalizeWorkspace($options['workspace']);
