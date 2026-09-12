@@ -592,7 +592,7 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
             <?php else: ?><p class="voice-ready">✓ No missing voices in the cached library. Refresh Server Voices above to check the provider.</p><?php endif; ?>
         </section>
 
-        <?php if(in_array($activeTab,['pockettts','omnivoice'],true)):
+        <?php if(in_array($activeTab,['xtts','chatterbox','pockettts','omnivoice'],true)):
             // Only expose a credential-free HTTP service URL; rendering this link makes no provider request.
             $serviceEndpoint=rtrim(trim((string)($selectedProviderContent['endpoint']??'')),'/');
             $serviceParts=parse_url($serviceEndpoint);
@@ -602,9 +602,9 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
                 ?$serviceEndpoint.'/docs':'';
         ?>
         <section class="content-section full-width-section">
-            <h1><?php echo $activeTab==='pockettts'?'Cloud PocketTTS Sync':'OmniVoice Service'; ?></h1>
-            <?php if($activeTab==='pockettts'): ?>
-                <p><strong>Only required for legacy or online PocketTTS instances.</strong></p>
+            <h1><?php echo $activeTab==='omnivoice'?'OmniVoice Service':'Cloud '.lorkhan_ui_h($providerLabel).' Sync'; ?></h1>
+            <?php if($activeTab!=='omnivoice'): ?>
+                <p><strong>Only required for <?php echo $activeTab==='pockettts'?'legacy or online':'online'; ?> <?php echo lorkhan_ui_h($providerLabel); ?> instances.</strong></p>
                 <p>Sync the local voice cache after setting up a new instance. This uploads all local samples, including voices already listed by the provider.</p>
                 <p>Cached samples are stored privately by Lorkhan. Manage them in Voice Cache above.</p>
                 <?php if($localOnly): ?><p class="voice-ready">✓ Local samples are ready for PocketTTS audio.cpp; no server upload is needed.</p>
@@ -620,7 +620,7 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
                     <p role="status" data-voice-batch-status></p><a href="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>" data-voice-batch-refresh hidden>Refresh voice cache</a>
                 </div>
             </form>
-                <?php else: ?><p>Configure a Standard API PocketTTS connector to sync the cache.</p><?php endif; ?>
+                <?php else: ?><p>Configure a <?php echo $activeTab==='pockettts'?'Standard API PocketTTS':lorkhan_ui_h($providerLabel); ?> connector to sync the cache.</p><?php endif; ?>
             <?php endif; ?>
             <?php if($serviceDocs!==''&&!$localOnly): ?><p>Advanced <?php echo lorkhan_ui_h($providerLabel); ?> configuration: <a href="<?php echo lorkhan_ui_h($serviceDocs); ?>" target="_blank" rel="noopener noreferrer">Open service documentation</a></p>
             <?php elseif(!is_array($selectedProvider)): ?><a class="btn-primary" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/tts_connectors.php">Configure TTS connector</a><?php endif; ?>

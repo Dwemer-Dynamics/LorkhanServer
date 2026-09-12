@@ -358,7 +358,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             if(!is_array($preset)||!lorkhan_voice_can_sync($preset))throw new InvalidArgumentException('voice_sync_unsupported');
             if(($_POST['consent']??'')!=='1')throw new InvalidArgumentException('voice_upload_confirmation_required');
             $syncAll=($_POST['sync_all']??'')==='1';
-            if($syncAll&&($preset['content']['driver']??'')!=='pockettts')throw new InvalidArgumentException('voice_sync_unsupported');
+            if($syncAll&&!in_array($preset['content']['driver']??'',['xtts','xtts-fastapi','chatterbox','pockettts'],true))throw new InvalidArgumentException('voice_sync_unsupported');
             $ajax=($_POST['_batch_ajax']??'')==='1';$phase=(string)($_POST['_batch_phase']??'');
             if($ajax&&!in_array($phase,['plan','voice'],true))throw new InvalidArgumentException('invalid_voice_action');
             $language=lorkhan_voice_language(trim((string)($_POST['language']??'en'))?:'en');
