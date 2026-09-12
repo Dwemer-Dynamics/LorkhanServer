@@ -1,6 +1,11 @@
 (() => {
     const dirtyForms = new Set();
 
+    // Keep the native audit note out of the main editor, but reveal it if validation fails.
+    document.querySelectorAll('.profile-metadata [name="change_reason"]').forEach(control => {
+        control.addEventListener('invalid', () => { control.closest('details').open = true; });
+    });
+
     // Return to the editor in both standalone pages and the actual settings hub iframe.
     document.querySelectorAll('[data-profile-back-top]').forEach(button => {
         button.addEventListener('click', () => {

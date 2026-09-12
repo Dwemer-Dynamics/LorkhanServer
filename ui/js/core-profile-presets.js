@@ -40,7 +40,8 @@
         body.set('installation_id', row.dataset.installation);
         body.set('preset_id', select.value);
         body.set('preset_revision', select.selectedOptions[0]?.dataset.revision || '0');
-        body.set('expected_revision', row.dataset.revision);
+        // Copy to all can save a setting without reloading this editor.
+        body.set('expected_revision', form.dataset.profileCopyRevision || row.dataset.revision);
         body.set('preset_name', name.value.trim());
         body.set('confirm', action === 'apply' ? 'Apply' : 'Overwrite');
         if (action === 'import') body.set('preset_json', JSON.stringify(imported));

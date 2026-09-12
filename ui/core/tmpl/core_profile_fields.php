@@ -149,4 +149,5 @@ $numberField('setting_behavior_combat_bark_period_seconds','Combat Bark Cooldown
     <label for="core-settings-overrides-json">Settings overrides</label>
     <textarea id="core-settings-overrides-json" data-json-editor-source name="core_settings_overrides_json" rows="16" spellcheck="false" aria-describedby="core-metadata-help"><?= lorkhan_ui_h(json_encode($overrides ?: new stdClass(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?></textarea>
     <p role="status" data-json-editor-status></p>
+    <?php if (!$creatingProfile): ?><div class="profile-revision-card"><label>Change reason<input name="change_reason" required maxlength="512" value="Management Core Profile update"></label></div><?php endif; ?>
 </details>
