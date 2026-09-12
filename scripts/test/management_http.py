@@ -1954,7 +1954,10 @@ assert 'name="preset_json"' in core_import_body and 'data-json-import-target="co
 core_body=request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
 core_page=Page(); core_page.feed(core_body)
 assert 'aria-labelledby="diary_generation_configuration_id-label"' in core_body and 'Auto Diary' in core_body
-assert 'aria-labelledby="relationship_configuration_id-label"' not in core_body and 'Relationship Update Chance' not in core_body
+assert 'aria-labelledby="relationship_configuration_id-label"' not in core_body
+assert 'Relationship Update Chance' in core_body and 'data-path="relationship.update_chance_percent"' in core_body
+if os.environ.get('LORKHAN_RELATIONSHIP_CHANCE_EVIDENCE'):
+    pathlib.Path(os.environ['LORKHAN_RELATIONSHIP_CHANCE_EVIDENCE']).write_text(core_body,encoding='utf-8')
 assert 'name="setting_behavior_rechat"' in core_body and 'name="setting_memory_recent_turn_limit"' in core_body
 assert 'name="setting_diary_automatic_enabled"' in core_body and 'name="setting_diary_automatic_wait_enabled"' in core_body
 assert 'Create a physical in-game diary that can be read.' not in core_body

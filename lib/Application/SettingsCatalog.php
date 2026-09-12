@@ -320,7 +320,7 @@ final class SettingsCatalog
             'context' => ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','hide_ambient_combat'],
             'prompt' => ['prompt_head'],
             'oghma' => ['location_context_enabled','topic_count','extractor_fallback_enabled','extractor_timeout_ms','enabled','result_limit','racial_context_enabled'],
-            'relationship' => ['enabled'],
+            'relationship' => ['enabled','update_chance_percent'],
         ];
     }
 

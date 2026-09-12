@@ -1306,6 +1306,16 @@ $relationshipGlobal=$products->revise('global_settings',$relationshipGlobal['con
     'enable relationship test',$now);
 $relationshipOwner=$relationships->policy($installationId,$actorProfile['profile_id']);
 $relationshipCore=$products->getRevisioned('core_profile',$relationshipOwner['core_profile_id']);
+$relationshipChance=$relationshipCore['content'];$relationshipChance['settings_overrides']['relationship']=['enabled'=>true,'update_chance_percent'=>37];
+$products->revise('core_profile',$relationshipCore['core_profile_id'],$relationshipChance,'Core relationship chance fixture',$now);
+$assert($relationships->policy($installationId,$actorProfile['profile_id'])['update_chance_percent']===37,'Core relationship chance did not reach queued-job policy');
+$relationshipNpc=$products->getRevisioned('profile',$actorProfile['profile_id']);
+$relationshipNpcChance=$relationshipNpc['content'];$relationshipNpcChance['settings_overrides']['relationship']=['update_chance_percent'=>0];
+$products->revise('profile',$actorProfile['profile_id'],$relationshipNpcChance,'NPC relationship chance fixture',$now);
+$assert($relationships->policy($installationId,$actorProfile['profile_id'])['update_chance_percent']===0
+    &&$relationships->enqueue($delivery['message_id'])===null,'NPC zero chance still queued a relationship job');
+$products->revise('profile',$actorProfile['profile_id'],$relationshipNpc['content'],'Restore NPC relationship inheritance',$now);
+$assert($relationships->policy($installationId,$actorProfile['profile_id'])['update_chance_percent']===37,'Removing NPC override failed to inherit Core chance');
 $relationshipOff=$relationshipCore['content'];$relationshipOff['settings_overrides']['relationship']['enabled']=false;
 $products->revise('core_profile',$relationshipCore['core_profile_id'],$relationshipOff,'Core relationship off fixture',$now);
 $assert($relationships->enqueue($delivery['message_id'])===null,'Core relationship off still queued an evaluation');

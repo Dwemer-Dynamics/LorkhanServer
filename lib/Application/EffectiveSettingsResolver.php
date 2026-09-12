@@ -156,14 +156,15 @@ final class EffectiveSettingsResolver
                 $routing[$field] = $coreRouting[$field];
                 $sources['routing.' . $field] = 'core_profile_legacy';
             }
-            $legacyChance = $coreOverrides['relationship']['update_chance_percent'] ?? null;
-            if (is_int($legacyChance)) {
-                $settings['relationship']['update_chance_percent'] = $legacyChance;
-                $sources['settings.relationship.update_chance_percent'] = 'core_profile_legacy';
-            }
         }
+        $relationshipChance=$coreOverrides['relationship']['update_chance_percent']??$relationship['update_chance_percent'];
         if (array_key_exists('enabled', $coreOverrides['relationship'] ?? [])) {
-            $settings['relationship']['update_chance_percent'] = $coreOverrides['relationship']['enabled'] ? $relationship['update_chance_percent'] : 0;
+            $settings['relationship']['enabled']=$coreOverrides['relationship']['enabled'];
+            $sources['settings.relationship.enabled']='core_profile';
+        }
+        $settings['relationship']['update_chance_percent']=$settings['relationship']['enabled']?$relationshipChance:0;
+        if (array_key_exists('enabled', $coreOverrides['relationship'] ?? [])
+            || array_key_exists('update_chance_percent', $coreOverrides['relationship'] ?? [])) {
             $sources['settings.relationship.update_chance_percent'] = 'core_profile';
         }
         $allowedCoreRouting = array_fill_keys(SettingsCatalog::coreRoutingFields(), true);
@@ -184,8 +185,10 @@ final class EffectiveSettingsResolver
             }
         }
         $this->mergeSettings($settings, array_diff_key($npcAllowed, ['context'=>true,'prompt'=>true]), 'npc', 'settings', $sources);
-        if (array_key_exists('enabled', $npcOverrides['relationship'] ?? [])) {
-            $settings['relationship']['update_chance_percent'] = $npcOverrides['relationship']['enabled'] ? $relationship['update_chance_percent'] : 0;
+        $relationshipChance=$npcOverrides['relationship']['update_chance_percent']??$relationshipChance;
+        $settings['relationship']['update_chance_percent']=$settings['relationship']['enabled']?$relationshipChance:0;
+        if (array_key_exists('enabled', $npcOverrides['relationship'] ?? [])
+            || array_key_exists('update_chance_percent', $npcOverrides['relationship'] ?? [])) {
             $sources['settings.relationship.update_chance_percent'] = 'npc';
         }
         if (!$settings['oghma']['extractor_fallback_enabled']) $routing['oghma_configuration_id'] = '';

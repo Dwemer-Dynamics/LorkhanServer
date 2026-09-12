@@ -2737,10 +2737,20 @@ $check(($effective['sources']['settings.behavior.rechat']??null)==='npc'
 $relationshipResolved=(new EffectiveSettingsResolver())->resolve($globalSettings,
     ['routing'=>[],'settings_overrides'=>['relationship'=>['update_chance_percent'=>100,'locked'=>true]]],
     ['routing'=>['relationship_configuration_id'=>''],'settings_overrides'=>['relationship'=>['locked'=>true]]]);
-$check($relationshipResolved['settings']['relationship']===['enabled'=>true,'update_chance_percent'=>75,'locked'=>false]
+$check($relationshipResolved['settings']['relationship']===['enabled'=>true,'update_chance_percent'=>100,'locked'=>false]
     &&$relationshipResolved['routing']['relationship_configuration_id']==='00000000-0000-4000-8000-000000000444'
-    &&$relationshipResolved['sources']['settings.relationship.update_chance_percent']==='global',
-    'relationship policy and connector routing are installation-wide Global Settings');
+    &&$relationshipResolved['sources']['settings.relationship.update_chance_percent']==='core_profile',
+    'relationship chance is overridden by Core while locks and connector routing keep their established owners');
+$chanceCore=['settings_overrides'=>['relationship'=>['enabled'=>true,'update_chance_percent'=>25]]];
+$chanceNpc=['settings_overrides'=>['relationship'=>['update_chance_percent'=>0]]];
+$chanceResolved=(new EffectiveSettingsResolver())->resolve($globalSettings,$chanceCore,$chanceNpc);
+$check($chanceResolved['settings']['relationship']['update_chance_percent']===0
+    &&$chanceResolved['sources']['settings.relationship.update_chance_percent']==='npc','NPC explicit zero overrides Core relationship chance');
+$chanceNpc['settings_overrides']['relationship']=['enabled'=>false,'update_chance_percent'=>100];
+$check((new EffectiveSettingsResolver())->resolve($globalSettings,$chanceCore,$chanceNpc)['settings']['relationship']['update_chance_percent']===0,
+    'NPC disabled relationship system cannot be enabled by a nonzero chance');
+$check((new EffectiveSettingsResolver())->resolve($globalSettings,$chanceCore,[])['settings']['relationship']['update_chance_percent']===25,
+    'Removing the NPC chance restores its Core chance');
 try{EffectiveSettingsResolver::validateSettingsOverrides(['relationship'=>['update_chance_percent'=>101]]);
     $check(false,'relationship chance outside 0-100 rejected');}
 catch(InvalidArgumentException){$check(true,'relationship chance outside 0-100 rejected');}
