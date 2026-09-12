@@ -7,6 +7,9 @@ use LorkhanServer\Application\MorrowindCalendar;
 $pageTitle = 'Home';
 $topNavSection = 'home';
 require __DIR__ . '/ui_bootstrap.php';
+// Herika checks on Home visits with a ten-minute cooldown; the native worker does the expensive dump.
+try{(new \LorkhanServer\Infrastructure\ManagementRepository($database))->queueDatabaseBackup(true);}
+catch(Throwable){error_log('Lorkhan automatic backup scheduling unavailable.');}
 $dashboard = $uiRepository->dashboard();
 // Match the dashboard's readable dates and its UTC column label, regardless of database timezone.
 $dashboardTime = static function (mixed $value): string {

@@ -450,6 +450,12 @@ final class ManagementRouter
         }
         if($domain==='global-settings-preset')return $this->namedGlobalSettingsPreset($v,$scope);
         if($domain==='core-profile-preset')return $this->namedCoreProfilePreset($v,$scope);
+        if($domain==='database-backup-settings'){
+            $enabled=$v['enabled']??null;$max=isset($v['max_count'])?filter_var($v['max_count'],FILTER_VALIDATE_INT):null;
+            if(($enabled!==null&&!in_array($enabled,['0','1'],true))||$max===false||($enabled===null&&$max===null))throw new InvalidArgumentException('invalid_backup_settings');
+            $this->management->saveDatabaseBackupSettings($enabled===null?null:$enabled==='1',$max);
+            return $this->redirect($this->webRoot().'/ui/database_manager.php?'.http_build_query(['status'=>'backup-settings-saved','embed'=>($v['embed']??'')==='1'?'1':'0']));
+        }
         if($domain==='database-backup'){
             if(($v['confirm']??'')!=='Backup')throw new InvalidArgumentException('confirmation_mismatch');
             try{$this->management->queueDatabaseBackup();$status='backup-queued';}

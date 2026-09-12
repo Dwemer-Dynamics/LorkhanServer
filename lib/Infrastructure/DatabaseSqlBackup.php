@@ -22,7 +22,7 @@ final class DatabaseSqlBackup
     }
 
     /** Stream pg_dump to a private file while renewing the worker lease; never put credentials in argv. */
-    public function create(PDO $db, string $id, callable $heartbeat): void
+    public function create(PDO $db, string $id, callable $heartbeat, bool $automatic = false): void
     {
         $path=$this->path($id); $partial=$path.'.partial';
         try{$record=(new ProductRepository($db))->configurationBackupRecord($id);}
@@ -71,12 +71,33 @@ final class DatabaseSqlBackup
             if ($exit!==0 || !is_file($partial) || filesize($partial)<1) throw new RuntimeException('database_backup_failed');
             if (!rename($partial,$path)) throw new RuntimeException('backup_storage_unavailable');
             $statement=$db->prepare("INSERT INTO backup_records(backup_id,format_version,content_sha256,byte_count,scope,state) VALUES(:id,1,:sha,:bytes,CAST(:scope AS jsonb),'created')");
-            $statement->execute(['id'=>$id,'sha'=>hash_file('sha256',$path),'bytes'=>filesize($path),'scope'=>json_encode(['kind'=>'database_sql'])]);
+            $statement->execute(['id'=>$id,'sha'=>hash_file('sha256',$path),'bytes'=>filesize($path),'scope'=>json_encode(['kind'=>'database_sql','automatic'=>$automatic])]);
         } finally {
             if (is_resource($process)) {proc_terminate($process);proc_close($process);}
             foreach($pipes as $pipe)if(is_resource($pipe))fclose($pipe);
             if(is_resource($output))fclose($output);
             if(is_file($partial))unlink($partial);
+        }
+    }
+
+    /** Keep the newest automatic snapshots only after verifying the replacement; manual backups are never removed. */
+    public function pruneAutomatic(PDO $db,string $replacementId): void
+    {
+        $replacement=(new ProductRepository($db))->configurationBackupRecord($replacementId);
+        $path=$this->path($replacementId);
+        if(($replacement['scope']['automatic']??false)!==true || !is_file($path) || is_link($path)
+            ||filesize($path)!==(int)$replacement['byte_count']||!hash_equals($replacement['content_sha256'],hash_file('sha256',$path)))
+            throw new RuntimeException('backup_integrity_failed');
+        $settings=(new ManagementRepository($db))->databaseBackupSettings();
+        if(!$settings['enabled'])return;
+        $old=$db->query("SELECT backup_id FROM backup_records WHERE scope->>'kind'='database_sql' AND scope->>'automatic'='true' ORDER BY created_at DESC,backup_id DESC OFFSET ".$settings['max_count'])->fetchAll(PDO::FETCH_COLUMN);
+        foreach($old as $id){
+            if($id===$replacementId)continue;
+            $candidate=$this->path($id);
+            if(is_link($candidate))throw new RuntimeException('backup_integrity_failed');
+            if(is_file($candidate)&&!unlink($candidate))throw new RuntimeException('backup_retention_failed');
+            $delete=$db->prepare("DELETE FROM backup_records WHERE backup_id=:id AND scope->>'kind'='database_sql' AND scope->>'automatic'='true'");
+            $delete->execute(['id'=>$id]);
         }
     }
 }

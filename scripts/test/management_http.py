@@ -413,6 +413,57 @@ finally:
     subprocess.run(['dropdb',*pg_args,'lorkhan_sql_restore'],check=True,capture_output=True)
 assert sql_job['job_id']+'.sql' in request('/LorkhanServer/ui/database_manager.php').read().decode()
 
+# Automatic backups use Home's cooldown, preserve manual files, and prune only after replacement.
+auto_page,_=parse(request('/LorkhanServer/ui/database_manager.php'))
+auto_form=next(f for f in auto_page.forms if f['action'].endswith('/forms/database-backup-settings') and 'enabled' in f['fields'])
+auto_fields=dict(auto_form['fields'])
+assert auto_fields['enabled']=='1'
+rejected=request(auto_form['action'],'POST',dict(auto_fields,_csrf='invalid'))
+rejected_page,_=parse(request('/LorkhanServer/ui/database_manager.php'))
+assert next(f for f in rejected_page.forms if 'enabled' in f['fields'])['fields']['enabled']=='1'
+assert request(auto_form['action'],'POST',dict(auto_fields,max_count='11')).status==422
+assert request(auto_form['action'],'POST',dict(auto_fields,max_count='1')).status==200
+pg_test=['psql',*pg_args,'-d','lorkhan_management_http','-Atc']
+auto_ids=[]
+for index in range(2):
+    if index:
+        subprocess.run([*pg_test,"UPDATE lorkhan_internal.database_backup_settings SET last_queued_at=clock_timestamp()-interval '11 minutes'"],check=True,capture_output=True)
+    request('/LorkhanServer/ui/home.php').read()
+    auto_job=json.load(request(sql_status,accept='application/json'))['job']; assert auto_job['state']=='queued'
+    auto_ids.append(auto_job['job_id'])
+    request('/LorkhanServer/ui/home.php').read()
+    assert json.load(request(sql_status,accept='application/json'))['job']['job_id']==auto_ids[-1]
+    auto_args=list(sql_worker.args); auto_args[-1]=auto_ids[-1]
+    # The completed replay must retain the same automatic metadata.
+    auto_args[2]=auto_args[2].replace("['backup_id'=>$argv[3]]","['backup_id'=>$argv[3],'automatic'=>true]")
+    auto_worker=subprocess.run(auto_args,capture_output=True,text=True,timeout=60)
+    assert auto_worker.returncode==0 and json.loads(auto_worker.stdout)['succeeded']==1,(auto_worker.stdout,auto_worker.stderr)
+    request('/LorkhanServer/ui/home.php').read()
+    assert json.load(request(sql_status,accept='application/json'))['job']['job_id']==auto_ids[-1]
+assert auto_ids[0]!=auto_ids[1]
+assert request('/LorkhanServer/manage/exports/database/'+auto_ids[0]+'.sql').status==404
+assert request('/LorkhanServer/manage/exports/database/'+auto_ids[1]+'.sql').status==200
+assert request('/LorkhanServer/manage/exports/database/'+sql_job['job_id']+'.sql').status==200
+count=subprocess.run([*pg_test,"SELECT count(*) FROM lorkhan_internal.backup_records WHERE scope->>'automatic'='true'"],capture_output=True,text=True,check=True)
+assert int(count.stdout)==1
+
+# A failed replacement must leave the retained automatic and manual downloads intact.
+subprocess.run([*pg_test,"UPDATE lorkhan_internal.database_backup_settings SET last_queued_at=NULL"],check=True,capture_output=True)
+request('/LorkhanServer/ui/home.php').read()
+failed_id=json.load(request(sql_status,accept='application/json'))['job']['job_id']
+failed_args=list(auto_args);failed_args[-1]=failed_id
+failed_args[2]=failed_args[2].replace("$stats=$worker->run();", "$config['database_user']='missing_backup_role'; $worker=new LorkhanServer\\Application\\Worker(new LorkhanServer\\Infrastructure\\JobRepository($db),new LorkhanServer\\Application\\JobHandlerRegistry([new LorkhanServer\\Application\\DatabaseBackupJobHandler($db,$config)]),'failed-backup-http',30,1,1,1,60,['database.backup']); $stats=$worker->run();")
+failed_worker=subprocess.run(failed_args,capture_output=True,text=True,timeout=60)
+assert failed_worker.returncode==0 and json.loads(failed_worker.stdout)['dead']==1,(failed_worker.stdout,failed_worker.stderr)
+assert request('/LorkhanServer/manage/exports/database/'+auto_ids[-1]+'.sql').status==200
+assert request('/LorkhanServer/manage/exports/database/'+sql_job['job_id']+'.sql').status==200
+
+assert request(auto_form['action'],'POST',dict(auto_fields,enabled='0')).status==200
+subprocess.run([*pg_test,"UPDATE lorkhan_internal.database_backup_settings SET last_queued_at=NULL"],check=True,capture_output=True)
+request('/LorkhanServer/ui/home.php').read()
+assert json.load(request(sql_status,accept='application/json'))['job']['job_id']==failed_id
+
+
 studio,text=parse(request('/LorkhanServer/ui/core/voice_library.php')); assert studio.current==1 and 'Add WAV voice samples' in text and 'flat ZIP batch' in text and 'Voice Library' in text and 'Configured TTS Connectors' in text and 'Provider Voice Browser' in text and 'never contacts a provider automatically' in text
 for provider_tab,provider_label in [('xtts','XTTS'),('chatterbox','Chatterbox'),('pockettts','PocketTTS'),('omnivoice','OmniVoice'),('cartesia','Cartesia'),('inworld','Inworld')]:
     cache_html=request('/LorkhanServer/ui/core/voice_library.php?tab='+provider_tab).read().decode()

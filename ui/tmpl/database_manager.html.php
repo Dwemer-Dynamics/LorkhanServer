@@ -5,6 +5,7 @@
     </header>
     <?php if (($_GET['status']??'')==='saved'): ?><p class="database-notice" role="status">Database operation completed.</p><?php endif; ?>
     <?php $maintenanceMessages=[
+        'backup-settings-saved'=>'Automatic backup settings saved. Older automatic backups are removed only after the next successful automatic backup.',
         'backup-queued'=>'Full SQL backup queued. Reload the backup list after the worker completes.',
         'maintenance-queued'=>'Database maintenance queued. The worker will process it; status is shown below.',
         'maintenance-completed'=>'Database maintenance completed: Lorkhan application tables compacted and analysed.',
@@ -16,7 +17,7 @@
     <section class="message" id="sql-backups" aria-labelledby="sql-backup-heading">
         <h2 id="sql-backup-heading">Full Database Backups</h2>
         <p>Create a consistent SQL snapshot of this Lorkhan PostgreSQL database, including NPCs, events, history and configuration. External audio, voice files, game saves and private server credential files are not included. Keep downloaded backups private.</p>
-        <p>The background job has a 10-minute limit, 1 GiB per backup and 4 GiB of SQL backup storage. No existing backup is deleted automatically.</p>
+        <p>The background job has a 10-minute limit, 1 GiB per backup and 4 GiB of SQL backup storage. Manual backups are never deleted automatically.</p>
         <p role="status" data-database-maintenance data-kind="backup" data-download-base="<?= lorkhan_ui_h($managementBasePath) ?>/exports/database/" data-endpoint="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/database-backup" data-state="<?= lorkhan_ui_h($sqlBackupJob['state']??'') ?>">Latest SQL backup: <?= lorkhan_ui_h($sqlBackupJob['state']??'none') ?>.</p>
         <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/database-backup">
             <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>">
@@ -28,7 +29,7 @@
         <div class="server-file-list">
         <?php foreach($sqlBackups as $backup): ?><div class="backup-file-row"><div class="server-file-option"><div class="server-file-card"><div class="server-file-card-header"><div class="backup-details">
             <div class="backup-filename"><?= lorkhan_ui_h($backup['backup_id']) ?>.sql</div>
-            <div class="backup-badges"><span class="backup-scope-badge">LorkhanServer database</span></div>
+            <div class="backup-badges"><span class="backup-scope-badge">LorkhanServer database · <?= ($backup['automatic']??'')==='true'?'Automatic':'Manual' ?></span></div>
             <div class="backup-meta"><span><?= lorkhan_ui_table_value($backup['byte_count'],'bytes') ?></span><span>Created <?= lorkhan_ui_h($backup['created_utc']) ?> UTC</span><span><?= lorkhan_ui_h($backup['state']) ?></span></div>
         </div></div></div></div><a class="backup-download" href="<?= lorkhan_ui_h($managementBasePath.'/exports/database/'.$backup['backup_id'].'.sql') ?>" aria-label="Download SQL backup <?= lorkhan_ui_h($backup['backup_id']) ?>">Download SQL</a></div><?php endforeach; ?>
         </div><?php endif; ?>
@@ -36,6 +37,27 @@
         <a class="button" href="<?= lorkhan_ui_h($sqlPageUrl($sqlPage)) ?>">Refresh backup list</a>
     </section>
     <div class="manager-sections">
+        <section class="message" id="automatic-backups" aria-labelledby="automatic-backup-heading">
+            <h2 id="automatic-backup-heading">🤖 Automatic Backup System</h2>
+            <p>Checks when Home is opened, with a 10-minute cooldown. SQL snapshots run in the background worker. Keeps the newest automatic backups up to the selected limit, removing older automatic copies only after a successful replacement.</p>
+            <div class="stats-grid">
+                <div class="stat-tile"><h3>Status</h3><form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/database-backup-settings">
+                <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>">
+                <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+                <input type="hidden" name="enabled" value="<?= $automaticBackupSettings['enabled']?'0':'1' ?>">
+                <button type="submit" class="button automatic-backup-toggle <?= $automaticBackupSettings['enabled']?'is-enabled':'is-disabled' ?>" aria-label="<?= $automaticBackupSettings['enabled']?'Disable':'Enable' ?> automatic backups"><?= $automaticBackupSettings['enabled']?'✅ On':'❌ Off' ?></button>
+                </form></div>
+                    <div class="stat-tile"><h3><label for="automatic-backup-max">Available</label></h3>
+                        <form method="post" class="automatic-backup-count" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/database-backup-settings">
+                        <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>">
+                        <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+                        <span><?= (int)$automaticBackupStats['count'] ?> / </span><select id="automatic-backup-max" name="max_count" data-backup-auto-submit><?php for($i=1;$i<=10;$i++): ?><option value="<?= $i ?>"<?= $i===$automaticBackupSettings['max_count']?' selected':'' ?>><?= $i ?></option><?php endfor; ?></select>
+                        <noscript><button class="button" type="submit">Save</button></noscript></form>
+                    </div>
+                    <div class="stat-tile"><h3>Total Size</h3><p class="stat-value"><?= lorkhan_ui_table_value($automaticBackupStats['bytes'],'bytes') ?></p></div>
+                </div>
+            <p>Backups appear in Full Database Backups above. If backup storage is full, older copies remain intact and the new job fails. Disabling stops new automatic backups and prevents queued automatic work from starting.</p>
+        </section>
         <section class="manager-section grid-container tools-grid" aria-label="Database tools">
             <article class="card-tile">
                 <div class="card-content"><h2>🔧 Database Maintenance</h2>

@@ -434,6 +434,11 @@ body.database-manager-shell .database-manager-page fieldset.server-file-list { p
 .database-manager-page .version-table-container { overflow:auto; }
 .database-manager-page .version-table-container:focus-visible { outline:2px solid #bc9d5a; outline-offset:2px; }
 .database-manager-page .database-notice { padding:12px; border:1px solid #176529; border-radius:8px; }
+.database-manager-page .automatic-backup-count { display:flex; gap:6px; justify-content:center; align-items:center; }
+.database-manager-page .automatic-backup-count select { width:auto; }
+body.database-manager-shell .database-manager-page .automatic-backup-toggle { padding:6px 12px !important; font-size:14px !important; color:#fff; }
+body.database-manager-shell .database-manager-page .automatic-backup-toggle.is-enabled { background:#176529 !important; }
+body.database-manager-shell .database-manager-page .automatic-backup-toggle.is-disabled { background:#6c757d !important; }
 @media(max-width:768px) {
     main.database-manager-page { padding-left:12px; padding-right:12px; }
     .database-manager-page .tools-grid,.database-manager-page .restore-fields { grid-template-columns:1fr; }

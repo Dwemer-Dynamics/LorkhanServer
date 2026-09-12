@@ -1,5 +1,6 @@
 /* Follow the explicit maintenance request without keeping its POST connection open. */
 (() => {
+    document.querySelectorAll('[data-backup-auto-submit]').forEach(select => select.addEventListener('change', () => select.form.requestSubmit()));
     document.querySelectorAll('[data-database-maintenance]').forEach(status => {
     const backup = status.dataset.kind === 'backup';
     const labels = {queued:'Queued. Waiting for a maintenance-capable worker.', leased:'Running database maintenance. Tables may be locked.',
