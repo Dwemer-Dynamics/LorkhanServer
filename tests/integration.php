@@ -697,7 +697,7 @@ $assert(($inheritedContext['configuration_id']??null)===$coreModelSlot['configur
     &&($effectiveControls['effective_settings']['settings']['memory']['knowledge_limit']??null)===5
     &&($effectiveControls['effective_settings']['settings']['behavior']['rechat']??null)===true
     &&($effectiveControls['effective_settings']['settings']['behavior']['rechat_probability_percent']??null)===0
-    &&($effectiveControls['effective_settings']['settings']['behavior']['open_rechat']??null)===true
+    &&($effectiveControls['effective_settings']['settings']['behavior']['open_rechat']??null)===false
     &&!array_key_exists('settings.memory.knowledge_limit',$effectiveControls['effective_settings']['source_map']??[]),
     'Core Profile response routing and explicit profile settings did not reach runtime resolution');
 $coreContent=$coreProfile['content'];$coreContent['settings_overrides']['behavior']=['rechat'=>true];
@@ -2639,6 +2639,15 @@ $products->revise('core_profile',$modeOwner['core_profile_id'],$modeContent,'Cor
 $modeProbe=$rechatCoordinator->resolve($eligibleProbe);
 $assert($modeProbe['payload']['context']['rechat']['configured_mode']==='group'
     &&$modeProbe['payload']['context']['rechat']['mode']==='group','Rechat coordinator ignored initiating Core mode');
+$modeContent['settings_overrides']['behavior']['open_rechat']=false;
+$modeContent['settings_overrides']['behavior']['rechat_strict_targeting']=true;
+$products->revise('core_profile',$modeOwner['core_profile_id'],$modeContent,'Core Rechat participation fixture',$now);
+$tightProbe=$eligibleProbe;$tightProbe['payload']['context']['rechat']['listener_hint']=$thirdTarget;
+$tightResolved=$rechatCoordinator->resolve($tightProbe);
+$assert($tightResolved['payload']['context']['rechat']['mode']==='tight'
+    &&$tightResolved['payload']['target']===$thirdTarget
+    &&$tightResolved['payload']['context']['rechat']['strict_targeting']===true,
+    'Core Open Rechat or strict responder setting did not reach chain selection');
 $db->rollBack();
 $assert($eligibleResolved['payload']['target']===$thirdTarget
     &&$eligibleResolved['payload']['audience']===[$speakerIdentity,$secondaryTarget,$thirdTarget]

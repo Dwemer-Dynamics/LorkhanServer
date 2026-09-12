@@ -15,6 +15,7 @@ $overrideLabels = [
     'diary.context_turn_limit'=>'Context History Diary Event Count',
     'profile_evolution.history_limit'=>'Context History Dynamic Profile Event Count',
     'behavior.rechat_mode'=>'Rechat Mode', 'relationship.enabled'=>'Relationship System Enabled',
+    'behavior.rechat_strict_targeting'=>'Strict Rechat Targeting','behavior.open_rechat'=>'Open Rechat',
     'relationship.update_chance_percent'=>'Relationship Update Chance',
     'context.prompt_timestamp'=>'Prompt Timestamp', 'context.ground_items_descriptions_only'=>'Ground Items Descriptions Only',
     'context.inventory_items_descriptions_only'=>'Inventory Items Descriptions Only', 'context.power_awareness_enabled'=>'Power Awareness Enabled',
@@ -24,6 +25,8 @@ $overrideLabels = [
     'oghma.enabled'=>'Enable Oghma', 'oghma.result_limit'=>'Oghma Result Limit', 'oghma.racial_context_enabled'=>'Force Racial Oghma',
 ];
 $help=[
+            'behavior.rechat_strict_targeting'=>'Require this responder to address the previous speaker directly. Captured when the chain starts.',
+            'behavior.open_rechat'=>'Allow nearby participants in new chains started by this NPC. Off keeps new chains listener-only; existing chains retain their mode.',
             'relationship.update_chance_percent'=>'Percent chance that an eligible completed response queues a relationship update (0–100). Zero stops automatic updates; saved relationships remain in context. Relationship System must be enabled.',
             'response.core_lang'=>'Language of built-in roleplay instructions. Blank uses English; custom prompts and output translation are unchanged.',
             'response.lang_llm_xtts'=>'Ask the LLM for the spoken language and use it for XTTS/Chatterbox. Missing or unsupported codes keep the configured voice language.',

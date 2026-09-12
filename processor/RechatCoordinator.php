@@ -54,10 +54,11 @@ final class RechatCoordinator
             is_array($global['content'] ?? null) ? $global['content'] : SettingsCatalog::globalDefaults());
         $behavior = $globalSettings['client']['behavior'];
         if ($existing === null) {
-            // The initiating speaker's effective profile chooses the mode once; existing chains keep their snapshot.
+            // The initiating speaker chooses scene participation once; existing chains keep their snapshot.
             $initiator = $this->products->effectiveSettingsForActor((string)$message['installation_id'],
                 (string)$message['playthrough_id'], $previousSpeaker);
             $behavior['rechat_mode'] = $initiator['settings']['behavior']['rechat_mode'] ?? $behavior['rechat_mode'];
+            $behavior['open_rechat'] = $initiator['settings']['behavior']['open_rechat'] ?? $behavior['open_rechat'];
         }
         $configuredMode = (string) ($existing['configured_mode'] ?? $behavior['rechat_mode'] ?? 'random');
         if (!in_array($configuredMode, ['tight', 'conversational', 'group', 'random'], true)) {
