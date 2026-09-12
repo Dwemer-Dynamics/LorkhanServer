@@ -12340,3 +12340,20 @@ inspection. Desktop/narrow viewer interaction checks still pass.
 Open import interaction: Herika selects the first imported connector. The native
 batch currently returns to its connector list. This is not closed by CSV format
 support and should be the next connector adjustment. Full page parity remains open.
+
+## LLM import selects first connector (2026-09-12)
+
+Closed the import-return gap above: JSON-aware provider imports now return the
+persisted configuration UUID using the existing TTS receipt format. The batch
+opens its first confirmed imported connector, preserving installation/embed query
+scope. HTML submissions retain their previous redirect. Failed or unreadable
+receipts never trigger an automatic retry or falsely claim no import occurred.
+
+Focused isolated HTTP proof (llm-import-receipt-probe.txt) covers JSON/CSV persisted
+IDs, exact saved exports, duplicate naming, malformed input, CSRF rejection and
+HTML fallback. It uses the existing migration/server fixture without unrelated
+factory-reset or game/provider work. Desktop/narrow deployed browser checks in
+llm-import-first-review.cjs verify mixed two-file batches, first-editor selection,
+embedded scope and partial-failure draft/confirmed-count retention; writes mocked.
+This follow-up changes response presentation and client navigation, not the
+validated CSV persistence tested in the preceding full HTTP run.

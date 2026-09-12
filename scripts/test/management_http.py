@@ -2597,6 +2597,11 @@ body=r.read().decode(); assert r.status==200,(r.status,body)
 csv_id=connector_editor_id(body,direct_name+' 2')
 csv_export=json.load(request('/LorkhanServer/manage/exports/providers/'+csv_id+'.json'))
 assert csv_export['content']==direct_export['content'],csv_export
+csv_receipt_response=request('/LorkhanServer/manage/forms/provider-import','POST',{'_csrf':csrf,'installation_id':valid['installation_id'],'provider_csv':llm_csv},accept='application/json')
+csv_receipt=json.load(csv_receipt_response)
+assert csv_receipt_response.status==200 and csv_receipt['ok'] is True
+assert json.load(request('/LorkhanServer/manage/exports/providers/'+csv_receipt['configuration_id']+'.json'))['content']==direct_export['content']
+
 r=multipart_request('/LorkhanServer/manage/forms/provider-import',{'_csrf':csrf,'installation_id':valid['installation_id'],'provider_csv':'bad csv'})
 assert r.status==422,(r.status,r.read().decode())
 direct_export['name']=direct_name+' portable'; direct_export['content']['credential']='custom'

@@ -89,6 +89,7 @@
             importStatus.hidden = false;
             importStatus.setAttribute('role', 'status');
             let completed = 0;
+            let firstId = '';
             let current = '';
             try {
                 if (files.length > 20 || files.some(file => file.size > 1048576)) {
@@ -115,24 +116,25 @@
                     // No automatic retry: a lost response may follow an already committed import.
                     const controller = new AbortController();
                     const timer = setTimeout(() => controller.abort(), 30000);
-                    let response;
+                    let response, result;
                     try {
-                        response = await fetch(importForm.action, {method:'POST', body, credentials:'same-origin', referrerPolicy:'same-origin', signal:controller.signal});
+                        response = await fetch(importForm.action, {method:'POST', body, credentials:'same-origin', headers:{Accept:'application/json'}, referrerPolicy:'same-origin', signal:controller.signal});
+                        result = await response.json();
                     } finally { clearTimeout(timer); }
                     if (!response.ok) throw new Error('The server rejected this connector (HTTP ' + response.status + '). Check its format and settings.');
-                    const receipt = new URL(response.url);
-                    if (!response.redirected || receipt.origin !== window.location.origin
-                        || !receipt.pathname.endsWith('/ui/core/llm_connectors.php') || receipt.searchParams.get('status') !== 'saved') {
+                    if (result.ok !== true || !/^[0-9a-f-]{36}$/.test(result.configuration_id || '')) {
                         throw new Error('The server did not confirm the import. Reload to check the connector list before retrying.');
                     }
+                    if (!firstId) firstId = result.configuration_id;
                     completed++;
                 }
                 const destination = new URL(importOpener.href);
                 destination.searchParams.delete('import');
                 destination.searchParams.set('imported', String(completed));
+                destination.searchParams.set('edit', firstId);
                 window.location.assign(destination.href);
             } catch (error) {
-                const detail = error instanceof SyntaxError ? 'Invalid JSON; no files were imported.'
+                const detail = error instanceof SyntaxError ? 'Invalid JSON or an unreadable server response. Reload to check the connector list before retrying.'
                     : error instanceof TypeError || error.name === 'AbortError' ? 'The file could not be read or the server response was lost. Reload before retrying.'
                     : error.message || 'Import failed.';
                 importStatus.textContent = (current ? current + ': ' : '') + detail

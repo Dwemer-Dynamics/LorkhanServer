@@ -795,7 +795,7 @@ final class ManagementRouter
         if($domain==='profile-import-to')return Response::json(200,['ok'=>true,'profile_id'=>$result['profile_id'],'revision'=>$result['current_revision']]);
         if($domain==='profile-rollback'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true,'profile_id'=>$result['profile_id'],'revision'=>$result['current_revision']]);
         if($domain==='provider-revise'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]);
-        if($domain==='connector-import'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true,'configuration_id'=>$result['configuration_id']]);
+        if(in_array($domain,['connector-import','provider-import'],true)&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true,'configuration_id'=>$result['configuration_id']]);
         if($domain==='core-profile-import'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true,
             'core_profile_id'=>$result['core_profile_id'],'created_connectors'=>$result['created_connectors'],
             'reused_connectors'=>$result['reused_connectors'],'migrated_npcs'=>$result['migrated_npcs']]);
@@ -3253,7 +3253,7 @@ final class ManagementRouter
         &&!(str_ends_with($r->path,'/forms/profile-rollback')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/profile-import-to')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/core-profile-import')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
-        &&!(str_ends_with($r->path,'/forms/connector-import')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
+        &&!((str_ends_with($r->path,'/forms/connector-import')||str_ends_with($r->path,'/forms/provider-import'))&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/provider-revise')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/provider-test')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/relationship-preview')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
