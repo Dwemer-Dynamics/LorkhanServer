@@ -12106,4 +12106,54 @@ Evidence:
   credentials and voice file hashes were preserved. Workflow 330702270 remains
   `disabled_manually`.
 
-The Core Profile sidebar import modal and other matrix gaps remain unfinished.
+The Core Profile sidebar import modal was unfinished at that checkpoint; see the following connected import/export evidence. Other matrix gaps remain open.
+
+## Core Profile import dialog and connected export (2026-09-12)
+
+The sidebar now opens the reference Import Profile dialog rather than replacing
+its editor with a settings-only textarea. The dialog follows the Herika header,
+help card, file picker, assignment options, preview and action row. Computed
+shared styles were compared as well as the inline modal CSS: the reference adds
+30px outer padding, a 14px radius and 12px/18px help typography. Lorkhan keeps gold.
+
+The native bundle includes the saved Core content and all explicitly referenced
+prompt/LLM/TTS configurations. Source UUIDs are graph references, not destination
+ownership. Matching local connector settings and labels reuse the local record;
+new configurations receive new IDs and no foreign credential assignment. This
+is stricter than matching only a Herika label and driver. Optional default, old
+default NPC reassignment (including unassigned NPCs) and slot displacement happen
+inside the import transaction. Excluded ITT is not introduced. This is a Lorkhan
+bundle format, not arbitrary Herika JSON interoperability. The legacy settings
+preset endpoint and direct import page remain available for older exports.
+
+Evidence for this workflow and shared embedded-font correction:
+
+- PHP lint, JavaScript syntax, 1083 server checks and 111 protocol files pass.
+- Full isolated HTTP suite passes in `core-bundle-http-final.txt`. It covers
+  native bundle round trip, reused/new connectors, foreign-ID remapping, optional
+  assignment requests, occupied slot import and invalid-file/CSRF rejection.
+  The first run stopped on obsolete settings-only sidebar wording; that assertion
+  was corrected to the full-profile UI. The temporary HTTP timeout is 30 seconds.
+- `core-import-review.cjs` passes at 1280/390 against isolated rendered pages.
+  `core-import-deployed-review.cjs` repeats it against the local deployment and
+  adds successful embedded return navigation. Checks include initial defaults,
+  invalid JSON, escaped preview, failed submission, cancel, reset and Escape.
+  Browser writes are mocked; server persistence is covered by the HTTP suite.
+- Reference/native narrow and desktop screenshots were inspected. In addition to
+  the dialog geometry, an embedded-only font mismatch was traced to navbar.css:
+  its 700-weight normal font declaration suppressed the synthetic bold used by
+  the reference. The shared head now loads that stylesheet only for standalone
+  pages, like Herika. Standalone navbar appearance is unchanged.
+- All fifteen configuration entry pages render at 1280/390 without a navbar
+  stylesheet or unwanted body top offset in `embedded-font-review.cjs`; the
+  deployed rerun is tracked separately. These checks are for the shared change,
+  not a fresh claim that every page's content or runtime feature is complete.
+- Full local deployment completed, rollback
+  `/var/backups/lorkhanserver-code.axjUEo`. All 864 runtime files match source,
+  with no extras or old paths. Private paths are 403, unauthenticated session
+  access is 401, existing/missing NPC pages are 200/404. Configuration,
+  credentials and voice file hashes were preserved. No game or paid provider
+  was invoked. Workflow 330702270 remains disabled_manually.
+
+The complete webpage goal remains active; other matrix gaps are not closed by
+this import/export and shared typography checkpoint.

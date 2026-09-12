@@ -578,6 +578,36 @@ final class ProductRepository
         return $row;
     }
 
+    /** Prepare optional import assignments under the caller's transaction without changing any profile content. */
+    public function prepareCoreProfileImport(string $installation,string $name,?int $slot,string $now):array
+    {
+        $this->db->prepare('SELECT installation_id FROM installations WHERE installation_id=:id FOR UPDATE')->execute(['id'=>$installation]);
+        $previous=$this->defaultCoreProfileForInstallation($installation,$now,true);
+        $query=$this->db->prepare('SELECT label FROM core_profiles WHERE installation_id=:installation AND deleted_at IS NULL');
+        $query->execute(['installation'=>$installation]);$used=[];
+        foreach($query->fetchAll(PDO::FETCH_COLUMN) as $label)$used[mb_strtolower(trim($label))]=true;
+        $label=$name;
+        for($index=2;isset($used[mb_strtolower($label)])&&$index<5000;$index++){
+            $suffix=' '.$index;$label=mb_strcut($name,0,128-strlen($suffix),'UTF-8').$suffix;
+        }
+        if(isset($used[mb_strtolower($label)]))throw new RuntimeException('core_profile_import_name_unavailable');
+        if($slot!==null)$this->db->prepare('UPDATE core_profiles SET slot=NULL WHERE installation_id=:installation AND slot=:slot AND deleted_at IS NULL')
+            ->execute(['installation'=>$installation,'slot'=>$slot]);
+        return['name'=>$label,'previous_default'=>$previous['core_profile_id']];
+    }
+
+    /** Reuse an owned connector only when its settings match; a label alone must not silently replace imported settings. */
+    public function matchingBundleConfiguration(string $installation,string $kind,string $name,array $content):?string
+    {
+        $query=$this->db->prepare('SELECT c.configuration_id,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.installation_id=:installation AND c.kind=:kind AND c.name=:name AND c.deleted_at IS NULL ORDER BY c.created_at,c.configuration_id');
+        $query->execute(['installation'=>$installation,'kind'=>$kind,'name'=>$name]);
+        foreach($query->fetchAll() as $row){
+            $existing=\LorkhanServer\Application\CoreProfileBundle::portableConfiguration($kind,$this->json($row['content']));
+            if($existing==$content)return(string)$row['configuration_id'];
+        }
+        return null;
+    }
+
     /** Name a copied TTS connector without colliding with entries beyond the first UI page. */
     public function importedTtsConnectorName(string $installationId,string $base):string
     {
@@ -1351,17 +1381,17 @@ final class ProductRepository
     }
 
     /** Reassign NPC Core Profiles without moving identities, actor bindings or per-NPC overrides. */
-    public function bulkSwitchNpcCoreProfiles(string $installationId,string $sourceProfileId,string $targetProfileId,bool $includeLocked):array
+    public function bulkSwitchNpcCoreProfiles(string $installationId,string $sourceProfileId,string $targetProfileId,bool $includeLocked,bool $includeUnassigned=false):array
     {
         if(hash_equals($sourceProfileId,$targetProfileId))throw new \InvalidArgumentException('profiles_must_differ');
-        return$this->transaction(function()use($installationId,$sourceProfileId,$targetProfileId,$includeLocked):array{
+        return$this->transaction(function()use($installationId,$sourceProfileId,$targetProfileId,$includeLocked,$includeUnassigned):array{
             $cores=$this->db->prepare('SELECT core_profile_id FROM core_profiles WHERE installation_id=:installation '
                 .'AND core_profile_id IN(:source,:target) AND deleted_at IS NULL ORDER BY core_profile_id FOR SHARE');
             $cores->execute(['installation'=>$installationId,'source'=>$sourceProfileId,'target'=>$targetProfileId]);
             if(count($cores->fetchAll())!==2)throw new \InvalidArgumentException('core_profile_scope_mismatch');
             $select=$this->db->prepare("SELECT p.profile_id,r.content FROM profiles p JOIN profile_revisions r "
                 ."ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation "
-                ."AND p.core_profile_id=:source AND p.deleted_at IS NULL "
+                ."AND (p.core_profile_id=:source".($includeUnassigned?' OR p.core_profile_id IS NULL':'').") AND p.deleted_at IS NULL "
                 ."AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator','template') "
                 ."ORDER BY p.profile_id FOR UPDATE OF p");
             $select->execute(['installation'=>$installationId,'source'=>$sourceProfileId]);$rows=$select->fetchAll();

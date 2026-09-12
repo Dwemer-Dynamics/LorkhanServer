@@ -105,6 +105,7 @@ final class ManagementRouter
             }
             if($r->method==='GET'&&preg_match('#^/exports/profiles/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProfile($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/core-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportCoreProfileSettings($m[1]);
+            if($r->method==='GET'&&preg_match('#^/exports/core-profiles/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportCoreProfileBundle($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/player-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportSpecialProfileSettings($m[1],'player');
             if($r->method==='GET'&&preg_match('#^/exports/narrator-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportSpecialProfileSettings($m[1],'narrator');
             if($r->method==='GET'&&preg_match('#^/exports/global-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportGlobalSettings($m[1]);
@@ -702,6 +703,7 @@ final class ManagementRouter
             'profile-import'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id']]+$this->profileImportDocument($v)),
             'profile-clone'=>$this->cloneProfile($v),
             'core-profile-create'=>$this->createCoreProfile($v,$scope),
+            'core-profile-import'=>$this->importCoreProfileBundle($v,$scope),
             'core-profile-clone'=>$this->cloneCoreProfile($v),
             'core-profile-settings-import'=>$this->importCoreProfileSettings($v,$scope),
             'core-profile-save'=>$this->saveCoreProfile($v),
@@ -789,6 +791,9 @@ final class ManagementRouter
         if($domain==='profile-bulk-switch'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]+$result);
         if($domain==='provider-revise'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]);
         if($domain==='connector-import'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true,'configuration_id'=>$result['configuration_id']]);
+        if($domain==='core-profile-import'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true,
+            'core_profile_id'=>$result['core_profile_id'],'created_connectors'=>$result['created_connectors'],
+            'reused_connectors'=>$result['reused_connectors'],'migrated_npcs'=>$result['migrated_npcs']]);
         if(in_array($domain,['narrator-profile-settings-import','player-profile-settings-import','global-settings-import'],true)&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]);
         if($domain==='configuration-revise'&&($v['prompt_text_editor']??'')==='1'&&!$this->htmlRequest($r))
             return Response::json(200,['ok'=>true,'revision'=>(int)$result['current_revision']]);
@@ -820,9 +825,9 @@ final class ManagementRouter
             $batch=$this->jsonField($v,'npc_relationship_edits');
             return$this->redirect($this->relationshipPageLocation(array_replace($v,['relationship_page'=>'npc','playthrough_id'=>$batch['playthrough_id']]),'npc_relationships_saved'));
         }
-        if(in_array($domain,['core-profile-create','core-profile-save','core-profile-revise','core-profile-clone','core-profile-settings-import','core-profile-default','core-profile-rollback','core-profile-delete'],true)){
+        if(in_array($domain,['core-profile-create','core-profile-import','core-profile-save','core-profile-revise','core-profile-clone','core-profile-settings-import','core-profile-default','core-profile-rollback','core-profile-delete'],true)){
             $query=['installation_id'=>(string)($coreReturnProfile['installation_id']??$result['installation_id']??$scope['installation_id']),
-                'status'=>match($domain){'core-profile-clone'=>'cloned','core-profile-settings-import'=>'imported',default=>'saved'}];
+                'status'=>match($domain){'core-profile-clone'=>'cloned','core-profile-import','core-profile-settings-import'=>'imported',default=>'saved'}];
             if($domain!=='core-profile-delete')$query['edit']=(string)($result['core_profile_id']??$coreReturnProfile['core_profile_id']);
             if(($v['embed']??'')==='1')$query['embed']='1';
             return$this->redirect($this->uiPath('profiles').'?'.http_build_query($query));
@@ -1386,7 +1391,60 @@ final class ManagementRouter
         ],false);
     }
 
-    /** Download only the validated settings overrides from one Core Profile. */
+    /** Export the complete saved Core Profile and its connector graph without transferable credentials or assignments. */
+    private function exportCoreProfileBundle(string $coreProfileId):Response
+    {
+        $this->uuid($coreProfileId,'core_profile_id');$row=$this->repository->getRevisioned('core_profile',$coreProfileId);
+        $profile=EffectiveSettingsResolver::validateCoreProfile($row['content']);$connectors=[];
+        foreach($profile['routing'] as $field=>$id){
+            if(!is_string($id)||$id===''||isset($connectors[$id]))continue;
+            $kind=\LorkhanServer\Application\CoreProfileBundle::configurationKind($field);
+            if($this->repository->resourceKind($id)!==$kind)throw new RuntimeException('core_profile_bundle_connector_mismatch');
+            $connector=$this->repository->getRevisioned($kind,$id);
+            if($connector['installation_id']!==$row['installation_id'])throw new RuntimeException('core_profile_bundle_scope_mismatch');
+            $connectors[$id]=['kind'=>$kind,'name'=>$connector['name'],'content'=>$connector['content']];
+        }
+        $document=['schema'=>\LorkhanServer\Application\CoreProfileBundle::SCHEMA,'exported_at'=>gmdate('c'),
+            'name'=>$row['name'],'profile'=>$profile,'connectors'=>$connectors];
+        if($this->containsSecretKey($document))throw new RuntimeException('core_profile_bundle_export_rejected');
+        $document=\LorkhanServer\Application\CoreProfileBundle::validate($document);
+        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.') ?: 'lorkhan-core-profile';
+        return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
+            ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'.json"','X-Content-Type-Options'=>'nosniff']);
+    }
+
+    /** Import the connected graph and optional assignments atomically; any failed dependency rolls the whole import back. */
+    private function importCoreProfileBundle(array $values,array $scope):array
+    {
+        $document=$this->jsonField($values,'profile_json');
+        if($this->containsSecretKey($document))throw new InvalidArgumentException('invalid_core_profile_bundle');
+        $document=\LorkhanServer\Application\CoreProfileBundle::validate($document);
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        foreach(['make_default_npc','migrate_old_default_npcs'] as $field)
+            if(isset($values[$field])&&!in_array($values[$field],['0','1'],true))throw new InvalidArgumentException('invalid_core_profile_import_options');
+        $makeDefault=($values['make_default_npc']??'0')==='1';$migrate=($values['migrate_old_default_npcs']??'0')==='1';
+        $raw=trim((string)($values['assign_slot']??''));$slot=$raw===''?null:filter_var($raw,FILTER_VALIDATE_INT);
+        if($slot===false||($slot!==null&&($slot<1||$slot>4)))throw new InvalidArgumentException('invalid_core_profile_slot');
+        return$this->repository->transaction(function()use($document,$installation,$makeDefault,$migrate,$slot):array{
+            $prepared=$this->repository->prepareCoreProfileImport($installation,trim($document['name']),$slot,gmdate('c'));
+            $mapped=[];$created=0;$reused=0;
+            foreach($document['connectors'] as $source=>$connector){
+                $id=$this->repository->matchingBundleConfiguration($installation,$connector['kind'],$connector['name'],$connector['content']);
+                if($id===null){
+                    $new=$this->service->createRevisioned($connector['kind'],['installation_id'=>$installation,'name'=>$connector['name'],'content'=>$connector['content']]);
+                    $id=$new['configuration_id'];$created++;
+                }else $reused++;
+                $mapped[$source]=$id;
+            }
+            $content=$document['profile'];
+            foreach($content['routing'] as $field=>$source)if(is_string($source)&&$source!=='')$content['routing'][$field]=$mapped[$source];
+            $profile=$this->service->createRevisioned('core_profile',['installation_id'=>$installation,'name'=>$prepared['name'],
+                'content'=>$content,'default_npc'=>$makeDefault,'slot'=>$slot],false);
+            $migrated=$migrate?$this->repository->bulkSwitchNpcCoreProfiles($installation,$prepared['previous_default'],$profile['core_profile_id'],true,true)['updated']:0;
+            return$profile+['created_connectors'=>$created,'reused_connectors'=>$reused,'migrated_npcs'=>$migrated];
+        });
+    }
+
     private function exportCoreProfileSettings(string $coreProfileId):Response
     {
         $this->uuid($coreProfileId,'core_profile_id');$row=$this->repository->getRevisioned('core_profile',$coreProfileId);
@@ -3133,6 +3191,7 @@ final class ManagementRouter
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/')
+        &&!(str_ends_with($r->path,'/forms/core-profile-import')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/connector-import')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/provider-revise')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/provider-test')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))

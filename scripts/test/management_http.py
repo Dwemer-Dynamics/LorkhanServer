@@ -2030,8 +2030,8 @@ r=request(revise['action'],'POST',values,accept='application/json'); assert r.st
 r=request(revise['action'],'POST',dict(values,model=''),accept='application/json'); assert r.status==422 and 'error' in json.load(r)
 core_list,core_body=parse(request('/LorkhanServer/ui/core/core_profiles.php'))
 core_edit=re.search(r'core_profiles\.php\?edit=([0-9a-f-]{36})',core_body); assert core_edit,core_body
-assert '/exports/core-profile-settings/'+core_edit.group(1)+'.json' in core_body and '>Import</a>' in core_body
-assert 'settings overrides only' in core_body
+assert '/exports/core-profiles/'+core_edit.group(1)+'.json' in core_body and '>Import</a>' in core_body
+assert 'Import Assignment Options' in core_body and 'profile, prompt and connector routing' in core_body
 assert 'id="profile-rules-open"' in core_body and 'id="profile-connector-test-open"' in core_body
 core_import_page,core_import_body=parse(request('/LorkhanServer/ui/core/core_profiles.php?import=1&embed=1'))
 core_import_form=next(f for f in core_import_page.forms if f['action'].endswith('/forms/core-profile-settings-import'))
@@ -3789,5 +3789,42 @@ assert json.load(request(factory_status,accept='application/json'))['job']['job_
 for maintenance_path,fields in [('/forms/database-maintenance',{'confirm':'Maintenance'}),('/forms/database-backup',{'confirm':'Backup'}),('/forms/database-replay',replay_fields),('/forms/database-restore',{'confirm':'Restore SQL','backup_id':replay_restore_target})]:
     assert 'maintenance-busy' in request('/LorkhanServer/manage'+maintenance_path,'POST',dict(fields,_csrf=factory_fields['_csrf'])).geturl()
 subprocess.run([*pg_test,"UPDATE lorkhan_internal.durable_jobs SET state='dead',completed_at=clock_timestamp() WHERE job_type='database.factory_reset' AND state='queued'"],check=True,capture_output=True)
+
+# Full native Core bundle exports and imports are atomic, scoped and credential-free.
+bundle_page,bundle_html=parse(request('/LorkhanServer/ui/core/core_profiles.php?installation_id='+valid['installation_id']+'&embed=1'))
+bundle_form=next(f for f in bundle_page.forms if f['action'].endswith('/forms/core-profile-import'))
+bundle_link=re.search(r'/exports/core-profiles/([0-9a-f-]{36})\.json',bundle_html)
+assert bundle_link and 'Import Assignment Options' in bundle_html
+bundle=json.load(request('/LorkhanServer/manage/exports/core-profiles/'+bundle_link.group(1)+'.json'))
+assert bundle['schema']=='lorkhan.core-profile-export.v1'
+assert all(c['content'].get('credential') in (None,'none','mock') for c in bundle['connectors'].values())
+bundle_fields=dict(bundle_form['fields'],profile_json=json.dumps(bundle),make_default_npc='0',migrate_old_default_npcs='0',assign_slot='')
+invalid_bundle=dict(bundle_fields,_csrf='wrong')
+assert request(bundle_form['action'],'POST',invalid_bundle,accept='application/json').status in (401,403)
+bundle_result=json.load(request(bundle_form['action'],'POST',bundle_fields,accept='application/json'))
+assert bundle_result['ok'] and bundle_result['core_profile_id']!=bundle_link.group(1),bundle_result
+assert bundle_result['created_connectors']==0 and bundle_result['reused_connectors']==len(bundle['connectors']),bundle_result
+bundle_copy=json.load(request('/LorkhanServer/manage/exports/core-profiles/'+bundle_result['core_profile_id']+'.json'))
+assert bundle_copy['profile']==bundle['profile'] and bundle_copy['connectors']==bundle['connectors']
+assert bundle_copy['name']!=bundle['name']
+# A new prompt is recreated under a destination ID, not attached by a foreign UUID.
+new_bundle=json.loads(json.dumps(bundle)); foreign_prompt=str(uuid.uuid4())
+old_prompt=new_bundle['profile']['routing'].get('prompt_configuration_id')
+if old_prompt: new_bundle['connectors'].pop(old_prompt,None)
+new_bundle['profile']['routing']['prompt_configuration_id']=foreign_prompt
+new_bundle['connectors'][foreign_prompt]={'kind':'prompt','name':'New imported prompt '+uuid.uuid4().hex,'content':{'text':'Native imported prompt'}}
+new_result=json.load(request(bundle_form['action'],'POST',dict(bundle_fields,profile_json=json.dumps(new_bundle)),accept='application/json'))
+assert new_result.get('ok') and new_result['created_connectors']==1,new_result
+new_copy=json.load(request('/LorkhanServer/manage/exports/core-profiles/'+new_result['core_profile_id']+'.json'))
+new_prompt_id=new_copy['profile']['routing']['prompt_configuration_id']
+assert new_prompt_id!=foreign_prompt and new_copy['connectors'][new_prompt_id]['content']=={'text':'Native imported prompt'}
+# An explicitly requested occupied slot is reassigned, while the old profile remains intact.
+slot_fields=dict(bundle_fields,assign_slot='4',make_default_npc='1',migrate_old_default_npcs='1')
+first_slot=json.load(request(bundle_form['action'],'POST',slot_fields,accept='application/json'))
+second_slot=json.load(request(bundle_form['action'],'POST',slot_fields,accept='application/json'))
+assert first_slot['ok'] and second_slot['ok'] and first_slot['core_profile_id']!=second_slot['core_profile_id']
+assert request('/LorkhanServer/manage/exports/core-profiles/'+first_slot['core_profile_id']+'.json').status==200
+bad_bundle=dict(bundle,schema='foreign.schema')
+assert request(bundle_form['action'],'POST',dict(slot_fields,profile_json=json.dumps(bad_bundle)),accept='application/json').status==422
 
 print('browser-like management HTTP forms passed')

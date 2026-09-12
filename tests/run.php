@@ -3186,6 +3186,24 @@ foreach (['bad header',str_replace('metadata,','label,',$herikaCsv),str_replace(
     catch (InvalidArgumentException) {$check(true,'invalid TTS CSV rejected');}
 }
 
+
+// Core bundles retain explicit content and reject incomplete or mistyped connector graphs.
+$bundle=['schema'=>\LorkhanServer\Application\CoreProfileBundle::SCHEMA,'exported_at'=>'2026-09-12','name'=>'Portable Core',
+    'profile'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'A saved prompt','routing'=>[],'settings_overrides'=>[]],'connectors'=>[]];
+$check(\LorkhanServer\Application\CoreProfileBundle::validate($bundle)===$bundle,'Core bundle preserves sparse profile content');
+$promptId='10000000-0000-4000-8000-000000000001';
+$bundle['profile']['routing']['prompt_configuration_id']=$promptId;
+$bundle['connectors'][$promptId]=['kind'=>'prompt','name'=>'Portable prompt','content'=>['text'=>'Say hello']];
+$check(\LorkhanServer\Application\CoreProfileBundle::validate($bundle)===$bundle,'Core bundle preserves explicit prompt graph');
+foreach (['missing','wrong-kind','unused'] as $failure) {
+    $bad=$bundle;
+    if($failure==='missing')$bad['connectors']=[];
+    elseif($failure==='wrong-kind')$bad['connectors'][$promptId]['kind']='provider';
+    else $bad['profile']['routing']=[];
+    try {\LorkhanServer\Application\CoreProfileBundle::validate($bad);$check(false,'Core bundle rejects '.$failure);}
+    catch(InvalidArgumentException){$check(true,'Core bundle rejects '.$failure);}
+}
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

@@ -9,7 +9,9 @@
     <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/lib/ui/bootstrap/bootstrap.min.css">
     <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/style_new.css">
     <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/chim-theme.css?v=<?php echo (string) filemtime(__DIR__ . '/../css/chim-theme.css'); ?>">
+    <?php if (($embedded ?? false) !== true): ?>
     <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/navbar.css?v=<?php echo (string) filemtime(__DIR__ . '/../css/navbar.css'); ?>">
+    <?php endif; ?>
     <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/herika-navbar-layout.css?v=<?php echo (string) filemtime(__DIR__ . '/../css/herika-navbar-layout.css'); ?>">
     <?php if (($includeManagementStyles ?? false) === true): ?>
     <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/management.css?v=<?php echo (string) filemtime(__DIR__ . '/../css/management.css'); ?>">

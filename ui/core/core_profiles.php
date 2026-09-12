@@ -95,7 +95,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         <p class="page-subtitle lorkhan-page-head-note">Manage Core Profiles, response models, voice, prompts, and inherited NPC settings.</p>
     </div>
 
-    <?php if (isset($_GET['status'])): ?><div class="lorkhan-status" role="status"><?php echo (is_string($_GET['status']) && $_GET['status'] === 'imported') ? 'Settings preset imported as a new unassigned Core Profile. Review it below.' : 'Core Profile change saved.'; ?></div><?php endif; ?>
+    <?php if (isset($_GET['status'])): ?><div class="lorkhan-status" role="status"><?php echo (is_string($_GET['status']) && $_GET['status'] === 'imported') ? 'Core Profile imported. Review it below.' : 'Core Profile change saved.'; ?></div><?php endif; ?>
     <?php if ($installations === []): ?>
         <section class="connector-card profiles-empty">Connect OpenMW once before creating Core Profiles.</section>
     <?php else: ?>
@@ -109,7 +109,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
             <aside class="llm-left">
                 <div class="sidebar-action-grid">
                     <a class="btn-save" href="<?php echo lorkhan_ui_h($queryFor(['create' => '1'])); ?>">New</a>
-                    <a class="btn-primary" href="<?php echo lorkhan_ui_h($queryFor(['import' => '1'])); ?>" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.profiles.import')['description']); ?>">Import</a>
+                    <a class="btn-primary" data-core-import-open href="<?php echo lorkhan_ui_h($queryFor(['import' => '1'])); ?>" title="Import a profile with its prompt and connectors">Import</a>
                     <button class="btn-primary" id="profile-rules-open" type="button" data-profile-rules-open aria-haspopup="dialog" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.profiles.rules')['description']); ?>">Rules</button>
                     <button class="btn-primary" id="profile-connector-test-open" type="button" data-profile-test-open aria-haspopup="dialog" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.profiles.test')['description']); ?>">Test</button>
                 </div>
@@ -146,7 +146,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 </span>
                             </a>
                             <div class="actions profile-card-actions">
-                                <a class="btn-primary" href="<?php echo lorkhan_ui_h($managementBasePath . '/exports/core-profile-settings/' . (string) $profile['core_profile_id'] . '.json'); ?>" aria-label="Export settings preset for <?php echo lorkhan_ui_h($profile['label']); ?>" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.profiles.export')['description']); ?>">Export</a>
+                                <a class="btn-primary" href="<?php echo lorkhan_ui_h($managementBasePath . '/exports/core-profiles/' . (string) $profile['core_profile_id'] . '.json'); ?>" aria-label="Export profile <?php echo lorkhan_ui_h($profile['label']); ?>" title="Export profile, prompt and connectors without API keys">Export</a>
                                 <?php if (!$defaultNpc && $usage === 0): ?>
                                     <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-delete" data-confirm="Delete this unused Core Profile?"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><?php $profileFormContext(); ?><input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($profile['core_profile_id']); ?>"><button class="btn-danger" type="submit">Delete</button></form>
                                 <?php else: ?>
@@ -352,6 +352,36 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         <p id="profile-copy-result" role="status" hidden></p>
         <div class="profile-copy-actions"><button type="button" class="btn-base" data-profile-copy-cancel>Cancel</button><button type="button" class="btn-save" data-profile-copy-confirm>Copy to all</button></div>
     </dialog>
+    <?php if ($installations !== []): ?>
+    <!-- Structure derived from HerikaServer core_profiles.php import dialog; native scoped bundle handling. -->
+    <dialog id="core-import-dialog" aria-labelledby="core-import-title">
+        <div class="core-import-header"><h2 id="core-import-title">Import Profile</h2><button type="button" data-core-import-close>Close</button></div>
+        <form class="core-import-body" id="core-import-form" method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/core-profile-import">
+            <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>">
+            <?php $profileFormContext(); ?>
+            <input type="hidden" name="profile_json">
+            <div class="core-import-help"><strong>About Profile Import:</strong><ul>
+                <li><strong>Connectors:</strong> Referenced connectors are created or reused when their label and settings match.</li>
+                <li><strong>API Keys:</strong> Keys are not exported. New connectors need a local API key assignment.</li>
+                <li><strong>Settings:</strong> Imports the saved profile, prompt and connector routing from a Lorkhan profile export.</li>
+            </ul></div>
+            <label class="core-import-label" for="core-import-file">Select Profile Export File (JSON)</label>
+            <input type="file" id="core-import-file" accept=".json,application/json">
+            <div class="core-import-assignment">
+                <strong class="core-import-label">Import Assignment Options</strong>
+                <label><input type="checkbox" name="make_default_npc" value="1"> <span>Make Default Profile</span></label>
+                <label><input type="checkbox" name="migrate_old_default_npcs" value="1"> <span>Move current default NPCs to this profile</span></label>
+                <label for="core-import-slot">Assign quick slot</label>
+                <select id="core-import-slot" name="assign_slot"><option value="">Do not assign a slot</option><?php for ($slot = 1; $slot <= 4; $slot++): ?><option value="<?= $slot ?>">Slot <?= $slot ?></option><?php endfor; ?></select>
+                <p class="hint">If a slot is already used, importing with that slot will move the old profile out of the slot.</p>
+            </div>
+            <div id="core-import-preview" hidden><strong class="core-import-label">Preview:</strong><div></div></div>
+            <p id="core-import-result" role="status" hidden></p>
+            <div class="core-import-actions"><button type="button" class="btn-base" data-core-import-close>Cancel</button><button type="submit" class="btn-save" id="core-import-confirm" disabled>Import Profile</button></div>
+        </form>
+    </dialog>
+    <script src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/core-profile-import.js?v=<?= (string) filemtime(dirname(__DIR__) . '/js/core-profile-import.js') ?>" defer></script>
+    <?php endif; ?>
 </main>
 <?php if ($selected !== null): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/profile-settings-copy.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/profile-settings-copy.js'); ?>" defer></script><?php endif; ?>
 <?php if ($installations !== []): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>" defer></script><?php endif; ?>
