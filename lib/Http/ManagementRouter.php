@@ -91,6 +91,7 @@ final class ManagementRouter
             if($r->method==='GET'&&$path==='/api/v1/database-maintenance')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus()]);
             if($r->method==='GET'&&$path==='/api/v1/database-backup')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus('database.backup')]);
             if($r->method==='GET'&&$path==='/api/v1/database-restore')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus('database.restore')]);
+            if($r->method==='GET'&&$path==='/api/v1/playthrough-snapshot')return Response::json(200,['job'=>$this->management->snapshotSaveStatus()]);
             if($r->method==='GET'&&preg_match('#^/exports/database/([0-9a-f-]{36})\\.sql$#D',$path,$m)){
                 $record=$this->repository->configurationBackupRecord($m[1]);
                 if(($record['scope']['kind']??'')!=='database_sql')throw new RuntimeException('not_found');
@@ -451,10 +452,25 @@ final class ManagementRouter
         }
         if($domain==='global-settings-preset')return $this->namedGlobalSettingsPreset($v,$scope);
         if($domain==='core-profile-preset')return $this->namedCoreProfilePreset($v,$scope);
+        if($domain==='playthrough-snapshot'){
+            $operation=$this->need($v,'operation');
+            try{
+                if($operation==='create'){
+                    $this->management->queueDatabaseBackup(false,['name'=>$this->need($v,'name'),'notes'=>$v['notes']??'']);$status='snapshot-save-queued';
+                }elseif(in_array($operation,['copy','delete'],true)){
+                    if(($v['confirm']??'')!==($operation==='copy'?'Copy':'Delete'))throw new InvalidArgumentException('confirmation_mismatch');
+                    $id=$this->need($v,'backup_id');$this->uuid($id,'backup_id');$record=$this->repository->configurationBackupRecord($id);
+                    if(!isset($record['scope']['snapshot']))throw new RuntimeException('not_found');
+                    if($operation==='copy'){$this->management->queueDatabaseRestore($id);$status='snapshot-copy-queued';}
+                    else{$this->management->deleteStoredDatabaseBackup($id,$this->providerConfig,'snapshot');$status='snapshot-deleted';}
+                }else throw new InvalidArgumentException('invalid_snapshot_operation');
+            }catch(RuntimeException $error){$status=match($error->getMessage()){'maintenance_busy'=>'snapshot-busy','backup_restore_pending'=>'snapshot-protected','backup_delete_failed'=>'snapshot-delete-failed',default=>throw $error};}
+            return $this->redirect($this->webRoot().'/ui/playthrough_manager.php?'.http_build_query(['status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
+        }
         if($domain==='database-backup-delete'){
             if(($v['confirm']??'')!=='Delete')throw new InvalidArgumentException('confirmation_mismatch');
             $status='backup-deleted';
-            try{$this->management->deleteAutomaticDatabaseBackup($this->need($v,'backup_id'),$this->providerConfig);}
+            try{$this->management->deleteStoredDatabaseBackup($this->need($v,'backup_id'),$this->providerConfig);}
             catch(RuntimeException $error){$status=match($error->getMessage()){'maintenance_busy'=>'maintenance-busy','backup_restore_pending'=>'backup-restore-pending','backup_delete_failed'=>'backup-delete-failed',default=>throw $error};}
             return $this->redirect($this->webRoot().'/ui/database_manager.php?'.http_build_query(['status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
         }

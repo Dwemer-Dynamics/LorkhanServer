@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import atexit, csv, html.parser, http.cookiejar, http.server, io, json, pathlib, re, subprocess, sys, threading, urllib.error, urllib.parse, urllib.request, uuid, zipfile
+import atexit, os, csv, html.parser, http.cookiejar, http.server, io, json, pathlib, re, subprocess, sys, threading, urllib.error, urllib.parse, urllib.request, uuid, zipfile
 
 base=sys.argv[1].rstrip('/')
 provider_host=sys.argv[2] if len(sys.argv)>2 else '127.0.0.1'
@@ -1117,7 +1117,7 @@ assert all(marker in selected_body for marker in ['Conversations, source events,
 selected_import=next(f for f in selected_playthrough.forms if f['action'].endswith('/forms/playthrough-import'))
 assert selected_import['fields']['installation_id']==valid['installation_id'] and selected_import['fields']['profile_id']==profile_id and selected_import['fields']['playthrough_id']==playthrough_id
 invalid_playthrough,invalid_body=parse(request('/LorkhanServer/ui/playthrough_manager.php?playthrough_id='+str(uuid.uuid4())+'&installation_id=invalid'))
-assert 'Selected Playthrough</h2>' in invalid_body and invalid_playthrough.forms[0]['fields']['installation_id']==valid['installation_id']
+assert 'Selected Playthrough</h2>' in invalid_body and next(f for f in invalid_playthrough.forms if f['method']=='get')['fields']['installation_id']==valid['installation_id']
 state_query=urllib.parse.urlencode(dict(embed='1',q=profile_name,profile='',state='favorites',initial='H',fav='1',lock='1',installation_id=valid['installation_id']))
 characters,state_body=parse(request('/LorkhanServer/ui/core/npc_master.php?'+state_query))
 core_match=re.search(r'name="core_profile_id" form="management-form-profile-'+re.escape(profile_id)+r'"[^>]*>.*?<option value="([0-9a-f-]{36})" selected',state_body,re.S)
@@ -3211,18 +3211,27 @@ END $ownership$;
 """],check=True,capture_output=True)
 
 restore_page,_=parse(request('/LorkhanServer/ui/database_manager.php'))
-backup_form=next(f for f in restore_page.forms if f['action'].endswith('/forms/database-backup'))
+snapshot_page,_=parse(request('/LorkhanServer/ui/playthrough_manager.php'))
+backup_form=next(f for f in snapshot_page.forms if f['action'].endswith('/forms/playthrough-snapshot') and f['fields'].get('operation')=='create')
+snapshot_fields=dict(backup_form['fields'],name='<Balmora> before quest',notes='Full snapshot HTTP fixture')
+assert request(backup_form['action'],'POST',dict(snapshot_fields,name=' ')).status==422
+assert request(backup_form['action'],'POST',dict(snapshot_fields,name='x'*129)).status==422
 guard_id=str(uuid.uuid4())
 subprocess.run([*pg_test,"INSERT INTO lorkhan_internal.durable_jobs(job_id,job_type,schema_version,idempotency_key,payload) VALUES ('"+guard_id+"','fixture.restore_guard',1,'"+guard_id+"','{}')"],check=True,capture_output=True)
-assert request(backup_form['action'],'POST',dict(backup_form['fields'],confirm='Backup')).status==200
-restore_target=json.load(request(sql_status,accept='application/json'))['job']['job_id']
+assert request(backup_form['action'],'POST',snapshot_fields).status==200
+snapshot_status='/LorkhanServer/manage/api/v1/playthrough-snapshot'
+restore_target=json.load(request(snapshot_status,accept='application/json'))['job']['job_id']
+assert request(backup_form['action'],'POST',snapshot_fields).status==200
+assert json.load(request(snapshot_status,accept='application/json'))['job']['job_id']==restore_target
+assert 'Another backup or restore is pending' in request(backup_form['action'],'POST',dict(snapshot_fields,name='Different snapshot')).read().decode()
 backup_args=list(sql_worker.args);backup_args[-1]=restore_target
 backup_result=subprocess.run(backup_args,capture_output=True,text=True,timeout=60)
 assert backup_result.returncode==0 and json.loads(backup_result.stdout)['succeeded']==1,(backup_result.stdout,backup_result.stderr)
 subprocess.run([*pg_test,"UPDATE public.bio_templates SET core='Restore mutation sentinel' WHERE npc_name='ZZZ Literal %_ Name'"],check=True,capture_output=True)
-restore_page,_=parse(request('/LorkhanServer/ui/database_manager.php'))
-restore_form=next(f for f in restore_page.forms if f['action'].endswith('/forms/database-restore'))
-restore_fields=dict(restore_form['fields'],backup_id=restore_target,confirm='Restore SQL')
+restore_page,snapshot_html=parse(request('/LorkhanServer/ui/playthrough_manager.php'))
+assert '&lt;Balmora&gt; before quest' in snapshot_html and '<Balmora>' not in snapshot_html
+restore_form=next(f for f in restore_page.forms if f['action'].endswith('/forms/playthrough-snapshot') and f['fields'].get('operation')=='copy' and f['fields'].get('backup_id')==restore_target)
+restore_fields=dict(restore_form['fields'],confirm='Copy')
 assert request(restore_form['action'],'POST',dict(restore_fields,confirm='wrong')).status==422
 assert request(restore_form['action'],'POST',restore_fields).status==200
 restore_status='/LorkhanServer/manage/api/v1/database-restore'
@@ -3237,6 +3246,11 @@ restore_result=subprocess.run(['php','-r',restore_code,str(repository_root),sys.
 assert restore_result.returncode==0 and json.loads(restore_result.stdout)['succeeded']==1,(restore_result.stdout,restore_result.stderr)
 # Same authenticated session still reads status; metadata and the automatic rollback backup survived.
 assert json.load(request(restore_status,accept='application/json'))['job']['state']=='succeeded'
+assert subprocess.run([*pg_test,'SELECT backup_id FROM lorkhan_internal.database_snapshot_source WHERE singleton'],capture_output=True,text=True,check=True).stdout.strip()==restore_target
+snapshot_html=request('/LorkhanServer/ui/playthrough_manager.php').read().decode()
+assert 'SOURCE OF PUBLIC' in snapshot_html
+if os.environ.get('LORKHAN_SNAPSHOT_EVIDENCE'):
+    pathlib.Path(os.environ['LORKHAN_SNAPSHOT_EVIDENCE']).write_text(snapshot_html,encoding='utf-8')
 assert subprocess.run([*pg_test,pairing_sql],capture_output=True,text=True,check=True).stdout==pairing_before
 assert subprocess.run([*pg_test,"SELECT count(*) FROM lorkhan_internal.sessions WHERE state='active'"],capture_output=True,text=True,check=True).stdout.strip()=='0'
 restored_core=subprocess.run([*pg_test,"SELECT core FROM public.bio_templates WHERE npc_name='ZZZ Literal %_ Name'"],capture_output=True,text=True,check=True).stdout.strip()
@@ -3245,6 +3259,7 @@ restored_guard=subprocess.run([*pg_test,"SELECT state FROM lorkhan_internal.dura
 assert restored_guard=='dead',restored_guard
 rollback_id=subprocess.run([*pg_test,"SELECT backup_id FROM lorkhan_internal.backup_records WHERE scope->>'rollback_for'='"+restore_job['job_id']+"'"],capture_output=True,text=True,check=True).stdout.strip()
 assert request('/LorkhanServer/manage/exports/database/'+rollback_id+'.sql').status==200
+assert subprocess.run([*pg_test,"SELECT scope#>>'{snapshot,name}' FROM lorkhan_internal.backup_records WHERE backup_id='"+rollback_id+"'"],capture_output=True,text=True,check=True).stdout.startswith('Before copy')
 assert request('/LorkhanServer/manage/exports/database/'+restore_target+'.sql').status==200
 # A deliberately mismatched schema ledger makes import fail transactionally and retains the current row.
 restore_checksum=subprocess.run([*pg_test,"SELECT checksum FROM lorkhan_internal.schema_migrations WHERE version=97"],capture_output=True,text=True,check=True).stdout.strip()
@@ -3282,5 +3297,15 @@ try:
 finally:
     gate.communicate('\n',timeout=10)
 assert request(restore_status,accept='application/json').status==200
+
+
+# Deleting the source snapshot removes its stored copy, not active data or its provenance.
+source_page,_=parse(request('/LorkhanServer/ui/playthrough_manager.php'))
+source_delete=next(f for f in source_page.forms if f['action'].endswith('/forms/playthrough-snapshot') and f['fields'].get('operation')=='delete' and f['fields'].get('backup_id')==restore_target)
+assert request(source_delete['action'],'POST',dict(source_delete['fields'],confirm='wrong')).status==422
+assert 'Stored snapshot deleted. The active database was not deleted.' in request(source_delete['action'],'POST',source_delete['fields']).read().decode()
+assert request('/LorkhanServer/manage/exports/database/'+restore_target+'.sql').status==404
+assert subprocess.run([*pg_test,'SELECT backup_id FROM lorkhan_internal.database_snapshot_source WHERE singleton'],capture_output=True,text=True,check=True).stdout.strip()==restore_target
+assert subprocess.run([*pg_test,"SELECT core FROM public.bio_templates WHERE npc_name='ZZZ Literal %_ Name'"],capture_output=True,text=True,check=True).stdout.strip()=='Must survive failed restore'
 
 print('browser-like management HTTP forms passed')

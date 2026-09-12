@@ -6,20 +6,23 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
 <main class="playthrough-page">
     <header class="page-header">
         <h1>Playthrough Manager</h1>
-        <p class="page-subtitle">Browse playthroughs and transfer profile-scoped memories, relationships and narratives.</p>
+        <p class="page-subtitle">Save, restore and manage full database snapshots for your playthroughs.</p>
         <div class="playthrough-help"><strong>How it works:</strong><br>
-            • <b>Selected Playthrough</b> = The records you are viewing here; selecting one does not switch the game.<br>
-            • <b>Profile Snapshot</b> = Exported memories, relationships and narratives for the playthrough's owning profile.<br>
-            • <b>Import</b> = Merges those records into the selected scope. It does not restore a game save or replace the server database.
+            • <b>Active Database</b> = The data currently used by the server.<br>
+            • <b>Stored Snapshots</b> = Full database copies kept separately from active data.<br>
+            • <b>Copy to Public</b> = Saves a rollback snapshot, then replaces active data. Game saves and external files are separate.
         </div>
     </header>
+    <?php if(isset($_GET['status'])&&$_GET['status']==='saved'): ?><p class="playthrough-notice" role="status">Profile record operation completed.</p><?php endif; ?>
+    <?php include __DIR__.'/playthrough_database_snapshots.php'; ?>
+    <details class="content-section playthrough-tools"><summary>Profile record tools</summary>
+    <p class="section-note">These tools inspect live OpenMW data scopes and transfer only profile records. They are separate from the full database snapshots above.</p>
     <form method="get" class="playthrough-scope" aria-label="Playthrough installation">
         <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
         <label for="playthrough-installation">Installation</label>
         <select name="installation_id" id="playthrough-installation"><?php foreach($installations as$row): ?><option value="<?= lorkhan_ui_h($row['installation_id']) ?>"<?= $installationId===$row['installation_id']?' selected':'' ?>><?= lorkhan_ui_h($row['display_name']) ?></option><?php endforeach; ?></select>
         <button type="submit"<?= $installations===[]?' disabled':'' ?>>Apply</button>
     </form>
-    <?php if(isset($_GET['status'])&&$_GET['status']==='saved'): ?><p class="playthrough-notice" role="status">Playthrough operation completed.</p><?php endif; ?>
     <section class="content-section selected-playthrough" aria-labelledby="selected-playthrough-title">
         <div class="selected-title"><span aria-hidden="true">🎮</span><div><h2 id="selected-playthrough-title">Selected Playthrough</h2><p>Read-only overview of the selected Morrowind playthrough.</p></div></div>
         <?php if($selected): ?>
@@ -78,5 +81,8 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
             <div class="button-group"><button type="submit"<?= $profiles===[]?' disabled':'' ?>>Create Playthrough</button></div>
         </form>
     </details>
+    </details>
 </main>
 <script src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/playthrough-snapshots.js?v=<?= (int)filemtime(__DIR__.'/../js/playthrough-snapshots.js') ?>" defer></script>
+
+<script src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/database-maintenance.js?v=<?= (int)filemtime(__DIR__.'/../js/database-maintenance.js') ?>" defer></script>

@@ -1,4 +1,11 @@
 "use strict";
+document.querySelectorAll('[data-snapshot-confirm]').forEach(form => form.addEventListener('submit', event => {
+    const name=form.dataset.snapshotName;
+    const message=form.dataset.snapshotConfirm==='copy'
+        ? 'Copy '+name+' to the active database? Close the game first. Current data will be replaced after a rollback snapshot is saved.'
+        : 'Permanently delete stored snapshot '+name+'? This does not delete the active database.';
+    if(!confirm(message))event.preventDefault();
+}));
 const snapshotFile = document.getElementById("playthrough-snapshot-file");
 const snapshotText = document.getElementById("playthrough-snapshot-json");
 const snapshotStatus = document.getElementById("playthrough-file-status");

@@ -21,3 +21,12 @@ body.playthrough-shell .playthrough-page .button{display:inline-block;text-decor
 .playthrough-page :is(a,button,input,select,textarea,summary,[tabindex]):focus-visible{outline:2px solid #bc9d5a;outline-offset:3px}
 body.playthrough-shell .playthrough-page .playthrough-scope button{background:#383838!important;border:1px solid #505050!important;color:#f5f1e8!important}
 @media(max-width:768px){body.playthrough-shell>main.playthrough-page{padding-left:5%;padding-right:5%}.playthrough-page .content-grid{grid-template-columns:1fr}.playthrough-page .content-section{padding:15px}.playthrough-page .backup-item{flex-wrap:wrap}.playthrough-page .playthrough-scope select{flex:1;min-width:0}}
+
+.playthrough-page .database-snapshot-grid { margin-top:30px; }
+.playthrough-page .create-form input { width:100%; margin:6px 0; }
+.playthrough-page .snapshot-actions { gap:8px; }
+.playthrough-page .snapshot-actions form { margin:0; }
+.playthrough-page .snapshot-source-badge { display:inline-block; background:#4ade80; color:#000; padding:2px 8px; border-radius:4px; font-size:11px; margin-right:6px; }
+body.playthrough-shell .playthrough-page button.snapshot-save { background:rgba(1,53,166,.9)!important; color:#fff!important; }
+body.playthrough-shell .playthrough-page button.snapshot-copy { background:#176529!important; color:#fff!important; }
+body.playthrough-shell .playthrough-page button.snapshot-delete { background:rgba(166,53,63,.9)!important; color:#fff!important; }

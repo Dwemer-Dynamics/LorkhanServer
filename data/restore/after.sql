@@ -44,3 +44,6 @@ INSERT INTO lorkhan_internal.durable_job_attempts
     (job_id,attempt_number,lease_token,worker_id,started_at,heartbeat_at,finished_at,outcome,error_code,error_detail)
     SELECT job_id,attempt_number,lease_token,worker_id,started_at,heartbeat_at,finished_at,outcome,error_code,error_detail FROM pg_temp.restore_attempt;
 UPDATE lorkhan_internal.backup_records SET state='restored',restored_at=clock_timestamp() WHERE backup_id=:'backup_id';
+UPDATE lorkhan_internal.database_snapshot_source SET backup_id=:'backup_id',
+    name=(SELECT scope#>>'{snapshot,name}' FROM lorkhan_internal.backup_records WHERE backup_id=:'backup_id'),
+    copied_at=clock_timestamp() WHERE singleton;

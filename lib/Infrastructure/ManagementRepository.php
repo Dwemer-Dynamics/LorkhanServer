@@ -35,25 +35,45 @@ final class ManagementRepository
     }
 
     /** Queue one full SQL snapshot; a pending snapshot is shared by repeated clicks. */
-    public function queueDatabaseBackup(bool $automatic = false): ?string
+    public function queueDatabaseBackup(bool $automatic = false,?array $snapshot = null): ?string
     {
+        if($snapshot!==null){$snapshot=self::snapshotMetadata($snapshot);if($automatic)throw new \InvalidArgumentException('invalid_snapshot');}
         if (!filter_var($this->db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn(),FILTER_VALIDATE_BOOL)) throw new RuntimeException('maintenance_busy');
         try {
             if($automatic){
                 $due=$this->db->query("SELECT enabled AND (last_queued_at IS NULL OR last_queued_at<=clock_timestamp()-interval '10 minutes') FROM lorkhan_internal.database_backup_settings WHERE singleton")->fetchColumn();
                 if(!filter_var($due,FILTER_VALIDATE_BOOL))return null;
             }
-            $existing=$this->db->query("SELECT job_id FROM durable_jobs WHERE job_type='database.backup' AND state IN ('queued','leased') ORDER BY created_at LIMIT 1")->fetchColumn();
-            if(is_string($existing))return $existing;
+            $existing=$this->db->query("SELECT job_id,payload FROM durable_jobs WHERE job_type='database.backup' AND state IN ('queued','leased') ORDER BY created_at LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            if($existing){
+                $pending=json_decode($existing['payload'],true,16,JSON_THROW_ON_ERROR);
+                if($snapshot!==null&&($pending['snapshot']??null)!=$snapshot)throw new RuntimeException('maintenance_busy');
+                return $existing['job_id'];
+            }
             $id=Uuid::v4();
             $this->db->beginTransaction();
             try{
-                (new JobRepository($this->db))->enqueue($id,'database.backup',1,$id,['backup_id'=>$id]+($automatic?['automatic'=>true]:[]),1);
+                (new JobRepository($this->db))->enqueue($id,'database.backup',1,$id,['backup_id'=>$id]+($automatic?['automatic'=>true]:[])+($snapshot!==null?['snapshot'=>$snapshot]:[]),1);
                 if($automatic)$this->db->exec('UPDATE lorkhan_internal.database_backup_settings SET last_queued_at=clock_timestamp() WHERE singleton');
                 $this->db->commit();
             }catch(\Throwable $error){if($this->db->inTransaction())$this->db->rollBack();throw $error;}
             return $id;
         } finally {$this->db->query('SELECT pg_advisory_unlock(7514,113)');}
+    }
+
+    /** Share strict snapshot metadata validation between browser ingress and the durable worker. */
+    public static function snapshotMetadata(array $snapshot):array
+    {
+        if(array_diff(array_keys($snapshot),['name','notes'])!==[]||!is_string($snapshot['name']??null)||!is_string($snapshot['notes']??null))throw new \InvalidArgumentException('invalid_snapshot');
+        $name=trim($snapshot['name']);$notes=trim($snapshot['notes']);
+        if($name===''||strlen($name)>128||strlen($notes)>1024||!preg_match('//u',$name.$notes))throw new \InvalidArgumentException('invalid_snapshot');
+        return ['name'=>$name,'notes'=>$notes];
+    }
+
+    public function snapshotSaveStatus():?array
+    {
+        $row=$this->db->query("SELECT job_id,state,created_at,updated_at FROM durable_jobs WHERE job_type='database.backup' AND jsonb_exists(payload,'snapshot') ORDER BY created_at DESC,job_id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        return $row===false?null:$row;
     }
 
     public function databaseBackupSettings(): array
@@ -79,19 +99,20 @@ final class ManagementRepository
         return $row === false ? null : $row;
     }
 
-    /** Delete only an explicitly selected automatic backup, never a queued restore source or manual rollback. */
-    public function deleteAutomaticDatabaseBackup(string $id,array $config):void
+    /** Delete an explicitly selected automatic backup or named snapshot, never a queued restore source. */
+    public function deleteStoredDatabaseBackup(string $id,array $config,string $kind='automatic'):void
     {
+        if(!in_array($kind,['automatic','snapshot'],true))throw new \InvalidArgumentException('invalid_backup_kind');
         $db=$this->db;$path=(new DatabaseSqlBackup($config))->path($id);
         if(!filter_var($db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn(),FILTER_VALIDATE_BOOL))throw new RuntimeException('maintenance_busy');
         try{
             $record=(new ProductRepository($db))->configurationBackupRecord($id);
-            if(($record['scope']['kind']??'')!=='database_sql'||($record['scope']['automatic']??false)!==true)throw new RuntimeException('not_found');
+            if(($record['scope']['kind']??'')!=='database_sql'||($kind==='automatic'?($record['scope']['automatic']??false)!==true:!isset($record['scope']['snapshot'])))throw new RuntimeException('not_found');
             $pending=$db->prepare("SELECT 1 FROM durable_jobs WHERE job_type='database.restore' AND state IN ('queued','leased') AND payload->>'backup_id'=:id LIMIT 1");
             $pending->execute(['id'=>$id]);if($pending->fetchColumn()!==false)throw new RuntimeException('backup_restore_pending');
             if(is_link($path)||is_link($path.'.dump'))throw new RuntimeException('backup_integrity_failed');
             foreach([$path,$path.'.dump'] as $file)if(is_file($file)&&!unlink($file))throw new RuntimeException('backup_delete_failed');
-            $delete=$db->prepare("DELETE FROM backup_records WHERE backup_id=:id AND scope->>'kind'='database_sql' AND scope->>'automatic'='true'");
+            $delete=$db->prepare("DELETE FROM backup_records WHERE backup_id=:id AND scope->>'kind'='database_sql'");
             $delete->execute(['id'=>$id]);
         }finally{$db->query('SELECT pg_advisory_unlock(7514,113)');}
     }

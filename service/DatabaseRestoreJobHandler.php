@@ -45,6 +45,11 @@ final class DatabaseRestoreJobHandler implements JobHandler
             $store->create($this->db,$payload['rollback_id'],$heartbeat);
             $rollback=$this->db->prepare("UPDATE backup_records SET scope=scope||jsonb_build_object('rollback_for',CAST(:job AS text)) WHERE backup_id=:id");
             $rollback->execute(['job'=>$job['job_id'],'id'=>$payload['rollback_id']]);
+            if(isset($record['scope']['snapshot'])){
+                $snapshot=['name'=>'Before copy · '.gmdate('Y-m-d H:i:s'),'notes'=>'Automatic rollback before copying '.$record['scope']['snapshot']['name']];
+                $save=$this->db->prepare("UPDATE backup_records SET scope=scope||jsonb_build_object('snapshot',CAST(:snapshot AS jsonb)) WHERE backup_id=:id");
+                $save->execute(['snapshot'=>json_encode($snapshot,JSON_THROW_ON_ERROR),'id'=>$payload['rollback_id']]);
+            }
             // psql locks/recreates durable tables inside its transaction; do not heartbeat through those locks.
             if(!(new JobRepository($this->db))->heartbeat($job['job_id'],$job['lease_token'],3600))throw new RuntimeException('lease_lost');
             $root=dirname(__DIR__).'/data/restore';
