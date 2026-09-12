@@ -687,6 +687,8 @@ final class ManagementRouter
         }
         $memoryReturnScope=in_array($domain,['memory-revise','memory-delete'],true)
             ?$this->repository->memory($this->need($v,'memory_id')):$scope;
+        $coreReturnProfile=in_array($domain,['core-profile-save','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete','core-profile-clone'],true)
+            ?$this->repository->getRevisioned('core_profile',$this->need($v,'core_profile_id')):null;
         $result=match($domain){
             'profiles'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
             'profile-create'=>$this->createNpcProfile($v,$scope),
@@ -816,10 +818,13 @@ final class ManagementRouter
             $batch=$this->jsonField($v,'npc_relationship_edits');
             return$this->redirect($this->relationshipPageLocation(array_replace($v,['relationship_page'=>'npc','playthrough_id'=>$batch['playthrough_id']]),'npc_relationships_saved'));
         }
-        if($domain==='core-profile-save')return$this->redirect($this->webRoot().'/ui/core/core_profiles.php?'.http_build_query(['edit'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
-        if($domain==='core-profile-clone')return$this->redirect($this->webRoot().'/ui/core/core_profiles.php?'.http_build_query(['edit'=>(string)$result['core_profile_id'],'status'=>'cloned']));
-        if($domain==='core-profile-settings-import')return$this->redirect($this->uiPath('profiles').'?'.http_build_query([
-            'installation_id'=>$scope['installation_id'],'edit'=>(string)$result['core_profile_id'],'status'=>'imported']));
+        if(in_array($domain,['core-profile-create','core-profile-save','core-profile-revise','core-profile-clone','core-profile-settings-import','core-profile-default','core-profile-rollback','core-profile-delete'],true)){
+            $query=['installation_id'=>(string)($coreReturnProfile['installation_id']??$result['installation_id']??$scope['installation_id']),
+                'status'=>match($domain){'core-profile-clone'=>'cloned','core-profile-settings-import'=>'imported',default=>'saved'}];
+            if($domain!=='core-profile-delete')$query['edit']=(string)($result['core_profile_id']??$coreReturnProfile['core_profile_id']);
+            if(($v['embed']??'')==='1')$query['embed']='1';
+            return$this->redirect($this->uiPath('profiles').'?'.http_build_query($query));
+        }
         if($domain==='player-profile-settings-import')return$this->redirect($this->uiPath('player').'?'.http_build_query([
             'installation_id'=>$scope['installation_id'],'status'=>'imported']));
         if($domain==='narrator-profile-settings-import')return$this->redirect($this->uiPath('narrator').'&'.http_build_query([

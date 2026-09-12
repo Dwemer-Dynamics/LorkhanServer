@@ -53,6 +53,12 @@ $queryFor = static function (array $values = []) use ($pageUrl, $installationId,
     return $pageUrl . ($values === [] ? '' : '?' . http_build_query($values));
 };
 
+// Keep every Core form in the selected installation and embedded editor after submission.
+$profileFormContext = static function () use ($installationId, $embedded): void {
+    echo '<input type="hidden" name="installation_id" value="' . lorkhan_ui_h($installationId) . '">';
+    if ($embedded) echo '<input type="hidden" name="embed" value="1">';
+};
+
 $configurationLabels = [];
 foreach (array_merge($llm, $tts, $prompts) as $configuration) {
     $configurationLabels[(string) ($configuration['configuration_id'] ?? '')] = (string) ($configuration['name'] ?? '');
@@ -142,11 +148,11 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <div class="actions profile-card-actions">
                                 <a class="btn-primary" href="<?php echo lorkhan_ui_h($managementBasePath . '/exports/core-profile-settings/' . (string) $profile['core_profile_id'] . '.json'); ?>" aria-label="Export settings preset for <?php echo lorkhan_ui_h($profile['label']); ?>" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.profiles.export')['description']); ?>">Export</a>
                                 <?php if (!$defaultNpc && $usage === 0): ?>
-                                    <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-delete" data-confirm="Delete this unused Core Profile?"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($profile['core_profile_id']); ?>"><button class="btn-danger" type="submit">Delete</button></form>
+                                    <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-delete" data-confirm="Delete this unused Core Profile?"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><?php $profileFormContext(); ?><input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($profile['core_profile_id']); ?>"><button class="btn-danger" type="submit">Delete</button></form>
                                 <?php else: ?>
                                     <button class="btn-danger feature-placeholder-control" type="button" disabled aria-disabled="true" title="The default or assigned Core Profile cannot be deleted.">Delete <?php echo lorkhan_ui_feature_badge('config.profiles.delete-protected', true); ?></button>
                                 <?php endif; ?>
-                                <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-clone"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($profile['core_profile_id']); ?>"><button class="btn-primary" type="submit">Clone</button></form>
+                                <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-clone"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><?php $profileFormContext(); ?><input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($profile['core_profile_id']); ?>"><button class="btn-primary" type="submit">Clone</button></form>
                             </div>
                         </article>
                     <?php endforeach; ?>
@@ -157,8 +163,8 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 <div class="form-container wide-centered">
                 <?php if ($importMode): ?>
                     <form class="core-profile-form profile-import-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-settings-import" data-track-dirty>
-                        <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
-                        <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
+                        <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><?php $profileFormContext(); ?>
+
                         <div class="profile-editor-toolbar"><div><div class="profile-editor-toolbar-label">Importing Preset</div><div class="profile-editor-toolbar-name">Core Profile Settings</div></div><div class="profile-import-toolbar-actions"><span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span><a class="btn-base" href="<?php echo lorkhan_ui_h($queryFor([])); ?>">Cancel</a><button type="submit" class="btn-save">Import Preset</button></div></div>
                         <div class="connector-card profile-import-card">
                             <div class="connector-title">Settings Preset</div>
@@ -175,8 +181,8 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     $coreProfileMode = 'create';
                 ?>
                     <form class="core-profile-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-create" data-track-dirty>
-                        <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
-                        <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
+                        <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><?php $profileFormContext(); ?>
+
                         <div class="profile-editor-toolbar"><div><div class="profile-editor-toolbar-label">Creating Profile</div><div class="profile-editor-toolbar-name">New Profile</div></div><div class="profile-editor-actions"><span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span><button type="submit" class="btn-save">Create Profile</button></div></div>
                         <?php include __DIR__ . '/tmpl/core_profile_fields.php'; ?>
                     </form>
@@ -187,7 +193,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 ?>
                     <form class="core-profile-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-save" data-track-dirty
                         data-profile-copy-endpoint="<?php echo lorkhan_ui_h($managementBasePath); ?>/api/v1/core-profile-copy-setting" data-profile-copy-revision="<?php echo (int)$selected['current_revision']; ?>">
-                        <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                        <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><?php $profileFormContext(); ?>
                         <input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($selected['core_profile_id']); ?>">
                         <div class="profile-editor-toolbar"><div><div class="profile-editor-toolbar-label">Editing Profile</div><div class="profile-editor-toolbar-name"><?php echo lorkhan_ui_h($selected['label']); ?></div></div><div class="profile-editor-actions"><span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span><button type="submit" class="btn-save">Save All</button></div></div>
                         <?php include __DIR__ . '/tmpl/core_profile_presets.php'; ?>
@@ -198,10 +204,10 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     <details class="connector-card profile-history"><summary>Revision History</summary>
                         <?php $history = is_array($selected['revisions'] ?? null) ? $selected['revisions'] : []; lorkhan_ui_table($history, 'No revisions.'); ?>
                         <?php $earlier = array_values(array_filter($history, static fn(array $revision): bool => (int) ($revision['revision'] ?? 0) !== (int) $selected['current_revision'])); if ($earlier !== []): ?>
-                            <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-rollback"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($selected['core_profile_id']); ?>"><label>Restore revision<select name="revision"><?php foreach ($earlier as $revision): ?><option value="<?php echo (int) $revision['revision']; ?>">Revision <?php echo (int) $revision['revision']; ?> &mdash; <?php echo lorkhan_ui_h($revision['reason'] ?? ''); ?></option><?php endforeach; ?></select></label><button type="submit" class="btn-save">Restore Earlier Revision</button></form>
+                            <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-rollback"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><?php $profileFormContext(); ?><input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($selected['core_profile_id']); ?>"><label>Restore revision<select name="revision"><?php foreach ($earlier as $revision): ?><option value="<?php echo (int) $revision['revision']; ?>">Revision <?php echo (int) $revision['revision']; ?> &mdash; <?php echo lorkhan_ui_h($revision['reason'] ?? ''); ?></option><?php endforeach; ?></select></label><button type="submit" class="btn-save">Restore Earlier Revision</button></form>
                         <?php endif; ?>
                     </details>
-                    <?php if (!filter_var($selected['default_npc'] ?? false, FILTER_VALIDATE_BOOL)): ?><form class="profile-default-action" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-default"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($selected['core_profile_id']); ?>"><button type="submit" class="btn-save">Make Default NPC Profile</button></form><?php endif; ?>
+                    <?php if (!filter_var($selected['default_npc'] ?? false, FILTER_VALIDATE_BOOL)): ?><form class="profile-default-action" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-default"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><?php $profileFormContext(); ?><input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($selected['core_profile_id']); ?>"><button type="submit" class="btn-save">Make Default NPC Profile</button></form><?php endif; ?>
                 <?php else: ?>
                     <div class="connector-placeholder"><div>No profile selected</div><p>Select a profile from the list on the left to view and edit its settings.</p></div>
                 <?php endif; ?>

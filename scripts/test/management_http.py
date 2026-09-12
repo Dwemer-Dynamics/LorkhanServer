@@ -2006,7 +2006,7 @@ core_edit=re.search(r'core_profiles\.php\?edit=([0-9a-f-]{36})',core_body); asse
 assert '/exports/core-profile-settings/'+core_edit.group(1)+'.json' in core_body and '>Import</a>' in core_body
 assert 'settings overrides only' in core_body
 assert 'id="profile-rules-open"' in core_body and 'id="profile-connector-test-open"' in core_body
-core_import_page,core_import_body=parse(request('/LorkhanServer/ui/core/core_profiles.php?import=1'))
+core_import_page,core_import_body=parse(request('/LorkhanServer/ui/core/core_profiles.php?import=1&embed=1'))
 core_import_form=next(f for f in core_import_page.forms if f['action'].endswith('/forms/core-profile-settings-import'))
 assert 'name="preset_json"' in core_import_body and 'data-json-import-target="core-profile-preset-json"' in core_import_body
 # Validate the compact Core Profile response, Rechat, context, and automatic diary controls.
@@ -2151,11 +2151,11 @@ assert not any(key in core_preset for key in ['core_profile_id','installation_id
 core_preset['name']='HTTP imported Core settings '+uuid.uuid4().hex
 core_preset['settings_overrides']['rpg_comments']={'events':[],'chance_percent':0}
 r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(core_preset)))
+assert urllib.parse.parse_qs(urllib.parse.urlparse(r.geturl()).query).get('embed')==['1'],r.geturl()
 body=r.read().decode(); assert r.status==200 and 'status=imported' in r.geturl() and core_preset['name'] in body,(r.status,r.geturl(),body)
-imported_id_match=re.search(r'core_profiles\.php\?[^"\']*edit=([0-9a-f-]{36})[^"\']*status=imported',r.geturl())
-if imported_id_match is None: imported_id_match=re.search(r'name="core_profile_id" value="([0-9a-f-]{36})"',body)
-assert imported_id_match,body
-imported_core_id=imported_id_match.group(1); imported_page=Page(); imported_page.feed(body)
+imported_core_id=urllib.parse.parse_qs(urllib.parse.urlparse(r.geturl()).query)['edit'][0]
+assert re.fullmatch(r'[0-9a-f-]{36}',imported_core_id),r.geturl()
+imported_page=Page(); imported_page.feed(body)
 # The NPC mass switch selects Core Profiles and keeps the existing authenticated form boundary.
 switch_page,switch_html=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 switch_form=next(f for f in switch_page.forms if f['action'].endswith('/forms/profile-bulk-switch'))
@@ -2244,6 +2244,40 @@ secret_preset=dict(core_preset,settings_overrides={'memory':{'api_key':'never'}}
 r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(secret_preset))); body=r.read().decode()
 assert r.status==422 and 'invalid_core_profile_settings_preset' in body,(r.status,body)
 r=request('/LorkhanServer/manage/forms/core-profile-delete','POST',{'_csrf':csrf,'core_profile_id':imported_core_id}); assert r.status==200
+# All Core sidebar/editor mutations return to the same embedded installation and selected record.
+def core_return(response, expected_id=None, embedded=True):
+    assert response.status==200,(response.status,response.read())
+    query=urllib.parse.parse_qs(urllib.parse.urlparse(response.geturl()).query)
+    assert query.get('installation_id')==[valid['installation_id']],query
+    assert query.get('embed')==(['1'] if embedded else None),query
+    target=query.get('edit',[''])[0]
+    if expected_id is not None: assert target==expected_id,(target,expected_id)
+    body=response.read().decode(); page=Page(); page.feed(body)
+    assert ('embedded-page' in body)==embedded
+    return page,body,target
+
+original_default=diary_sql(f"SELECT core_profile_id FROM lorkhan_internal.core_profiles WHERE installation_id='{valid['installation_id']}' AND default_npc=true AND deleted_at IS NULL;")
+create_page=Page(); create_page.feed(request('/LorkhanServer/ui/core/core_profiles.php?create=1&embed=1&installation_id='+valid['installation_id']).read().decode())
+create_form=next(f for f in create_page.forms if f['action'].endswith('/forms/core-profile-create'))
+assert create_form['fields']['embed']=='1'
+created_page,_,created_id=core_return(request(create_form['action'],'POST',dict(create_form['fields'],_csrf=csrf,label='Embedded sidebar fixture')))
+clone_form=next(f for f in created_page.forms if f['action'].endswith('/forms/core-profile-clone') and f['fields'].get('core_profile_id')==created_id)
+cloned_page,_,cloned_id=core_return(request(clone_form['action'],'POST',dict(clone_form['fields'],_csrf=csrf)))
+assert cloned_id!=created_id
+cloned_form=next(f for f in cloned_page.forms if f['action'].endswith('/forms/core-profile-save'))
+saved_page,_,_=core_return(request(cloned_form['action'],'POST',dict(cloned_form['fields'],_csrf=csrf,label='Embedded saved fixture')),cloned_id)
+restore_form=next(f for f in saved_page.forms if f['action'].endswith('/forms/core-profile-rollback'))
+assert restore_form['fields']['embed']=='1'
+restored_page,_,_=core_return(request(restore_form['action'],'POST',dict(restore_form['fields'],_csrf=csrf,revision='1',installation_id=str(uuid.uuid4()))),cloned_id)
+default_form=next(f for f in restored_page.forms if f['action'].endswith('/forms/core-profile-default'))
+core_return(request(default_form['action'],'POST',dict(default_form['fields'],_csrf=csrf)),cloned_id)
+assert diary_sql(f"SELECT core_profile_id FROM lorkhan_internal.core_profiles WHERE installation_id='{valid['installation_id']}' AND default_npc=true AND deleted_at IS NULL;")==cloned_id
+core_return(request('/LorkhanServer/manage/forms/core-profile-default','POST',{'_csrf':csrf,'core_profile_id':original_default,'embed':'1'}),original_default)
+for remove_id,embed in [(cloned_id,True),(created_id,False)]:
+    delete_page=Page(); delete_page.feed(request('/LorkhanServer/ui/core/core_profiles.php?edit='+remove_id+('&embed=1' if embed else '')).read().decode())
+    delete_form=next(f for f in delete_page.forms if f['action'].endswith('/forms/core-profile-delete') and f['fields'].get('core_profile_id')==remove_id)
+    core_return(request(delete_form['action'],'POST',dict(delete_form['fields'],_csrf=csrf)),'',embed)
+
 core_reset=dict(core_saved['fields'],_csrf=csrf,tts_configuration_id='',llm_configuration_id='',llm_fast_configuration_id='',diary_generation_configuration_id='',
     setting_behavior_rechat_max_depth='2',setting_behavior_rechat_probability_percent='50',setting_memory_recent_turn_limit='20',
     setting_diary_automatic_interval_seconds='120',setting_diary_context_turn_limit='20')

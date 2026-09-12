@@ -109,8 +109,8 @@ Current delivery order: close visible page structure and interactions directly f
 | `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; MiniMe Service and its bounded reachability probe implemented; visible Setup/Local LLM, all-Core presets and network helpers implemented; Herika service choices now create or reuse installation-owned speech connectors while preserving custom endpoints and badges; Player2 switch, immutable routing overlay and four recap cards are implemented and mock/browser tested; whole-page desktop/narrow structure and complete save-flow checks are complete, including key errors/retry, local setup, service reuse and stale-revision rejection. Live-provider acceptance remains untested. Service process installation is not performed by this form in either product |
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. All 15 shared tab entry views now load and retain mounted documents at 1280/390, with draft values retained in the eleven entry views containing editable fields. Tab names/order/style and keyboard activation match the reference grouping, with excluded tabs absent. Shared shell review is complete; individual editor/runtime gaps remain tracked in their own rows |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Hide Ambient Combat, Power Awareness, Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Default/Local LLM built-ins and named presets now apply saved settings across existing Core Profiles with revision guards. Other Context event controls, portable global export of Core settings and defaults for future profile creation remain open; see the dated checkpoints |
-| `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Advanced metadata is now merged with visible controls; Oghma overrides and knowledge tags reach retrieval and both preset formats. Oghma, Context, Prompt, Relationship and Rechat overrides use the reference inline Global Settings rows, with raw JSON synchronization and inherited values. Core Prompt Head, timestamps and description-only item filters reach prompt assembly; Rechat Mode reaches chain selection, Relationship System controls job eligibility, and Power Awareness uses exact observed actor levels. Metadata Text/Tree/Table switching, immediate serialization, invalid JSON handling and empty-object preservation are verified, including fresh deployed mode-switch checks. All 17 main section titles/order match the reference; the native audit note is inside Advanced Metadata. All 15 enabled toggles, 10 slider pairs and 15 typed Copy to all dialogs are checked at 1280/390, including chained copy-to-preset revision handling. Remaining: other runtime-backed Global Settings override categories and remaining sidebar/import/history interaction closure. Physical Diary, cumulative memory semantics and Core-slot client selection are separate unfinished runtime features. |
-| `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Typed per-NPC override leaves now include language, summaries, Diary Prompt/Cooldown/History, Dynamic Profile History, Context, Prompt Head, Oghma, Relationship Enabled/Update Chance, Rechat Mode/Strict Targeting/Open Rechat and End Conversation Cooldown. Prompt assembly, queued evolution history, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. General profile metadata now uses the reference vanilla-jsoneditor tree/text/table library, with revisioned native content and separate immutable Recorded State. Bounded target inventory capture and sorted count/total presentation are deployed in server d09d717 and client 1a35727; empty/unavailable states remain distinct. All 47 currently supported override editors apply typed values to drafts at desktop/narrow widths; grouped search, metadata mode switching and failed-save retention are checked. Remaining: full runtime-backed override catalogue, other page-wide editor/modal interactions, continuous inventory updates and NPC Visit/Teleport/Return. |
+| `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Advanced metadata is now merged with visible controls; Oghma overrides and knowledge tags reach retrieval and both preset formats. Oghma, Context, Prompt, Relationship and Rechat overrides use the reference inline Global Settings rows, with raw JSON synchronization and inherited values. Core Prompt Head, timestamps and description-only item filters reach prompt assembly; Rechat Mode reaches chain selection, Relationship System controls job eligibility, and Power Awareness uses exact observed actor levels. Metadata Text/Tree/Table switching, immediate serialization, invalid JSON handling and empty-object preservation are verified, including fresh deployed mode-switch checks. All 17 main section titles/order match the reference; the native audit note is inside Advanced Metadata. All 15 enabled toggles, 10 slider pairs and 15 typed Copy to all dialogs are checked at 1280/390, including chained copy-to-preset revision handling. Sidebar create/clone/save/import/default/rollback/delete return paths and import/history interactions are now verified in standalone/embedded modes. Remaining: other runtime-backed Global Settings override categories and advanced Rules matching/action metadata. Physical Diary, cumulative memory semantics and Core-slot client selection are separate unfinished runtime features. |
+| `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Typed per-NPC override leaves now include language, summaries, Diary Prompt/Cooldown/History, Dynamic Profile History, Context, Prompt Head, Oghma, Relationship Enabled/Update Chance, Rechat Mode/Strict Targeting/Open Rechat and End Conversation Cooldown. Prompt assembly, queued evolution history, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. General profile metadata now uses the reference vanilla-jsoneditor tree/text/table library, with revisioned native content and separate immutable Recorded State. Bounded target inventory capture and sorted count/total presentation are deployed in server d09d717 and client 1a35727; empty/unavailable states remain distinct. All 47 currently supported override editors apply typed values to drafts at desktop/narrow widths; grouped search, metadata mode switching and failed-save retention are checked. All six editor tabs retain the eight Roleplay drafts and Notes through keyboard navigation and form serialization. Remaining: full runtime-backed override catalogue, other editor/modal interactions, continuous inventory updates and NPC Visit/Teleport/Return. |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; generation success, failed/stale jobs, concurrent edits, retry idempotency and empty-result rejection are checked with browser mocks; live-provider acceptance remains untested |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; provider presets consolidated to 11 cards with all 32 built-in credential identities editable through saved/optional additional badges; standalone and actual hub preset/custom draft geometry reviewed at 1280/390, with failed-save and concurrent-edit retention rechecked using mocks; content-only shell now matches; live-provider acceptance remains untested |
@@ -11868,3 +11868,60 @@ files still forbidden. Scoped code rollback:
 /var/backups/lorkhanserver-core-editor-pass.DWVIUR. This change only touches page
 markup/JavaScript; full database/HTTP tests were not repeated after the prior
 cf422bc pass. Remaining feature and sidebar/import/history gaps stay open.
+
+
+## Core form return scope and NPC draft navigation (2026-09-12)
+
+All seven rendered Core form boundaries now carry the installation and embedded
+context. Save, create, clone, import, default switching, rollback and delete
+return to that installation, reopening the resulting profile except after delete.
+Existing-record return scope comes from the saved record rather than trusting a
+posted installation. Previously these forms could reload standalone navigation
+inside the Configuration hub and lose the selected profile/installation.
+
+core-return-review.cjs checks edit/create/import views at 1280/390 in embedded
+and standalone modes: unique context fields, usable revision history, UTF-8 file
+reading, dirty state and actual Cancel navigation after accepting draft discard.
+History/import screenshots inspected. No live POSTs. The first full HTTP run
+exposed a test URL-order assumption that fell back to the first sidebar record;
+the test now parses the returned edit parameter directly. A second run reached
+the new lifecycle checks but the generic label parser rejected valid aria-labelledby
+controls. The lifecycle checks now use the existing Core form reader; a separate
+browser probe resolves all eight connector selects by their accessible names.
+The corrected full isolated HTTP suite passed, including create, clone, save,
+import, default switching/restoration, rollback and delete return paths. A posted
+mismatched installation still returns to the actual record installation. Standalone
+delete omits embed, while embedded operations retain it and select their resulting
+record. Tests restore the original default and delete the temporary Core records.
+The temporary HTTP client timeout was 30 seconds; default-5-second CI was not run.
+
+npc-all-tab-drafts.cjs checks all six native editor tabs using normal roving-focus
+keyboard navigation at 1280/390. Eight Roleplay drafts and Notes survive the full
+tab cycle and serialize into the associated form. No live writes or browser
+errors. This closes that draft-navigation check only; unsupported movement,
+remaining override categories and other documented runtime gaps remain open.
+
+PHP syntax, 1048 server checks and 111 protocol files pass. Scoped deployment
+preserves runtime data and all 858 source files match; private files remain
+forbidden. Rollback: /var/backups/lorkhanserver-core-return.BmeMti.
+
+
+## Next global-preset gap: future Core creation defaults (source audit, 2026-09-12)
+
+Pinned Herika lib/core/settings_presets.php:963-1011 applies a snapshot to current
+profiles and separately persists profile_defaults/profile_runtime_defaults into
+conf_opts. This is not equivalent to using whichever NPC profile is currently
+marked default as every new profile's template. Lorkhan's current global preset
+application changes existing Core revisions but has no equivalent persistent
+creation-default snapshot; that requirement remains open.
+
+Implementation boundary: persist a validated settings-only Core preset per
+installation, update it in the same transaction as built-in/v2 named global
+preset application, and seed future Core creation/editor defaults from it while
+preserving explicit new-profile edits. Missing stored defaults must retain the
+current behavior. Clone/import must retain their explicit settings and routes;
+changing the default NPC profile must not silently rewrite creation defaults.
+Use a migration and existing settings validation, not an unversioned config file
+or a reserved entry in the user's named-preset catalogue. Verify apply -> create,
+explicit false/zero/list overrides, rollback on failed bulk application and
+installation isolation before claiming this feature complete.
