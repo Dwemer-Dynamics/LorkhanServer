@@ -68,9 +68,12 @@ foreach ($coreOverrideCatalog as $path=>&$definition) {
 }
 unset($definition);
 ?>
-<details class="connector-card core-global-overrides" data-core-overrides data-catalog="<?= lorkhan_ui_h(json_encode($coreOverrideCatalog)) ?>">
-    <summary>🌐 Global Settings Overrides</summary>
-    <p class="hint">Override global settings for this profile. Changes here take precedence over global configurations. Other profile settings use the controls above.</p>
+<details class="provider-card profile-global-overrides core-global-overrides" data-core-overrides data-catalog="<?= lorkhan_ui_h(json_encode($coreOverrideCatalog)) ?>">
+    <summary class="provider-head">
+        <div class="provider-title"><div class="provider-icon" aria-hidden="true">&#x1F310;</div><div>Global Settings Overrides</div></div>
+    </summary>
+    <div class="provider-body profile-provider-body">
+    <small class="core-override-intro">Override global settings for this profile. Changes here take precedence over global configurations.</small>
     <div class="prof-ovr-list">
     <?php foreach (['Context'=>['context','relationship'],'Oghma'=>['oghma','memory'],'Prompt'=>['prompt'],'Rechat'=>['behavior']] as $category=>$sections): ?>
     <section class="prof-ovr-category"><h3 class="prof-ovr-category-title"><?= lorkhan_ui_h($category) ?></h3><div class="prof-ovr-category-settings">
@@ -98,4 +101,5 @@ unset($definition);
     </div>
     <p role="status" aria-live="polite" data-core-override-status></p>
     <noscript><style>.core-global-overrides .prof-ovr-list{display:none}</style>Use Metadata (Advanced JSON) below to edit overrides without JavaScript.</noscript>
+    </div>
 </details>

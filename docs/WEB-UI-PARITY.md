@@ -11307,3 +11307,24 @@ No product code, database contents, admin routing or live settings were changed 
 - The isolated HTTP suite through the full Quickstart block passed with a 30-second test-client timeout, covering its preceding local setup/preset/key checks plus complete save, stale Core/player revisions, invalid service/player input, service creation/reuse and Player2 enable/disable without overwriting saved model slots. This was a temporary runner using the existing test script, not a change to production timeouts. Evidence: Temp quickstart-http-current-verified.txt. The later portions of the full HTTP suite were not run by this scoped invocation.
 - That run exposed fixture leakage from the new voice-cache checks; their three temporary connectors are now deleted before the existing voice-catalog cleanup assertion. It also exposed Create NPC context warnings because no resolved profile exists yet. The context Sections/Details catalog now falls back to typed global defaults only when those resolved maps are absent; existing resolved NPC values are unchanged. Existing HTTP coverage now checks the Create catalog maps. Live read-only confirmation found 13 boolean section defaults and 27 boolean detail defaults (Temp npc-create-context-current.cjs). This does not close the broader NPC override catalogue work.
 - PHP lint, 1034 server checks and 111 protocol files passed. Both runtime files were deployed with backup /var/backups/lorkhanserver-quickstart-footer.95WJE5. All 858 runtime files match source; no extra files or old paths, private files remain forbidden and API authentication remains enforced. No live provider, microphone or game was invoked. Combined with the earlier Quickstart checkpoints, this closes its recorded page/interaction review; it is not full-goal completion.
+
+## Core Global Settings Overrides card structure (2026-09-12)
+
+Copied the pinned Herika Core Profile disclosure's provider-card, provider-head,
+provider-title/icon and provider-body structure into the existing Lorkhan override
+editor. Removed the older connector-card shell and gold bold summary override;
+retained the existing catalogue, data attributes, inheritance and save handlers.
+The intro now follows the reference small-text placement. No settings or runtime
+semantics changed.
+
+Evidence: `core-override-card-review.cjs` compared actual local Herika and deployed
+Lorkhan editors at 1280px and 390px. Both report 12px padding, 1px border, 10px
+rendered radius, flex headers with 10px gaps and rgb(224,224,224) titles. Lorkhan
+has no horizontal overflow or page errors. Override enable/disable and keyboard
+collapse/reopen passed without submitting any live changes. The reference page
+itself overflows at 390px; that defect was not copied. Inspected the narrow native
+screenshot. PHP lint, 1034 existing server checks and 111 protocol checks passed.
+Scoped deployment backup: `/var/backups/lorkhanserver-core-override-card.allbPr`.
+Runtime verifier: 858 matching files, no extras, old paths or hash mismatches;
+private routes remain protected. This closes the card shell gap only, not the
+remaining Core override catalogue, runtime features or whole-project parity.
