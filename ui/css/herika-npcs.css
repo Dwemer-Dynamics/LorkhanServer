@@ -845,7 +845,6 @@ body.view-characters .npc-editor-meta > label {font-size:18px;}
 body.view-characters [data-npc-editor-panel="info"] .form-item > label {font-size:18px;}
 body.view-characters [data-npc-editor-panel="info"] textarea {background:#282828;}
 .npc-editor-favorite input:focus-visible + span {outline:2px solid #bc9d5a;outline-offset:2px;}
-@media(max-width:700px){body.view-characters .npc-editor-modal {padding:12px;}}
 body.view-characters .npc-editor-modal .npc-modal-actions .btn-cancel {
     background:#3b3b3b!important;color:#e9efff;border:1px solid #4a4a4a;border-color:#4a4a4a!important;
     border-radius:6px;font-size:13.12px;font-weight:600;line-height:1.2;padding:7px 12px;min-height:36px;
@@ -855,10 +854,6 @@ body.view-characters .npc-editor-modal .npc-modal-actions .btn-save {
     color:#fff;font-size:13.12px;font-weight:700;line-height:1.2;padding:7px 12px;min-height:36px;
 }
 body.view-characters .npc-editor-modal .npc-modal-body {max-height:calc(85vh - 100px);}
-@media(max-width:700px){
-    body.view-characters .npc-editor-modal > .npc-editor-header {flex-wrap:wrap;}
-    body.view-characters .npc-editor-modal .npc-modal-actions {justify-content:flex-start;}
-}
 .npc-observed-state > details {border:1px solid #4a4a4a;border-radius:8px;padding:8px;background:#262626;}
 .npc-observed-state summary {cursor:pointer;font:700 18px "Futura CondensedLight",Arial,sans-serif;color:#bc9d5a;}
 .npc-observed-body {margin-top:8px;color:#cfd9ea;}
@@ -919,6 +914,13 @@ body.view-characters .npc-editor-modal > .npc-modal-body {padding:0;flex:1 1 aut
 /* The reference iframe has a 5px right margin on both html and body. */
 .npc-editor-content {margin:0 10px 50px 0;font:18px "Futura CondensedLight",Arial,sans-serif;}
 body.view-characters .npc-editor-modal .npc-modal-actions :is(.btn-save,.btn-cancel) {margin:2px;letter-spacing:.3px;}
+/* Apply narrow overrides after the reference desktop geometry, including embedded editors. */
+@media(max-width:700px){
+    body.view-characters .npc-editor-modal {padding:12px;}
+    body.view-characters .npc-editor-modal > .npc-editor-header {flex-wrap:wrap;gap:8px;}
+    body.view-characters .npc-editor-modal > .npc-editor-header h2 {flex-basis:100%;margin:0;}
+    body.view-characters .npc-editor-modal .npc-modal-actions {gap:6px;justify-content:flex-start;}
+}
 
 /* Relationship controls retain the reference sizes instead of generic NPC form overrides. */
 body.view-characters .npc-relationships > label {font-size:18px;}
