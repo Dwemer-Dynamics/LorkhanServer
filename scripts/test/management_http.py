@@ -1788,9 +1788,16 @@ core_values.update(profile_evolution_enabled='1',setting_profile_evolution_histo
 core_values['profile_evolution_fields[]']=['occupation','skills']
 core_values['profile_rpg_events[]']=['sleep','wait']
 core_values['setting_rpg_comments_chance_percent']='73'
+core_values['core_settings_overrides_json']=json.dumps({'memory':{'oghma_knowledge_tags':'Morrowind,Tribunal'},'response':{'max_words':999},'oghma':{'enabled':False,'result_limit':1}})
 core_response=request(core_form['action'],'POST',core_values); assert core_response.status==200
 core_body=core_response.read().decode(); core_page=Page(); core_page.feed(core_body)
 core_saved=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
+core_advanced=json.loads(html.unescape(re.search(r'id="core-settings-overrides-json"[^>]*>(.*?)</textarea>',core_body,re.S).group(1)))
+assert core_advanced['memory']['oghma_knowledge_tags']=='Morrowind,Tribunal'
+assert core_advanced['oghma']=={'enabled':False,'result_limit':1}
+assert core_advanced['response']['max_words']==60  # Visible control wins, as in Herika.
+for invalid_metadata in ['{', '{"unknown":true}', '{"memory":{"oghma_knowledge_tags":123}}', '{"behavior":{"auto_greeting":true}}']:
+    assert request(core_form['action'],'POST',dict(core_values,core_settings_overrides_json=invalid_metadata)).status==422
 assert core_saved['fields']['diary_generation_configuration_id']==slot_id and core_saved['fields']['setting_diary_enabled']=='1'
 assert core_saved['fields']['setting_diary_automatic_enabled']=='1' and core_saved['fields']['setting_diary_automatic_wait_enabled']=='1'
 assert core_saved['fields']['setting_diary_automatic_interval_seconds']=='10'
@@ -1865,9 +1872,10 @@ assert r.status==200 and json.loads(r.read().decode())=={'deleted':True}
 assert json.loads(json_request(rules_path+'?installation_id='+valid['installation_id']).read().decode())['rules']==[]
 core_preset_response=request('/LorkhanServer/manage/exports/core-profile-settings/'+core_edit.group(1)+'.json')
 core_preset=json.loads(core_preset_response.read().decode())
+assert core_preset['settings_overrides']['oghma']=={'enabled':False,'result_limit':1}
 assert core_preset_response.status==200 and sorted(core_preset)==['exported_at','name','schema','settings_overrides']
 assert core_preset['schema']=='lorkhan.core-profile-settings.v2' and core_preset['settings_overrides']['behavior']=={'rechat':True,'rechat_max_depth':5,'rechat_probability_percent':65,'rechat_allow_actions':True,'combat_bark_period_seconds':600}
-assert core_preset['settings_overrides']['memory']=={'recent_turn_limit':24,'short_term_enabled':True,'mid_term_enabled':True,'long_term_enabled':True,'short_term_max_summaries':37}
+assert core_preset['settings_overrides']['memory']=={'recent_turn_limit':24,'short_term_enabled':True,'mid_term_enabled':True,'long_term_enabled':True,'short_term_max_summaries':37,'oghma_knowledge_tags':'Morrowind,Tribunal'}
 assert core_preset['settings_overrides']['response']=={'max_words':60,'core_lang':'de','lang_llm_xtts':True}
 assert core_preset['settings_overrides']['rpg_comments']=={'events':['sleep','wait'],'chance_percent':73}
 assert core_preset['settings_overrides']['profile_evolution']=={'enabled':True,'fields':['occupation','skills'],'history_limit':20}

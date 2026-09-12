@@ -15,7 +15,8 @@ final class CoreProfilePreset
         'bored_event'=>['chance_percent'],
         'quest_comments'=>['enabled','chance_percent'],
         'behavior'=>['rechat','rechat_max_depth','rechat_probability_percent','rechat_allow_actions','combat_bark_period_seconds'],
-        'memory'=>['recent_turn_limit','short_term_enabled','mid_term_enabled','long_term_enabled','short_term_max_summaries'],
+        'memory'=>['recent_turn_limit','short_term_enabled','mid_term_enabled','long_term_enabled','short_term_max_summaries','oghma_knowledge_tags'],
+        'oghma'=>['enabled','topic_count','result_limit','racial_context_enabled','location_context_enabled','extractor_fallback_enabled','extractor_timeout_ms'],
         'diary'=>['enabled','automatic_enabled','automatic_wait_enabled','automatic_interval_seconds','include_in_context','latest_entry_in_context','context_turn_limit','prompt'],
         'profile_evolution'=>['enabled','fields','history_limit'],
     ];

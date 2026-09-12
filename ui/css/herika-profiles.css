@@ -837,6 +837,9 @@ body.profiles-page-shell:has(#profile-copy-dialog[open]) { overflow:hidden; }
     font-weight: 700;
 }
 
+.profiles-page .profile-metadata > summary { cursor:pointer; color:#bc9d5a; font-weight:700; }
+.profiles-page .profile-metadata textarea { width:100%; box-sizing:border-box; resize:vertical; font-family:monospace; line-height:1.5; }
+
 .profiles-page .profile-history form,
 .profiles-page .profile-default-action {
     margin-top: 12px;

@@ -2547,12 +2547,23 @@ $npcInherited=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLa
 $check($npcInherited['settings']['memory']['recent_turn_limit']===7
     &&$npcInherited['sources']['settings.memory.recent_turn_limit']==='core_profile',
     'Removing an NPC override restores Core Profile inheritance');
-$check($effective['settings']['oghma']['topic_count']===2
+$check($effective['settings']['oghma']['topic_count']===3
     &&$effective['settings']['oghma']['racial_context_enabled']===false
-    &&($effective['sources']['settings.oghma.topic_count']??null)==='global'
+    &&($effective['sources']['settings.oghma.topic_count']??null)==='core_profile'
     &&($effective['sources']['settings.oghma.racial_context_enabled']??null)==='global'
     &&($effective['sources']['settings.oghma.result_limit']??null)==='global',
-    'Oghma controls are installation-wide Global Settings');
+    'Core Oghma override takes precedence while omitted controls inherit Global Settings');
+$coreKnowledge=['settings_overrides'=>['memory'=>['oghma_knowledge_tags'=>'Tribunal'], 'oghma'=>['enabled'=>false,'result_limit'=>1]]];
+$coreKnowledgeResolved=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreKnowledge,[]);
+$check($coreKnowledgeResolved['settings']['memory']['oghma_knowledge_tags']==='Tribunal'
+    &&$coreKnowledgeResolved['settings']['oghma']['enabled']===false
+    &&$coreKnowledgeResolved['settings']['oghma']['result_limit']===1
+    &&$coreKnowledgeResolved['sources']['settings.memory.oghma_knowledge_tags']==='core_profile',
+    'Core Oghma tags, disabled state and result limits resolve for retrieval');
+$check((new EffectiveSettingsResolver())->resolve($globalSettings,$coreKnowledge,$npcLayer)['settings']['memory']['oghma_knowledge_tags']==='Dagoth Ur',
+    'Explicit NPC Oghma tags retain precedence over Core tags');
+$check(\LorkhanServer\Application\CoreProfilePreset::capture($coreKnowledge)['settings_overrides']===$coreKnowledge['settings_overrides'],
+    'Core Oghma overrides survive named preset capture');
 // The General editor writes the existing NPC tag document without changing unrelated fields.
 $tagRouter=(new ReflectionClass(\LorkhanServer\Http\ManagementRouter::class))->newInstanceWithoutConstructor();
 $tagMapper=new ReflectionMethod($tagRouter,'profileContent');

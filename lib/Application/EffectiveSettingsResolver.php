@@ -135,7 +135,7 @@ final class EffectiveSettingsResolver
         foreach (['rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_allow_actions', 'combat_bark_period_seconds'] as $field) {
             if (array_key_exists($field, $coreOverrides['behavior'] ?? [])) $allowedOverrides['behavior'][$field] = $coreOverrides['behavior'][$field];
         }
-        foreach (['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled', 'short_term_max_summaries'] as $field) {
+        foreach (['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled', 'short_term_max_summaries', 'oghma_knowledge_tags'] as $field) {
             if (array_key_exists($field, $coreOverrides['memory'] ?? [])) $allowedOverrides['memory'][$field] = $coreOverrides['memory'][$field];
         }
         if (isset($coreOverrides['diary'])) $allowedOverrides['diary'] = $coreOverrides['diary'];
@@ -143,6 +143,7 @@ final class EffectiveSettingsResolver
         if (isset($coreOverrides['quest_comments'])) $allowedOverrides['quest_comments'] = $coreOverrides['quest_comments'];
         if (isset($coreOverrides['bored_event'])) $allowedOverrides['bored_event'] = $coreOverrides['bored_event'];
         if (isset($coreOverrides['rpg_comments'])) $allowedOverrides['rpg_comments'] = $coreOverrides['rpg_comments'];
+        if (isset($coreOverrides['oghma'])) $allowedOverrides['oghma'] = $coreOverrides['oghma'];
         if (isset($coreOverrides['profile_evolution']['history_limit']))
             $allowedOverrides['profile_evolution']['history_limit'] = $coreOverrides['profile_evolution']['history_limit'];
         $this->mergeSettings($settings, $allowedOverrides, 'core_profile', 'settings', $sources);

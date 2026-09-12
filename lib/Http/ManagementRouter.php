@@ -1323,13 +1323,14 @@ final class ManagementRouter
         return (isset($overrides['quest_comments']) ? ['quest_comments'=>$overrides['quest_comments']] : [])
             + (isset($overrides['bored_event']) ? ['bored_event'=>$overrides['bored_event']] : [])
             + (isset($overrides['rpg_comments']) ? ['rpg_comments'=>$overrides['rpg_comments']] : [])
+            + (isset($overrides['oghma']) ? ['oghma'=>$overrides['oghma']] : [])
             + (isset($overrides['profile_evolution']) ? ['profile_evolution'=>$overrides['profile_evolution']] : []) + ['response'=>['max_words'=>(int)($overrides['response']['max_words']??0),'core_lang'=>(string)($overrides['response']['core_lang']??''),'lang_llm_xtts'=>($overrides['response']['lang_llm_xtts']??false)===true],
             'behavior'=>['rechat'=>($overrides['behavior']['rechat']??false)===true,
             'rechat_max_depth'=>(int)($overrides['behavior']['rechat_max_depth']??2),
             'rechat_probability_percent'=>(int)($overrides['behavior']['rechat_probability_percent']??50),
             'rechat_allow_actions'=>($overrides['behavior']['rechat_allow_actions']??false)===true]
                 + array_intersect_key($overrides['behavior']??[],array_flip(['combat_bark_period_seconds'])),
-            'memory'=>['recent_turn_limit'=>(int)($overrides['memory']['recent_turn_limit']??20),'short_term_max_summaries'=>(int)($overrides['memory']['short_term_max_summaries']??10)]+array_intersect_key($overrides['memory']??[],array_flip(['short_term_enabled','mid_term_enabled','long_term_enabled'])),
+            'memory'=>['recent_turn_limit'=>(int)($overrides['memory']['recent_turn_limit']??20),'short_term_max_summaries'=>(int)($overrides['memory']['short_term_max_summaries']??10)]+array_intersect_key($overrides['memory']??[],array_flip(['short_term_enabled','mid_term_enabled','long_term_enabled','oghma_knowledge_tags'])),
             'diary'=>['enabled'=>($overrides['diary']['enabled']??false)===true,
                 'automatic_enabled'=>($overrides['diary']['automatic_enabled']??false)===true,
                 'automatic_wait_enabled'=>($overrides['diary']['automatic_wait_enabled']??false)===true,
@@ -2249,6 +2250,25 @@ final class ManagementRouter
             $overrides['profile_evolution']=EffectiveSettingsResolver::profileEvolutionDefaults([
                 'enabled'=>isset($values['profile_evolution_enabled']), 'fields'=>$fields,
                 'history_limit'=>$number($values,'setting_profile_evolution_history_limit',50)]);
+        }
+        // Match the reference merge: preserve advanced overrides, with visible controls authoritative.
+        if (array_key_exists('core_settings_overrides_json', $values)) {
+            $advanced = EffectiveSettingsResolver::validateSettingsOverrides($this->jsonField($values, 'core_settings_overrides_json'));
+            $supported = \LorkhanServer\Application\CoreProfilePreset::capture(['settings_overrides'=>$advanced])['settings_overrides'];
+            $previous = isset($values['core_profile_id'])
+                ? ($this->repository->getRevisioned('core_profile', $values['core_profile_id'])['content']['settings_overrides'] ?? []) : [];
+            foreach ($advanced as $section => $fields) {
+                foreach ($fields as $field => $value) {
+                    // Retain old compatibility values, but never offer a newly saved inert control.
+                    if (!array_key_exists($field, $supported[$section] ?? [])
+                        && (!array_key_exists($field, $previous[$section] ?? []) || $previous[$section][$field] !== $value))
+                        throw new InvalidArgumentException('unsupported_core_setting_override');
+                }
+            }
+            foreach ($overrides as $section => $fields) {
+                $advanced[$section] = array_replace($advanced[$section] ?? [], $fields);
+            }
+            $overrides = $advanced;
         }
         return['schema'=>'lorkhan.core-profile.v1','prompt'=>(string)($values['prompt']??''),
             'routing'=>$routing,'settings_overrides'=>$overrides];

@@ -107,7 +107,7 @@ do not use an exception to excuse a generic substitute layout.
 | `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; MiniMe Service and its bounded reachability probe implemented; visible Setup/Local LLM, all-Core presets and network helpers implemented; Herika service choices now create or reuse installation-owned speech connectors while preserving custom endpoints and badges; Player2 and full interaction closure remain pending. Service process installation is not performed by this form in either product |
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. Remaining children and full embedded interactions still pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Other Context event controls and profile-affecting built-ins remain open; see the dated checkpoints |
-| `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Remaining: full metadata/override composition and page-wide interaction closure. Physical Diary, cumulative memory semantics and Core-slot client selection are separate unfinished runtime features. |
+| `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Advanced metadata is now merged with visible controls; Oghma overrides and knowledge tags reach retrieval and both preset formats. Remaining: typed Global Settings override composition, full metadata editor interaction review and page-wide interaction closure. Physical Diary, cumulative memory semantics and Core-slot client selection are separate unfinished runtime features. |
 | `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Nineteen typed per-NPC override leaves now include language, summaries, Diary Prompt/Cooldown/History and Dynamic Profile History. Prompt assembly, queued evolution history, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. Remaining: editable general metadata, full runtime-backed override catalogue, complete editor/modal review, target inventory capture and NPC Visit/Teleport/Return. |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; generation success, failed/stale jobs, concurrent edits, retry idempotency and empty-result rejection are checked with browser mocks; live-provider acceptance remains untested |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
@@ -10595,3 +10595,30 @@ or paid provider calls.
   writes, provider calls or game control were used in browser checks. Evidence:
   player-generation-edge-proof.cjs and tts-service-order-proof.cjs in the temporary
   evidence directory. This closes these specific items, not the all-page goal.
+
+## Core advanced metadata and Oghma overrides (2026-09-11)
+
+- Added the reference Metadata (Advanced JSON) disclosure to Core Profile create
+  and edit forms. The existing typed settings validator checks submitted JSON.
+  Visible controls take precedence, matching Herika's metadata/visual merge.
+- Supported advanced settings survive Save All instead of being discarded when
+  the form reconstructs its visible fields. Existing compatibility keys may be
+  retained or removed; changing/adding unsupported keys is rejected rather than
+  presenting a newly saved setting with no runtime consumer.
+- Core Oghma settings and memory.oghma_knowledge_tags now override installation
+  defaults in the resolver consumed by knowledge selection. Explicit NPC tags
+  still win. The client controls schema and system connector ownership do not
+  change. Named and portable presets retain the added Oghma settings and tags.
+- Initial HTTP checks caught an independent portable-export allowlist that dropped
+  the new values; that path was corrected too. The temporary browser fixture
+  covers disclosure close/reopen with a draft and bounds at 1280/390, with all
+  non-GET requests blocked. Screenshots: core-metadata-{width}.png.
+- This is not full Global Settings override-picker or JSON-editor interaction
+  parity. Those controls, other Core runtime gaps and the complete matrix remain
+  open. No production settings were saved and no providers or game were invoked.
+
+- Final checks: 915 server checks; full management HTTP suite (save/read,
+  visual-control precedence, rejected invalid/unsupported settings and portable
+  export); full integration, schema inventory and migration/durable-job suite.
+  Deployment verification: 812 source/runtime hashes match, no extra runtime
+  files, private routes remain protected. GitHub server workflow remains disabled.
