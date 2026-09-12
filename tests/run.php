@@ -3086,6 +3086,7 @@ $validateImport=static function(array $records,string $suffix='')use($importVali
 $check($validatedImport===['sha256'=>hash('sha256',$importBytes),'byte_count'=>strlen($importBytes),'table_count'=>1,'row_count'=>1]&&$importOffset===0,'SQL data validation preserves exact bytes and rewinds without mutation');
 foreach([
     [[$importHeader,$importComplete],'import_tables_incomplete'],
+    [[$importHeader,array_replace($importTable,['schema'=>'unknown']),$importComplete],'import_table_invalid'],
     [[$importHeader,$importTable,$importTable,$importComplete],'import_schema_mismatch'],
     [[$importHeader,array_replace($importTable,['name'=>'unknown']),$importComplete],'import_schema_mismatch'],
     [[$importHeader,array_replace($importTable,['columns'=>['body','id']]),$importComplete],'import_schema_mismatch'],

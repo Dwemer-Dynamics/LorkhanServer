@@ -56,12 +56,52 @@ PY
 php /dev/stdin "$ROOT" "$TMP/import.jsonl" "$PORT" <<'PHP'
 <?php
 require $argv[1].'/lib/Autoload.php';
-$db=new PDO('pgsql:host=127.0.0.1;port='.$argv[3].';dbname=lorkhan_test',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+$db=new PDO('pgsql:host=127.0.0.1;port='.$argv[3].';dbname=lorkhan_test','factory_runtime','',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
 $tables=\LorkhanServer\Infrastructure\SqlImportData::destinationTables($db);
 $stream=fopen($argv[2],'rb');
 try{$result=(new \LorkhanServer\Infrastructure\SqlImportData($tables))->validate($stream);}finally{fclose($stream);}
 if($result['table_count']!==count($tables)||$result['row_count']<100||!hash_equals($result['sha256'],hash_file('sha256',$argv[2])))throw new RuntimeException('import_validation_failed');
 echo "sandbox data matches trusted destination schema\n";
+$original=(int)$db->query('SELECT count(*) FROM lorkhan_internal.source_events')->fetchColumn();
+$db->beginTransaction();
+try{
+    $stream=fopen($argv[2],'rb');
+    try{$staged=(new \LorkhanServer\Infrastructure\SqlImportData($tables))->stage($db,$stream,static function():void{});}finally{fclose($stream);}
+    foreach($staged['tables'] as $key=>$temporary){
+        [$schema,$name]=explode('.',$key,2);
+        $quote=static fn(string $value):string=>'"'.str_replace('"','""',$value).'"';
+        $destination=$quote($schema).'.'.$quote($name);
+        if($db->query('SELECT EXISTS((SELECT to_jsonb(t)::text FROM '.$temporary.' t EXCEPT ALL SELECT to_jsonb(t)::text FROM '.$destination.' t) UNION ALL (SELECT to_jsonb(t)::text FROM '.$destination.' t EXCEPT ALL SELECT to_jsonb(t)::text FROM '.$temporary.' t))')->fetchColumn())throw new RuntimeException('typed_import_values_changed');
+    }
+    if((int)$db->query('SELECT count(*) FROM lorkhan_internal.source_events')->fetchColumn()!==$original)throw new RuntimeException('staging_modified_destination');
+}finally{$db->rollBack();}
+if($db->query("SELECT EXISTS(SELECT 1 FROM pg_class WHERE relnamespace=pg_my_temp_schema() AND relname LIKE 'sql_import_%')")->fetchColumn())throw new RuntimeException('staging_survived_rollback');
+echo "typed SQL import staging matches all source rows and rolls back cleanly\n";
+$bad=fopen('php://temp','w+b');
+fwrite($bad,json_encode(['kind'=>'header','format'=>'lorkhan.import-data.v1'])."\n");
+foreach($tables as $key=>$columns){
+    [$schema,$name]=explode('.',$key,2);
+    fwrite($bad,json_encode(['kind'=>'table','schema'=>$schema,'name'=>$name,'columns'=>$columns])."\n");
+    if($key==='lorkhan_internal.installations'){
+        $values=array_fill_keys($columns,null);$values['installation_id']='not-a-uuid';
+        fwrite($bad,json_encode(['kind'=>'row','schema'=>$schema,'table'=>$name,'data'=>$values])."\n");
+    }
+}
+fwrite($bad,json_encode(['kind'=>'complete'])."\n");
+$db->beginTransaction();$rejected=false;
+try{(new \LorkhanServer\Infrastructure\SqlImportData($tables))->stage($db,$bad,static function():void{});}
+catch(PDOException $error){if($error->getCode()!=='22P02')throw $error;$rejected=true;}
+finally{$db->rollBack();fclose($bad);}
+if(!$rejected||(int)$db->query('SELECT count(*) FROM lorkhan_internal.source_events')->fetchColumn()!==$original
+    ||$db->query("SELECT EXISTS(SELECT 1 FROM pg_class WHERE relnamespace=pg_my_temp_schema() AND relname LIKE 'sql_import_%')")->fetchColumn())throw new RuntimeException('invalid_import_type_not_rolled_back');
+echo "invalid imported UUID rejected without destination changes\n";
+$db->beginTransaction();$cancelled=false;$ticks=0;$stream=fopen($argv[2],'rb');
+try{(new \LorkhanServer\Infrastructure\SqlImportData($tables))->stage($db,$stream,static function()use(&$ticks):bool{return ++$ticks<3;});}
+catch(RuntimeException $error){if($error->getMessage()!=='lease_lost')throw $error;$cancelled=true;}
+finally{$db->rollBack();fclose($stream);}
+if(!$cancelled||$ticks!==3||(int)$db->query('SELECT count(*) FROM lorkhan_internal.source_events')->fetchColumn()!==$original
+    ||$db->query("SELECT EXISTS(SELECT 1 FROM pg_class WHERE relnamespace=pg_my_temp_schema() AND relname LIKE 'sql_import_%')")->fetchColumn())throw new RuntimeException('cancelled_import_not_rolled_back');
+echo "cancelled SQL staging stops and rolls back cleanly\n";
 PHP
 LORKHAN_TEST_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=lorkhan_migrations_test" \
 php "$ROOT/tests/migrations_jobs.php"
