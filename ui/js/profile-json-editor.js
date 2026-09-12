@@ -58,6 +58,12 @@ const scan = () => {
                 const {createJSONEditor} = await library;
                 if (!root.isConnected) { mounted.delete(root); return; }
                 const editor = createJSONEditor({target, props: {content:{json}, onChange:update,
+                    // Flush debounced text before mode teardown, avoiding a late edit restoring the old view.
+                    onRenderMenu:(items,{mode}) => items.map(item => mode === 'text' && item.type === 'button'
+                        && ['tree','table'].includes(item.text) ? {...item,onClick:() => {
+                            mounted.get(root)?.validate();
+                            item.onClick();
+                        }} : item),
                     onError:error => { status.textContent = error.message; }}});
                 mounted.set(root, editor);
                 source.hidden = true;
