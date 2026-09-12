@@ -111,7 +111,7 @@ final class ManagementRepository
     /** Expose only the latest maintenance lifecycle, never worker payloads or database credentials. */
     public function databaseMaintenanceStatus(string $type = 'database.compact'): ?array
     {
-        if(!in_array($type,['database.compact','database.backup','database.restore','database.replay'],true))throw new \InvalidArgumentException('invalid_database_job_type');
+        if(!in_array($type,['database.compact','database.backup','database.restore','database.replay','database.factory_reset'],true))throw new \InvalidArgumentException('invalid_database_job_type');
         $query=$this->db->prepare('SELECT job_id,state,created_at,updated_at FROM durable_jobs WHERE job_type=:type ORDER BY created_at DESC,job_id DESC LIMIT 1');
         $query->execute(['type'=>$type]);$row=$query->fetch(PDO::FETCH_ASSOC);
         return $row === false ? null : $row;
@@ -139,7 +139,36 @@ final class ManagementRepository
     /** Never accept other maintenance work that a queued migration replay would invalidate. */
     private function assertNoPendingReplay():void
     {
-        if($this->db->query("SELECT 1 FROM durable_jobs WHERE job_type='database.replay' AND state IN ('queued','leased') LIMIT 1")->fetchColumn()!==false)throw new RuntimeException('maintenance_busy');
+        if($this->db->query("SELECT 1 FROM durable_jobs WHERE job_type IN ('database.replay','database.factory_reset') AND state IN ('queued','leased') LIMIT 1")->fetchColumn()!==false)throw new RuntimeException('maintenance_busy');
+    }
+
+    /** Return only confirmation metadata from a verified private factory artifact. */
+    public function databaseFactoryPlan(array $config):array
+    {
+        $runner=new MigrationRunner($this->db,dirname(__DIR__,2).'/data/migrations');
+        $fingerprint=hash('sha256',$runner->replayFingerprint(false)."\0".FactoryDatabaseArchive::catalogFingerprint());
+        $factory=FactoryDatabaseArchive::load($this->db,(string)($config['factory_storage_path']??'/var/lib/lorkhanserver/factory/current'),$fingerprint);
+        return ['fingerprint'=>$fingerprint,'migration_count'=>$factory['manifest']['migration_count']];
+    }
+
+    /** Queue one confirmed factory reset, refusing conflicting database maintenance. */
+    public function queueDatabaseFactoryReset(string $fingerprint,array $config):string
+    {
+        if(preg_match('/^[a-f0-9]{64}$/D',$fingerprint)!==1)throw new \InvalidArgumentException('invalid_factory_plan');
+        if(!filter_var($this->db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn(),FILTER_VALIDATE_BOOL))throw new RuntimeException('maintenance_busy');
+        try{
+            $plan=$this->databaseFactoryPlan($config);
+            if(!hash_equals($plan['fingerprint'],$fingerprint))throw new RuntimeException('factory_source_changed');
+            $pending=$this->db->query("SELECT job_id,job_type,payload FROM durable_jobs WHERE job_type IN ('database.compact','database.backup','database.restore','database.replay','database.factory_reset') AND state IN ('queued','leased') ORDER BY created_at LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            if($pending){
+                $payload=json_decode($pending['payload'],true,16,JSON_THROW_ON_ERROR);
+                if($pending['job_type']==='database.factory_reset'&&($payload['fingerprint']??null)===$fingerprint)return $pending['job_id'];
+                throw new RuntimeException('maintenance_busy');
+            }
+            $id=Uuid::v4();
+            (new JobRepository($this->db))->enqueue($id,'database.factory_reset',1,$id,['fingerprint'=>$fingerprint,'rollback_id'=>Uuid::v4()],1);
+            return $id;
+        }finally{$this->db->query('SELECT pg_advisory_unlock(7514,113)');}
     }
 
     /** Read an existing migration ledger without attempting web-role schema changes. */
@@ -161,7 +190,7 @@ final class ManagementRepository
             $plan=$this->databaseReplayPlan();
             if(!hash_equals($plan['fingerprint'],$fingerprint))throw new RuntimeException('replay_plan_changed');
             if(!in_array($version,array_column($plan['versions'],'version'),true))throw new \InvalidArgumentException('invalid_replay_version');
-            $pending=$this->db->query("SELECT job_id,job_type,payload FROM durable_jobs WHERE job_type IN ('database.compact','database.backup','database.restore','database.replay') AND state IN ('queued','leased') ORDER BY created_at LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            $pending=$this->db->query("SELECT job_id,job_type,payload FROM durable_jobs WHERE job_type IN ('database.compact','database.backup','database.restore','database.replay','database.factory_reset') AND state IN ('queued','leased') ORDER BY created_at LIMIT 1")->fetch(PDO::FETCH_ASSOC);
             if($pending){
                 $payload=json_decode($pending['payload'],true,16,JSON_THROW_ON_ERROR);
                 if($pending['job_type']==='database.replay'&&($payload['version']??null)===$version&&($payload['fingerprint']??null)===$fingerprint)return $pending['job_id'];

@@ -11,6 +11,9 @@ initdb -D "$TMP/data" -A trust --no-locale -E UTF8 >/dev/null
 pg_ctl -D "$TMP/data" -o "-h 127.0.0.1 -k $TMP -p $PG_PORT" -l "$TMP/postgres.log" start >/dev/null
 createdb -h 127.0.0.1 -p "$PG_PORT" lorkhan_management_http
 mkdir "$TMP/control" "$TMP/state"
+mkdir "$TMP/factory"
+bash "$ROOT/scripts/build-factory-database.sh" "$TMP/factory" > "$TMP/factory-build.log"
+export LORKHAN_TEST_FACTORY_DIR="$TMP/factory"
 mkdir "$TMP/control/credentials"
 DSN="pgsql:host=127.0.0.1;port=$PG_PORT;dbname=lorkhan_management_http"
 CONFIG="$ROOT/conf/server.test.php"

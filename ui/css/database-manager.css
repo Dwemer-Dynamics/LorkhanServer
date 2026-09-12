@@ -462,3 +462,5 @@ body.database-manager-shell .database-manager-page .button.version-reset { paddi
 .database-manager-page .replay-dialog input { max-width:100%; box-sizing:border-box; }
 
 body.database-manager-shell .database-manager-page .database-admin-link { background:rgba(1,53,166,.9) !important; color:#fff !important; }
+
+body.database-manager-shell .database-manager-page .factory-reset-card { border-color:#dc3545 !important; }

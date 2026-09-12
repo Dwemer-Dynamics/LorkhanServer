@@ -5,6 +5,8 @@
     </header>
     <?php if (($_GET['status']??'')==='saved'): ?><p class="database-notice" role="status">Database operation completed.</p><?php endif; ?>
     <?php $maintenanceMessages=[
+        'factory-queued'=>'Factory reset queued. Keep the game closed. A rollback backup is created before any data is replaced.',
+        'factory-unavailable'=>'The factory artifact could not be verified or changed since this page opened. Refresh or redeploy before confirming again.',
         'replay-queued'=>'Migration replay queued. Keep the game closed. A rollback backup is created before any migration changes.',
         'replay-plan-changed'=>'Migration sources changed since this page was opened. Review the refreshed versions before confirming again.',
         'backup-deleted'=>'Automatic backup deleted, including its private restore archive.',
@@ -79,6 +81,14 @@
             <p>Backups appear in Full Database Backups above. If backup storage is full, older copies remain intact and the new job fails. Disabling stops new automatic backups and prevents queued automatic work from starting.</p>
         </section>
         <section class="manager-section grid-container tools-grid" aria-label="Database tools">
+            <article class="card-tile factory-reset-card">
+                <div class="card-content"><h2>💥 Factory Reset Database</h2>
+                    <p>Wipe and reinstall the Lorkhan database to its default configuration.</p>
+                    <p><strong>⚠️ DANGER:</strong> Replaces NPC profiles, settings, events, diaries, memories and custom knowledge. Login, pairing and stored backups are retained. External credentials, voices and game saves are unchanged.</p>
+                    <p role="status" data-database-maintenance data-kind="factory" data-endpoint="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/database-factory-reset">Latest factory reset: <?= lorkhan_ui_h($factoryJob['state']??'none') ?>.</p>
+                    <?php if($factoryPlan===null): ?><p class="empty-state">A verified factory artifact is unavailable. Redeploy the server before resetting.</p><?php endif; ?>
+                </div><div class="card-actions"><button type="button" class="button version-reset-all" data-factory-open<?= $factoryPlan===null?' disabled':'' ?>>Factory Reset LorkhanServer</button></div>
+            </article>
             <article class="card-tile" data-database-access>
                 <div class="card-content"><h2>🗄️ Database Access</h2><p>Access the pgAdmin database manager for advanced database management.</p><p>Sign in with your database administrator account. Server credentials are not shown here.</p>
                 <?php if($databaseAdminUrl===''): ?><p class="database-notice">Database Access is not configured. Set a valid <code>database_admin_url</code> in the private server configuration.</p><?php endif; ?></div>
@@ -167,4 +177,14 @@
             </form>
         </dialog><?php endif; ?>
     </section>
+    <?php if($factoryPlan!==null): ?><dialog class="replay-dialog" data-factory-dialog aria-labelledby="factory-title">
+        <h2 id="factory-title">Factory Reset Database</h2>
+        <p>Keep the game closed. This replaces all application data with the factory configuration. A private rollback backup is required and will appear in the backup list. Login, pairing and backup records are preserved.</p>
+        <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/database-factory-reset">
+            <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="fingerprint" value="<?= lorkhan_ui_h($factoryPlan['fingerprint']) ?>">
+            <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+            <label for="factory-confirm">Type Factory Reset to confirm</label><input id="factory-confirm" name="confirm" pattern="Factory Reset" autocomplete="off" required>
+            <div class="card-actions"><button type="button" class="button" data-factory-cancel>Cancel</button><button class="button version-reset-all" type="submit">Back Up and Factory Reset</button></div>
+        </form>
+    </dialog><?php endif; ?>
 </main>

@@ -17,6 +17,7 @@ if ($dsn === '') {
 
 return [
     'environment' => 'test',
+    'factory_storage_path' => getenv('LORKHAN_TEST_FACTORY_DIR') ?: $controlDirectory.'/factory-unavailable',
     'database_admin_url' => is_file($controlDirectory.'/database-admin-url')?file_get_contents($controlDirectory.'/database-admin-url'):'',
     'base_path' => '/LorkhanServer/api/v1',
     'database_dsn' => $dsn,

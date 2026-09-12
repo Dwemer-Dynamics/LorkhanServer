@@ -3545,4 +3545,31 @@ for admin_url in ['', 'javascript:alert(1)', 'http://example.test/pgAdmin/', 'ht
         pathlib.Path(os.environ['LORKHAN_ADMIN_EVIDENCE']+('-enabled' if allowed else '-disabled')+'.html').write_text(admin_html,encoding='utf-8')
 admin_control.unlink()
 
+# Factory UI submits only the verified plan, keeps destructive work single-attempt, and fences other maintenance.
+factory_page,factory_html=parse(request('/LorkhanServer/ui/database_manager.php'))
+factory_form=next(f for f in factory_page.forms if f['action'].endswith('/forms/database-factory-reset'))
+factory_fields=dict(factory_form['fields'],confirm='Factory Reset')
+factory_path=factory_form['action']; factory_status='/LorkhanServer/manage/api/v1/database-factory-reset'
+assert 'Factory Reset LorkhanServer' in factory_html and re.fullmatch('[a-f0-9]{64}',factory_fields['fingerprint'])
+if os.environ.get('LORKHAN_FACTORY_EVIDENCE'): pathlib.Path(os.environ['LORKHAN_FACTORY_EVIDENCE']).write_text(factory_html,encoding='utf-8')
+try:
+    urllib.request.urlopen(urllib.request.Request(base+factory_status,headers={'Accept':'application/json'}),timeout=5)
+    raise AssertionError('unauthenticated factory status was exposed')
+except urllib.error.HTTPError as error: assert error.code==401
+try:
+    replay_no_redirect.open(urllib.request.Request(base+factory_path,data=urllib.parse.urlencode(dict(factory_fields,_csrf='wrong')).encode(),headers={'Content-Type':'application/x-www-form-urlencoded'}),timeout=5)
+    raise AssertionError('invalid factory CSRF was accepted')
+except urllib.error.HTTPError as error: assert error.code==303 and error.headers['Location'].endswith('/ui/home.php')
+assert request(factory_path,'POST',dict(factory_fields,confirm='wrong')).status==422
+assert 'factory-unavailable' in request(factory_path,'POST',dict(factory_fields,fingerprint='0'*64)).geturl()
+assert json.load(request(factory_status,accept='application/json'))['job'] is None
+assert 'factory-queued' in request(factory_path,'POST',factory_fields).geturl()
+factory_job=json.load(request(factory_status,accept='application/json'))['job']
+assert factory_job['state']=='queued' and set(factory_job)=={'job_id','state','created_at','updated_at'}
+assert 'factory-queued' in request(factory_path,'POST',factory_fields).geturl()
+assert json.load(request(factory_status,accept='application/json'))['job']['job_id']==factory_job['job_id']
+for maintenance_path,fields in [('/forms/database-maintenance',{'confirm':'Maintenance'}),('/forms/database-backup',{'confirm':'Backup'}),('/forms/database-replay',replay_fields),('/forms/database-restore',{'confirm':'Restore SQL','backup_id':replay_restore_target})]:
+    assert 'maintenance-busy' in request('/LorkhanServer/manage'+maintenance_path,'POST',dict(fields,_csrf=factory_fields['_csrf'])).geturl()
+subprocess.run([*pg_test,"UPDATE lorkhan_internal.durable_jobs SET state='dead',completed_at=clock_timestamp() WHERE job_type='database.factory_reset' AND state='queued'"],check=True,capture_output=True)
+
 print('browser-like management HTTP forms passed')
