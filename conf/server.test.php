@@ -17,6 +17,7 @@ if ($dsn === '') {
 
 return [
     'environment' => 'test',
+    'database_admin_url' => is_file($controlDirectory.'/database-admin-url')?file_get_contents($controlDirectory.'/database-admin-url'):'',
     'base_path' => '/LorkhanServer/api/v1',
     'database_dsn' => $dsn,
     'database_user' => getenv('LORKHAN_TEST_DB_USER') ?: '',

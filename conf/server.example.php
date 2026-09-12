@@ -6,6 +6,8 @@ return [
     'base_path' => '/LorkhanServer/api/v1',
     'database_dsn' => 'pgsql:host=127.0.0.1;port=5432;dbname=lorkhan',
     'database_user' => 'lorkhan_runtime',
+    // Optional pgAdmin link. HTTPS, or HTTP on loopback; never include credentials or query tokens.
+    'database_admin_url' => '',
     // index.php reads LORKHAN_DATABASE_PASSWORD, LORKHAN_PAIRING_TOKEN_HASH, and
     // LORKHAN_MANAGEMENT_SECRET_HASH from a restrictive service EnvironmentFile. Only hashes are accepted.
     'database_password' => '',

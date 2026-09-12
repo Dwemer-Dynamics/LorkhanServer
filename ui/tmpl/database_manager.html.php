@@ -79,6 +79,11 @@
             <p>Backups appear in Full Database Backups above. If backup storage is full, older copies remain intact and the new job fails. Disabling stops new automatic backups and prevents queued automatic work from starting.</p>
         </section>
         <section class="manager-section grid-container tools-grid" aria-label="Database tools">
+            <article class="card-tile" data-database-access>
+                <div class="card-content"><h2>🗄️ Database Access</h2><p>Access the pgAdmin database manager for advanced database management.</p><p>Sign in with your database administrator account. Server credentials are not shown here.</p>
+                <?php if($databaseAdminUrl===''): ?><p class="database-notice">Database Access is not configured. Set a valid <code>database_admin_url</code> in the private server configuration.</p><?php endif; ?></div>
+                <div class="card-actions"><?php if($databaseAdminUrl!==''): ?><a class="button database-admin-link" href="<?= lorkhan_ui_h($databaseAdminUrl) ?>" target="_blank" rel="noopener noreferrer">Open Database Manager</a><?php else: ?><button type="button" class="button" disabled>Open Database Manager</button><?php endif; ?></div>
+            </article>
             <article class="card-tile">
                 <div class="card-content"><h2>🔧 Database Maintenance</h2>
                     <p>Optimize and compact this Lorkhan database with VACUUM FULL ANALYZE. No other server database is touched.</p>

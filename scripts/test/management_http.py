@@ -3530,4 +3530,19 @@ reader_code=restore_code.split('$worker=')[0].replace("'restore_runtime'","'repl
 reader_result=subprocess.run(['php','-r',reader_code,str(repository_root),sys.argv[3],restore_backup_path],capture_output=True,text=True,timeout=10)
 assert reader_result.returncode==0 and json.loads(reader_result.stdout)==replay_plan,(reader_result.stdout,reader_result.stderr)
 
+
+# Deployment-owned pgAdmin link: render safe destinations, never userinfo/query tokens or unsafe schemes.
+admin_control=pathlib.Path(restore_backup_path).parent/'database-admin-url'
+for admin_url in ['', 'javascript:alert(1)', 'http://example.test/pgAdmin/', 'https://user:secret@example.test/', 'https://example.test/?token=private', 'https://example.test/#private', 'https://example.test/pgAdmin/', 'http://127.0.0.1:8081/pgAdmin/', 'http://[::1]:8081/pgAdmin/']:
+    admin_control.write_text(admin_url,encoding='utf-8')
+    _,admin_html=parse(request('/LorkhanServer/ui/database_manager.php'))
+    admin_card=admin_html.split('data-database-access>',1)[1].split('</article>',1)[0]
+    allowed=admin_url in ['https://example.test/pgAdmin/','http://127.0.0.1:8081/pgAdmin/','http://[::1]:8081/pgAdmin/']
+    assert ('class="button database-admin-link"' in admin_card)==allowed,admin_url
+    assert ('disabled' in admin_card)==(not allowed),admin_url
+    if allowed: assert 'href="'+admin_url+'"' in admin_card and 'rel="noopener noreferrer"' in admin_card
+    if os.environ.get('LORKHAN_ADMIN_EVIDENCE') and admin_url in ['', 'http://127.0.0.1:8081/pgAdmin/']:
+        pathlib.Path(os.environ['LORKHAN_ADMIN_EVIDENCE']+('-enabled' if allowed else '-disabled')+'.html').write_text(admin_html,encoding='utf-8')
+admin_control.unlink()
+
 print('browser-like management HTTP forms passed')

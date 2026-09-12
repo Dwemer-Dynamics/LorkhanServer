@@ -3,6 +3,12 @@ declare(strict_types=1);
 $pageTitle='Database Manager'; $topNavSection='control'; $BODY_CLASS='hub-page database-manager-shell';
 require __DIR__.'/ui_bootstrap.php';
 require __DIR__.'/tmpl/control_reader.php';
+// Administration routing belongs to deployment configuration, never browser input or saved NPC settings.
+$databaseAdminUrl=$config['database_admin_url']??'';
+$adminParts=is_string($databaseAdminUrl)&&strlen($databaseAdminUrl)<=2048&&filter_var($databaseAdminUrl,FILTER_VALIDATE_URL)!==false?parse_url($databaseAdminUrl):false;
+if($adminParts===false||!isset($adminParts['host'])||isset($adminParts['user'])||isset($adminParts['pass'])||isset($adminParts['query'])||isset($adminParts['fragment'])
+    ||!in_array(strtolower($adminParts['scheme']??''),['http','https'],true)
+    ||(strtolower($adminParts['scheme'])==='http'&&!in_array(strtolower($adminParts['host']),['127.0.0.1','localhost','[::1]'],true)))$databaseAdminUrl='';
 $maintenanceJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus();
 $sqlBackupJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus('database.backup');
 $sqlRestoreJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus('database.restore');
