@@ -32,7 +32,7 @@ http_response_code($status);include dirname(__DIR__).'/tmpl/head.html';
     <div class="content-grid"><section class="content-section"><h2>Report</h2>
     <?php if($error!==''): ?><p><?= lorkhan_ui_h($error) ?></p><?php else: ?>
         <form method="post" data-npc-report-form><input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>">
-            <p class="report-help">Generate an evolution report from this NPC's saved personality history. Uses the Summaries connector in Global Settings. This makes an AI request; the NPC profile is not changed.</p>
+            <p class="report-help">Generate an evolution report from this NPC's saved personality history. Uses the Background &amp; Memory Tasks connector in Global Settings. This makes an AI request; the NPC profile is not changed.</p>
             <button type="submit">Generate report (AI request)</button>
         </form>
         <p role="status" data-report-status>No report requested.</p>

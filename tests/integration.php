@@ -3748,7 +3748,12 @@ $reportNpc=$reportProducts->createRevisioned('profile',['installation_id'=>$repo
 $reportNpcId=$reportNpc['profile_id'];$reports=new \LorkhanServer\Infrastructure\NpcEvolutionReportRepository($db);
 try{$reports->enqueue($reportInstallation,$reportNpcId,\LorkhanServer\Infrastructure\Uuid::v4());$assert(false,'disabled report connector queued');}catch(InvalidArgumentException $e){$assert($e->getMessage()==='report_connector_disabled','wrong report disabled error');}
 $reportProvider=$reportProducts->createRevisioned('provider',['installation_id'=>$reportInstallation,'name'=>'Mock report connector','content'=>['driver'=>'mock','model'=>'report-test']],$reportNow);
-$reportProducts->createRevisioned('memory_policy',['installation_id'=>$reportInstallation,'name'=>'Report summary policy','content'=>['schema'=>'lorkhan.memory-policy.v1','enabled'=>true,'provider_configuration_id'=>$reportProvider['configuration_id']]],$reportNow);
+$reportProducts->createRevisioned('memory_policy',['installation_id'=>$reportInstallation,'name'=>'Report summary policy','content'=>['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>$reportProvider['configuration_id']]],$reportNow);
+$backgroundProvider=$reportProducts->createRevisioned('provider',['installation_id'=>$reportInstallation,'name'=>'Background report connector','content'=>['driver'=>'mock','model'=>'background-report-test']],$reportNow);
+$reportGlobals=\LorkhanServer\Application\SettingsCatalog::globalDefaults();$reportGlobals['system_routing']['background_memory_configuration_id']=$backgroundProvider['configuration_id'];
+$reportGlobal=$reportProducts->createRevisioned('global_settings',['installation_id'=>$reportInstallation,'name'=>'Global Settings','content'=>$reportGlobals],$reportNow);
+try{$reportProducts->deleteRevisioned('provider',$backgroundProvider['configuration_id'],$reportNow);$assert(false,'background connector deleted while selected');}catch(InvalidArgumentException $e){$assert($e->getMessage()==='provider_in_use','wrong selected background connector error');}
+
 $content=$reportNpc['content'];$content['biography']='Same personality, later biography';$reportProducts->revise('profile',$reportNpcId,$content,'test',$reportNow);
 $content['personality']='Outgoing';$reportProducts->revise('profile',$reportNpcId,$content,'test',$reportNow);
 $requestId=\LorkhanServer\Infrastructure\Uuid::v4();$reportQueued=$reports->enqueue($reportInstallation,$reportNpcId,$requestId);
@@ -3759,7 +3764,13 @@ $content['personality']='Changed while report queued';$reportProducts->revise('p
 $assert($reports->input($reportInstallation,$reportNpcId,$reportQueued['job_id'])===$reportInput,'report input changed after enqueue');
 $reportJobs=new \LorkhanServer\Infrastructure\JobRepository($db);$claimed=$reportJobs->claim('report-test',1,60,['profile.report'])[0];
 $assert($claimed['job_id']===$reportQueued['job_id']&&$claimed['max_attempts']===1,'report claim/attempt bounds');
+$assert($claimed['payload']['provider_configuration_id']===$backgroundProvider['configuration_id'],'report used Summaries instead of Background Tasks');
 $reportHandler=new \LorkhanServer\Application\NpcEvolutionReportJobHandler($reports,$reportProducts,new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db));
+// A queued report still protects its connector after the global selector is cleared.
+$reportDisabled=$reportGlobals;$reportDisabled['system_routing']['background_memory_configuration_id']='';
+$reportProducts->revise('global_settings',$reportGlobal['configuration_id'],$reportDisabled,'test',$reportNow);
+try{$reportProducts->deleteRevisioned('provider',$backgroundProvider['configuration_id'],$reportNow);$assert(false,'queued report connector deleted');}catch(InvalidArgumentException $e){$assert($e->getMessage()==='provider_in_use','wrong pending report connector error');}
+$reportProducts->revise('global_settings',$reportGlobal['configuration_id'],$reportGlobals,'test',$reportNow);
 $reportHandler->handle($claimed['payload']+['_job'=>['job_id'=>$claimed['job_id'],'attempt'=>$claimed['attempt_count'],'lease_token'=>$claimed['lease_token']]],$claimed['idempotency_key'],static fn()=>true);
 $assert($reports->status($reportInstallation,$reportNpcId,$claimed['job_id'])['report']===null,'uncommitted report exposed');
 $reportJobs->succeed($claimed['job_id'],$claimed['lease_token']);$reportStatus=$reports->status($reportInstallation,$reportNpcId,$claimed['job_id']);

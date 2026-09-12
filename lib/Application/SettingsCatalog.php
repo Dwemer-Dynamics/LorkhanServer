@@ -120,7 +120,7 @@ final class SettingsCatalog
     ];
 
     private const SYSTEM_ROUTING_FIELDS = [
-        'oghma_configuration_id', 'profile_generation_configuration_id', 'relationship_configuration_id',
+        'oghma_configuration_id', 'profile_generation_configuration_id', 'relationship_configuration_id', 'background_memory_configuration_id',
     ];
 
     private const ROUTING_TYPES = [
@@ -226,6 +226,7 @@ final class SettingsCatalog
             'system_routing' => [
                 'oghma_configuration_id' => '',
                 'profile_generation_configuration_id' => '',
+                'background_memory_configuration_id' => '',
                 'relationship_configuration_id' => '',
             ],
         ];

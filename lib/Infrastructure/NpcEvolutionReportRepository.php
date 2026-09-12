@@ -45,9 +45,9 @@ final class NpcEvolutionReportRepository
             $existing=$this->db->prepare("SELECT j.job_id,j.state FROM durable_jobs j JOIN npc_evolution_reports r ON r.job_id=j.job_id WHERE j.job_type='profile.report' AND j.idempotency_key=:key AND r.installation_id=:installation AND r.profile_id=:profile");
             $existing->execute(['key'=>$key,'installation'=>$installation,'profile'=>$profile]);
             if($row=$existing->fetch()){$this->db->commit();return $row;}
-            $products=new ProductRepository($this->db);$policy=$products->memorySummaryPolicyForInstallation($installation)['content']??[];
-            if(($policy['enabled']??false)!==true||empty($policy['provider_configuration_id']))throw new InvalidArgumentException('report_connector_disabled');
-            $provider=$products->getRevisioned('provider',$policy['provider_configuration_id']);
+            $products=new ProductRepository($this->db);$route=(string)($products->globalSettingsForInstallation($installation)['content']['system_routing']['background_memory_configuration_id']??'');
+            if($route==='')throw new InvalidArgumentException('report_connector_disabled');
+            $provider=$products->getRevisioned('provider',$route);
             if($provider['installation_id']!==$installation)throw new InvalidArgumentException('report_connector_unavailable');
             $history=$this->history($profile,(int)$npc['current_revision']);$job=Uuid::v4();
             $payload=['installation_id'=>$installation,'profile_id'=>$profile,'provider_configuration_id'=>$provider['configuration_id'],'provider_revision'=>(int)$provider['current_revision']];

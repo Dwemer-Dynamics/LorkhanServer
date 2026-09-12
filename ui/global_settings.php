@@ -157,6 +157,7 @@ $sections = [
     'global-connectors' => [
         'Global Connectors' => [
             ['memory_summary_connector', 'Summaries', '&#x1F4DD;', 'select', $memorySummary['provider_configuration_id'] ?? '', 'Summarize consolidated memories with the selected LLM. Original memories are retained.', ['values'=>$llmOptions, 'toggle'=>['memory_summary_enabled','Automatic Memory Summaries',$memorySummary['enabled'] ?? false]]],
+            ['background_memory_configuration_id', 'Background & Memory Tasks', '&#x1F9E0;', 'select', $systemRouting['background_memory_configuration_id'], 'Generates NPC evolution reports from saved history. Disabled never calls a provider. Separate from automatic memory summaries.', ['values'=>$llmOptions]],
             ['profile_generation_configuration_id', 'Profile Tasks', '&#x1F58B;&#xFE0F;', 'select', $systemRouting['profile_generation_configuration_id'], 'Creates requested NPC, player, and narrator profile text. Disabled never calls a provider.', ['values' => $llmOptions]],
             ['relationship_configuration_id', 'Relationship Management', '&#x1F91D;', 'select', $systemRouting['relationship_configuration_id'], 'Evaluates eligible completed conversations using Relationship Update Chance.', ['values'=>$llmOptions, 'toggle'=>['relationship_enabled','Relationship Evaluation',$relationshipSettings['enabled']]]],
         ],

@@ -3228,6 +3228,12 @@ foreach (['bad', $foreign.$foreign, str_replace('false','invalid',$foreign),str_
     catch(InvalidArgumentException){$check(true,'invalid LLM CSV rejected');}
 }
 
+
+$oldGlobal=\LorkhanServer\Application\SettingsCatalog::globalDefaults();unset($oldGlobal['system_routing']['background_memory_configuration_id']);
+$check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($oldGlobal)['system_routing']['background_memory_configuration_id']==='', 'legacy globals default Background Tasks to disabled');
+$backgroundGlobal=\LorkhanServer\Application\SettingsCatalog::globalDefaults();$backgroundGlobal['system_routing']['background_memory_configuration_id']='00000000-0000-4000-8000-000000000001';
+$check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($backgroundGlobal)===$backgroundGlobal,'global Background Tasks route round trip');
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

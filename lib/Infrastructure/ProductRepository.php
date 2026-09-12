@@ -690,6 +690,7 @@ final class ProductRepository
         $routing=$settings['system_routing'];
         $definitions=[
             ['memory_summary_connector','Summaries',(string)($summary['provider_configuration_id']??''),($summary['enabled']??false)===true],
+            ['background_memory_configuration_id','Background & Memory Tasks',$routing['background_memory_configuration_id'],true],
             ['profile_generation_configuration_id','Profile Tasks',$routing['profile_generation_configuration_id'],true],
             ['oghma_configuration_id','Custom Oghma LLM',$routing['oghma_configuration_id'],$settings['oghma']['enabled']&&$settings['oghma']['extractor_enabled']],
             ['relationship_configuration_id','Relationship Management',$routing['relationship_configuration_id'],
@@ -1424,12 +1425,12 @@ final class ProductRepository
                 $lock=$this->db->prepare("SELECT configuration_id FROM configuration_sets WHERE configuration_id=:id AND deleted_at IS NULL FOR UPDATE");
                 $lock->execute(['id'=>$id]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
                 (new Player2RoutingRepository($this->db))->assertNotActive($id);
-                $queued=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type IN ('profile.generate','memory.summarize','relationship.evaluate','relationship.build','relationship.convert','narrative.generate') AND state IN ('queued','leased') AND payload->>'provider_configuration_id'=:id LIMIT 1");
+                $queued=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type IN ('profile.generate','profile.report','memory.summarize','relationship.evaluate','relationship.build','relationship.convert','narrative.generate') AND state IN ('queued','leased') AND payload->>'provider_configuration_id'=:id LIMIT 1");
                 $queued->execute(['id'=>$id]);if($queued->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $policy=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
                     WHERE c.kind='memory_policy' AND c.deleted_at IS NULL AND r.content->>'provider_configuration_id'=:id LIMIT 1");
                 $policy->execute(['id'=>$id]);if($policy->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
-                $global=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.kind='global_settings' AND c.deleted_at IS NULL AND :id IN (r.content#>>'{system_routing,oghma_configuration_id}',r.content#>>'{system_routing,profile_generation_configuration_id}',r.content#>>'{system_routing,relationship_configuration_id}') LIMIT 1");
+                $global=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.kind='global_settings' AND c.deleted_at IS NULL AND :id IN (r.content#>>'{system_routing,oghma_configuration_id}',r.content#>>'{system_routing,profile_generation_configuration_id}',r.content#>>'{system_routing,background_memory_configuration_id}',r.content#>>'{system_routing,relationship_configuration_id}') LIMIT 1");
                 $global->execute(['id'=>$id]);if($global->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id OR r.content->'routing'->>'relationship_configuration_id'=:id OR r.content->'routing'->>'diary_generation_configuration_id'=:id OR r.content->'routing'->>'player_autochat_configuration_id'=:id) LIMIT 1");
                 $profile->execute(['id'=>$id]);if($profile->fetchColumn())throw new \InvalidArgumentException('provider_in_use');

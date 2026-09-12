@@ -328,6 +328,8 @@ final class EffectiveSettingsResolver
             || $content['relationship']['update_chance_percent'] < 0 || $content['relationship']['update_chance_percent'] > 100) {
             throw new InvalidArgumentException('invalid_global_settings');
         }
+        // New global-only task routes default to Disabled for older saved documents.
+        if(is_array($content['system_routing'])&&!array_is_list($content['system_routing']))$content['system_routing'] += ['background_memory_configuration_id'=>''];
         self::assertExactKeys($content['system_routing'], $expected['system_routing'], 'invalid_global_settings');
         foreach (SettingsCatalog::systemRoutingFields() as $field) self::validateUuidOrEmpty($content['system_routing'][$field]);
         return $content;
