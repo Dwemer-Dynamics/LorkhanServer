@@ -11348,3 +11348,32 @@ run. PHP lint and 1034 server checks passed. `npc-defaults-review.cjs` checked a
 45 deployed Create definitions at 1280/390 without any POSTs. Exact runtime
 verification passed for 858 files and protected private routes. Deployment backup:
 `/var/backups/lorkhanserver-npc-defaults.8E0q2L`. No game or paid provider invoked.
+
+## Current LLM provider and advanced review (2026-09-12)
+
+Retested actual deployed assets, removing stale worktree JS/CSS interception from
+older temporary probes. `llm-advanced-current.cjs` passed desktop/narrow slider
+sync, seven-value Clear, retained Temperature and disabled YAML drafts with no
+writes. The live reference still does not sync numeric input back to the slider;
+its slider-to-number and Clear behavior passes. `llm-loading-current.cjs` passed
+mocked save/Test loading, repeated top position, close-while-pending and failed-save
+Test refusal at both widths. No provider requests were sent.
+
+Copied the pinned Core LLM page's Groq JSON Schema visibility rule into the native
+service handler. Hidden draft values are preserved; switching away restores the
+control. `llm-service-schema-current.cjs` passed native six presets plus Custom
+at 1280/390; shared five non-Player2 presets retain model/Custom URL/key in both
+products. The live reference keeps JSON Schema visible for Groq despite the pinned
+source hide handler (core/llm_connectors.php:2138); this is an observed live/reference
+difference, not a claimed equal rendered state.
+
+New concrete remaining gap: pinned Player2 preset hides Model and API Key and clears
+the explicit model on user selection (same file:743,766-770). Live reference also
+clears the model; native retains a required model and shows these controls. Complete
+native Player2 model omission/save/request semantics before copying the hidden-field
+presentation. Do not close the LLM row from the five-provider checks above.
+
+JS syntax, 1034 server checks and 111 protocol checks passed. Scoped deployment
+backup `/var/backups/lorkhanserver-llm-groq-schema.8qTUmt`; exact runtime verification
+passed for 858 files with private-route protection unchanged. Paid providers and the
+game were not invoked.

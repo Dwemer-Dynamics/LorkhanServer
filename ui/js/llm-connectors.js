@@ -317,6 +317,9 @@
         if (endpointRow) endpointRow.hidden = driver.value !== 'openai-compatible' || service !== 'custom';
         const providerRow = document.getElementById('llm_provider_row');
         if (providerRow) providerRow.hidden = !['openrouter', 'custom'].includes(service);
+        // Match the reference Groq preset presentation without discarding its saved schema draft.
+        const schemaRow = document.getElementById('llm_option_json_schema')?.closest('.llm-option-field');
+        if (schemaRow) schemaRow.hidden = service === 'groq';
         const signup = document.getElementById('llm-service-signup');
         if (signup) {
             signup.hidden = !signupUrls[service];
