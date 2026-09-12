@@ -440,6 +440,22 @@ final class ManagementRouter
         }
         if($domain==='global-settings-preset')return $this->namedGlobalSettingsPreset($v,$scope);
         if($domain==='core-profile-preset')return $this->namedCoreProfilePreset($v,$scope);
+        if($domain==='database-maintenance'){
+            if(($v['confirm']??'')!=='Maintenance')throw new InvalidArgumentException('confirmation_mismatch');
+            $status='maintenance-completed';
+            try{$this->management->compactDatabase();}
+            catch(RuntimeException $error){
+                $status=match($error->getMessage()){
+                    'maintenance_busy'=>'maintenance-busy',
+                    'maintenance_permission_required'=>'maintenance-permission',
+                    'maintenance_no_tables'=>'maintenance-empty',
+                    'maintenance_failed'=>'maintenance-failed',
+                    default=>throw $error,
+                };
+            }
+            return $this->redirect($this->webRoot().'/ui/database_manager.php?'.http_build_query([
+                'status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
+        }
         if($domain==='relationship-preview'){
             foreach(['installation_id','profile_id','playthrough_id'] as $field)
                 if(!isset($scope[$field]))throw new InvalidArgumentException('invalid_relationship_scope');

@@ -10465,3 +10465,33 @@ verified typed picker results, existing percentages, removal and invalid raw JSO
 no live writes. Temporary npc-language-overrides.cjs, screenshots and
 npc-language-overrides-http.txt. No game launch or provider calls. Full catalogue
 and page-matrix closure remain unfinished.
+
+### Database maintenance and remaining runtime dependencies (2026-09-11)
+
+Inspected Herika's Google Free STT button and pmstt addon: this is browser
+recognition feeding speech into the game via PlayerSays, not a server STT driver.
+A dictation-only test would not close that gap; the authenticated, target/session-
+fenced Lorkhan bridge remains missing. Also confirmed the playthrough list already
+has paging beyond 100, selected-ID lookup and existing HTTP coverage; the matrix's
+older claim that list access is still missing is stale. Stored database snapshots,
+switch/delete/rollback and snapshot timeline remain missing.
+
+Database Manager now has the reference maintenance operation, VACUUM FULL ANALYZE,
+behind an authenticated CSRF-protected POST and explicit Maintenance confirmation.
+It targets only catalogue-quoted application tables in this connected database,
+checks ownership, prevents concurrent execution and rate-limits starts to once per
+minute. It never accepts a database name, table name or SQL from the browser.
+Start/completion/failure are audited; errors expose no SQL or credentials. Current
+HTTP execution is bounded to 25 seconds with a 3-second lock wait. Large-database
+asynchronous execution remains unfinished rather than claiming full maintenance
+parity from a small fixture. Failed runs may have compacted some tables; the UI
+explains this and tells users to stop the game before explicitly running it.
+
+Proof: 907 checks and the complete isolated management HTTP suite passed, including
+real compaction, invalid-confirmation rejection, saved receipt and immediate-repeat
+blocking. Deployed GET-only browser checks cover 1280/390, confirmation constraints,
+and all outcome messages; no live maintenance was invoked. Temporary evidence:
+database-maintenance-http.txt, database-maintenance-proof.cjs and screenshots.
+Full SQL backups/import, automatic backups, database access/reset/version reset,
+long-running maintenance and the broader matrix remain unfinished. No game control
+or paid provider calls.

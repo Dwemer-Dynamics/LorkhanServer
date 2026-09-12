@@ -359,6 +359,13 @@ assert '/var/log/' not in text and 'chim.log' not in text
 database,text=parse(request('/LorkhanServer/ui/database_manager.php')); assert database.current==1 and '<h1>Database Manager</h1>' in text and 'schema migrations' in text and 'Installation Configuration Backups' in text
 assert 'server-file-list' not in text and 'No configuration backups are available.' in text
 assert 'Database Versioning Manager' in text and 'not a full database backup' in text
+maintenance=next(f for f in database.forms if f['action'].endswith('/forms/database-maintenance'))
+r=request(maintenance['action'],'POST',dict(maintenance['fields'],confirm='wrong')); assert r.status==422
+r=request(maintenance['action'],'POST',dict(maintenance['fields'],confirm='Maintenance',embed='1'))
+maintenance_body=r.read().decode()
+assert r.status==200 and 'maintenance-completed' in r.geturl() and 'embed=1' in r.geturl() and 'application tables compacted' in maintenance_body,(r.status,r.geturl(),maintenance_body)
+r=request(maintenance['action'],'POST',dict(maintenance['fields'],confirm='Maintenance'))
+assert r.status==200 and 'maintenance-busy' in r.geturl(),r.geturl()
 studio,text=parse(request('/LorkhanServer/ui/core/voice_library.php')); assert studio.current==1 and 'Add WAV voice samples' in text and 'flat ZIP batch' in text and 'Voice Library' in text and 'Configured TTS Connectors' in text and 'Provider Voice Browser' in text and 'never contacts a provider automatically' in text
 for provider_tab,provider_label in [('xtts','XTTS'),('chatterbox','Chatterbox'),('pockettts','PocketTTS'),('omnivoice','OmniVoice'),('cartesia','Cartesia'),('inworld','Inworld')]:
     cache_html=request('/LorkhanServer/ui/core/voice_library.php?tab='+provider_tab).read().decode()

@@ -20,6 +20,45 @@ final class ManagementRepository
 
     public function __construct(private readonly PDO $db) {}
 
+    /** Compact only this server's application tables, with a lock and time-bounded explicit request. */
+    public function compactDatabase(): void
+    {
+        $locked=$this->db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn();
+        if(!filter_var($locked,FILTER_VALIDATE_BOOL))throw new RuntimeException('maintenance_busy');
+        $statementTimeout=(string)$this->db->query('SHOW statement_timeout')->fetchColumn();
+        $lockTimeout=(string)$this->db->query('SHOW lock_timeout')->fetchColumn();
+        try {
+            $recent=$this->db->query("SELECT count(*) FROM operational_audit WHERE category='database_maintenance'
+                AND action='started' AND created_at>now()-interval '1 minute'")->fetchColumn();
+            if((int)$recent>0)throw new RuntimeException('maintenance_busy');
+            $tables=$this->db->query("SELECT format('%I.%I',n.nspname,c.relname) AS name,
+                pg_has_role(current_user,c.relowner,'USAGE') AS owned
+                FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+                WHERE n.nspname IN ('public','lorkhan_internal') AND c.relkind IN ('r','m')
+                ORDER BY n.nspname,c.relname")->fetchAll(PDO::FETCH_ASSOC);
+            foreach($tables as$table)if(!filter_var($table['owned'],FILTER_VALIDATE_BOOL))
+                throw new RuntimeException('maintenance_permission_required');
+            if($tables===[])throw new RuntimeException('maintenance_no_tables');
+            $this->audit('database_maintenance','started',[],['tables'=>count($tables)]);
+            $this->db->exec("SET statement_timeout='25s'; SET lock_timeout='3s'");
+            // Names are quoted by PostgreSQL from its catalogue, never supplied by the browser.
+            $this->db->exec('VACUUM (FULL, ANALYZE) '.implode(',',array_column($tables,'name')));
+            $this->audit('database_maintenance','completed',[],['tables'=>count($tables)]);
+        } catch(\PDOException $error) {
+            $state=preg_match('/^[A-Z0-9]{5}$/D',(string)$error->getCode())?(string)$error->getCode():'unknown';
+            error_log('Lorkhan database maintenance failed (SQLSTATE '.$state.').');
+            $this->audit('database_maintenance','failed',[],['reason'=>'database_operation_failed','sqlstate'=>$state]);
+            throw new RuntimeException('maintenance_failed',0,$error);
+        } finally {
+            try {
+                $restore=$this->db->prepare("SELECT set_config('statement_timeout',:statement,false),set_config('lock_timeout',:lock,false)");
+                $restore->execute(['statement'=>$statementTimeout,'lock'=>$lockTimeout]);
+            } finally {
+                $this->db->query('SELECT pg_advisory_unlock(7514,113)');
+            }
+        }
+    }
+
     /** Remove a completed queue-log projection without cancelling or erasing native response events. */
     public function removeResponseQueueEntry(string $installation, int $rowid): int
     {

@@ -4,8 +4,29 @@
         <p class="page-subtitle">Manage installation configuration backups, restores and applied schema migrations</p>
     </header>
     <?php if (($_GET['status']??'')==='saved'): ?><p class="database-notice" role="status">Database operation completed.</p><?php endif; ?>
+    <?php $maintenanceMessages=[
+        'maintenance-completed'=>'Database maintenance completed: Lorkhan application tables compacted and analysed.',
+        'maintenance-busy'=>'Maintenance is already running or was started within the last minute. Please wait before retrying.',
+        'maintenance-permission'=>'Maintenance requires ownership of all Lorkhan application tables. No maintenance was started.',
+        'maintenance-empty'=>'No application tables were found. No maintenance was started.',
+        'maintenance-failed'=>'Maintenance did not complete within the database limits or encountered an error. Some tables may already be compacted. Your records were not deleted. See server logs before retrying.',
+    ]; if(isset($maintenanceMessages[$_GET['status']??''])): ?><p class="database-notice" role="status"><?= lorkhan_ui_h($maintenanceMessages[$_GET['status']]) ?></p><?php endif; ?>
     <div class="manager-sections">
         <section class="manager-section grid-container tools-grid" aria-label="Database tools">
+            <article class="card-tile">
+                <div class="card-content"><h2>🔧 Database Maintenance</h2>
+                    <p>Optimize and compact this Lorkhan database with VACUUM FULL ANALYZE. No other server database is touched.</p>
+                    <p>Stop the game and wait for pending server work first. Tables are locked during compaction and temporary free disk space is required. This does not delete conversation records or reset settings.</p>
+                    <p>Locks wait up to 3 seconds; the operation has a 25-second database limit. Large databases may need administrator maintenance instead. A failed run can have completed some tables.</p>
+                </div>
+                <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/database-maintenance">
+                    <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>">
+                    <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+                    <label for="database-maintenance-confirm">Type Maintenance to confirm</label>
+                    <input id="database-maintenance-confirm" type="text" name="confirm" required pattern="Maintenance" autocomplete="off">
+                    <div class="card-actions"><button class="button" type="submit">Run Database Maintenance</button></div>
+                </form>
+            </article>
             <article class="card-tile">
                 <div class="card-content"><h2>📦 Manual Backup</h2><p><strong>Installation Configuration Backups</strong> contain Core Profiles, NPC assignments and portable settings. They exclude credentials, voices, game saves and conversation history.</p><p>Creates a stored JSON file you can download below. This is not a full database backup.</p></div>
                 <?php if ($installations===[]): ?><p class="empty-state">No installation is available for a configuration backup.</p>
