@@ -787,7 +787,7 @@ final class ManagementRouter
         }
         if($domain==='profile-bulk-switch'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]+$result);
         if($domain==='provider-revise'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]);
-        if($domain==='narrator-profile-settings-import'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]);
+        if(in_array($domain,['narrator-profile-settings-import','player-profile-settings-import','global-settings-import'],true)&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]);
         if($domain==='configuration-revise'&&($v['prompt_text_editor']??'')==='1'&&!$this->htmlRequest($r))
             return Response::json(200,['ok'=>true,'revision'=>(int)$result['current_revision']]);
         if($domain==='global-settings-save')return$this->redirect($this->uiPath('world').'&status=saved');
@@ -3125,7 +3125,7 @@ final class ManagementRouter
         &&!(str_ends_with($r->path,'/forms/provider-test')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/relationship-preview')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/player-speech-style-generate')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
-        &&!((str_ends_with($r->path,'/forms/global-settings-preset')||str_ends_with($r->path,'/forms/core-profile-preset')||str_ends_with($r->path,'/forms/profile-bulk-switch')||str_ends_with($r->path,'/forms/configuration-revise')||str_ends_with($r->path,'/forms/narrator-prompt-save')||str_ends_with($r->path,'/forms/narrator-profile-settings-import'))
+        &&!((str_ends_with($r->path,'/forms/global-settings-preset')||str_ends_with($r->path,'/forms/core-profile-preset')||str_ends_with($r->path,'/forms/profile-bulk-switch')||str_ends_with($r->path,'/forms/configuration-revise')||str_ends_with($r->path,'/forms/narrator-prompt-save')||str_ends_with($r->path,'/forms/narrator-profile-settings-import')||str_ends_with($r->path,'/forms/player-profile-settings-import')||str_ends_with($r->path,'/forms/global-settings-import'))
             &&str_contains(strtolower($r->header('Accept')??''),'application/json'));}
     private function style():string{return'<style>
 :root{--bg:#100f12;--surface:#19171c;--surface-2:#211e24;--line:#3a3237;--line-hot:#856c36;--text:#e8e2d8;--muted:#9e978f;--accent:#bc9d5a;--accent-soft:rgba(188,157,90,.15);--good:#79bf87;--bad:#df7777;color-scheme:dark}

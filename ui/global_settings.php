@@ -181,7 +181,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                 <a class="btn-settings-transfer" href="<?php echo lorkhan_ui_h($managementBasePath . '/exports/global-settings/' . $settingsConfigurationId . '.json'); ?>" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.globals.export')['description']); ?>">&#128228; Export Settings</a>
                 <?php endif; ?>
                 <?php if ($installations !== []): ?>
-                <button type="button" class="btn-settings-transfer" data-gs-portability-toggle="import" aria-controls="gs-portability-panel" aria-expanded="false">&#128229; Import Settings</button>
+                <button type="button" class="btn-settings-transfer" data-global-import-open>&#128229; Import Settings</button>
                 <?php endif; ?>
                 <?php if ($installationId !== ''): ?><button type="button" class="btn-action-blue" data-profile-test-open aria-haspopup="dialog">Test Global Connectors</button><?php endif; ?>
                 <button type="submit" class="btn-save-green" name="save_all" value="1" form="gs_form">Save All</button>
@@ -212,26 +212,14 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
     <?php if (count($installations) > 1): ?><div class="installation-row"><label>Installation <select data-installation-select><?php foreach ($installations as $row): ?><option value="<?php echo lorkhan_ui_h($row['installation_id']); ?>"<?php echo $row['installation_id'] === $installationId ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($row['display_name']); ?></option><?php endforeach; ?></select></label></div><?php endif; ?>
 
     <?php if ($installations !== []): ?>
-    <section class="gs-portability-panel" id="gs-portability-panel" aria-label="Portable Global Settings">
-        <details class="gs-disclosure" data-gs-disclosure="import">
-            <summary>Import a settings preset</summary>
-            <form class="gs-disclosure-body" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/global-settings-import">
-                <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
-                <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
-                <?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
-                <div class="gs-field">
-                    <label for="gs-preset-file">Preset file</label>
-                    <input id="gs-preset-file" type="file" accept="application/json,.json" data-json-import-target="gs-preset-json" aria-describedby="gs-import-help gs-portability-scope">
-                </div>
-                <div class="gs-field">
-                    <label for="gs-preset-json">Preset JSON</label>
-                    <textarea id="gs-preset-json" name="preset_json" rows="8" required spellcheck="false" placeholder="Choose an exported .json file or paste its contents here." aria-describedby="gs-import-help gs-portability-scope"></textarea>
-                </div>
-                <p class="gs-help" id="gs-import-help">Choosing a file fills the box above; the browser accepts JSON files up to 1 MiB. Pasting the document instead works the same way. Importing saves a new Global Settings revision for the selected installation and replaces every value in the typed document, so review the file before importing.</p>
-                <div class="gs-actions-row"><button type="submit" class="btn-action-blue" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.globals.import')['description']); ?>">Import Preset</button></div>
-            </form>
-        </details>
-
+    <form hidden id="global-import-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/global-settings-import">
+        <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+        <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
+        <?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+        <input type="hidden" name="preset_json" value="">
+        <input id="gs-preset-file" type="file" accept="application/json,.json" aria-label="Import Global Settings file">
+    </form>
+    <section class="gs-portability-panel" id="gs-portability-panel" aria-label="Global Settings revision history">
         <details class="gs-disclosure" data-gs-disclosure="history">
             <summary>Revision history<?php if ($revisionHistory !== []): ?> (<?php echo count($revisionHistory); ?>)<?php endif; ?></summary>
             <div class="gs-disclosure-body">

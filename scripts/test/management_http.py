@@ -758,7 +758,7 @@ globals_page,text=parse(request('/LorkhanServer/ui/core/global_settings.php')); 
 assert 'class="page-header-actions"' in text and '&#128229; Import Settings' in text and 'class="gs-portability"' not in text and 'aria-controls="settings-panel-prompt-rechat"' in text and 'id="settings-panel-prompt-rechat"' in text
 global_settings_form=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-save'))
 global_settings_import=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-import'))
-assert 'data-json-import-target="gs-preset-json"' in text and 'replaces every value in the typed document' in text and global_settings_import['fields'].get('installation_id')==global_settings_form['fields'].get('installation_id')
+assert 'data-global-import-open' in text and 'aria-label="Import Global Settings file"' in text and 'data-gs-disclosure="import"' not in text and global_settings_import['fields'].get('installation_id')==global_settings_form['fields'].get('installation_id')
 assert global_settings_form['fields'].get('oghma_enabled')=='1' and 'oghma_extractor_enabled' not in global_settings_form['fields'] and global_settings_form['fields'].get('oghma_topic_count')=='1' and global_settings_form['fields'].get('oghma_result_limit')=='3' and global_settings_form['fields'].get('oghma_extractor_timeout_ms')=='1500',global_settings_form['fields']
 assert '/forms/autonomy' not in text and 'New Schedule' not in text
 excluded_autonomy=request('/LorkhanServer/manage/forms/autonomy','POST',{'_csrf':csrf}); assert excluded_autonomy.status==404,excluded_autonomy.status
@@ -1599,6 +1599,14 @@ assert r.status==200 and 'status=rolled-back' in r.geturl() and 'name="knowledge
 assert 'Earlier revision restored as a new Global Settings revision.' in rolled_body
 r=request(global_rollback['action'],'POST',dict(global_rollback['fields'],_csrf=csrf,configuration_id=str(uuid.uuid4()))); invalid_body=r.read().decode()
 assert r.status==422 and 'invalid_global_settings_revision' in invalid_body,(r.status,invalid_body)
+# File-picker imports use the same validated transaction with an explicit JSON response.
+json_import_values=dict(global_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(rolled_export))
+r=request(global_import['action'],'POST',dict(json_import_values,_csrf='wrong'),accept='application/json'); assert r.status==401,r.status
+r=request(global_import['action'],'POST',dict(json_import_values,preset_json=json.dumps(invalid_global_preset)),accept='application/json'); assert r.status==422,r.status
+r=request(global_import['action'],'POST',json_import_values,accept='application/json'); import_result=json.loads(r.read())
+assert r.status==200 and import_result=={'ok':True},(r.status,import_result)
+json_imported=json.loads(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json').read())
+assert json_imported['settings']==rolled_export['settings'] and json_imported['memory_policies']==rolled_export['memory_policies']
 memories,_=parse(request('/LorkhanServer/ui/events-memories.php?tab=memories-tab'))
 # Named presets save unsaved controls without changing the active revision or connector assignments.
 preset_path='/LorkhanServer/manage/forms/global-settings-preset'
@@ -2902,6 +2910,7 @@ if create_player is not None:
     assert revise['fields'].get('diary_enabled')=='1' and revise['fields'].get('auto_diary_enabled')=='1'
     assert revise['fields'].get('auto_diary_wait_enabled')=='1' and revise['fields'].get('diary_interval_seconds')=='90'
     player_import=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-settings-import'))
+    assert 'id="player-import-dialog"' not in body and 'aria-label="Import Player settings file"' in body
     player_preset_response=request('/LorkhanServer/manage/exports/player-profile-settings/'+player_id+'.json')
     player_preset=json.loads(player_preset_response.read().decode())
     assert player_preset_response.status==200 and sorted(player_preset)==['exported_at','schema','settings']
@@ -2931,6 +2940,12 @@ if create_player is not None:
     assert r.status==200 and 'status=imported' in r.geturl() and 'Portable player settings imported as a new player profile revision.' in imported_body and 'Portable and patient' in imported_body,(r.status,r.geturl(),imported_body)
     imported_player=json.loads(request('/LorkhanServer/manage/exports/player-profile-settings/'+player_id+'.json').read().decode())
     assert imported_player['settings']['goals']=='' and imported_player['settings']['personality']=='Portable and patient' and imported_player['settings']['biography_known_by_all'] is True
+    player_json_values=dict(player_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(player_preset))
+    r=request(player_import['action'],'POST',dict(player_json_values,_csrf='wrong'),accept='application/json'); assert r.status==401,r.status
+    r=request(player_import['action'],'POST',dict(player_json_values,preset_json=json.dumps(invalid_player_preset)),accept='application/json'); assert r.status==422,r.status
+    r=request(player_import['action'],'POST',player_json_values,accept='application/json'); player_json_result=json.loads(r.read())
+    assert r.status==200 and player_json_result=={'ok':True},(r.status,player_json_result)
+    assert json.loads(request('/LorkhanServer/manage/exports/player-profile-settings/'+player_id+'.json').read())['settings']==imported_player['settings']
     imported_player_page,_=parse(request('/LorkhanServer/ui/core/player_management.php'))
     imported_player_form=next(f for f in imported_player_page.forms if f['action'].endswith('/forms/player-profile-revise'))
     assert 'profile_generation_configuration_id' not in imported_player_form['fields']

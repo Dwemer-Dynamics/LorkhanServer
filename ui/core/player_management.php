@@ -278,28 +278,13 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
             </form>
 
             <?php if ($profile !== null): ?>
-                <dialog class="player-portability modal-content" id="player-import-dialog" aria-labelledby="player-import-title">
-                    <header class="modal-header"><h2 id="player-import-title">Import Player Settings</h2><button type="button" class="btn-portable" data-player-import-close aria-label="Close import player settings">&times;</button></header>
-                    <div class="player-portability-body">
-                        <p class="hint" id="player-portability-scope">A player preset carries appearance, biography, the biography visibility setting, personality, speech style, goals, and notes only. TTS connector and voice routing stay with this installation.</p>
-                        <form class="player-portability-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/player-profile-settings-import">
-                            <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
-                            <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
-                            <div class="field-block">
-                                <label for="player-preset-file">Preset file</label>
-                                <input id="player-preset-file" type="file" accept="application/json,.json" data-json-import-target="player-preset-json" aria-describedby="player-portability-scope player-portability-help">
-                            </div>
-                            <div class="field-block">
-                                <label for="player-preset-json">Preset JSON</label>
-                                <textarea id="player-preset-json" name="preset_json" rows="8" required spellcheck="false" placeholder="Choose an exported .json file or paste its contents here." aria-describedby="player-portability-scope player-portability-help"></textarea>
-                            </div>
-                            <p class="hint" id="player-portability-help">Choose a file or paste its contents above. Import saves a new revision of the existing player. Identity, voices, connectors, autochat, diary controls and game state stay unchanged.</p>
-                            <div class="player-portability-actions">
-                                <button type="button" class="btn-portable" data-player-import-close>Cancel</button><button type="submit" class="btn-portable" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.player.import')['description']); ?>">Import Preset</button>
-                            </div>
-                        </form>
-                    </div>
-                </dialog>
+                <form hidden id="player-import-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/player-profile-settings-import">
+                    <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                    <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
+                    <?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+                    <input type="hidden" name="preset_json" value="">
+                    <input id="player-preset-file" type="file" accept="application/json,.json" aria-label="Import Player settings file">
+                </form>
             <?php endif; ?>
 
             <div class="full-width-section"><h2 class="full-width-title">&#x1F4CA; Player Statistics</h2></div>

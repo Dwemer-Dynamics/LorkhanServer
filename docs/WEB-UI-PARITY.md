@@ -108,7 +108,7 @@ Current delivery order: close visible page structure and interactions directly f
 | `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty and desktop/narrow layout reviewed. Latest-diary author audio is wired, with populated-template playback/error checks; live-provider acceptance remains open |
 | `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; MiniMe Service and its bounded reachability probe implemented; visible Setup/Local LLM, all-Core presets and network helpers implemented; Herika service choices now create or reuse installation-owned speech connectors while preserving custom endpoints and badges; Player2 switch, immutable routing overlay and four recap cards are implemented and mock/browser tested; whole-page desktop/narrow structure and complete save-flow checks are complete, including key errors/retry, local setup, service reuse and stale-revision rejection. Live-provider acceptance remains untested. Service process installation is not performed by this form in either product |
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. All 15 shared tab entry views now load and retain mounted documents at 1280/390, with draft values retained in the eleven entry views containing editable fields. Tab names/order/style and keyboard activation match the reference grouping, with excluded tabs absent. Shared shell review is complete; individual editor/runtime gaps remain tracked in their own rows |
-| `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Hide Ambient Combat, Power Awareness, Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Default/Local LLM built-ins and named presets apply saved settings across existing Core Profiles with revision guards and persist independent defaults for future Core creation. Other Context event controls and portable global export of Core settings remain open; see the dated checkpoints |
+| `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Hide Ambient Combat, Power Awareness, Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Default/Local LLM built-ins and named presets apply saved settings across existing Core Profiles with revision guards and persist independent defaults for future Core creation. Import now uses the reference file picker and confirmation instead of a JSON panel, with scoped requests and failed-import draft retention. Other Context event controls remain open. Portable global export of Core settings is not a requirement of the pinned reference; see the dated scope correction |
 | `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Advanced metadata is now merged with visible controls; Oghma overrides and knowledge tags reach retrieval and both preset formats. Oghma, Context, Prompt, Relationship and Rechat overrides use the reference inline Global Settings rows, with raw JSON synchronization and inherited values. Core Prompt Head, timestamps and description-only item filters reach prompt assembly; Rechat Mode reaches chain selection, Relationship System controls job eligibility, and Power Awareness uses exact observed actor levels. Metadata Text/Tree/Table switching, immediate serialization, invalid JSON handling and empty-object preservation are verified, including fresh deployed mode-switch checks. All 17 main section titles/order match the reference; the native audit note is inside Advanced Metadata. All 15 enabled toggles, 10 slider pairs and 15 typed Copy to all dialogs are checked at 1280/390, including chained copy-to-preset revision handling. Sidebar create/clone/save/import/default/rollback/delete return paths and import/history interactions are now verified in standalone/embedded modes. Remaining: other runtime-backed Global Settings override categories and advanced Rules matching/action metadata. Physical Diary, cumulative memory semantics and Core-slot client selection are separate unfinished runtime features. |
 | `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Typed per-NPC override leaves now include language, summaries, Diary Prompt/Cooldown/History, Dynamic Profile History, Context, Prompt Head, Oghma, Relationship Enabled/Update Chance, Rechat Mode/Strict Targeting/Open Rechat and End Conversation Cooldown. Prompt assembly, queued evolution history, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. General profile metadata now uses the reference vanilla-jsoneditor tree/text/table library, with revisioned native content and separate immutable Recorded State. Bounded target inventory capture and sorted count/total presentation are deployed in server d09d717 and client 1a35727; empty/unavailable states remain distinct. All 47 currently supported override editors apply typed values to drafts at desktop/narrow widths; grouped search, metadata mode switching and failed-save retention are checked. All six editor tabs retain the eight Roleplay drafts and Notes through keyboard navigation and form serialization. Remaining: full runtime-backed override catalogue, other editor/modal interactions, continuous inventory updates and NPC Visit/Teleport/Return. |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; generation success, failed/stale jobs, concurrent edits, retry idempotency and empty-result rejection are checked with browser mocks; live-provider acceptance remains untested |
@@ -11980,3 +11980,53 @@ portable global exports must include Core profiles was incorrect; do not expand
 Lorkhan's export format for that supposed parity gap. This source check establishes
 payload scope only, not complete field or visual parity. Keep the remaining runtime
 gaps separate from the visible-page layout work.
+
+## Global and Player Settings direct file import (2026-09-12)
+
+Reference: pinned HerikaServer `ui/global_settings.php`,
+`ui/core/player_management.php` and `ui/js/settings-portability.js`.
+Both reference toolbar buttons open a hidden file input, validate the document,
+ask for confirmation, submit asynchronously and reload after success. Lorkhan's
+extra Global Settings JSON disclosure and Player Settings JSON modal have been
+removed from this workflow. The existing Narration picker implementation is now
+shared with these two pages. Gold styling and each native import schema remain.
+
+Hidden forms contain only CSRF, installation/embedded scope and the imported
+document. Unsaved editor fields are not submitted. Confirmation explains the
+actual native import scope, rather than promising Herika's partial-field behavior
+where it is not implemented. The Global Settings and Player import routes now
+negotiate JSON for success and errors when requested; normal HTML submissions
+still retain their existing redirect behavior. Cancellation and validation failures
+do not submit. Failed requests keep drafts and restore focus; successful Player
+import clears its dirty guard before returning to the same embedded page.
+
+Evidence:
+
+- PHP and JavaScript syntax, 1048 server checks and 111 protocol files pass.
+- Full isolated management HTTP suite passes in
+  `settings-picker-http-final.txt`. Existing HTML import/export, legacy formats,
+  rollback and profile tests remain. Added JSON requests verify successful stored
+  round trips, invalid CSRF rejection and malformed-document rejection for both
+  changed routes. The first run exposed missing JSON response negotiation; the
+  final run includes that fix. Temporary HTTP timeout is 30 seconds, not CI's
+  default 5 seconds. No new test file or live provider call was added.
+- `global-picker-review.cjs` and `player-picker-review.cjs` exercise actual deployed
+  pages at 1280/390: toolbar file chooser, bad JSON/schema, oversized files,
+  cancellation, scoped submission, failed-import draft/focus retention and success
+  return. Player identity and embedded scope remain; no duplicate dirty warning.
+  All browser writes are mocked. Actual server persistence is proven separately
+  by the isolated HTTP suite, not those mocked success responses.
+- Reference toolbar/file-picker behavior and screenshots are captured read-only
+  at both widths. Native and reference narrow screenshots were inspected; Player
+  comparisons use `embed=1` in both products. Populated profile/import interactions
+  are tested without changing live settings. This does not newly prove every
+  Player field or Narration interaction.
+- Full local deployment completed with rollback
+  `/var/backups/lorkhanserver-code.5R2fNu`. All 860 runtime files exactly match
+  source; no extra files or old paths. Private paths return 403, unauthenticated
+  session access returns 401, and existing/missing NPC routes return 200/404.
+  Configuration, credentials and voice-file hashes are preserved. GitHub workflow
+  330702270 remains `disabled_manually`. No game or provider was invoked.
+
+These close the two recorded import workflow mismatches, not the full webpage
+parity goal. The outstanding runtime-backed controls remain listed in the matrix.

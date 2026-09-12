@@ -26,48 +26,48 @@
         sync();
     });
 
-    // Portable imports stay outside the unsaved Player and Narrator profile forms.
-    ['player','narrator'].forEach(kind => {
-        const dialog = document.getElementById(`${kind}-import-dialog`);
-        const opener = document.querySelector(`[data-${kind}-import-open]`);
-        if (!dialog || !opener) return;
-        opener.addEventListener('click', () => dialog.showModal());
-        dialog.querySelectorAll(`[data-${kind}-import-close]`).forEach(button => button.addEventListener('click', () => dialog.close()));
-        dialog.addEventListener('close', () => opener.focus());
-    });
     // Match Herika's file picker, validation and confirmation flow without posting unrelated unsaved fields.
-    const narrationImport = document.getElementById('narrator-import-form');
-    if (narrationImport) {
-        const opener = document.querySelector('[data-narrator-import-open]');
-        const picker = narrationImport.querySelector('input[type=file]');
-        opener.addEventListener('click', () => picker.click());
+    [
+        {kind:'player', name:'Player settings', schemas:['lorkhan.player-profile-settings.v1','lorkhan.player-profile-settings.v2'],
+            form:'#player-profile-form', confirmation:'This replaces the player appearance, biography, biography visibility, personality, speech style, goals and notes. Identity, voices, connectors, autochat, diary controls and game state stay unchanged.'},
+        {kind:'narrator', name:'Narration settings', schemas:['lorkhan.narrator-profile-settings.v1','lorkhan.narrator-profile-settings.v2'],
+            form:'main.narrator-page form[data-track-dirty]', confirmation:'Only fields present in this file will change. Absent settings, the Narrator name, identity and connector selections will be kept.'},
+        {kind:'global', name:'Global Settings', schemas:['lorkhan.global-settings-preset.v1','lorkhan.global-settings-preset.v2','lorkhan.global-settings-preset.v3'],
+            form:'#gs_form', confirmation:'This saves a new Global Settings revision and replaces the settings in the imported document. Included memory scheduling and connector selections also apply. Core Profiles and NPC overrides are not imported.'}
+    ].forEach(options => {
+        const importForm = document.getElementById(`${options.kind}-import-form`);
+        const opener = document.querySelector(`[data-${options.kind}-import-open]`);
+        if (!importForm || !opener) return;
+        const picker = importForm.querySelector('input[type=file]');
+        let busy = false;
+        opener.addEventListener('click', () => { if (!busy) picker.click(); });
         picker.addEventListener('change', async () => {
             const file = picker.files[0]; picker.value = '';
-            if (!file) return;
+            if (!file || busy) return;
             if (file.size > 1048576) { window.alert('Import files must be 1 MB or smaller.'); return; }
             let preset;
             try { preset = JSON.parse(await file.text()); }
             catch (_) { window.alert('This file does not contain valid JSON.'); return; }
-            if (!preset || !['lorkhan.narrator-profile-settings.v1','lorkhan.narrator-profile-settings.v2'].includes(preset.schema)
+            if (!preset || !options.schemas.includes(preset.schema)
                 || !preset.settings || typeof preset.settings !== 'object' || Array.isArray(preset.settings)) {
-                window.alert('This file is not a valid Lorkhan Narration settings export.'); return;
+                window.alert(`This file is not a valid Lorkhan ${options.name} export.`); return;
             }
-            if (!window.confirm(`Import ${Object.keys(preset.settings).length} Narration settings fields?\n\nOnly fields present in this file will change. Absent settings, the Narrator name, identity and connector selections will be kept. Unsaved page edits will be discarded.`)) return;
-            opener.disabled = true;
+            if (!window.confirm(`Import ${Object.keys(preset.settings).length} ${options.name} fields?\n\n${options.confirmation} Unsaved page edits will be discarded.`)) return;
+            busy = true; opener.disabled = true;
             const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 15000);
             try {
-                const body = new FormData(narrationImport); body.set('preset_json', JSON.stringify(preset));
-                const response = await fetch(narrationImport.action, {method:'POST', body, headers:{Accept:'application/json'}, signal:controller.signal});
+                const body = new FormData(importForm); body.set('preset_json', JSON.stringify(preset));
+                const response = await fetch(importForm.action, {method:'POST', body, headers:{Accept:'application/json'}, signal:controller.signal});
                 const result = await response.json();
                 if (!response.ok || result.ok !== true) throw new Error(result.error || `HTTP ${response.status}`);
-                window.alert('Narration settings imported successfully.');
-                dirtyForms.delete(document.querySelector('main.narrator-page form[data-track-dirty]'));
+                window.alert(`${options.name} imported successfully.`);
+                dirtyForms.delete(document.querySelector(options.form));
                 const url = new URL(location.href); url.searchParams.set('status','imported'); location.assign(url.href);
             } catch (error) {
                 window.alert(error.name === 'AbortError' ? 'Import timed out. Reload to check whether it was saved before retrying.' : `Import failed: ${error.message}`);
-            } finally { clearTimeout(timer); opener.disabled = false; opener.focus(); }
+            } finally { clearTimeout(timer); busy = false; opener.disabled = false; opener.focus(); }
         });
-    }
+    });
     const narratorCore = document.querySelector('[data-narrator-connectors]');
     if (narratorCore) {
         let summaries = null;
