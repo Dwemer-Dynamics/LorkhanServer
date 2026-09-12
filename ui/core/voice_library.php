@@ -357,6 +357,8 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
             if(!is_array($preset)||!lorkhan_voice_can_sync($preset))throw new InvalidArgumentException('voice_sync_unsupported');
             if(($_POST['consent']??'')!=='1')throw new InvalidArgumentException('voice_upload_confirmation_required');
+            $syncAll=($_POST['sync_all']??'')==='1';
+            if($syncAll&&($preset['content']['driver']??'')!=='pockettts')throw new InvalidArgumentException('voice_sync_unsupported');
             $ajax=($_POST['_batch_ajax']??'')==='1';$phase=(string)($_POST['_batch_phase']??'');
             if($ajax&&!in_array($phase,['plan','voice'],true))throw new InvalidArgumentException('invalid_voice_action');
             $language=lorkhan_voice_language(trim((string)($_POST['language']??'en'))?:'en');
@@ -365,7 +367,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $known=[];foreach($catalog as$row){if($preset['content']['driver']==='omnivoice'&&!lorkhan_voice_omnivoice_ready($row))continue;$known[strtolower($row['id'])]=true;$known[strtolower($row['display'])]=true;}
             $pending=[];
             foreach(glob($voiceRoot.DIRECTORY_SEPARATOR.'*.wav')?:[]as$path){
-                $name=pathinfo($path,PATHINFO_FILENAME);if(!isset($known[strtolower($name)]))$pending[]=$name;
+                $name=pathinfo($path,PATHINFO_FILENAME);if($syncAll||!isset($known[strtolower($name)]))$pending[]=$name;
             }
             if($ajax&&$phase==='plan'){
                 if(count($pending)>512)throw new InvalidArgumentException('invalid_voice_upload_selection');
@@ -374,7 +376,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             // The browser freezes one plan and submits each named voice once, even if discovery lags.
             $requested=$ajax&&$phase==='voice'?pathinfo(lorkhan_voice_filename($voice),PATHINFO_FILENAME):($pending[0]??'');
             $count=0;$failed=0;$skipped=0;$rateLimited=false;$cleanupFailed=false;$previousKept=false;
-            if($requested!==''&&isset($known[strtolower($requested)]))$skipped=1;
+            if(!$syncAll&&$requested!==''&&isset($known[strtolower($requested)]))$skipped=1;
             elseif($requested!==''){
                 $name=$requested;$path=$voiceRoot.DIRECTORY_SEPARATOR.lorkhan_voice_filename($name);
                 try{lorkhan_voice_validate_wav($path);

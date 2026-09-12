@@ -591,6 +591,41 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
             <?php elseif(!$canSync): ?><p>Configure a compatible <?php echo lorkhan_ui_h($providerLabel); ?> connector to upload voices.</p><a class="btn-primary" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/tts_connectors.php">Configure TTS connector</a>
             <?php else: ?><p class="voice-ready">✓ No missing voices in the cached library. Refresh Server Voices above to check the provider.</p><?php endif; ?>
         </section>
+
+        <?php if(in_array($activeTab,['pockettts','omnivoice'],true)):
+            // Only expose a credential-free HTTP service URL; rendering this link makes no provider request.
+            $serviceEndpoint=rtrim(trim((string)($selectedProviderContent['endpoint']??'')),'/');
+            $serviceParts=parse_url($serviceEndpoint);
+            $serviceDocs=is_array($serviceParts)&&in_array(strtolower((string)($serviceParts['scheme']??'')),['http','https'],true)
+                &&!empty($serviceParts['host'])&&!isset($serviceParts['user'])&&!isset($serviceParts['pass'])
+                &&!isset($serviceParts['query'])&&!isset($serviceParts['fragment'])&&!preg_match('/[\x00-\x20\x7f\\\\]/',$serviceEndpoint)
+                ?$serviceEndpoint.'/docs':'';
+        ?>
+        <section class="content-section full-width-section">
+            <h1><?php echo $activeTab==='pockettts'?'Cloud PocketTTS Sync':'OmniVoice Service'; ?></h1>
+            <?php if($activeTab==='pockettts'): ?>
+                <p><strong>Only required for legacy or online PocketTTS instances.</strong></p>
+                <p>Sync the local voice cache after setting up a new instance. This uploads all local samples, including voices already listed by the provider.</p>
+                <p>Cached samples are stored privately by Lorkhan. Manage them in Voice Cache above.</p>
+                <?php if($localOnly): ?><p class="voice-ready">✓ Local samples are ready for PocketTTS audio.cpp; no server upload is needed.</p>
+                <?php elseif($canSync): ?>
+            <form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>" data-voice-batch data-voice-batch-delay="<?php echo $batchDelayMs; ?>">
+                <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="batch_sync"><input type="hidden" name="sync_all" value="1"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>">
+                <label><input type="checkbox" name="consent" value="1" required> Upload these samples to the selected provider<?php echo $cloudClone?' and create cloud voices (provider charges may apply)':''; ?>.</label>
+                <div class="button-group"><button class="btn-primary" type="submit">Sync Voice Cache</button><button class="btn-danger" type="button" data-voice-batch-stop hidden title="Stop after the current voice finishes">Cancel</button></div>
+                <div class="voice-batch-progress" data-voice-batch-progress hidden>
+                    <div class="voice-batch-count"><strong>Progress: <span data-voice-batch-current>0</span> / <span data-voice-batch-total>0</span></strong><span data-voice-batch-eta></span></div>
+                    <div class="voice-batch-track" role="progressbar" aria-label="Voice batch progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div data-voice-batch-bar></div></div>
+                    <div class="voice-batch-log" data-voice-batch-log role="log" aria-label="Voice batch results" aria-live="polite"></div>
+                    <p role="status" data-voice-batch-status></p><a href="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>" data-voice-batch-refresh hidden>Refresh voice cache</a>
+                </div>
+            </form>
+                <?php else: ?><p>Configure a Standard API PocketTTS connector to sync the cache.</p><?php endif; ?>
+            <?php endif; ?>
+            <?php if($serviceDocs!==''&&!$localOnly): ?><p>Advanced <?php echo lorkhan_ui_h($providerLabel); ?> configuration: <a href="<?php echo lorkhan_ui_h($serviceDocs); ?>" target="_blank" rel="noopener noreferrer">Open service documentation</a></p>
+            <?php elseif(!is_array($selectedProvider)): ?><a class="btn-primary" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/tts_connectors.php">Configure TTS connector</a><?php endif; ?>
+        </section>
+        <?php endif; ?>
     <?php endif; ?>
 </main>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/voice-batch.js?v=<?php echo (int)filemtime($uiRootDir.'/js/voice-batch.js'); ?>" defer></script>

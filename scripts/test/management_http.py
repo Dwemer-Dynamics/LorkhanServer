@@ -583,6 +583,21 @@ r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(batch_fields,_b
 assert result['voice']==batch_voice and result['uploaded']==1 and result['failed']==0 and result['skipped']==0 and len(VoiceProvider.uploads)==before_uploads+1
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(batch_fields,_batch_phase='voice',voice_name='MockProviderVoice')); result=json.load(r)
 assert result['skipped']==1 and len(VoiceProvider.uploads)==before_uploads+1
+# Full cache sync is PocketTTS-only and must upload even a provider-listed local sample.
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(batch_fields,sync_all='1')); assert r.status==422
+pocket_name='HTTP Pocket cache '+uuid.uuid4().hex
+r=request(create_sync_tts['action'],'POST',dict(sync_values,name=pocket_name,driver='pockettts')); pocket_body=r.read().decode()
+pocket_id=connector_editor_id(pocket_body,pocket_name)
+r=multipart_request('/LorkhanServer/ui/core/voice_library.php',dict(upload_fields,upload_count='1'),'voice_sample[]','MockProviderVoice.wav','audio/wav',wav); assert '1 voice samples imported.' in r.read().decode()
+pocket_fields=dict(batch_fields,configuration_id=pocket_id,studio_tab='pockettts',sync_all='1')
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(pocket_fields,consent='0')); assert r.status==422
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',pocket_fields); assert 'MockProviderVoice' in json.load(r)['voices']
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(pocket_fields,_batch_phase='voice',voice_name='MockProviderVoice')); result=json.load(r)
+assert result['uploaded']==1 and result['skipped']==0 and result['failed']==0
+r=request('/LorkhanServer/ui/core/voice_library.php?tab=pockettts&configuration_id='+pocket_id); pocket_page=r.read().decode()
+assert 'Cloud PocketTTS Sync' in pocket_page and 'Sync Voice Cache' in pocket_page and 'name="sync_all" value="1"' in pocket_page
+if os.environ.get('LORKHAN_POCKET_SYNC_EVIDENCE'): pathlib.Path(os.environ['LORKHAN_POCKET_SYNC_EVIDENCE']).write_text(pocket_page,encoding='utf-8')
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'delete','voice_name':'MockProviderVoice'}); assert 'Local voice sample deleted.' in r.read().decode()
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(batch_fields,_batch_phase='voice',voice_name='Missing'+uuid.uuid4().hex)); result=json.load(r)
 assert result['failed']==1 and result['uploaded']==0 and len(VoiceProvider.uploads)==before_uploads+1
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(batch_fields,_batch_phase='voice',voice_name='../Escape')); assert r.status==422

@@ -27,7 +27,7 @@ document.querySelectorAll('[data-voice-batch]').forEach((form) => {
         panel.hidden = false; refresh.hidden = true; log.replaceChildren();
         current.textContent = '0'; total.textContent = '0'; eta.textContent = '';
         bar.style.width = '0%'; bar.parentElement.setAttribute('aria-valuenow', '0');
-        status.textContent = 'Checking the provider for missing voices…';
+        status.textContent = data.get('sync_all') === '1' ? 'Preparing the full voice cache for sync…' : 'Checking the provider for missing voices…';
         let uploaded = 0, failed = 0, skipped = 0, completed = 0, rateLimited = false;
         // Never retry an uncertain upload automatically; a provider may already have created the voice.
         const send = async () => {
