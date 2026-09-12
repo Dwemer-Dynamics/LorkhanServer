@@ -40,6 +40,11 @@ final class ManagementRepository
         if($snapshot!==null){$snapshot=self::snapshotMetadata($snapshot);if($automatic)throw new \InvalidArgumentException('invalid_snapshot');}
         if (!filter_var($this->db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn(),FILTER_VALIDATE_BOOL)) throw new RuntimeException('maintenance_busy');
         try {
+            if($snapshot!==null){
+                $duplicate=$this->db->prepare("SELECT 1 FROM backup_records WHERE scope->>'kind'='database_sql' AND scope#>>'{snapshot,name}'=:name LIMIT 1");
+                $duplicate->execute(['name'=>$snapshot['name']]);
+                if($duplicate->fetchColumn()!==false)throw new RuntimeException('snapshot_name_exists');
+            }
             if($automatic){
                 $due=$this->db->query("SELECT enabled AND (last_queued_at IS NULL OR last_queued_at<=clock_timestamp()-interval '10 minutes') FROM lorkhan_internal.database_backup_settings WHERE singleton")->fetchColumn();
                 if(!filter_var($due,FILTER_VALIDATE_BOOL))return null;

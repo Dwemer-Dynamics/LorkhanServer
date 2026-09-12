@@ -4,6 +4,7 @@ $snapshotMessages=[
     'snapshot-copy-queued'=>'Copy queued. Keep the game closed until restoration completes.',
     'snapshot-deleted'=>'Stored snapshot deleted. The active database was not deleted.',
     'snapshot-busy'=>'Another backup or restore is pending. Wait for it to finish before retrying.',
+    'snapshot-name-exists'=>'A stored snapshot already has that name. Choose a different name; the existing snapshot was not changed.',
     'snapshot-protected'=>'This snapshot is queued for copying and cannot be deleted yet.',
     'snapshot-default-protected'=>'The initial default snapshot is protected and cannot be deleted.',
     'snapshot-delete-failed'=>'Snapshot deletion did not finish. A file may already be removed; retry to finish deletion.',

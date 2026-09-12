@@ -3254,6 +3254,9 @@ assert 'Another backup or restore is pending' in request(backup_form['action'],'
 backup_args=list(sql_worker.args);backup_args[-1]=restore_target
 backup_result=subprocess.run(backup_args,capture_output=True,text=True,timeout=60)
 assert backup_result.returncode==0 and json.loads(backup_result.stdout)['succeeded']==1,(backup_result.stdout,backup_result.stderr)
+duplicate_snapshot=request(backup_form['action'],'POST',snapshot_fields)
+assert 'stored snapshot already has that name' in duplicate_snapshot.read().decode()
+assert json.load(request(snapshot_status,accept='application/json'))['job']['job_id']==restore_target
 subprocess.run([*pg_test,"UPDATE lorkhan_internal.turns SET context=jsonb_set(context,'{world,calendar,day}','19'::jsonb) WHERE session_id='"+snapshot_session+"'"],check=True,capture_output=True)
 subprocess.run([*pg_test,"UPDATE public.bio_templates SET core='Restore mutation sentinel' WHERE npc_name='ZZZ Literal %_ Name'"],check=True,capture_output=True)
 restore_page,snapshot_html=parse(request('/LorkhanServer/ui/playthrough_manager.php'))
