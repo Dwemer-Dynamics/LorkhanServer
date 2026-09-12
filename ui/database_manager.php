@@ -3,6 +3,7 @@ declare(strict_types=1);
 $pageTitle='Database Manager'; $topNavSection='control'; $BODY_CLASS='hub-page database-manager-shell';
 require __DIR__.'/ui_bootstrap.php';
 require __DIR__.'/tmpl/control_reader.php';
+$maintenanceJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus();
 $installations=$uiRepository->rows('installations');
 $state=lorkhan_control_state($installations);
 $state['installation']=''; $state['period']='all'; $state['since']=null;
@@ -19,4 +20,5 @@ $migrations=$database->query("SELECT version,name,checksum,to_char(applied_at AT
 $additionalStylesheets=['database-manager.css?v='.(string)filemtime(__DIR__.'/css/database-manager.css')];
 include __DIR__.'/tmpl/head.html'; if (!$embedded) include __DIR__.'/tmpl/navbar.php';
 include __DIR__.'/tmpl/database_manager.html.php';
+?><script defer src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/database-maintenance.js?v=<?= (string)filemtime(__DIR__.'/js/database-maintenance.js') ?>"></script><?php
 include __DIR__.'/tmpl/footer.html';

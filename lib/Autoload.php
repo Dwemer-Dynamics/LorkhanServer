@@ -70,6 +70,7 @@ spl_autoload_register(static function (string $class): void {
         'Application\\RechatCoordinator' => '/processor/RechatCoordinator.php',
         'Application\\RelationshipBuildJobHandler' => '/service/RelationshipBuildJobHandler.php',
         'Application\\RelationshipConversionJobHandler' => '/service/RelationshipConversionJobHandler.php',
+        'Application\\DatabaseCompactJobHandler' => '/service/DatabaseCompactJobHandler.php',
         'Application\\RelationshipEvaluateJobHandler' => '/service/RelationshipEvaluateJobHandler.php',
         'Application\\SpeechPreviewCatalog' => '/tts/SpeechPreviewCatalog.php',
         'Application\\SpeechProvider' => '/tts/SpeechProvider.php',

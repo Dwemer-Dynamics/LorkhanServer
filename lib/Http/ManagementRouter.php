@@ -88,6 +88,7 @@ final class ManagementRouter
             if($r->method==='GET'&&in_array(ltrim($path,'/'),self::PAGES,true))return$this->redirect($this->uiPath(ltrim($path,'/')));
             $session=$this->authenticatedSession($r);
             if($session===null){if($r->method==='GET'&&$this->htmlRequest($r))return$this->openBrowserSession($r->path);throw new RuntimeException('unauthorized');}
+            if($r->method==='GET'&&$path==='/api/v1/database-maintenance')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus()]);
             if($r->method==='GET'&&preg_match('#^/exports/profiles/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProfile($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/core-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportCoreProfileSettings($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/player-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportSpecialProfileSettings($m[1],'player');
@@ -442,8 +443,8 @@ final class ManagementRouter
         if($domain==='core-profile-preset')return $this->namedCoreProfilePreset($v,$scope);
         if($domain==='database-maintenance'){
             if(($v['confirm']??'')!=='Maintenance')throw new InvalidArgumentException('confirmation_mismatch');
-            $status='maintenance-completed';
-            try{$this->management->compactDatabase();}
+            $status='maintenance-queued';
+            try{$this->management->queueDatabaseMaintenance();}
             catch(RuntimeException $error){
                 $status=match($error->getMessage()){
                     'maintenance_busy'=>'maintenance-busy',

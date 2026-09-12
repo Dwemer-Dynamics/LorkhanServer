@@ -5,6 +5,7 @@
     </header>
     <?php if (($_GET['status']??'')==='saved'): ?><p class="database-notice" role="status">Database operation completed.</p><?php endif; ?>
     <?php $maintenanceMessages=[
+        'maintenance-queued'=>'Database maintenance queued. The worker will process it; status is shown below.',
         'maintenance-completed'=>'Database maintenance completed: Lorkhan application tables compacted and analysed.',
         'maintenance-busy'=>'Maintenance is already running or was started within the last minute. Please wait before retrying.',
         'maintenance-permission'=>'Maintenance requires ownership of all Lorkhan application tables. No maintenance was started.',
@@ -17,8 +18,9 @@
                 <div class="card-content"><h2>🔧 Database Maintenance</h2>
                     <p>Optimize and compact this Lorkhan database with VACUUM FULL ANALYZE. No other server database is touched.</p>
                     <p>Stop the game and wait for pending server work first. Tables are locked during compaction and temporary free disk space is required. This does not delete conversation records or reset settings.</p>
-                    <p>Locks wait up to 3 seconds; the operation has a 25-second database limit. Large databases may need administrator maintenance instead. A failed run can have completed some tables.</p>
+                    <p>Runs in the background worker with a 30-minute database limit. Locks wait up to 3 seconds. A failed run can have completed some tables. Keep the server running until it finishes.</p>
                 </div>
+                <p role="status" data-database-maintenance data-endpoint="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/database-maintenance" data-state="<?= lorkhan_ui_h($maintenanceJob['state']??'') ?>"><?php if($maintenanceJob): ?>Latest maintenance: <?= lorkhan_ui_h($maintenanceJob['state']) ?>.<?php else: ?>No queued maintenance requests.<?php endif; ?></p>
                 <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/database-maintenance">
                     <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>">
                     <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>

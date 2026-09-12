@@ -34,6 +34,7 @@ final class FirstPartyJobHandlerFactory
         $handlers[] = new SttProcessJobHandler(new \LorkhanServer\Infrastructure\Repository($db),$sttProvider,$mediaStore,
             new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db),$products,$providerConfig);
         return array_merge($handlers, [
+            new DatabaseCompactJobHandler($db),
             new RelationshipBuildJobHandler(new \LorkhanServer\Infrastructure\RelationshipBuildRepository($db),$products,
                 new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db),$providerConfig),
             new RelationshipConversionJobHandler(new \LorkhanServer\Infrastructure\RelationshipConversionRepository($db),$products,
@@ -79,6 +80,7 @@ final class FirstPartyJobHandlerFactory
             RelationshipEvaluateJobHandler::TYPE,
             RelationshipBuildJobHandler::TYPE,
             RelationshipConversionJobHandler::TYPE,
+            DatabaseCompactJobHandler::TYPE,
             MemoryRebuildJobHandler::TYPE,
             NarrativeJobHandler::SUMMARY_TYPE,
             NarrativeJobHandler::DIARY_TYPE,

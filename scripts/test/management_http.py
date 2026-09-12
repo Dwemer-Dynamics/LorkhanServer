@@ -375,9 +375,17 @@ maintenance=next(f for f in database.forms if f['action'].endswith('/forms/datab
 r=request(maintenance['action'],'POST',dict(maintenance['fields'],confirm='wrong')); assert r.status==422
 r=request(maintenance['action'],'POST',dict(maintenance['fields'],confirm='Maintenance',embed='1'))
 maintenance_body=r.read().decode()
-assert r.status==200 and 'maintenance-completed' in r.geturl() and 'embed=1' in r.geturl() and 'application tables compacted' in maintenance_body,(r.status,r.geturl(),maintenance_body)
+assert r.status==200 and 'maintenance-queued' in r.geturl() and 'embed=1' in r.geturl(),(r.status,r.geturl())
+maintenance_status='/LorkhanServer/manage/api/v1/database-maintenance'
+queued_maintenance=json.load(request(maintenance_status,accept='application/json'))['job']
+assert queued_maintenance['state']=='queued'
 r=request(maintenance['action'],'POST',dict(maintenance['fields'],confirm='Maintenance'))
-assert r.status==200 and 'maintenance-busy' in r.geturl(),r.geturl()
+assert r.status==200 and json.load(request(maintenance_status,accept='application/json'))['job']['job_id']==queued_maintenance['job_id']
+maintenance_worker=subprocess.run(['php','-r',
+    "require $argv[1].'/lib/Autoload.php'; $db=LorkhanServer\\Infrastructure\\Connection::open(['database_dsn'=>'pgsql:host=127.0.0.1;port='.$argv[2].';dbname=lorkhan_management_http','database_user'=>'postgres']); $worker=new LorkhanServer\\Application\\Worker(new LorkhanServer\\Infrastructure\\JobRepository($db),new LorkhanServer\\Application\\JobHandlerRegistry([new LorkhanServer\\Application\\DatabaseCompactJobHandler($db)]),'maintenance-http',30,1,1,1,60,['database.compact']); echo json_encode($worker->run());",
+    str(repository_root),sys.argv[3]],capture_output=True,text=True,timeout=60)
+assert maintenance_worker.returncode==0 and json.loads(maintenance_worker.stdout)['succeeded']==1,(maintenance_worker.stdout,maintenance_worker.stderr)
+assert json.load(request(maintenance_status,accept='application/json'))['job']['state']=='succeeded'
 studio,text=parse(request('/LorkhanServer/ui/core/voice_library.php')); assert studio.current==1 and 'Add WAV voice samples' in text and 'flat ZIP batch' in text and 'Voice Library' in text and 'Configured TTS Connectors' in text and 'Provider Voice Browser' in text and 'never contacts a provider automatically' in text
 for provider_tab,provider_label in [('xtts','XTTS'),('chatterbox','Chatterbox'),('pockettts','PocketTTS'),('omnivoice','OmniVoice'),('cartesia','Cartesia'),('inworld','Inworld')]:
     cache_html=request('/LorkhanServer/ui/core/voice_library.php?tab='+provider_tab).read().decode()

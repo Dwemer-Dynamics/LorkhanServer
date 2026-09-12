@@ -20,8 +20,29 @@ final class ManagementRepository
 
     public function __construct(private readonly PDO $db) {}
 
+    /** Queue one database-wide maintenance request; repeated submissions reuse pending work. */
+    public function queueDatabaseMaintenance(): string
+    {
+        if (!filter_var($this->db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn(), FILTER_VALIDATE_BOOL))
+            throw new RuntimeException('maintenance_busy');
+        try {
+            $existing=$this->db->query("SELECT job_id FROM durable_jobs WHERE job_type='database.compact' AND state IN ('queued','leased') ORDER BY created_at LIMIT 1")->fetchColumn();
+            if (is_string($existing)) return $existing;
+            $id=Uuid::v4();
+            (new JobRepository($this->db))->enqueue($id,'database.compact',1,$id,['operation'=>'compact'],1);
+            return $id;
+        } finally { $this->db->query('SELECT pg_advisory_unlock(7514,113)'); }
+    }
+
+    /** Expose only the latest maintenance lifecycle, never worker payloads or database credentials. */
+    public function databaseMaintenanceStatus(): ?array
+    {
+        $row=$this->db->query("SELECT job_id,state,created_at,updated_at FROM durable_jobs WHERE job_type='database.compact' ORDER BY created_at DESC,job_id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        return $row === false ? null : $row;
+    }
+
     /** Compact only this server's application tables, with a lock and time-bounded explicit request. */
-    public function compactDatabase(): void
+    public function compactDatabase(bool $background = false): void
     {
         $locked=$this->db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn();
         if(!filter_var($locked,FILTER_VALIDATE_BOOL))throw new RuntimeException('maintenance_busy');
@@ -40,7 +61,7 @@ final class ManagementRepository
                 throw new RuntimeException('maintenance_permission_required');
             if($tables===[])throw new RuntimeException('maintenance_no_tables');
             $this->audit('database_maintenance','started',[],['tables'=>count($tables)]);
-            $this->db->exec("SET statement_timeout='25s'; SET lock_timeout='3s'");
+            $this->db->exec($background ? "SET statement_timeout='1800s'; SET lock_timeout='3s'" : "SET statement_timeout='25s'; SET lock_timeout='3s'");
             // Names are quoted by PostgreSQL from its catalogue, never supplied by the browser.
             $this->db->exec('VACUUM (FULL, ANALYZE) '.implode(',',array_column($tables,'name')));
             $this->audit('database_maintenance','completed',[],['tables'=>count($tables)]);
