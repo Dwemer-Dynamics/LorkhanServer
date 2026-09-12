@@ -35,7 +35,55 @@ RESTORED_TABLES=$(psql -h 127.0.0.1 -p "$PORT" -d lorkhan_restore_test -Atc \
 [ "$RESTORED_TABLES" = "4" ] || { printf 'backup restore schema check failed\n' >&2; exit 1; }
 # Uploaded SQL is read only in a namespace sandbox. Its result remains untrusted data, never restore SQL.
 pg_restore --no-owner --no-privileges --file="$TMP/import.sql" "$TMP/lorkhan.backup"
-bash "$ROOT/scripts/import-sql-sandbox.sh" "$TMP/import.sql" > "$TMP/import.jsonl"
+python3 "$ROOT/scripts/sql-import-capture.py" "$TMP/import.sql" "$TMP/import.jsonl"
+python3 - "$ROOT" "$TMP" <<'PY'
+import importlib.util,os,pathlib,subprocess,sys,time
+sys.dont_write_bytecode=True
+spec=importlib.util.spec_from_file_location('import_capture',sys.argv[1]+'/scripts/sql-import-capture.py')
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+root=pathlib.Path(sys.argv[2]);target=root/'capture-probe.jsonl'
+assert module.capture([sys.executable,'-c','import os;os.write(1,b"exact")'],target,max_bytes=5)==5
+assert target.read_bytes()==b'exact' and target.stat().st_mode&0o777==0o400
+try: module.capture([sys.executable,'-c','raise SystemExit(99)'],target)
+except FileExistsError: pass
+else: raise AssertionError('capture overwrote an existing destination')
+assert target.read_bytes()==b'exact';target.unlink()
+for source,settings,expected in [
+    ('import os;os.write(1,b"123456")',{'max_bytes':5},'import_capture_output_limit'),
+    ('import os;os.write(2,b"123456")',{'max_stderr':5},'import_capture_diagnostic_limit'),
+    ('import os;os.write(1,b"partial");raise SystemExit(1)',{},'import_capture_failed'),
+    ('pass',{},'import_capture_empty'),
+    ('import time;time.sleep(60)',{'timeout':0.1},'import_capture_timeout'),
+    ('import os,time;os.close(1);os.close(2);time.sleep(60)',{'timeout':0.1},'import_capture_timeout'),
+    ('import os,time;pid=os.fork();os._exit(0) if pid else time.sleep(60)',{'timeout':0.2},'import_capture_timeout'),
+]:
+    try: module.capture([sys.executable,'-c',source],target,**settings)
+    except RuntimeError as error: assert str(error)==expected,(str(error),expected)
+    else: raise AssertionError(expected)
+    assert not target.exists() and not list(root.glob('.sql-import-*.partial'))
+print('bounded SQL capture rejects overflow, failed/empty output and hung process trees without partial publication')
+# Exercise the actual CLI signal handler; InterruptedError is swallowed by selectors.
+source=root/'capture-cancel.sql';source.write_text('SELECT pg_sleep(60);\n')
+process=subprocess.Popen([sys.executable,sys.argv[1]+'/scripts/sql-import-capture.py',str(source),str(target)],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+try:
+    deadline=time.monotonic()+10
+    while not list(root.glob('.sql-import-*.partial')):
+        assert process.poll() is None and time.monotonic()<deadline,'capture did not start'
+        time.sleep(.05)
+    time.sleep(.5);assert process.poll() is None
+    process.terminate();output,diagnostic=process.communicate(timeout=10)
+    assert process.returncode==1 and output==b'' and diagnostic==b'isolated_sql_capture_failed\n'
+    assert not target.exists() and not list(root.glob('.sql-import-*.partial'))
+    time.sleep(.2)
+    for item in pathlib.Path('/proc').glob('[0-9]*/cmdline'):
+        try: command=item.read_bytes()
+        except (PermissionError,FileNotFoundError,ProcessLookupError): continue
+        assert str(source).encode() not in command,'sandbox survived cancellation'
+finally:
+    if process.poll() is None: process.kill();process.wait()
+    source.unlink()
+print('actual SQL capture cancellation removes partial output and the sandbox process tree')
+PY
 python3 - "$TMP/import.jsonl" <<'PY'
 import json,sys
 with open(sys.argv[1],encoding='utf-8') as stream:
