@@ -588,6 +588,7 @@ r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(batch_fields,sy
 pocket_name='HTTP Pocket cache '+uuid.uuid4().hex
 r=request(create_sync_tts['action'],'POST',dict(sync_values,name=pocket_name,driver='pockettts')); pocket_body=r.read().decode()
 pocket_id=connector_editor_id(pocket_body,pocket_name)
+cache_sync_ids=[pocket_id]
 r=multipart_request('/LorkhanServer/ui/core/voice_library.php',dict(upload_fields,upload_count='1'),'voice_sample[]','MockProviderVoice.wav','audio/wav',wav); assert '1 voice samples imported.' in r.read().decode()
 pocket_fields=dict(batch_fields,configuration_id=pocket_id,studio_tab='pockettts',sync_all='1')
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(pocket_fields,consent='0')); assert r.status==422
@@ -600,6 +601,7 @@ if os.environ.get('LORKHAN_POCKET_SYNC_EVIDENCE'): pathlib.Path(os.environ['LORK
 for sync_driver,sync_tab,sync_label in [('xtts-fastapi','xtts','XTTS'),('chatterbox','chatterbox','Chatterbox')]:
     cache_name='HTTP cache '+sync_label+' '+uuid.uuid4().hex
     r=request(create_sync_tts['action'],'POST',dict(sync_values,name=cache_name,driver=sync_driver)); cache_id=connector_editor_id(r.read().decode(),cache_name)
+    cache_sync_ids.append(cache_id)
     cache_fields=dict(pocket_fields,configuration_id=cache_id,studio_tab=sync_tab)
     before_uploads=len(VoiceProvider.uploads)
     r=request('/LorkhanServer/ui/core/voice_library.php','POST',cache_fields); assert 'MockProviderVoice' in json.load(r)['voices'] and len(VoiceProvider.uploads)==before_uploads
@@ -609,6 +611,9 @@ for sync_driver,sync_tab,sync_label in [('xtts-fastapi','xtts','XTTS'),('chatter
     assert '<h1>Cloud '+sync_label+' Sync</h1>' in cache_page and 'Sync Voice Cache' in cache_page
     if os.environ.get('LORKHAN_CACHE_SYNC_EVIDENCE'): pathlib.Path(os.environ['LORKHAN_CACHE_SYNC_EVIDENCE']+'-'+sync_tab+'.html').write_text(cache_page,encoding='utf-8')
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'delete','voice_name':'MockProviderVoice'}); assert 'Local voice sample deleted.' in r.read().decode()
+for cache_sync_id in cache_sync_ids:
+    r=request('/LorkhanServer/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':cache_sync_id,'kind':'tts_provider'}); assert r.status==200
+
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(batch_fields,_batch_phase='voice',voice_name='Missing'+uuid.uuid4().hex)); result=json.load(r)
 assert result['failed']==1 and result['uploaded']==0 and len(VoiceProvider.uploads)==before_uploads+1
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(batch_fields,_batch_phase='voice',voice_name='../Escape')); assert r.status==422
@@ -720,7 +725,13 @@ for _ in range(25):
 r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'voice':batch_voice,'text':'Vvardenfell'}); body=r.read().decode()
 assert r.status==429 and json.loads(body)=={'error':'tts_preview_rate_limited'} and len(VoiceProvider.speech_requests)==27,(r.status,body,len(VoiceProvider.speech_requests))
 r=request('/LorkhanServer/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':sync_tts_id,'kind':'tts_provider'}); assert r.status==200,(r.status,r.geturl())
-assert 'MockProviderVoice' not in request('/LorkhanServer/ui/core/npc_master.php').read().decode()
+npc_voice_cleanup_html=request('/LorkhanServer/ui/core/npc_master.php').read().decode()
+assert 'MockProviderVoice' not in npc_voice_cleanup_html and 'Warning:' not in npc_voice_cleanup_html
+# The Create NPC editor has no resolved profile yet, but its context maps still need typed defaults.
+create_override_catalog=json.loads(html.unescape(re.search(r'data-npc-overrides data-form="management-form-profile-create" data-catalog="([^"]+)"',npc_voice_cleanup_html).group(1)))
+for context_map in ['context.sections','context.details']:
+    value=create_override_catalog[context_map]['value']
+    assert isinstance(value,dict) and value and all(isinstance(enabled,bool) for enabled in value.values()),context_map
 keys,text=parse(request('/LorkhanServer/ui/core/api_keys.php')); assert keys.current==0 and 'API Keys</h1>' in text and 'LORKHAN_LLM_API_KEY' in text and 'type="password"' in text
 assert '<nav class="navbar' not in text, 'API Keys child page must not add a second navigation shell'
 deepl_key_input=re.search(r'<input id="credential-deepl"[^>]*>',text); assert deepl_key_input,text

@@ -137,10 +137,10 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
                     <select name="<?= $field ?>" id="qs-<?= $field ?>" class="form-control" required data-model-select><option value="">Choose a model</option><?php foreach($llms as$row): ?><option value="<?= lorkhan_ui_h($row['configuration_id']) ?>" data-model="<?= lorkhan_ui_h($row['content']['model']??'') ?>"<?= ($routing[$field]??'')===$row['configuration_id']?' selected':'' ?>><?= lorkhan_ui_h($row['name']) ?></option><?php endforeach; ?></select>
                 </div><?php endforeach; ?>
             </div></details>
-        </section>
         <p class="form-text">MiniMe and automatic summary settings are in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/config_hub.php?tab=globals">Global Settings</a>. The MiniMe check only tests reachability; it does not enable summaries or generate embeddings.</p>
         <?php if(!$ready): ?><p class="quickstart-notice" data-default-required>Create a Core Profile and at least one LLM connector before saving Quickstart, or choose Local LLM to create its connector.</p><?php endif; ?>
         <div class="qs-actions"><span data-dirty-indicator hidden>Unsaved changes</span><span role="alert" data-quickstart-error></span><button type="submit" class="btn-primary qs-save-btn" aria-describedby="qs-profile-scope"<?php echo !$ready?' disabled':''; ?>>Save and Continue</button></div>
+        </section>
     </form>
     <details class="qs-section qs-profile-scope"><summary id="qs-profile-scope">Profile selection: <?php echo lorkhan_ui_h($selected['label']??$selected['name']??'Not configured'); ?></summary>
         <form method="get" class="quickstart-grid">

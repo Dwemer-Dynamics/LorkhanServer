@@ -78,7 +78,7 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
             'value'=>$effectiveSettings['settings']['diary']['prompt']??\LorkhanServer\Application\DiaryGenerationPolicy::defaults()['prompt']];
         if($section==='context'&&in_array($key,['sections','details'],true)){
             $choices=[];foreach($contextSelectionGroups as[$group,$items])if($group===$key)foreach($items as$name=>$info)$choices[$name]=$info[0];
-            $overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'booleanmap','choices'=>$choices,'value'=>$effectiveSettings['context'][$key],
+            $overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'booleanmap','choices'=>$choices,'value'=>$effectiveSettings['context'][$key]??\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'][$key],
                 'help'=>'Select optional context to include. All unchecked excludes this group; remove the override to inherit. Required speaker and action instructions remain. Details require their containing section.'];
         }
         if(isset($help[$path]))$overrideCatalog[$path]['help']=$help[$path].' Remove this override to restore inheritance.';
