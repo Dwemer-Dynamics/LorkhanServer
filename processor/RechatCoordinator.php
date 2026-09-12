@@ -44,6 +44,7 @@ final class RechatCoordinator
             if ($this->stateBlocked($speakerState, false)) throw new DomainException('rechat_no_responder');
         }
 
+        if($this->actorOnCooldown($message,$previousSpeaker))throw new DomainException('rechat_cooldown');
         $existing = $this->repository->rechatChain(
             $chainId,
             (string) $message['session_id'],
@@ -79,9 +80,10 @@ final class RechatCoordinator
         $selectedBehavior = is_array($effective['settings']['behavior'] ?? null) ? $effective['settings']['behavior'] : $behavior;
         if (($selectedBehavior['rechat'] ?? false) !== true) throw new DomainException('rechat_no_responder');
         $cooldown = max(0, min(300, (int) ($selectedBehavior['end_conversation_cooldown_seconds'] ?? 60)));
-        if ($existing === null && $this->repository->rechatCooldownActive(
+        if ($existing === null && $this->repository->conversationCooldownActive(
             (string) $message['installation_id'],
             (string) $message['playthrough_id'],
+            $selected,
             $cooldown,
         )) {
             throw new DomainException('rechat_cooldown');
@@ -140,9 +142,19 @@ final class RechatCoordinator
                     || $this->sameIdentity($identity, $targetHint);
                 if ($state === null || $this->stateBlocked($state, $directlyAddressed)) continue;
             }
+            if($this->actorOnCooldown($message,$identity))continue;
             $values[$this->identityKey($identity)] ??= $identity;
         }
         return array_values($values);
+    }
+
+    /** Resolve profile cooldown only when this exact actor has a recent successful end-conversation receipt. */
+    private function actorOnCooldown(array $message,array $actor):bool
+    {
+        if(!$this->repository->conversationCooldownActive($message['installation_id'],$message['playthrough_id'],$actor,300))return false;
+        $effective=$this->products->effectiveSettingsForActor($message['installation_id'],$message['playthrough_id'],$actor);
+        $seconds=(int)($effective['settings']['behavior']['end_conversation_cooldown_seconds']??60);
+        return$this->repository->conversationCooldownActive($message['installation_id'],$message['playthrough_id'],$actor,$seconds);
     }
 
     private function selectResponder(string $mode, array $participants, mixed $listener, mixed $targetHint,

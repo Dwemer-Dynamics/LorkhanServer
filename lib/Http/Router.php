@@ -176,6 +176,14 @@ final class Router
                     $m['payload']['input']['text']=(string)$continuation['prompt'];
             }
 
+            if($this->products!==null&&is_array($m['payload']['target']??null)
+                &&$this->repository->conversationCooldownActive($m['installation_id'],$m['playthrough_id'],$m['payload']['target'],300)){
+                $targetSettings=$this->products->effectiveSettingsForActor($m['installation_id'],$m['playthrough_id'],$m['payload']['target']);
+                $cooldown=(int)($targetSettings['settings']['behavior']['end_conversation_cooldown_seconds']??60);
+                if($this->repository->conversationCooldownActive($m['installation_id'],$m['playthrough_id'],$m['payload']['target'],$cooldown))
+                    throw new DomainException('conversation_cooldown');
+            }
+
             $dynamicPlan=$this->products?->dynamicOghma()->plan($m)??[];
             $knowledgeTurn=$m+['_dynamic_oghma_plan'=>$dynamicPlan];
             $directAction = $m['payload']['action_request'] ?? null;
@@ -801,7 +809,7 @@ final class Router
             'action_target_invalid','action_tier_mismatch','cursor_expired','duplicate_conflict','invalid_idempotency_key',
             'invalid_schema','media_unavailable','not_found','provider_action_not_allowed','provider_invalid_action',
             'provider_invalid_output','provider_timeout','provider_unavailable','rate_limited','request_mismatch',
-            'rechat_chain_conflict','rechat_complete','rechat_cooldown','rechat_no_responder','rechat_unavailable',
+            'rechat_chain_conflict','rechat_complete','rechat_cooldown','conversation_cooldown','rechat_no_responder','rechat_unavailable',
             'invalid_rechat_context','stale_generation','turn_terminal','unauthorized','unknown_action','unknown_session','unknown_turn'];
         return in_array($code,$allowed,true)?$code:'internal_error';
     }

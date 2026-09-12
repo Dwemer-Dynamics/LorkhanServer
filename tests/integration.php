@@ -276,6 +276,7 @@ $assert($status === 429 && $rateError['retry_after_ms'] === 1000, 'rate retry_af
 $session = $fixture('session-init');
 $session['runtime']['capabilities'][]='debug.commands.v1';
 $session['runtime']['capabilities'][]='speech.browser.v1';
+$session['runtime']['capabilities'][]='action.conversation.end';
 [$status] = $call($router, 'POST', $base . '/sessions', $jsonAuth, [], $session);
 $assert($status === 422, 'missing session idempotency key accepted');
 [$status] = $call($router, 'POST', $base . '/sessions', $headers($newUuid(3)), [], $session);
@@ -283,7 +284,7 @@ $assert($status === 422, 'incoherent session idempotency key accepted');
 [$status, $accepted] = $call($router, 'POST', $base . '/sessions', $headers($session['message_id']), [], $session);
 $assert($status === 201 && $accepted['generation'] === 7
     && $accepted['capabilities'] === ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
-        'action.ai.stop', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
+        'action.ai.stop', 'action.conversation.end', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
         'action.inventory.inspect']
     &&$accepted['config_revision']==='global-settings-r1'
@@ -1157,7 +1158,8 @@ $memoryRetrievalStatement=$db->prepare("SELECT prompt_section,result_ids,reasons
 $memoryRetrievalStatement->execute(['turn'=>$turn['turn_id']]);$memoryRetrieval=$memoryRetrievalStatement->fetch();
 $promptMessages=$snapshot['message']['_prompt']['_messages']??[];
 $promptHistoryJson=json_encode($promptMessages,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
-$assert(count($snapshot['message']['_allowed_action_definitions']??[])===16
+$assert(count($snapshot['message']['_allowed_action_definitions']??[])===17
+    &&str_contains((string)($promptMessages[0]['content']??''),'`conversation.end()`')
     &&str_contains((string)($promptMessages[0]['content']??''),
         '`ai.follow(distance: 192)` — Follow: Ask one actor to follow the player at the exact negotiated distance.')
     &&!str_contains((string)($promptMessages[0]['content']??''),'"const":192'),
@@ -2785,9 +2787,54 @@ $assert($status===202&&$finalRechatWorker===['claimed'=>1,'succeeded'=>1,'retrie
 $cooldownRechat=$rechatTurn;
 $cooldownRechat['message_id']=$newUuid(827);$cooldownRechat['request_id']=$newUuid(828);$cooldownRechat['turn_id']=$newUuid(829);
 $cooldownRechat['payload']['context']['rechat']['chain_id']=$newUuid(839);
-[$status,$cooldownError]=$call($router,'POST',$base.'/turns',$headers($cooldownRechat['message_id']),[],$cooldownRechat);
-$assert($status===409&&($cooldownError['code']??null)==='rechat_cooldown',
-    'closed rechat chain did not enforce the Herika end-conversation cooldown');
+$assert($resolveRechatError($cooldownRechat)==='',
+    'normal chain exhaustion incorrectly applied End Conversation cooldown');
+$endTurn=$turn;
+foreach(['message_id','request_id','turn_id']as$key)$endTurn[$key]=\LorkhanServer\Infrastructure\Uuid::v4();
+$endTurn['payload']['input']['text']='End the conversation.';
+$endTurn['payload']['ui_source']='lorkhan_actions';
+$endTurn['payload']['action_request']=['name'=>'conversation.end','tier'=>1,'parameters'=>[]];
+$endTurn['payload']['recent_action_results']=[];
+[$status,$endAccepted]=$call($router,'POST',$base.'/turns',$headers($endTurn['message_id']),[],$endTurn);
+$assert($status===202,'End Conversation action was not accepted: '.json_encode($endAccepted));
+$endQuery=$db->prepare("SELECT action_id FROM action_intents WHERE turn_id=:turn AND action_name='conversation.end'");
+$endQuery->execute(['turn'=>$endTurn['turn_id']]);$endActionId=$endQuery->fetchColumn();
+$assert(is_string($endActionId),'End Conversation did not emit an action intent');
+$endResult=$fixture('action-result');$endResult['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+$endResult['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();$endResult['action_id']=$endActionId;
+$endResult['session_id']=$sessionId;$endResult['generation']=7;$endResult['turn_id']=$endTurn['turn_id'];
+$endResult['status']='succeeded';$endResult['reason_code']='conversation_ended';$endResult['observed']=[];
+$endResult['completed_at']=gmdate('Y-m-d\TH:i:s\Z');
+[$status,$endReceipt]=$call($router,'POST',$base.'/action-results',$headers($endResult['message_id']),[],$endResult);
+$assert($status===200&&!($endReceipt['duplicate']??true),'End Conversation result failed: '.json_encode($endReceipt));
+$blockedTurn=$turn;foreach(['message_id','request_id','turn_id']as$key)$blockedTurn[$key]=\LorkhanServer\Infrastructure\Uuid::v4();
+[$status,$blockedEnd]=$call($router,'POST',$base.'/turns',$headers($blockedTurn['message_id']),[],$blockedTurn);
+$assert($status===409&&($blockedEnd['code']??null)==='conversation_cooldown','Ended NPC accepted direct dialogue during cooldown');
+// Keep subsequent isolated tests independent of this deliberately completed conversation.
+$db->prepare("UPDATE action_results SET completed_at=clock_timestamp()-interval '301 seconds' WHERE action_id=:id")
+    ->execute(['id'=>$endActionId]);
+$db->beginTransaction();
+try{
+    $db->prepare("UPDATE action_intents SET action_name='conversation.end',actor=CAST(:actor AS jsonb) WHERE action_id=:id")
+        ->execute(['actor'=>json_encode($speakerIdentity,JSON_THROW_ON_ERROR),'id'=>$result['action_id']]);
+    $db->prepare("UPDATE action_results SET status='succeeded',completed_at=clock_timestamp() WHERE action_id=:id")
+        ->execute(['id'=>$result['action_id']]);
+    $assert($repo->conversationCooldownActive($installationId,$session['playthrough_id'],$speakerIdentity,60),
+        'successful End Conversation receipt did not start actor cooldown');
+    $movedActor=$speakerIdentity;$movedActor['display_name']='Changed display name';$movedActor['cell']=['kind'=>'interior','name'=>'Balmora'];
+    $assert($repo->conversationCooldownActive($installationId,$session['playthrough_id'],$movedActor,60),
+        'actor movement or display name bypassed conversation cooldown');
+    $assert(!$repo->conversationCooldownActive($installationId,$session['playthrough_id'],$thirdTarget,60)
+        &&!$repo->conversationCooldownActive($installationId,$session['playthrough_id'],$speakerIdentity,0),
+        'conversation cooldown affected an unrelated NPC or ignored zero seconds');
+    $db->prepare('UPDATE sessions SET generation=generation+1 WHERE session_id=:id')->execute(['id'=>$sessionId]);
+    $assert(!$repo->conversationCooldownActive($installationId,$session['playthrough_id'],$speakerIdentity,60),
+        'conversation cooldown survived its session generation fence');
+    $db->prepare('UPDATE sessions SET generation=generation-1 WHERE session_id=:id')->execute(['id'=>$sessionId]);
+    $db->prepare("UPDATE action_results SET status='failed' WHERE action_id=:id")->execute(['id'=>$result['action_id']]);
+    $assert(!$repo->conversationCooldownActive($installationId,$session['playthrough_id'],$speakerIdentity,60),
+        'failed End Conversation action started cooldown');
+}finally{$db->rollBack();}
 
 foreach([
     ['topic'=>'sixth_house','aliases'=>'House Dagoth','content'=>'The Sixth House is the hidden House Dagoth.'],

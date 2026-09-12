@@ -2552,17 +2552,19 @@ foreach([-1,101,'50',null] as $invalidChance){
 }
 
 $combatCore=['settings_overrides'=>['behavior'=>['combat_bark_period_seconds'=>600]]];
-$rechatOverrideCore=['settings_overrides'=>['behavior'=>['open_rechat'=>false,'rechat_strict_targeting'=>true]]];
+$rechatOverrideCore=['settings_overrides'=>['behavior'=>['open_rechat'=>false,'rechat_strict_targeting'=>true,'end_conversation_cooldown_seconds'=>300]]];
 $rechatOverrideResolved=(new EffectiveSettingsResolver())->resolve(SettingsCatalog::globalDefaults(),$rechatOverrideCore,[]);
 $check($rechatOverrideResolved['settings']['behavior']['open_rechat']===false
     &&$rechatOverrideResolved['settings']['behavior']['rechat_strict_targeting']===true,
     'Core Rechat participation and strict targeting preserve explicit booleans');
-$rechatOverrideNpc=['settings_overrides'=>['behavior'=>['open_rechat'=>true,'rechat_strict_targeting'=>false]]];
+$check($rechatOverrideResolved['settings']['behavior']['end_conversation_cooldown_seconds']===300,'Core conversation cooldown reaches effective behavior');
+$rechatOverrideNpc=['settings_overrides'=>['behavior'=>['open_rechat'=>true,'rechat_strict_targeting'=>false,'end_conversation_cooldown_seconds'=>0]]];
 $rechatOverrideResolved=(new EffectiveSettingsResolver())->resolve(SettingsCatalog::globalDefaults(),$rechatOverrideCore,$rechatOverrideNpc);
 $check($rechatOverrideResolved['settings']['behavior']['open_rechat']===true
     &&$rechatOverrideResolved['settings']['behavior']['rechat_strict_targeting']===false
     &&$rechatOverrideResolved['sources']['settings.behavior.rechat_strict_targeting']==='npc',
     'NPC Rechat participation and strict targeting override Core values');
+$check($rechatOverrideResolved['settings']['behavior']['end_conversation_cooldown_seconds']===0,'NPC explicit zero disables inherited conversation cooldown');
 $modeCore=['settings_overrides'=>['behavior'=>['rechat_mode'=>'group'],'relationship'=>['enabled'=>true]]];
 $modeGlobal=SettingsCatalog::globalDefaults();$modeGlobal['relationship']['update_chance_percent']=75;
 $modeResolved=(new EffectiveSettingsResolver())->resolve($modeGlobal,$modeCore,[]);

@@ -134,7 +134,7 @@ final class EffectiveSettingsResolver
         $coreOverrides = self::validateSettingsOverrides($coreProfileContent['settings_overrides'] ?? []);
         $allowedOverrides = [];
         foreach (['rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_allow_actions', 'combat_bark_period_seconds', 'rechat_mode',
-            'rechat_strict_targeting', 'open_rechat'] as $field) {
+            'rechat_strict_targeting', 'open_rechat', 'end_conversation_cooldown_seconds'] as $field) {
             if (array_key_exists($field, $coreOverrides['behavior'] ?? [])) $allowedOverrides['behavior'][$field] = $coreOverrides['behavior'][$field];
         }
         foreach (['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled', 'short_term_max_summaries', 'oghma_knowledge_tags'] as $field) {

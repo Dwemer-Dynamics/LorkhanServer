@@ -11,10 +11,10 @@ use Throwable;
 final class Repository
 {
     private const SERVER_CAPABILITIES = ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
-        'action.ai.stop', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
+        'action.ai.stop', 'action.conversation.end', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
         'action.inventory.inspect','action.confirmation','action.result-followup'];
-    private const ENABLED_ACTIONS = ['inspect.report','inventory.inspect','ai.follow','ai.stop','ai.approach','ai.wait','ai.travel','ai.escort',
+    private const ENABLED_ACTIONS = ['inspect.report','inventory.inspect','ai.follow','ai.stop','conversation.end','ai.approach','ai.wait','ai.travel','ai.escort',
         'ai.face','ai.wander','combat.start','combat.stop','animation.play','item.equip','item.unequip','item.use'];
     public function __construct(
         private readonly PDO $db,
@@ -421,13 +421,18 @@ final class Repository
     }
 
     /** Enforce the Herika end-of-conversation cooldown without client timers or extra polling. */
-    public function rechatCooldownActive(string $installationId, string $playthroughId, int $seconds): bool
+    public function conversationCooldownActive(string $installationId, string $playthroughId, array $actor, int $seconds): bool
     {
         if($seconds<=0)return false;
-        $statement=$this->db->prepare("SELECT 1 FROM rechat_chains WHERE installation_id=:installation "
-            ."AND playthrough_id=:playthrough AND state='closed' "
-            ."AND updated_at>clock_timestamp()-(:seconds||' seconds')::interval ORDER BY updated_at DESC LIMIT 1");
-        $statement->execute(['installation'=>$installationId,'playthrough'=>$playthroughId,'seconds'=>(string)$seconds]);
+        // Cell and display name may change; an actor's content source and RefNum remain the authority.
+        $identity=array_intersect_key($actor,array_fill_keys(['kind','record_id','content_file','refnum'],true));
+        if(count($identity)!==4)throw new \InvalidArgumentException('invalid_conversation_actor');
+        $statement=$this->db->prepare("SELECT 1 FROM action_intents a JOIN action_results r ON r.action_id=a.action_id "
+            ."JOIN sessions s ON s.session_id=a.session_id WHERE s.installation_id=:installation "
+            ."AND s.playthrough_id=:playthrough AND s.state='active' AND a.generation=s.generation "
+            ."AND a.action_name='conversation.end' AND r.status='succeeded' "
+            ."AND a.actor @> CAST(:actor AS jsonb) AND r.completed_at>clock_timestamp()-(:seconds||' seconds')::interval LIMIT 1");
+        $statement->execute(['installation'=>$installationId,'playthrough'=>$playthroughId,'actor'=>$this->encode($identity),'seconds'=>(string)$seconds]);
         return$statement->fetchColumn()!==false;
     }
 

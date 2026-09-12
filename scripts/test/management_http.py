@@ -2652,8 +2652,15 @@ actions,body=parse(request('/LorkhanServer/ui/function_editor.php'))
 assert 'data-action-editor' in body and 'Configure available actions exposed to AI prompting and execution' in body and 'Save all changes' in body
 editor_path='/LorkhanServer/manage/api/v1/action-policies/editor?'+urllib.parse.urlencode({'installation_id':valid['installation_id']})
 r=json_request(editor_path); editor=json.loads(r.read().decode())
-assert r.status==200 and len(editor['catalog'])==16 and editor['policies']=={
+assert r.status==200 and len(editor['catalog'])==17 and editor['policies']=={
     'installation_policy':None,'profile_policy':None,'effective_policy':None},editor
+end_action=next(action for action in editor['catalog'] if action['name']=='conversation.end')
+assert end_action['display_name']=='End Conversation' and end_action['client_capability']=='action.conversation.end'
+assert end_action['followup_default'] is False and end_action['parameter_schema']['additionalProperties'] is False
+if os.environ.get('LORKHAN_END_ACTION_EVIDENCE'):
+    evidence=pathlib.Path(os.environ['LORKHAN_END_ACTION_EVIDENCE'])
+    evidence.with_suffix('.html').write_text(body,encoding='utf-8')
+    evidence.with_suffix('.json').write_text(json.dumps(editor),encoding='utf-8')
 assert all(set(action)>=set(['name','tier','description','parameter_schema','result_schema','client_capability',
     'server_owned','terminal_result_required','continuation_capable','display_name','category','sort_order',
     'confirmation_mode','followup_default','followup_actions_supported','cooldown_seconds','available_to_npc',

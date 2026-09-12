@@ -16,6 +16,7 @@ $coreOverrideCatalog['prompt.prompt_head']=['label'=>'Prompt Head','type'=>'stri
 $coreOverrideCatalog['behavior.rechat_mode']=['label'=>'Rechat Mode','type'=>'choice','value'=>'random','choices'=>['tight','conversational','group','random']];
 $coreOverrideCatalog['behavior.rechat_strict_targeting']=['label'=>'Strict Rechat Targeting','type'=>'boolean','value'=>false];
 $coreOverrideCatalog['behavior.open_rechat']=['label'=>'Open Rechat','type'=>'boolean','value'=>true];
+$coreOverrideCatalog['behavior.end_conversation_cooldown_seconds']=['label'=>'End Conversation Cooldown','type'=>'integer','value'=>60,'range'=>[0,300]];
 $coreOverrideCatalog['relationship.enabled']=['label'=>'Relationship System Enabled','type'=>'boolean','value'=>($globalContent['relationship']['enabled']??false)===true];
 $coreOverrideCatalog['relationship.update_chance_percent']=['label'=>'Relationship Update Chance','type'=>'integer','value'=>50,'range'=>[0,100]];
 $coreOverrideCatalog['context.power_awareness_enabled']=['label'=>'Power Awareness Enabled','type'=>'boolean','value'=>false];
@@ -25,6 +26,7 @@ $coreOverrideHelp = [
     'behavior.rechat_mode'=>'Tight uses the listener; Conversational prefers the current partner; Group rotates nearby NPCs; Random chooses a mode at the start of each chain. Existing chains retain their starting mode.',
     'behavior.rechat_strict_targeting'=>'Require the chosen responder to address the previous speaker directly. The selected responder’s setting is captured when the chain starts.',
     'behavior.open_rechat'=>'Allow nearby scene participants to become the next responder. When off, a new chain started by this NPC stays listener-only; existing chains retain their starting mode.',
+    'behavior.end_conversation_cooldown_seconds'=>'Seconds this NPC refuses AI conversation after successfully using End Conversation (0–300). Zero removes the cooldown. Ordinary Rechat completion does not start it.',
     'relationship.enabled'=>'Enable relationship evaluation for this profile. The effective update chance and global Relationship Management connector still apply.',
     'relationship.update_chance_percent'=>'Percent chance that an eligible completed response queues a relationship update. Zero stops automatic updates without removing saved relationships. Relationship System must be enabled.',
 

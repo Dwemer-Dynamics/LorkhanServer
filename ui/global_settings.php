@@ -154,7 +154,7 @@ $sections = [
             ['auto_lock_profile', 'Auto Lock Profile', '&#x1F512;', 'boolean', $autoLockProfile, 'When enabled, saving an NPC profile automatically locks it to prevent automatic updates from overwriting manual edits.', []],
             ['autofill_custom_profiles', 'Automatic Profile Backfill', '&#x2728;', 'boolean', $autofillCustomProfiles, 'Fill an unlocked NPC profile with AI after it has enough completed dialogue history.', []],
             ['autofill_custom_profiles_trigger', 'Profile Backfill Trigger', '&#x1F4AC;', 'integer', $autofillCustomProfilesTrigger, 'Completed dialogue turns required before an empty unlocked NPC profile is generated.', ['min' => 10, 'max' => 100]],
-            ['end_conversation_cooldown_seconds', 'End Conversation Cooldown', '&#x23F3;', 'integer', $settings['behavior']['end_conversation_cooldown_seconds'], 'Seconds an NPC remains ineligible for another rechat chain after ending a conversation.', ['min' => 0, 'max' => 300]],
+            ['end_conversation_cooldown_seconds', 'End Conversation Cooldown', '&#x23F3;', 'integer', $settings['behavior']['end_conversation_cooldown_seconds'], 'Seconds an NPC refuses AI conversation after a successful End Conversation action. Ordinary Rechat completion does not start this cooldown; zero disables it.', ['min' => 0, 'max' => 300]],
         ],
         'RPG Comments' => [
             ['rpg_events','Comment Events','&#x1F4AC;','multiselect',$globalDocument['rpg_comments']['events'],'Nearby NPCs may comment on these observed game events while dialogue is idle.',['values'=>['levelup'=>'Level Up','combat_end'=>'Combat End','sleep'=>'Sleep','wait'=>'Wait']]],
