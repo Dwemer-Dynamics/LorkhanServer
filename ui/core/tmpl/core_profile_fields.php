@@ -141,6 +141,7 @@ $numberField('setting_behavior_combat_bark_period_seconds','Combat Bark Cooldown
 </div></section></div></div>
 <div class="profile-settings-footer"><button type="button" class="btn-primary" data-profile-back-top title="Scroll to top">Back to top</button></div>
 </div>
+<?php include __DIR__.'/core_global_overrides.php'; ?>
 <details class="connector-card profile-metadata" id="metadata_section">
     <summary>Metadata (Advanced JSON)</summary>
     <p class="hint" id="core-metadata-help">Supported Core Profile setting overrides, including Oghma settings and memory.oghma_knowledge_tags. Visible controls take precedence when saving. Remove an advanced override to restore inheritance. Existing compatibility values may be retained or removed, but unsupported new overrides are rejected. Connector routing and profile identity use their separate controls.</p>
