@@ -3067,6 +3067,47 @@ try {
     $check(count(glob($diaryCacheRoot.'/*.audio'))===64,'diary cache retains at most 64 entries');
 } finally {foreach(glob($diaryCacheRoot.'/*')?:[]as$file)unlink($file);rmdir($diaryCacheRoot);}
 
+// Sandbox data must match destination columns exactly before any import mutation is allowed.
+$importHeader=['kind'=>'header','format'=>'lorkhan.import-data.v1'];
+$importTable=['kind'=>'table','schema'=>'public','name'=>'fixture','columns'=>['id','body']];
+$importRow=['kind'=>'row','schema'=>'public','table'=>'fixture','data'=>['id'=>'9223372036854775807','body'=>"Literal ; DROP TABLE\nSecond line"]];
+$importComplete=['kind'=>'complete'];
+$importRecords=[$importHeader,$importTable,$importRow,$importComplete];
+$importValidator=new \LorkhanServer\Infrastructure\SqlImportData(['public.fixture'=>['id','body']]);
+$validateImport=static function(array $records,string $suffix='')use($importValidator):array{
+    $stream=fopen('php://temp','w+b');
+    try{
+        $bytes=implode("\n",array_map(static fn(array $record):string=>json_encode($record,JSON_THROW_ON_ERROR),$records))."\n".$suffix;
+        fwrite($stream,$bytes);$result=$importValidator->validate($stream);
+        return [$result,$bytes,ftell($stream)];
+    }finally{fclose($stream);}
+};
+[$validatedImport,$importBytes,$importOffset]=$validateImport($importRecords);
+$check($validatedImport===['sha256'=>hash('sha256',$importBytes),'byte_count'=>strlen($importBytes),'table_count'=>1,'row_count'=>1]&&$importOffset===0,'SQL data validation preserves exact bytes and rewinds without mutation');
+foreach([
+    [[$importHeader,$importComplete],'import_tables_incomplete'],
+    [[$importHeader,$importTable,$importTable,$importComplete],'import_schema_mismatch'],
+    [[$importHeader,array_replace($importTable,['name'=>'unknown']),$importComplete],'import_schema_mismatch'],
+    [[$importHeader,array_replace($importTable,['columns'=>['body','id']]),$importComplete],'import_schema_mismatch'],
+    [[$importHeader,$importRow,$importComplete],'import_row_invalid'],
+    [[$importHeader,$importTable,array_replace($importRow,['table'=>'other']),$importComplete],'import_row_invalid'],
+    [[$importHeader,$importTable,array_replace($importRow,['data'=>['id'=>'1']]),$importComplete],'import_columns_mismatch'],
+    [[$importHeader,$importTable,array_replace($importRow,['data'=>['id'=>1,'body'=>'text']]),$importComplete],'import_value_invalid'],
+    [[$importHeader,$importTable,array_replace($importRow,['data'=>['id'=>'1','body'=>"bad\0text"]]),$importComplete],'import_value_invalid'],
+    [[$importHeader,$importTable,$importRow],'import_stream_incomplete'],
+    [array_merge($importRecords,[$importComplete]),'import_record_invalid'],
+    [[$importHeader+['sql'=>'SELECT 1'],$importTable,$importComplete],'import_header_invalid'],
+]as[$records,$expected]){
+    $reason='';try{$validateImport($records);}catch(RuntimeException $error){$reason=$error->getMessage();}
+    $check($reason===$expected,'SQL data rejects malformed or incomplete stream: '.$expected);
+}
+
+foreach([['not-json'."\n",'import_record_invalid'],['[]'."\n",'import_record_invalid'],[str_repeat('x',\LorkhanServer\Infrastructure\SqlImportData::MAX_LINE_BYTES+1),'import_stream_limit']]as[$raw,$expected]){
+    $stream=fopen('php://temp','w+b');$reason='';
+    try{fwrite($stream,$raw);$importValidator->validate($stream);}catch(RuntimeException $error){$reason=$error->getMessage();}finally{fclose($stream);}
+    $check($reason===$expected,'SQL data rejects malformed JSON and overlong records: '.$expected);
+}
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

@@ -53,5 +53,15 @@ with open(sys.argv[1],encoding='utf-8') as stream:
     assert complete and ('lorkhan_internal','installations') in tables and rows>100
 print('isolated SQL data export passed')
 PY
+php /dev/stdin "$ROOT" "$TMP/import.jsonl" "$PORT" <<'PHP'
+<?php
+require $argv[1].'/lib/Autoload.php';
+$db=new PDO('pgsql:host=127.0.0.1;port='.$argv[3].';dbname=lorkhan_test',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+$tables=\LorkhanServer\Infrastructure\SqlImportData::destinationTables($db);
+$stream=fopen($argv[2],'rb');
+try{$result=(new \LorkhanServer\Infrastructure\SqlImportData($tables))->validate($stream);}finally{fclose($stream);}
+if($result['table_count']!==count($tables)||$result['row_count']<100||!hash_equals($result['sha256'],hash_file('sha256',$argv[2])))throw new RuntimeException('import_validation_failed');
+echo "sandbox data matches trusted destination schema\n";
+PHP
 LORKHAN_TEST_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=lorkhan_migrations_test" \
 php "$ROOT/tests/migrations_jobs.php"
