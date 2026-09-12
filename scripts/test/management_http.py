@@ -2218,6 +2218,8 @@ npc_overrides['profile_evolution']={'history_limit':0}
 npc_overrides.update(context={'hide_ambient_combat':True,'power_awareness_enabled':False,'prompt_timestamp':True,'ground_items_descriptions_only':True,'inventory_items_descriptions_only':False},prompt={'prompt_head':'NPC global prompt override'},oghma={'enabled':False,'location_context_enabled':False,'racial_context_enabled':True,'topic_count':3,'result_limit':4,'extractor_timeout_ms':300,'extractor_fallback_enabled':True},relationship={'enabled':False})
 npc_overrides['context'].update(item_blacklist=[],location_blacklist=['Vivec'],magic_effects_blacklist=['Fire Shield'])
 npc_overrides['context']['event_types']=[]
+npc_overrides['context']['sections']={key:False for key in catalog_overrides['context']['sections']}
+npc_overrides['context']['details']={key:key=='npc_appearance' for key in catalog_overrides['context']['details']}
 npc_overrides['prompt']['emote_moods']=''
 npc_overrides['behavior']['rechat_mode']='group'
 for submitted in [npc_overrides, None, {}]:

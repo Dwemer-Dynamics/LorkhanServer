@@ -400,11 +400,16 @@ final class EffectiveSettingsResolver
         if (array_key_exists('context', $validation)) {
             $context = $validation['context'];
             if (!is_array($context) || array_is_list($context)
-                || array_diff(array_keys($context), ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','hide_ambient_combat','location_blacklist','item_blacklist','magic_effects_blacklist','event_types']) !== [])
+                || array_diff(array_keys($context), ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','hide_ambient_combat','location_blacklist','item_blacklist','magic_effects_blacklist','event_types','sections','details']) !== [])
                 throw new InvalidArgumentException('invalid_settings_overrides');
             foreach ($context as $key=>$value) {
                 if (in_array($key,['location_blacklist','item_blacklist','magic_effects_blacklist'],true)) {
                     $overrides['context'][$key]=self::validateTextList($value);
+                } elseif (in_array($key,['sections','details'],true)) {
+                    $defaults=$key==='sections'?SettingsCatalog::contextSectionDefaults():SettingsCatalog::contextDetailDefaults();
+                    if (!is_array($value)||array_is_list($value)||array_diff_key($value,$defaults)!==[]||array_diff_key($defaults,$value)!==[])
+                        throw new InvalidArgumentException('invalid_settings_overrides');
+                    foreach($value as $selected)if(!is_bool($selected))throw new InvalidArgumentException('invalid_settings_overrides');
                 } elseif ($key==='event_types') {
                     if (!is_array($value)||!array_is_list($value)||count($value)>count(SettingsCatalog::eventTypes())) throw new InvalidArgumentException('invalid_settings_overrides');
                     foreach($value as $type) if(!is_string($type)||!in_array($type,SettingsCatalog::eventTypes(),true)) throw new InvalidArgumentException('invalid_settings_overrides');

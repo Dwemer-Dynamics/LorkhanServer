@@ -14,6 +14,7 @@
             if (!Object.hasOwn(value[section] || {}, key)) continue;
             const item = value[section][key];
             if (definition.type === 'boolean' ? typeof item !== 'boolean'
+                : definition.type === 'booleanmap' ? !item || Array.isArray(item) || typeof item !== 'object' || Object.keys(item).length !== Object.keys(definition.choices).length || Object.keys(definition.choices).some(key => typeof item[key] !== 'boolean')
                 : definition.type === 'choice' ? !definition.choices.includes(item)
                 : definition.type === 'string' ? typeof item !== 'string' || new TextEncoder().encode(item).length > definition.maxBytes
                 : definition.type === 'textlist' ? !Array.isArray(item) || item.length > (definition.choices?.length ?? 256) || item.some(entry => typeof entry !== 'string' || new TextEncoder().encode(entry).length > 256 || (definition.choices && !definition.choices.includes(entry)))
@@ -30,7 +31,8 @@
                 const enabled = Object.hasOwn(value[section] || {}, key), control = row.querySelector('[data-core-override-input]');
                 row.querySelector('[data-core-override-enabled]').checked = enabled; control.disabled = !enabled; control.setCustomValidity(''); row.classList.toggle('enabled', enabled);
                 const current = enabled ? value[section][key] : definition.value;
-                if (definition.type === 'boolean') control.checked = current;
+                if (definition.type === 'booleanmap') control.querySelectorAll('[data-context-key]').forEach(input => { input.checked = current[input.dataset.contextKey]; });
+                else if (definition.type === 'boolean') control.checked = current;
                 else {
                     // Keep an unfinished new line while typing; the JSON draft already holds normalized entries.
                     const display = definition.type === 'textlist' ? current.join('\n') : String(current);
@@ -49,7 +51,7 @@
                 const entries = definition.type === 'textlist' ? control.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean) : null;
                 if (toggle.checked && entries && (entries.length > (definition.choices?.length ?? 256) || entries.some(entry => new TextEncoder().encode(entry).length > 256 || (definition.choices && !definition.choices.includes(entry))))) control.setCustomValidity(definition.choices ? 'Use only the listed event types, one per line.' : 'Use at most 256 entries, each at most 256 UTF-8 bytes.');
                 if (toggle.checked && !control.checkValidity()) { status.textContent = 'Correct ' + definition.label + ' before saving.'; return; }
-                if (toggle.checked) { value[section] ||= {}; value[section][key] = definition.type === 'boolean' ? control.checked : definition.type === 'integer' ? Number(control.value) : entries ?? control.value; }
+                if (toggle.checked) { value[section] ||= {}; value[section][key] = definition.type === 'booleanmap' ? Object.fromEntries([...control.querySelectorAll('[data-context-key]')].map(input => [input.dataset.contextKey,input.checked])) : definition.type === 'boolean' ? control.checked : definition.type === 'integer' ? Number(control.value) : entries ?? control.value; }
                 else if (value[section]) { delete value[section][key]; if (!Object.keys(value[section]).length) delete value[section]; }
                 raw.value = JSON.stringify(value, null, 2); raw.dispatchEvent(new Event('input', {bubbles:true})); status.textContent = 'Unsaved changes. Save All to apply these overrides.';
             } catch (exception) { error(exception); }

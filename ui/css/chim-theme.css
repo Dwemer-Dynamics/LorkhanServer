@@ -1277,3 +1277,11 @@ body.lorkhan-outage p {
 [data-json-editor-target] .jse-main { height:100%; }
 
 .profile-provider-body { display:block; }
+
+/* Shared optional-context groups retain readable checkbox rows in both profile editors. */
+.context-selection-options{min-width:0;max-width:100%;border:1px solid #444;padding:10px;border-radius:4px}
+.context-selection-options label{display:flex!important;flex-direction:row!important;align-items:flex-start;gap:6px;white-space:normal;overflow-wrap:anywhere;margin:4px 0;font-size:13px}
+.context-selection-options input[type=checkbox]{width:auto!important;flex:0 0 auto;margin-top:3px}
+.context-selection-options legend{font-size:14px;float:none;width:auto}
+
+.prof-ovr-inline-controls:has(.context-selection-options){flex-direction:column;align-items:stretch}

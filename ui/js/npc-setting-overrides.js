@@ -16,6 +16,7 @@
         const boolean = root.querySelector('[data-npc-override-bool]');
         const number = root.querySelector('[data-npc-override-number]');
         const text = root.querySelector('[data-npc-override-text]');
+        const selections = root.querySelector('[data-npc-override-map]');
         let values = JSON.parse(field.value), selected = '', opener = null, dirty = false;
         const button = (text, action) => {
             const element = document.createElement('button'); element.type = 'button'; element.textContent = text;
@@ -31,6 +32,7 @@
                     const definition = catalog[section + '.' + key];
                     if (!definition) throw new Error('Unsupported setting: ' + section + '.' + key);
                     if (definition.type === 'boolean' ? typeof setting !== 'boolean'
+                        : definition.type === 'booleanmap' ? !setting || Array.isArray(setting) || typeof setting !== 'object' || Object.keys(setting).length !== Object.keys(definition.choices).length || Object.keys(definition.choices).some(key => typeof setting[key] !== 'boolean')
                         : definition.type === 'choice' ? !definition.choices.includes(setting)
                         : definition.type === 'string' ? typeof setting !== 'string' || (!definition.allowEmpty && !setting.trim()) || new TextEncoder().encode(setting).length > definition.maxBytes
                         : definition.type === 'textlist' ? !Array.isArray(setting) || setting.length > (definition.choices?.length ?? 256) || setting.some(entry => typeof entry !== 'string' || new TextEncoder().encode(entry).length > 256 || (definition.choices && !definition.choices.includes(entry)))
@@ -48,7 +50,7 @@
                 const icon = document.createElement('span'); icon.textContent = section === 'quest_comments' ? '🧭' : section === 'memory' ? '🧠' : section === 'behavior' ? '🔁' : '⚙️';
                 const info = document.createElement('div'); info.className = 'npc-ovr-info';
                 const label = document.createElement('strong'); label.textContent = definition.label;
-                const value = document.createElement('span'); value.className = 'npc-ovr-value'; value.textContent = definition.labels?.[values[section][key]] ?? String(values[section][key]) + (definition.suffix || ''); info.append(label, value);
+                const value = document.createElement('span'); value.className = 'npc-ovr-value'; value.textContent = definition.type === 'booleanmap' ? Object.entries(values[section][key]).filter(([,enabled]) => enabled).map(([key]) => definition.choices[key]).join(', ') || 'None selected' : definition.labels?.[values[section][key]] ?? String(values[section][key]) + (definition.suffix || ''); info.append(label, value);
                 const actions = document.createElement('div'); actions.className = 'npc-ovr-actions';
                 const edit = button('Edit', () => { opener = edit; openSetting(path); dialog.showModal(); });
                 edit.setAttribute('aria-label', 'Edit ' + definition.label);
@@ -69,23 +71,32 @@
             root.querySelector('[data-npc-override-title]').textContent = 'Edit Override';
             picker.hidden = true; editor.hidden = false; save.hidden = false;
             const label = root.querySelector('[data-npc-override-label]'); label.textContent = definition.label;
+            const isMap = definition.type === 'booleanmap';
+            selections.hidden = !isMap; selections.replaceChildren(); label.hidden = isMap;
             const isBoolean = definition.type === 'boolean', isChoice = definition.type === 'choice', isText = ['string','textlist'].includes(definition.type);
-            boolean.hidden = !(isBoolean || isChoice); number.hidden = isBoolean || isChoice || isText; text.hidden = !isText;
+            boolean.hidden = !(isBoolean || isChoice); number.hidden = isBoolean || isChoice || isText || isMap; text.hidden = !isText;
             boolean.disabled = boolean.hidden; number.disabled = number.hidden; text.disabled = text.hidden;
             boolean.replaceChildren(...(isChoice ? definition.choices.map(value => new Option(definition.labels?.[value] ?? String(value) + (definition.suffix || ''), String(value))) : [new Option('On','true'),new Option('Off','false')]));
             label.htmlFor = isText ? text.id : isBoolean || isChoice ? boolean.id : number.id;
             const current = values[section]?.[key] ?? definition.value;
-            if (isText) { text.required = !definition.allowEmpty; text.maxLength = definition.maxBytes; text.value = definition.type === 'textlist' ? current.join('\n') : current; text.setCustomValidity(''); }
+            if (isMap) {
+                const legend = document.createElement('legend'); legend.textContent = definition.label; selections.append(legend);
+                for (const [key,caption] of Object.entries(definition.choices)) {
+                    const choice = document.createElement('label'), input = document.createElement('input');
+                    input.type='checkbox'; input.dataset.contextKey=key; input.checked=current[key];
+                    choice.append(input, document.createTextNode(' '+caption)); selections.append(choice);
+                }
+            } else if (isText) { text.required = !definition.allowEmpty; text.maxLength = definition.maxBytes; text.value = definition.type === 'textlist' ? current.join('\n') : current; text.setCustomValidity(''); }
             else if (isBoolean || isChoice) boolean.value = String(current);
             else { number.required = true; number.min = definition.range[0]; number.max = definition.range[1]; number.value = current; }
-            root.querySelector('[data-npc-override-help]').textContent = isText ? 'Enter instructions. Removing this override restores inheritance.' : isBoolean ? 'An explicit On or Off overrides the inherited setting.' : isChoice ? 'Choose one of the listed values. Removing this override restores inheritance.' : 'Allowed range: ' + definition.range.join('–') + '. Removing this override restores inheritance.';
+            root.querySelector('[data-npc-override-help]').textContent = isMap ? 'Select optional context. Remove the override to inherit.' : isText ? 'Enter instructions. Removing this override restores inheritance.' : isBoolean ? 'An explicit On or Off overrides the inherited setting.' : isChoice ? 'Choose one of the listed values. Removing this override restores inheritance.' : 'Allowed range: ' + definition.range.join('–') + '. Removing this override restores inheritance.';
             if (definition.help) root.querySelector('[data-npc-override-help]').textContent = definition.help;
         };
         const filter = () => {
             options.replaceChildren();
             for (const [path, definition] of Object.entries(catalog)) {
                 if (!(definition.label + ' ' + path).toLowerCase().includes(search.value.toLowerCase())) continue;
-                options.append(button(definition.label, () => { openSetting(path); (text.hidden ? boolean.hidden ? number : boolean : text).focus(); }));
+                options.append(button(definition.label, () => { openSetting(path); (selections.hidden ? text.hidden ? boolean.hidden ? number : boolean : text : selections.querySelector('input')).focus(); }));
             }
             if (!options.children.length) options.textContent = 'No settings match your search.';
         };
@@ -108,7 +119,8 @@
             const choice = definition.type === 'choice' ? definition.choices.find(value => String(value) === boolean.value) : undefined;
             if (definition.type === 'choice' && choice === undefined) return;
             let value = Number(number.value);
-            if (definition.type === 'boolean') value = boolean.value === 'true';
+            if (definition.type === 'booleanmap') value = Object.fromEntries([...selections.querySelectorAll('input')].map(input => [input.dataset.contextKey,input.checked]));
+            else if (definition.type === 'boolean') value = boolean.value === 'true';
             else if (definition.type === 'choice') value = choice;
             else if (definition.type === 'string') value = text.value;
             else if (definition.type === 'textlist') {

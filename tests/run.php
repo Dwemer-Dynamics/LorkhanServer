@@ -2668,6 +2668,30 @@ $blacklistNpc=['settings_overrides'=>['context'=>['item_blacklist'=>[],'location
 $blacklistEffective=(new EffectiveSettingsResolver())->resolve($globalSettings,$blacklistCore,$blacklistNpc);
 $check($blacklistEffective['context']['item_blacklist']===[]&&$blacklistEffective['context']['location_blacklist']===['Vivec']
     &&$blacklistEffective['context']['magic_effects_blacklist']===['Fire Shield'],'NPC empty blacklist clears inheritance while omitted lists retain Core values');
+// Profile context groups replace one complete global selection while retaining unrelated settings.
+$sectionSelection=SettingsCatalog::contextSectionDefaults();$sectionSelection['record_descriptions']=false;
+$detailSelection=SettingsCatalog::contextDetailDefaults();$detailSelection['npc_appearance']=false;
+$contextSelectionCore=['settings_overrides'=>['context'=>['sections'=>$sectionSelection,'details'=>$detailSelection]]];
+$contextSelectionEffective=(new EffectiveSettingsResolver())->resolve(SettingsCatalog::globalDefaults(),$contextSelectionCore,[]);
+$check($contextSelectionEffective['context']['sections']===$sectionSelection&&$contextSelectionEffective['context']['details']===$detailSelection,
+    'Core context selection groups reach effective prompt settings');
+$contextSelectionNpc=['settings_overrides'=>['context'=>['sections'=>SettingsCatalog::contextSectionDefaults()]]];
+$contextSelectionEffective=(new EffectiveSettingsResolver())->resolve(SettingsCatalog::globalDefaults(),$contextSelectionCore,$contextSelectionNpc);
+$check($contextSelectionEffective['context']['sections']===SettingsCatalog::contextSectionDefaults()&&$contextSelectionEffective['context']['details']===$detailSelection,
+    'NPC context selections replace Core groups while omitted groups inherit');
+$check(\LorkhanServer\Application\CoreProfilePreset::capture($contextSelectionCore)['settings_overrides']===$contextSelectionCore['settings_overrides'],
+    'Named Core presets retain full context selection groups');
+$contextPromptSelection=$promptSelection;
+$contextPromptSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve(SettingsCatalog::globalDefaults(),$contextSelectionCore,[]);
+$check(!str_contains((new PromptAssembler())->assemble($promptTurn,$contextPromptSelection)['provider_input']['_assembled_prompt'],'A short iron blade.'),
+    'Core context selections omit record descriptions from the actual prompt');
+$contextPromptSelection['effective_settings']=$contextSelectionEffective;
+$check(str_contains((new PromptAssembler())->assemble($promptTurn,$contextPromptSelection)['provider_input']['_assembled_prompt'],'A short iron blade.'),
+    'NPC context selections restore record descriptions in the actual prompt');
+foreach([[],['record_descriptions'=>false],array_replace($sectionSelection,['unknown'=>true]),array_replace($sectionSelection,['record_descriptions'=>0])]as$invalidContextSelection){
+    try{EffectiveSettingsResolver::validateSettingsOverrides(['context'=>['sections'=>$invalidContextSelection]],true);$check(false,'malformed context selection refused');}
+    catch(InvalidArgumentException){$check(true,'malformed context selection refused');}
+}
 $blacklistSelection=$promptSelection;
 $blacklistSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve(SettingsCatalog::globalDefaults(),
     ['settings_overrides'=>['context'=>['item_blacklist'=>['iron_dagger']]]],[]);

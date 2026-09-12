@@ -1,7 +1,9 @@
 <?php
 declare(strict_types=1);
 // Current rows and modal structure derive from Herika's NPC override_editor.php.
+$contextSelectionGroups=require __DIR__.'/context_selection_groups.php';
 $overrideLabels = [
+    'context.sections'=>'Context Sections','context.details'=>'Context Details',
     'context.event_types'=>'Event Type Filter','prompt.emote_moods'=>'Emote Moods',
     'context.location_blacklist'=>'Location Blacklist','context.item_blacklist'=>'Item Blacklist','context.magic_effects_blacklist'=>'Magic Effect Blacklist',
     'quest_comments.enabled'=>'Quest Comment', 'quest_comments.chance_percent'=>'Quest Comment Chance',
@@ -74,6 +76,11 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
         if($path==='diary.prompt')$overrideCatalog[$path]=[
             'label'=>$overrideLabels[$path],'type'=>'string','maxBytes'=>8192,
             'value'=>$effectiveSettings['settings']['diary']['prompt']??\LorkhanServer\Application\DiaryGenerationPolicy::defaults()['prompt']];
+        if($section==='context'&&in_array($key,['sections','details'],true)){
+            $choices=[];foreach($contextSelectionGroups as[$group,$items])if($group===$key)foreach($items as$name=>$info)$choices[$name]=$info[0];
+            $overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'booleanmap','choices'=>$choices,'value'=>$effectiveSettings['context'][$key],
+                'help'=>'Select optional context to include. All unchecked excludes this group; remove the override to inherit. Required speaker and action instructions remain. Details require their containing section.'];
+        }
         if(isset($help[$path]))$overrideCatalog[$path]['help']=$help[$path].' Remove this override to restore inheritance.';
         if(array_key_exists($key,$content['settings_overrides'][$section]??[]))$overrideValues[$section][$key]=$content['settings_overrides'][$section][$key];
         if($section==='diary'&&array_key_exists($key,$content['diary']??[]))$overrideValues[$section][$key]=$content['diary'][$key];
@@ -111,6 +118,7 @@ $overrideId=$formId.'-overrides';
                 <select id="<?= lorkhan_ui_h($overrideId) ?>-bool" data-npc-override-bool><option value="true">On</option><option value="false">Off</option></select>
                 <input type="number" id="<?= lorkhan_ui_h($overrideId) ?>-number" step="1" data-npc-override-number>
                 <textarea id="<?= lorkhan_ui_h($overrideId) ?>-text" rows="6" data-npc-override-text></textarea>
+                <fieldset class="context-selection-options" data-npc-override-map hidden></fieldset>
                 <p data-npc-override-help></p>
             </div>
         </div>

@@ -24,7 +24,15 @@ $coreOverrideCatalog['behavior.end_conversation_cooldown_seconds']=['label'=>'En
 $coreOverrideCatalog['relationship.enabled']=['label'=>'Relationship System Enabled','type'=>'boolean','value'=>($globalContent['relationship']['enabled']??false)===true];
 $coreOverrideCatalog['relationship.update_chance_percent']=['label'=>'Relationship Update Chance','type'=>'integer','value'=>50,'range'=>[0,100]];
 $coreOverrideCatalog['context.power_awareness_enabled']=['label'=>'Power Awareness Enabled','type'=>'boolean','value'=>false];
+$contextSelectionGroups=require dirname(__DIR__,2).'/tmpl/context_selection_groups.php';
+foreach(['sections'=>'Context Sections','details'=>'Context Details']as$key=>$label){
+    $choices=[];foreach($contextSelectionGroups as[$group,$items])if($group===$key)foreach($items as$name=>$info)$choices[$name]=$info[0];
+    $coreOverrideCatalog['context.'.$key]=['label'=>$label,'type'=>'booleanmap','choices'=>$choices,
+        'value'=>$key==='sections'?\LorkhanServer\Application\SettingsCatalog::contextSectionDefaults():\LorkhanServer\Application\SettingsCatalog::contextDetailDefaults()];
+}
 $coreOverrideHelp = [
+    'context.sections'=>'Select optional prompt sections. Uncheck all to exclude them; turn off Override to inherit. Required speaker and action instructions remain.',
+    'context.details'=>'Select optional character, state and nearby details. The containing section must also be enabled. Turn off Override to inherit.',
     'prompt.emote_moods'=>'Moods and emotes offered in the prompt when the NPC has no custom mood list. Blank removes inherited suggestions; turn off Override to inherit. Maximum 4096 UTF-8 bytes.',
     'context.event_types'=>'One included event type per line: '.implode(', ',\LorkhanServer\Application\SettingsCatalog::eventTypes()).'. Blank excludes event history from this profile’s context without deleting it; turn off Override to inherit.',
     'context.location_blacklist'=>'One location per line. These locations are omitted from prompt context. Blank clears the inherited blacklist; turn off Override to inherit. Maximum 256 entries, 256 UTF-8 bytes each.',
@@ -66,14 +74,16 @@ unset($definition);
     <div class="prof-ovr-list">
     <?php foreach (['Context'=>['context','relationship'],'Oghma'=>['oghma','memory'],'Prompt'=>['prompt'],'Rechat'=>['behavior']] as $category=>$sections): ?>
     <section class="prof-ovr-category"><h3 class="prof-ovr-category-title"><?= lorkhan_ui_h($category) ?></h3><div class="prof-ovr-category-settings">
-    <?php foreach ($coreOverrideCatalog as $path=>$definition): [$section,$key]=explode('.', $path); if (!in_array($section,$sections,true)) continue; $enabled=array_key_exists($key,$overrides[$section]??[]); $value=$enabled?$overrides[$section][$key]:$definition['value']; $id='core-override-'.str_replace('.','-',$path); $globalPreview=is_array($definition['value'])?implode(', ',$definition['value']):(is_bool($definition['value'])?($definition['value']?'true':'false'):($definition['value']===''?'Not set':(string)$definition['value'])); $globalPreview=mb_strlen($globalPreview)>180?mb_substr($globalPreview,0,177).'…':$globalPreview; ?>
+    <?php foreach ($coreOverrideCatalog as $path=>$definition): [$section,$key]=explode('.', $path); if (!in_array($section,$sections,true)) continue; $enabled=array_key_exists($key,$overrides[$section]??[]); $value=$enabled?$overrides[$section][$key]:$definition['value']; $id='core-override-'.str_replace('.','-',$path); $globalPreview=is_array($definition['value'])?implode(', ',$definition['type']==='booleanmap'?array_values(array_intersect_key($definition['choices'],array_filter($definition['value']))):$definition['value']):(is_bool($definition['value'])?($definition['value']?'true':'false'):($definition['value']===''?'Not set':(string)$definition['value'])); $globalPreview=mb_strlen($globalPreview)>180?mb_substr($globalPreview,0,177).'…':$globalPreview; ?>
         <div class="prof-ovr-inline-item<?= $enabled?' enabled':'' ?>" data-path="<?= lorkhan_ui_h($path) ?>">
             <div class="prof-ovr-inline-info"><div class="prof-ovr-inline-name"><span>🧾</span><label for="<?= lorkhan_ui_h($id) ?>"><?= lorkhan_ui_h($definition['label']) ?></label></div>
                 <div class="prof-ovr-inline-description"><?= lorkhan_ui_h($coreOverrideHelp[$path]) ?></div>
                 <div class="prof-ovr-inherited-value">Global value: <?= lorkhan_ui_h($globalPreview) ?></div>
             </div>
             <div class="prof-ovr-inline-controls"><label class="prof-ovr-toggle"><input type="checkbox" data-core-override-enabled<?= $enabled?' checked':'' ?> aria-label="<?= lorkhan_ui_h('Override '.$definition['label']) ?>"> Override</label>
-                <?php if ($definition['type'] === 'choice'): ?>
+                <?php if ($definition['type'] === 'booleanmap'): ?>
+                <fieldset id="<?= lorkhan_ui_h($id) ?>" class="context-selection-options" data-core-override-input<?= $enabled?'':' disabled' ?>><legend class="visually-hidden"><?= lorkhan_ui_h($definition['label']) ?></legend><?php foreach($definition['choices'] as $choice=>$label): ?><label><input type="checkbox" data-context-key="<?= lorkhan_ui_h($choice) ?>"<?= $value[$choice]?' checked':'' ?>> <?= lorkhan_ui_h($label) ?></label><?php endforeach; ?></fieldset>
+                <?php elseif ($definition['type'] === 'choice'): ?>
                 <select id="<?= lorkhan_ui_h($id) ?>" class="prof-ovr-inline-input" data-core-override-input<?= $enabled?'':' disabled' ?>><?php foreach ($definition['choices'] as $choice): ?><option value="<?= lorkhan_ui_h($choice) ?>"<?= $value===$choice?' selected':'' ?>><?= lorkhan_ui_h(ucfirst($choice)) ?></option><?php endforeach; ?></select>
                 <?php elseif ($definition['multiline'] ?? false): ?>
                 <textarea id="<?= lorkhan_ui_h($id) ?>" class="prof-ovr-inline-input" data-core-override-input rows="3" maxlength="<?= $definition['maxBytes'] ?>"<?= $enabled?'':' disabled' ?>><?= lorkhan_ui_h(is_array($value)?implode("\n",$value):(string)$value) ?></textarea>
