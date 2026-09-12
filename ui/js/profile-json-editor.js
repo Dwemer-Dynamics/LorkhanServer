@@ -21,12 +21,25 @@ const scan = () => {
                 status.textContent = ''; return json;
             } catch (error) { status.textContent = error.message; return null; }
         };
+        let editorChange = false;
         const update = content => {
             source.value = content.text !== undefined ? content.text : JSON.stringify(content.json, null, 2);
             valid();
-            source.dispatchEvent(new Event('input', {bubbles:true}));
+            editorChange = true;
+            try { source.dispatchEvent(new Event('input', {bubbles:true})); } finally { editorChange = false; }
         };
-        source.addEventListener('input', valid);
+        source.addEventListener('input', () => {
+            const json = valid();
+            if (!editorChange && json !== null) mounted.get(root)?.update({json});
+        });
+        source.addEventListener('invalid', () => {
+            root.open = true; source.hidden = false;
+            root.querySelector('label[for="' + source.id + '"]').hidden = false;
+        });
+        form.addEventListener('formdata', event => {
+            mounted.get(root)?.validate();
+            event.formData.set(source.name, source.value);
+        });
         form.addEventListener('submit', event => {
             const editor = mounted.get(root);
             // Validation flushes the library's debounced text edits before serialization.

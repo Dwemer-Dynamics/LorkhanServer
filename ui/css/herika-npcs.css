@@ -953,9 +953,6 @@ body.view-characters [data-npc-editor-panel="general"] .npc-editor-check:not(det
 @media(max-width:700px) { .npc-equipment-grid { grid-template-columns:minmax(80px,1fr) minmax(0,2fr); } }
 
 /* Keep the reference JSON editor controls independent of the application's button skin. */
-[data-json-editor-target] { --jse-theme-color:#bc9d5a; --jse-theme-color-highlight:#d1b274; --jse-theme-color-focus:#bc9d5a; min-width:0; height:500px; max-height:65vh; }
-[data-json-editor-target]:empty { display:none; }
-[data-json-editor-target] .jse-main { height:100%; }
 .npc-rel-tier[data-affinity-tier="Bonded"] { color:#22c55e; }
 .npc-rel-tier[data-affinity-tier="Devoted"] { color:#4ade80; }
 .npc-rel-tier[data-affinity-tier="Fond"] { color:#86efac; }

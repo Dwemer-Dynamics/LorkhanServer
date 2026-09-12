@@ -1270,3 +1270,10 @@ body.lorkhan-outage p {
         height: 56px;
     }
 }
+
+/* Shared metadata editor for NPC and Core Profile forms. */
+[data-json-editor-target] { --jse-theme-color:#bc9d5a; --jse-theme-color-highlight:#d1b274; --jse-theme-color-focus:#bc9d5a; min-width:0; height:500px; max-height:65vh; }
+[data-json-editor-target]:empty { display:none; }
+[data-json-editor-target] .jse-main { height:100%; }
+
+.profile-provider-body { display:block; }

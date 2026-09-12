@@ -87,7 +87,7 @@ foreach (['mid_term_enabled'=>'Middle Term Memory','short_term_enabled'=>'Short 
 </div>
 <div class="provider-card profile-rpg-comments">
     <div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#x1F3B2;</div><div>RPG Comments</div></div></div>
-    <div class="provider-body" style="display:block;">
+    <div class="provider-body profile-provider-body">
         <div class="setting-row">
             <div><div class="setting-key" id="rpg-comment-types-label"><span class="setting-icon" aria-hidden="true">&#x1F3B2;</span><span>Comment Types</span></div><div class="setting-desc">Pick which comments you want a chance to trigger when one of these ingame events happens.</div></div>
             <div class="setting-control setting-control-wide">
@@ -110,7 +110,7 @@ foreach (['mid_term_enabled'=>'Middle Term Memory','short_term_enabled'=>'Short 
 </div>
 <div class="provider-card profile-short-term-memory">
     <div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#x1F5C2;&#xFE0F;</div><div>Short Term Memory</div></div></div>
-    <div class="provider-body" style="display:block;">
+    <div class="provider-body profile-provider-body">
         <?php $stmMax=(int)($overrides['memory']['short_term_max_summaries']??10); ?>
         <div class="setting-row">
             <div><div class="setting-key"><span class="setting-icon" aria-hidden="true">&#x1F5C2;&#xFE0F;</span><label for="setting_memory_short_term_max_summaries">Max Summaries</label></div><div class="setting-desc">How many past-scene summaries may be injected in one response. Higher = deeper memory and more tokens. Only used when Short Term Memory is enabled above.</div></div>
@@ -142,9 +142,11 @@ $numberField('setting_behavior_combat_bark_period_seconds','Combat Bark Cooldown
 <div class="profile-settings-footer"><button type="button" class="btn-primary" data-profile-back-top title="Scroll to top">Back to top</button></div>
 </div>
 <?php include __DIR__.'/core_global_overrides.php'; ?>
-<details class="connector-card profile-metadata" id="metadata_section">
+<details class="connector-card profile-metadata" id="metadata_section" data-profile-json-editor>
     <summary>Metadata (Advanced JSON)</summary>
     <p class="hint" id="core-metadata-help">Supported Core Profile setting overrides, including Oghma settings and memory.oghma_knowledge_tags. Visible controls take precedence when saving. Remove an advanced override to restore inheritance. Existing compatibility values may be retained or removed, but unsupported new overrides are rejected. Connector routing and profile identity use their separate controls.</p>
+    <div data-json-editor-target></div>
     <label for="core-settings-overrides-json">Settings overrides</label>
-    <textarea id="core-settings-overrides-json" name="core_settings_overrides_json" rows="16" spellcheck="false" aria-describedby="core-metadata-help"><?= lorkhan_ui_h(json_encode($overrides ?: new stdClass(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?></textarea>
+    <textarea id="core-settings-overrides-json" data-json-editor-source name="core_settings_overrides_json" rows="16" spellcheck="false" aria-describedby="core-metadata-help"><?= lorkhan_ui_h(json_encode($overrides ?: new stdClass(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?></textarea>
+    <p role="status" data-json-editor-status></p>
 </details>

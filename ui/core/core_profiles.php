@@ -333,4 +333,5 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 <?php if ($selected !== null): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/core-profile-presets.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/core-profile-presets.js'); ?>" defer></script><?php endif; ?>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/core-global-overrides.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/core-global-overrides.js'); ?>" defer></script>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/profile-connector-editors.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/profile-connector-editors.js'); ?>" defer></script>
+<script type="module" src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/profile-json-editor.js?v=<?= (string) filemtime(dirname(__DIR__) . '/js/profile-json-editor.js') ?>"></script>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>
