@@ -3465,4 +3465,69 @@ assert 'class="backup-item dragonbreak"' in dragon_html and 'Dragon Break (0427-
 assert 'Last in-game date:</b> 17 Last Seed, 3E 427' in dragon_html and '3 days ahead' in dragon_html
 if os.environ.get('LORKHAN_DRAGON_EVIDENCE'):
     pathlib.Path(os.environ['LORKHAN_DRAGON_EVIDENCE']).write_text(dragon_html,encoding='utf-8')
+
+# Replay queue ingress and its real restricted-owner worker use only this disposable server.
+subprocess.run([*pg_test,"UPDATE lorkhan_internal.durable_jobs SET state='dead',completed_at=clock_timestamp() WHERE job_type IN ('database.backup','database.compact','database.restore','database.replay') AND state='queued'"],check=True,capture_output=True)
+replay_plan_path='/LorkhanServer/manage/api/v1/database-replay-plan'
+replay_status='/LorkhanServer/manage/api/v1/database-replay'
+replay_form_path='/LorkhanServer/manage/forms/database-replay'
+replay_plan=json.load(request(replay_plan_path,accept='application/json'))
+assert re.fullmatch('[a-f0-9]{64}',replay_plan['fingerprint']) and replay_plan['versions']
+replay_version=replay_plan['versions'][-1]['version']
+replay_page,replay_html=parse(request('/LorkhanServer/ui/database_manager.php'))
+if os.environ.get('LORKHAN_REPLAY_EVIDENCE'): pathlib.Path(os.environ['LORKHAN_REPLAY_EVIDENCE']).write_text(replay_html,encoding='utf-8')
+replay_csrf=next(form['fields']['_csrf'] for form in replay_page.forms if '_csrf' in form['fields'])
+replay_fields={'_csrf':replay_csrf,'version':str(replay_version),'fingerprint':replay_plan['fingerprint'],'confirm':'Replay '+str(replay_version)}
+try:
+    urllib.request.urlopen(urllib.request.Request(base+replay_plan_path,headers={'Accept':'application/json'}),timeout=5)
+    raise AssertionError('unauthenticated replay plan was exposed')
+except urllib.error.HTTPError as error:
+    assert error.code==401
+class ReplayNoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+replay_no_redirect=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar),ReplayNoRedirect())
+try:
+    replay_no_redirect.open(urllib.request.Request(base+replay_form_path,data=urllib.parse.urlencode(dict(replay_fields,_csrf='wrong')).encode(),headers={'Content-Type':'application/x-www-form-urlencoded'}),timeout=5)
+    raise AssertionError('invalid replay CSRF was accepted')
+except urllib.error.HTTPError as error:
+    assert error.code==303 and error.headers['Location'].endswith('/ui/home.php'),(error.code,error.headers)
+
+assert request(replay_form_path,'POST',dict(replay_fields,confirm='wrong')).status==422
+assert request(replay_form_path,'POST',dict(replay_fields,version='0')).status==422
+assert 'replay-plan-changed' in request(replay_form_path,'POST',dict(replay_fields,fingerprint='0'*64)).geturl()
+assert json.load(request(replay_status,accept='application/json'))['job'] is None
+assert 'maintenance-queued' in request('/LorkhanServer/manage/forms/database-maintenance','POST',{'_csrf':replay_csrf,'confirm':'Maintenance'}).geturl()
+assert 'maintenance-busy' in request(replay_form_path,'POST',replay_fields).geturl()
+subprocess.run([*pg_test,"UPDATE lorkhan_internal.durable_jobs SET state='dead',completed_at=clock_timestamp() WHERE job_type='database.compact' AND state='queued'"],check=True,capture_output=True)
+assert 'replay-queued' in request(replay_form_path,'POST',replay_fields).geturl()
+replay_job=json.load(request(replay_status,accept='application/json'))['job']
+assert replay_job['state']=='queued' and set(replay_job)=={'job_id','state','created_at','updated_at'}
+assert 'replay-queued' in request(replay_form_path,'POST',replay_fields).geturl()
+assert json.load(request(replay_status,accept='application/json'))['job']['job_id']==replay_job['job_id']
+assert 'maintenance-busy' in request(replay_form_path,'POST',dict(replay_fields,version=str(replay_version-1),confirm='Replay '+str(replay_version-1))).geturl()
+assert 'maintenance-busy' in request('/LorkhanServer/manage/forms/database-maintenance','POST',{'_csrf':replay_csrf,'confirm':'Maintenance'}).geturl()
+assert 'maintenance-busy' in request('/LorkhanServer/manage/forms/database-backup','POST',{'_csrf':replay_csrf,'confirm':'Backup'}).geturl()
+replay_restore_target=subprocess.run([*pg_test,"SELECT backup_id FROM lorkhan_internal.backup_records WHERE scope->>'kind'='database_sql' AND format_version>=2 ORDER BY created_at DESC LIMIT 1"],capture_output=True,text=True,check=True).stdout.strip()
+assert replay_restore_target
+assert 'maintenance-busy' in request('/LorkhanServer/manage/forms/database-restore','POST',{'_csrf':replay_csrf,'confirm':'Restore SQL','backup_id':replay_restore_target}).geturl()
+replay_code=restore_code.replace('DatabaseRestoreJobHandler','DatabaseReplayJobHandler').replace('database.restore','database.replay')
+# Keep exception diagnostics inside this disposable fixture, never in production job payloads.
+replay_code=replay_code.replace(r'new LorkhanServer\Application\DatabaseReplayJobHandler($db,$config)',r'''new class($db,$config) implements LorkhanServer\Application\JobHandler {
+ public function __construct(private PDO $db,private array $config){}
+ public function supports(string $type,int $version):bool{return $type==='database.replay'&&$version===1;}
+ public function handle(array $payload,string $key,callable $heartbeat):void{
+  try{(new LorkhanServer\Application\DatabaseReplayJobHandler($this->db,$this->config))->handle($payload,$key,$heartbeat);}
+  catch(Throwable $error){fwrite(STDERR,'Isolated replay fixture: '.$error->getMessage());throw $error;}
+ }
+}''')
+replay_result=subprocess.run(['php','-r',replay_code,str(repository_root),sys.argv[3],restore_backup_path],capture_output=True,text=True,timeout=60)
+assert replay_result.returncode==0 and json.loads(replay_result.stdout)['succeeded']==1,(replay_result.stdout,replay_result.stderr)
+assert json.load(request(replay_status,accept='application/json'))['job']['state']=='succeeded'
+assert json.load(request(replay_plan_path,accept='application/json'))==replay_plan
+# A plan reader cannot own or mutate the migration schema.
+subprocess.run([*pg_test,"CREATE ROLE replay_reader LOGIN; GRANT USAGE ON SCHEMA lorkhan_internal TO replay_reader; GRANT SELECT ON lorkhan_internal.schema_migrations TO replay_reader"],check=True,capture_output=True)
+reader_code=restore_code.split('$worker=')[0].replace("'restore_runtime'","'replay_reader'")+r"echo json_encode((new LorkhanServer\Infrastructure\ManagementRepository($db))->databaseReplayPlan());"
+reader_result=subprocess.run(['php','-r',reader_code,str(repository_root),sys.argv[3],restore_backup_path],capture_output=True,text=True,timeout=10)
+assert reader_result.returncode==0 and json.loads(reader_result.stdout)==replay_plan,(reader_result.stdout,reader_result.stderr)
+
 print('browser-like management HTTP forms passed')

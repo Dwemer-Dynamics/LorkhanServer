@@ -6,6 +6,10 @@ require __DIR__.'/tmpl/control_reader.php';
 $maintenanceJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus();
 $sqlBackupJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus('database.backup');
 $sqlRestoreJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus('database.restore');
+$replayRepository=new \LorkhanServer\Infrastructure\ManagementRepository($database);
+$replayJob=$replayRepository->databaseMaintenanceStatus('database.replay');
+$replayPlan=null;
+try{$replayPlan=$replayRepository->databaseReplayPlan();}catch(\RuntimeException $error){/* A drifted ledger must remain inspectable, but cannot be replayed. */}
 $automaticBackupSettings=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseBackupSettings();
 $automaticBackupStats=$database->query("SELECT count(*) AS count,COALESCE(sum(byte_count+COALESCE((scope->>'archive_bytes')::bigint,0)),0) AS bytes FROM backup_records WHERE scope->>'kind'='database_sql' AND scope->>'automatic'='true'")->fetch(PDO::FETCH_ASSOC);
 $sqlPage=max(1,min(100000,(int)($_GET['sql_page']??1)));

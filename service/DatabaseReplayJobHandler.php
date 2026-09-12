@@ -63,6 +63,10 @@ final class DatabaseReplayJobHandler implements JobHandler
                 $attempts=$this->db->prepare("UPDATE lorkhan_internal.durable_job_attempts SET outcome='dead',finished_at=clock_timestamp(),error_code='database_replayed',error_detail=NULL WHERE finished_at IS NULL AND job_id<>:id");
                 $attempts->execute(['id'=>$job['job_id']]);
             },$progress);
+        }catch(\Throwable $error){
+            $code=preg_match('/^[a-z_]{1,80}$/D',$error->getMessage())?$error->getMessage():'database_replay_failed';
+            error_log('Lorkhan migration replay failed: '.$code.'.');
+            throw $error;
         }finally{
             if($maintenance)$this->db->query('SELECT pg_advisory_unlock(7514,113)');
             $this->db->query('SELECT pg_advisory_unlock(7514,114)');

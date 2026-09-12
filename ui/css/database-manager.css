@@ -427,9 +427,11 @@ body.database-manager-shell .database-manager-page .backup-delete { background:#
 .database-manager-page .restore-fields { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
 .database-manager-page .instruction-box summary { cursor:pointer; font-size:16px; font-weight:600; }
 .database-manager-page .instruction-box[open] summary { margin-bottom:12px; }
-.database-manager-page .version-table { min-width:760px; font-size:18px; table-layout:fixed; }
-.database-manager-page .version-table th:nth-child(1) { width:80px; }
-.database-manager-page .version-table th:last-child { width:180px; }
+.database-manager-page .version-table { min-width:520px; font-size:13px; table-layout:fixed; }
+.database-manager-page .version-table th:nth-child(1) { width:auto; }
+.database-manager-page .version-table th:nth-child(2) { width:100px; }
+.database-manager-page .version-table th:last-child { width:120px; text-align:center; }
+.database-manager-page .version-table td:last-child { text-align:center; }
 .database-manager-page .version-table td { overflow-wrap:anywhere; }
 .database-manager-page .version-table .checksum { font-family:Consolas,monospace; font-size:12px; }
 .database-manager-page .version-table-container { overflow:auto; }
@@ -445,3 +447,16 @@ body.database-manager-shell .database-manager-page .automatic-backup-toggle.is-d
     .database-manager-page .tools-grid,.database-manager-page .restore-fields { grid-template-columns:1fr; }
     .database-manager-page .stats-grid { grid-template-columns:1fr; }
 }
+
+.database-manager-page .version-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:18px 0; }
+.database-manager-page .version-toolbar h3 { margin:0; }
+body.database-manager-shell .database-manager-page .button.version-reset-all { background:#b32b39 !important; color:#fff !important; border-color:#b32b39 !important; }
+body.database-manager-shell .database-manager-page .button.version-reset { padding:4px 12px !important; font-size:12px !important; background:#bc9d5a !important; color:#171717 !important; }
+.database-manager-page .version-name { font-family:monospace; font-size:13px; overflow-wrap:anywhere; }
+.database-manager-page .version-details { font-size:12px; color:#ccc; margin-top:6px; }
+.database-manager-page .version-details span { display:block; overflow-wrap:anywhere; }
+.database-manager-page .replay-dialog { width:min(580px,calc(100vw - 40px)); max-height:85vh; overflow:auto; box-sizing:border-box; padding:24px; background:#202020; color:#eee; border:1px solid #bc9d5a; border-radius:8px; }
+.database-manager-page .replay-dialog::backdrop { background:rgba(0,0,0,.75); }
+.database-manager-page .replay-dialog h2 { margin-top:0; }
+.database-manager-page .replay-dialog .card-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:12px; margin-top:20px; }
+.database-manager-page .replay-dialog input { max-width:100%; box-sizing:border-box; }

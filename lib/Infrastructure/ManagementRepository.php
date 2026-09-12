@@ -26,6 +26,7 @@ final class ManagementRepository
         if (!filter_var($this->db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn(), FILTER_VALIDATE_BOOL))
             throw new RuntimeException('maintenance_busy');
         try {
+            $this->assertNoPendingReplay();
             $existing=$this->db->query("SELECT job_id FROM durable_jobs WHERE job_type='database.compact' AND state IN ('queued','leased') ORDER BY created_at LIMIT 1")->fetchColumn();
             if (is_string($existing)) return $existing;
             $id=Uuid::v4();
@@ -40,6 +41,7 @@ final class ManagementRepository
         if($snapshot!==null){$snapshot=self::snapshotMetadata($snapshot);if($automatic)throw new \InvalidArgumentException('invalid_snapshot');}
         if (!filter_var($this->db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn(),FILTER_VALIDATE_BOOL)) throw new RuntimeException('maintenance_busy');
         try {
+            $this->assertNoPendingReplay();
             if($snapshot!==null){
                 $duplicate=$this->db->prepare("SELECT 1 FROM backup_records WHERE scope->>'kind'='database_sql' AND scope#>>'{snapshot,name}'=:name LIMIT 1");
                 $duplicate->execute(['name'=>$snapshot['name']]);
@@ -109,7 +111,7 @@ final class ManagementRepository
     /** Expose only the latest maintenance lifecycle, never worker payloads or database credentials. */
     public function databaseMaintenanceStatus(string $type = 'database.compact'): ?array
     {
-        if(!in_array($type,['database.compact','database.backup','database.restore'],true))throw new \InvalidArgumentException('invalid_database_job_type');
+        if(!in_array($type,['database.compact','database.backup','database.restore','database.replay'],true))throw new \InvalidArgumentException('invalid_database_job_type');
         $query=$this->db->prepare('SELECT job_id,state,created_at,updated_at FROM durable_jobs WHERE job_type=:type ORDER BY created_at DESC,job_id DESC LIMIT 1');
         $query->execute(['type'=>$type]);$row=$query->fetch(PDO::FETCH_ASSOC);
         return $row === false ? null : $row;
@@ -134,6 +136,43 @@ final class ManagementRepository
         }finally{$db->query('SELECT pg_advisory_unlock(7514,113)');}
     }
 
+    /** Never accept other maintenance work that a queued migration replay would invalidate. */
+    private function assertNoPendingReplay():void
+    {
+        if($this->db->query("SELECT 1 FROM durable_jobs WHERE job_type='database.replay' AND state IN ('queued','leased') LIMIT 1")->fetchColumn()!==false)throw new RuntimeException('maintenance_busy');
+    }
+
+    /** Read an existing migration ledger without attempting web-role schema changes. */
+    public function databaseReplayPlan():array
+    {
+        $runner=new MigrationRunner($this->db,dirname(__DIR__,2).'/data/migrations');
+        $status=$runner->status(false);
+        return ['fingerprint'=>$runner->replayFingerprint(false),'versions'=>array_values(array_map(
+            static fn(array $row):array=>['version'=>$row['version'],'name'=>$row['name']],
+            array_filter($status,static fn(array $row):bool=>$row['applied'])))];
+    }
+
+    /** Queue exactly the confirmed source-owned replay once, with a separate rollback identity. */
+    public function queueDatabaseReplay(int $version,string $fingerprint):string
+    {
+        if($version<1||preg_match('/^[a-f0-9]{64}$/D',$fingerprint)!==1)throw new \InvalidArgumentException('invalid_replay_plan');
+        if(!filter_var($this->db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn(),FILTER_VALIDATE_BOOL))throw new RuntimeException('maintenance_busy');
+        try{
+            $plan=$this->databaseReplayPlan();
+            if(!hash_equals($plan['fingerprint'],$fingerprint))throw new RuntimeException('replay_plan_changed');
+            if(!in_array($version,array_column($plan['versions'],'version'),true))throw new \InvalidArgumentException('invalid_replay_version');
+            $pending=$this->db->query("SELECT job_id,job_type,payload FROM durable_jobs WHERE job_type IN ('database.compact','database.backup','database.restore','database.replay') AND state IN ('queued','leased') ORDER BY created_at LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            if($pending){
+                $payload=json_decode($pending['payload'],true,16,JSON_THROW_ON_ERROR);
+                if($pending['job_type']==='database.replay'&&($payload['version']??null)===$version&&($payload['fingerprint']??null)===$fingerprint)return $pending['job_id'];
+                throw new RuntimeException('maintenance_busy');
+            }
+            $id=Uuid::v4();
+            (new JobRepository($this->db))->enqueue($id,'database.replay',1,$id,['version'=>$version,'fingerprint'=>$fingerprint,'rollback_id'=>Uuid::v4()],1);
+            return $id;
+        }finally{$this->db->query('SELECT pg_advisory_unlock(7514,113)');}
+    }
+
     /** An explicit stored-file restore is single-attempt and gets a separate manual rollback backup. */
     public function queueDatabaseRestore(string $backupId): string
     {
@@ -143,6 +182,7 @@ final class ManagementRepository
         if(!isset($record['scope']['archive_sha256']))throw new RuntimeException('restore_archive_unavailable');
         if(!filter_var($this->db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn(),FILTER_VALIDATE_BOOL))throw new RuntimeException('maintenance_busy');
         try{
+            $this->assertNoPendingReplay();
             $pending=$this->db->query("SELECT job_id,payload->>'backup_id' AS backup_id FROM durable_jobs WHERE job_type='database.restore' AND state IN ('queued','leased') ORDER BY created_at LIMIT 1")->fetch(PDO::FETCH_ASSOC);
             if($pending){if($pending['backup_id']!==$backupId)throw new RuntimeException('maintenance_busy');return $pending['job_id'];}
             $id=Uuid::v4();(new JobRepository($this->db))->enqueue($id,'database.restore',1,$id,['backup_id'=>$backupId,'rollback_id'=>Uuid::v4()],1);

@@ -163,7 +163,7 @@ $db->exec('UPDATE database_backup_settings SET enabled=true,max_count=9');
 $preservedJobs=new JobRepository($db);$preservedJobs->enqueue($preservedJob,'database.replay',1,$preservedJob,[],1);
 $preservedClaim=$preservedJobs->claim('replay-fixture',1,600,['database.replay'])[0];
 $preservation=new \LorkhanServer\Infrastructure\MigrationReplayState($db,$preservedJob);
-$runner->replayFrom(3,[$preservation,'capture'],[$preservation,'restore']);
+$runner->replayFrom(1,[$preservation,'capture'],[$preservation,'restore']);
 $check((int)$db->query('SELECT max_count FROM database_backup_settings')->fetchColumn()===9,'replay reset backup preferences');
 $check((int)$db->query('SELECT count(*) FROM browser_sessions')->fetchColumn()===1,'replay lost login');
 $check((int)$db->query('SELECT count(*) FROM pairing_tokens')->fetchColumn()===1&&(int)$db->query('SELECT count(*) FROM request_mac_nonces')->fetchColumn()===1,'replay lost pairing or nonce history');

@@ -5,6 +5,8 @@
     </header>
     <?php if (($_GET['status']??'')==='saved'): ?><p class="database-notice" role="status">Database operation completed.</p><?php endif; ?>
     <?php $maintenanceMessages=[
+        'replay-queued'=>'Migration replay queued. Keep the game closed. A rollback backup is created before any migration changes.',
+        'replay-plan-changed'=>'Migration sources changed since this page was opened. Review the refreshed versions before confirming again.',
         'backup-deleted'=>'Automatic backup deleted, including its private restore archive.',
         'backup-restore-pending'=>'This backup is queued for restoration and cannot be deleted yet.',
         'backup-delete-failed'=>'Backup deletion did not finish. A file may already have been removed; retry to finish deleting this backup.',
@@ -105,7 +107,7 @@
             <article class="card-tile">
                 <div class="card-content"><h2>🗄️ Database State</h2><p>Inspect the migration history and stored backup records for this Lorkhan server.</p>
                     <div class="stats-grid"><div class="stat-tile"><h3>Schema</h3><p class="stat-value"><?= lorkhan_ui_h($migrations[0]['version']??'Unknown') ?></p></div><div class="stat-tile"><h3>Applied Updates</h3><p class="stat-value"><?= count($migrations) ?></p></div><div class="stat-tile"><h3>Configuration Backups</h3><p class="stat-value"><?= $state['total'] ?></p></div></div>
-                    <p>Applied updates are read-only here. Backup Health contains stored backup identities and the existing retention control.</p>
+                    <p>Review or reset applied updates below. Backup Health contains stored backup identities and the existing retention control.</p>
                 </div><div class="card-actions"><a class="button" href="#database-versions">View Applied Updates</a><a class="button" href="<?= lorkhan_ui_h($webRoot) ?>/ui/backup_health.php<?= $embedded?'?embed=1':'' ?>">Backup Health</a></div>
             </article>
         </section>
@@ -139,7 +141,25 @@
         </section>
     </div>
     <div class="section-divider"></div>
-    <section id="database-versions" class="message versioning-manager" aria-labelledby="version-heading"><h2 id="version-heading">Database Versioning Manager</h2><p>Applied schema migrations, newest first. Updates are installed through deployment, not reset from this page.</p>
-        <?php if ($migrations===[]): ?><p class="empty-state">No schema migrations are recorded.</p><?php else: ?><div class="version-table-container" tabindex="0" role="region" aria-label="Applied schema migrations"><table class="version-table"><thead><tr><th scope="col">Version</th><th scope="col">Update</th><th scope="col">Checksum</th><th scope="col">Applied (UTC)</th></tr></thead><tbody><?php foreach ($migrations as $row): ?><tr><td><?= lorkhan_ui_h($row['version']) ?></td><td><?= lorkhan_ui_h($row['name']) ?></td><td class="checksum"><?= lorkhan_ui_h($row['checksum']) ?></td><td><?= lorkhan_ui_h($row['applied_utc']) ?></td></tr><?php endforeach; ?></tbody></table></div><?php endif; ?>
+    <section id="database-versions" class="message versioning-manager" aria-labelledby="version-heading">
+        <h2 id="version-heading">Database Versioning Manager</h2>
+        <p>Reset reruns the selected update and all later updates in one transaction. This can remove data or restore factory values. A verified rollback backup is required; migration safety checks may refuse the operation.</p>
+        <div class="version-toolbar"><h3>Lorkhan Version Entries (<?= count($migrations) ?> total)</h3>
+        <?php if($replayPlan!==null&&$replayPlan['versions']!==[]): ?><button type="button" class="button version-reset-all" data-replay-version="<?= (int)$replayPlan['versions'][0]['version'] ?>" data-replay-count="<?= count($replayPlan['versions']) ?>">Reset All Versions</button><?php endif; ?></div>
+        <?php if($replayPlan===null): ?><p class="database-notice" role="status">Migration sources and the applied ledger could not be verified. Reset is unavailable; check the deployment before continuing.</p><?php endif; ?>
+        <p role="status" data-database-maintenance data-kind="replay" data-endpoint="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/database-replay">Latest migration replay: <?= lorkhan_ui_h($replayJob['state']??'none') ?>.</p>
+        <?php if ($migrations===[]): ?><p class="empty-state">No schema migrations are recorded.</p><?php else: ?><div class="version-table-container" tabindex="0" role="region" aria-label="Applied schema migrations"><table class="version-table"><thead><tr><th scope="col">Table/Feature Name</th><th scope="col">Version</th><th scope="col">Action</th></tr></thead><tbody>
+        <?php foreach ($migrations as $index=>$row): ?><tr><td><span class="version-name"><?= lorkhan_ui_h($row['name']) ?></span><details class="version-details"><summary>Migration details</summary><span>Applied <?= lorkhan_ui_h($row['applied_utc']) ?> UTC</span><span class="checksum"><?= lorkhan_ui_h($row['checksum']) ?></span></details></td><td><?= lorkhan_ui_h($row['version']) ?></td><td><?php if($replayPlan!==null): ?><button type="button" class="button version-reset" data-replay-version="<?= (int)$row['version'] ?>" data-replay-count="<?= $index+1 ?>" aria-label="Reset version <?= (int)$row['version'] ?>">Reset</button><?php else: ?><span>Unavailable</span><?php endif; ?></td></tr><?php endforeach; ?>
+        </tbody></table></div><?php endif; ?>
+        <?php if($replayPlan!==null): ?><dialog class="replay-dialog" data-replay-dialog aria-labelledby="replay-title">
+            <h2 id="replay-title">Reset Database Versions</h2>
+            <p data-replay-description></p><p>Keep the game closed. The server first creates a private rollback backup, then reverses and reapplies these migrations. This may delete affected history or settings. Login and pairing are preserved; reconnect the game afterward. A failed migration rolls back the database changes.</p>
+            <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/database-replay">
+                <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="fingerprint" value="<?= lorkhan_ui_h($replayPlan['fingerprint']) ?>"><input type="hidden" name="version" value="">
+                <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+                <label for="replay-confirm" data-replay-label>Type the confirmation below</label><input id="replay-confirm" name="confirm" autocomplete="off" required>
+                <div class="card-actions"><button class="button" type="button" data-replay-cancel>Cancel</button><button class="button version-reset-all" type="submit">Back Up and Reset</button></div>
+            </form>
+        </dialog><?php endif; ?>
     </section>
 </main>

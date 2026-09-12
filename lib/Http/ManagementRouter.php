@@ -91,6 +91,8 @@ final class ManagementRouter
             if($r->method==='GET'&&$path==='/api/v1/database-maintenance')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus()]);
             if($r->method==='GET'&&$path==='/api/v1/database-backup')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus('database.backup')]);
             if($r->method==='GET'&&$path==='/api/v1/database-restore')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus('database.restore')]);
+            if($r->method==='GET'&&$path==='/api/v1/database-replay')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus('database.replay')]);
+            if($r->method==='GET'&&$path==='/api/v1/database-replay-plan')return Response::json(200,$this->management->databaseReplayPlan());
             if($r->method==='GET'&&$path==='/api/v1/playthrough-snapshot')return Response::json(200,['job'=>$this->management->snapshotSaveStatus()]);
             if($r->method==='GET'&&preg_match('#^/exports/database/([0-9a-f-]{36})\\.sql$#D',$path,$m)){
                 $record=$this->repository->configurationBackupRecord($m[1]);
@@ -484,6 +486,14 @@ final class ManagementRouter
             $status='backup-deleted';
             try{$this->management->deleteStoredDatabaseBackup($this->need($v,'backup_id'),$this->providerConfig);}
             catch(RuntimeException $error){$status=match($error->getMessage()){'maintenance_busy'=>'maintenance-busy','backup_restore_pending'=>'backup-restore-pending','backup_delete_failed'=>'backup-delete-failed',default=>throw $error};}
+            return $this->redirect($this->webRoot().'/ui/database_manager.php?'.http_build_query(['status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
+        }
+        if($domain==='database-replay'){
+            $version=filter_var($v['version']??null,FILTER_VALIDATE_INT);
+            if($version===false||$version<1)throw new InvalidArgumentException('invalid_replay_version');
+            if(($v['confirm']??'')!=='Replay '.$version)throw new InvalidArgumentException('confirmation_mismatch');
+            try{$this->management->queueDatabaseReplay($version,$this->need($v,'fingerprint'));$status='replay-queued';}
+            catch(RuntimeException $error){$status=match($error->getMessage()){'maintenance_busy'=>'maintenance-busy','replay_plan_changed'=>'replay-plan-changed',default=>throw $error};}
             return $this->redirect($this->webRoot().'/ui/database_manager.php?'.http_build_query(['status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
         }
         if($domain==='database-restore'){

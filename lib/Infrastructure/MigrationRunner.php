@@ -20,7 +20,7 @@ final class MigrationRunner
     ) {}
 
     /** @return list<array{version:int,name:string,checksum:string,applied:bool,applied_at:?string}> */
-    public function status(): array
+    public function status(bool $initialize = true): array
     {
         return $this->locked(function (): array {
             $migrations = $this->discover();
@@ -33,7 +33,7 @@ final class MigrationRunner
                 'applied' => isset($applied[$migration['version']]),
                 'applied_at' => $applied[$migration['version']]['applied_at'] ?? null,
             ], $migrations);
-        });
+        }, $initialize);
     }
 
     /** @return list<int> */
@@ -141,9 +141,9 @@ final class MigrationRunner
     }
 
     /** Identify the applied ledger and source set without exposing database contents. */
-    public function replayFingerprint():string
+    public function replayFingerprint(bool $initialize = true):string
     {
-        $state=array_map(static fn(array $row):array=>[$row['version'],$row['name'],$row['checksum'],$row['applied']],$this->status());
+        $state=array_map(static fn(array $row):array=>[$row['version'],$row['name'],$row['checksum'],$row['applied']],$this->status($initialize));
         return hash('sha256',json_encode($state,JSON_THROW_ON_ERROR));
     }
 
@@ -233,6 +233,8 @@ final class MigrationRunner
 
     private function ensureTable(): void
     {
+        // Existing installations need no schema creation privilege just to inspect/replay their ledger.
+        if((int)$this->db->query("SELECT count(*) FROM pg_attribute WHERE attrelid=to_regclass('lorkhan_internal.schema_migrations') AND attname IN ('version','name','checksum','applied_at') AND NOT attisdropped")->fetchColumn()===4)return;
         $this->db->exec('CREATE SCHEMA IF NOT EXISTS lorkhan_internal');
         if ($this->db->query("SELECT to_regclass('public.schema_migrations')")->fetchColumn() !== null
             && $this->db->query("SELECT to_regclass('lorkhan_internal.schema_migrations')")->fetchColumn() === null) {
@@ -341,9 +343,9 @@ final class MigrationRunner
         return hash('sha256', "up\0" . $upSql . "\0down\0" . $downSql);
     }
 
-    private function locked(callable $callback): mixed
+    private function locked(callable $callback, bool $initialize = true): mixed
     {
-        $this->ensureTable();
+        if($initialize)$this->ensureTable();
         $statement = $this->db->prepare('SELECT pg_advisory_lock(:lock)');
         $statement->execute(['lock' => self::LOCK_ID]);
         try {
