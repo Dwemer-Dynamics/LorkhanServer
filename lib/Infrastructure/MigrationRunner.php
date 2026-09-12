@@ -141,18 +141,20 @@ final class MigrationRunner
     }
 
     /** Replay one applied migration and its dependants atomically; callers must confirm destructive changes and back up first. */
-    public function replayFrom(int $version): array
+    public function replayFrom(int $version, ?callable $before = null, ?callable $after = null): array
     {
         if($this->db->inTransaction())throw new RuntimeException('Migration replay requires its own transaction.');
-        return $this->locked(function()use($version):array{
+        return $this->locked(function()use($version,$before,$after):array{
             $migrations=$this->discover();$applied=$this->applied();$this->assertNoDrift($migrations,$applied);
             if(!isset($applied[$version]))throw new RuntimeException('Replay target must be an applied migration.');
             $replay=array_values(array_filter($migrations,static fn(array $migration):bool=>$migration['version']>=$version&&isset($applied[$migration['version']])));
-            $this->transaction(function()use($replay,$migrations):void{
+            $this->transaction(function()use($replay,$migrations,$before,$after):void{
                 $this->atomicReplay=true;
                 try{
+                    if($before!==null)$before();
                     foreach(array_reverse($replay)as$migration)$this->revert($migration);
                     foreach($replay as$migration)$this->apply($migration);
+                    if($after!==null)$after();
                     $this->assertNoDrift($migrations,$this->applied());
                 }finally{$this->atomicReplay=false;}
             });

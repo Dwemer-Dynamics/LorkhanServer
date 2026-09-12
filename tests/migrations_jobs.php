@@ -152,6 +152,28 @@ $db->exec('DROP FUNCTION pg_temp.reject_replay_seed()');
 
 
 
+// Replay must preserve authentication and the running job even when its tables are recreated.
+$preservedInstallation=Uuid::v4();$preservedToken=Uuid::v4();$preservedJob=Uuid::v4();$preservedBackup=Uuid::v4();
+$db->prepare('INSERT INTO installations(installation_id,token_fingerprint) VALUES(:id,:token)')->execute(['id'=>$preservedInstallation,'token'=>str_repeat('c',64)]);
+$db->prepare("INSERT INTO pairing_tokens(pairing_token_id,installation_id,token_hash,state,mac_key) VALUES(:id,:installation,:hash,'active',decode(repeat('d',64),'hex'))")->execute(['id'=>$preservedToken,'installation'=>$preservedInstallation,'hash'=>str_repeat('d',64)]);
+$db->prepare("INSERT INTO request_mac_nonces(pairing_token_id,nonce,request_timestamp) VALUES(:id,:nonce,clock_timestamp())")->execute(['id'=>$preservedToken,'nonce'=>str_repeat('e',32)]);
+$db->prepare("INSERT INTO browser_sessions(session_hash,csrf_hash,expires_at) VALUES(:session,:csrf,clock_timestamp()+interval '1 hour')")->execute(['session'=>str_repeat('f',64),'csrf'=>str_repeat('a',64)]);
+$db->prepare("INSERT INTO backup_records(backup_id,content_sha256,byte_count,scope,state) VALUES(:id,:hash,1,'{}','created')")->execute(['id'=>$preservedBackup,'hash'=>str_repeat('b',64)]);
+$db->exec('UPDATE database_backup_settings SET enabled=true,max_count=9');
+$preservedJobs=new JobRepository($db);$preservedJobs->enqueue($preservedJob,'database.replay',1,$preservedJob,[],1);
+$preservedClaim=$preservedJobs->claim('replay-fixture',1,600,['database.replay'])[0];
+$preservation=new \LorkhanServer\Infrastructure\MigrationReplayState($db,$preservedJob);
+$runner->replayFrom(3,[$preservation,'capture'],[$preservation,'restore']);
+$check((int)$db->query('SELECT max_count FROM database_backup_settings')->fetchColumn()===9,'replay reset backup preferences');
+$check((int)$db->query('SELECT count(*) FROM browser_sessions')->fetchColumn()===1,'replay lost login');
+$check((int)$db->query('SELECT count(*) FROM pairing_tokens')->fetchColumn()===1&&(int)$db->query('SELECT count(*) FROM request_mac_nonces')->fetchColumn()===1,'replay lost pairing or nonce history');
+$check((int)$db->query('SELECT count(*) FROM backup_records')->fetchColumn()===1,'replay lost rollback catalog');
+$preservedJobs->succeed($preservedJob,$preservedClaim['lease_token']);
+$check($db->query("SELECT state FROM durable_jobs WHERE job_type='database.replay'")->fetchColumn()==='succeeded','preserved replay job could not finish');
+$runner->replayFrom(101,[$preservation,'capture'],[$preservation,'restore']);
+$check((int)$db->query('SELECT count(*) FROM browser_sessions')->fetchColumn()===1,'late replay changed retained login');
+$runner->fresh();
+
 // Optional catalog fields must not be filled with invented text by a downgrade.
 $db->beginTransaction();
 $optionalInstallation=Uuid::v4();
