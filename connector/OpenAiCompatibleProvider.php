@@ -26,6 +26,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         private readonly bool $allowLoopbackHttp = false,
         private readonly bool $directConnection = false,
         private readonly bool $localNetwork = false,
+        private readonly bool $player2 = false,
     ) {
         $addresses=null;
         OutboundUrlPolicy::validate($endpoint, $allowedHosts, $allowLoopbackHttp, $addresses, $localNetwork);
@@ -62,8 +63,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         $networkOptions = OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection,$this->localNetwork);
         $handle = curl_init($this->endpoint);
         if ($handle === false) throw new RuntimeException('provider_unavailable');
-        $headers = ['Content-Type: application/json', 'Accept: text/event-stream, application/json'];
-        if ($this->apiKey !== '') $headers[] = 'Authorization: Bearer ' . $this->apiKey;
+        $headers = LlmConnector::requestHeaders($this->apiKey,$this->player2,true);
         $networkBuffer = '';
         $responseBody = '';
         $content = '';

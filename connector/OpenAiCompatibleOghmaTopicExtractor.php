@@ -14,7 +14,8 @@ final class OpenAiCompatibleOghmaTopicExtractor implements OghmaTopicExtractor
     public function __construct(private readonly string $endpoint,private readonly array $allowedHosts,
         private readonly string $model,private readonly string $apiKey,private readonly int $timeoutMs=15_000,
         private readonly bool $disableReasoning=false,private readonly array $options=[],
-        private readonly bool $allowLoopbackHttp=false,private readonly bool $directConnection=false,private readonly bool $localNetwork=false)
+        private readonly bool $allowLoopbackHttp=false,private readonly bool $directConnection=false,private readonly bool $localNetwork=false,
+        private readonly bool $player2=false)
     {
         $addresses=null;
         OutboundUrlPolicy::validate($endpoint,$allowedHosts,$allowLoopbackHttp,$addresses,$localNetwork);
@@ -36,7 +37,7 @@ final class OpenAiCompatibleOghmaTopicExtractor implements OghmaTopicExtractor
         $body=json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
         $networkOptions=OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection,$this->localNetwork);
         $handle=curl_init($this->endpoint);if($handle===false)throw new RuntimeException('provider_unavailable');
-        $headers=['Content-Type: application/json','Accept: application/json'];if($this->apiKey!=='')$headers[]='Authorization: Bearer '.$this->apiKey;
+        $headers=LlmConnector::requestHeaders($this->apiKey,$this->player2);
         curl_setopt_array($handle,$networkOptions+[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$body,CURLOPT_RETURNTRANSFER=>true,CURLOPT_FOLLOWLOCATION=>false,
             CURLOPT_CONNECTTIMEOUT_MS=>min(5000,$this->timeoutMs),CURLOPT_TIMEOUT_MS=>$this->timeoutMs,CURLOPT_SSL_VERIFYPEER=>true,
             CURLOPT_SSL_VERIFYHOST=>2,CURLOPT_HTTPHEADER=>$headers,CURLOPT_NOPROGRESS=>false,

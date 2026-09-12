@@ -2396,6 +2396,12 @@ assert diagnostic_result['diagnostics']['request']==VoiceProvider.llm_requests[-
 assert diagnostic_result['diagnostics']['response']['utterances']==[{'text':'Greetings, traveller.'}]
 assert diagnostic_result['diagnostics']['connector']['model']==direct_values['model']
 assert 'local-parity-test-key' not in json.dumps(diagnostic_result) and 'Authorization' not in json.dumps(diagnostic_result)
+for game_credential,game_key in [('none','LORKHAN'),('custom','local-parity-test-key')]:
+    r=request('/LorkhanServer/manage/forms/provider-revise','POST',dict(direct_values,service='player2',credential=game_credential)); assert r.status==200
+    r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test,accept='application/json'); assert r.status==200 and json.load(r)['ok'] is True
+    headers=VoiceProvider.llm_requests[-1][0]
+    assert headers.get('player2-game-key')==game_key and 'Authorization' not in headers,headers
+r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); assert r.status==200
 direct_export=json.loads(request('/LorkhanServer/manage/exports/providers/'+direct_id+'.json').read().decode())
 assert direct_export['content']['credential']=='none' and direct_export['content']['options']['reasoning_model'] is True and 'local-parity-test-key' not in json.dumps(direct_export),direct_export
 assert direct_export['content']['options']['provider_order']==['together','google-vertex/us-east5'],direct_export

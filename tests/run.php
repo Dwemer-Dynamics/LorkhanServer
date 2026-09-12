@@ -362,6 +362,16 @@ $check(ProviderFactory::dialogueForSlot(['provider'=>['api_key_env'=>'UNRELATED_
     &&ProviderFactory::oghmaTopicExtractorForSlot([],$directSlot) instanceof \LorkhanServer\Application\OpenAiCompatibleOghmaTopicExtractor
     &&ProviderFactory::profileGenerationForSlot(['provider'=>['driver'=>'invalid-runtime','api_key_env'=>'UNRELATED_SECRET']],$directSlot) instanceof \LorkhanServer\Application\OpenAiCompatibleProfileGenerationProvider,
     'dialogue, Oghma and profile generation resolve explicit connectors without inheriting runtime credentials');
+$player2Slot=$directSlot;$player2Slot['content']['service']='player2';
+foreach(['dialogueForSlot','profileGenerationForSlot','oghmaTopicExtractorForSlot']as$factory){
+    $player2Provider=ProviderFactory::$factory([],$player2Slot);
+    $check((new \ReflectionProperty($player2Provider,'player2'))->getValue($player2Provider)===true,'Player2 identity reaches '.$factory);
+}
+$check(LlmConnector::requestHeaders('',true)===['Content-Type: application/json','Accept: application/json','player2-game-key: LORKHAN']
+    &&LlmConnector::requestHeaders('selected-game',true)[2]==='player2-game-key: selected-game'
+    &&LlmConnector::requestHeaders('ordinary-key')[2]==='Authorization: Bearer ordinary-key','Player2 and ordinary credentials use separate headers');
+try{LlmConnector::requestHeaders("bad\r\ninjected",true);$check(false,'header injection accepted');}
+catch(\InvalidArgumentException){$check(true,'provider header injection rejected');}
 $runtimeKeyBefore=getenv('LORKHAN_TEST_RUNTIME_API_KEY');$selectedKeyBefore=getenv('LORKHAN_CUSTOM_PARITY_FIXTURE_API_KEY');
 putenv('LORKHAN_TEST_RUNTIME_API_KEY=runtime-fixture-key');putenv('LORKHAN_CUSTOM_PARITY_FIXTURE_API_KEY=selected-fixture-key');
 try {

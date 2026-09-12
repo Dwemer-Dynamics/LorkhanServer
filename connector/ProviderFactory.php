@@ -25,6 +25,7 @@ final class ProviderFactory
                 (bool) ($provider['allow_loopback_http'] ?? false),
                 (bool) ($provider['direct_connection'] ?? false),
                 ($provider['service'] ?? '') === 'local',
+                ($provider['service'] ?? '') === 'player2',
             ),
             default => throw new RuntimeException('Unsupported dialogue provider driver.'),
         };
@@ -77,7 +78,7 @@ final class ProviderFactory
             :max(250,min(3000,$timeoutMs));
         return new OpenAiCompatibleOghmaTopicExtractor((string)($provider['endpoint']??''),self::hosts($provider),(string)$provider['model'],
             self::apiKey($provider,'LORKHAN_LLM_API_KEY',$config),$timeout,(bool)($provider['disable_reasoning']??false),
-            (array)($provider['options']??[]),(bool)($provider['allow_loopback_http']??false),(bool)($provider['direct_connection']??false),($provider['service']??'')==='local');
+            (array)($provider['options']??[]),(bool)($provider['allow_loopback_http']??false),(bool)($provider['direct_connection']??false),($provider['service']??'')==='local',($provider['service']??'')==='player2');
     }
 
     /** Apply one frozen connector revision to the strict profile-generation adapter. */
@@ -96,7 +97,7 @@ final class ProviderFactory
             'openai-compatible'=>new OpenAiCompatibleProfileGenerationProvider((string)($provider['endpoint']??''),self::hosts($provider),
                 (string)($provider['model']??''),self::apiKey($provider,'LORKHAN_LLM_API_KEY',$config),(int)($provider['timeout_ms']??30_000),
                 (bool)($provider['disable_reasoning']??false),(array)($provider['options']??[]),
-                (bool)($provider['allow_loopback_http']??false),(bool)($provider['direct_connection']??false),($provider['service']??'')==='local'),
+                (bool)($provider['allow_loopback_http']??false),(bool)($provider['direct_connection']??false),($provider['service']??'')==='local',($provider['service']??'')==='player2'),
             default=>throw new RuntimeException('Unsupported profile generation provider driver.'),
         };
     }

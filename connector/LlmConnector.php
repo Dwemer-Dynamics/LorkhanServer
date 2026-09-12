@@ -42,6 +42,16 @@ final class LlmConnector
         'extra_parameters_enabled' => ['type' => 'boolean'],
     ];
 
+    /** Keep Player2's game identity header separate from ordinary provider Bearer credentials. */
+    public static function requestHeaders(string $apiKey,bool $player2=false,bool $streaming=false):array
+    {
+        if(preg_match('/[\r\n]/',$apiKey))throw new InvalidArgumentException('invalid_provider_credential');
+        $headers=['Content-Type: application/json','Accept: '.($streaming?'text/event-stream, application/json':'application/json')];
+        if($player2)$headers[]='player2-game-key: '.($apiKey!==''?$apiKey:'LORKHAN');
+        elseif($apiKey!=='')$headers[]='Authorization: Bearer '.$apiKey;
+        return$headers;
+    }
+
     public static function validate(array $content): array
     {
         $driver = $content['driver'] ?? null;
