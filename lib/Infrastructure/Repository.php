@@ -10,7 +10,7 @@ use Throwable;
 
 final class Repository
 {
-    private const SERVER_CAPABILITIES = ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'action.inspect.report', 'action.ai.follow',
+    private const SERVER_CAPABILITIES = ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
         'action.ai.stop', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
         'action.inventory.inspect','action.confirmation','action.result-followup'];
