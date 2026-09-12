@@ -159,10 +159,10 @@ SQL);
         $statement->execute(['installation'=>$installationId]);return$statement->fetchAll();
     }
 
-    /** Load the bounded datasets used by the server-style home dashboard. */
-    public function dashboard(): array
+    /** Shared live player/calendar selection for the dashboard and full database snapshots. */
+    public function currentDatabase(): ?array
     {
-        $current = $this->one(
+        return $this->one(
             "SELECT s.installation_id,s.playthrough_id,s.state,s.created_at,s.openmw_version,s.lua_api_revision,s.client_version,s.platform,"
             . "p.name AS profile_name,pt.name AS playthrough_name,latest.player_name,latest.dialogue_mode,latest.calendar_data,"
             . "latest.player_stats,latest.player_attributes,latest.player_skills,latest.accepted_at AS observed_at,"
@@ -180,6 +180,12 @@ SQL);
             . "ORDER BY (s.state='active') DESC,s.created_at DESC LIMIT 1"
         );
 
+    }
+
+    /** Load the bounded datasets used by the server-style home dashboard. */
+    public function dashboard(): array
+    {
+        $current=$this->currentDatabase();
         $scope = ['installation' => $current['installation_id'] ?? null, 'playthrough' => $current['playthrough_id'] ?? null];
         $eventScope = 'm.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL';
         $dialogue = $this->all(

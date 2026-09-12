@@ -18,6 +18,14 @@ $snapshotCalendar=\LorkhanServer\Application\MorrowindCalendar::parse($liveDatab
         <span><b>Events:</b> <?= number_format((int)$snapshotCounts['events']) ?></span><span><b>Oghma:</b> <?= number_format((int)$snapshotCounts['knowledge']) ?></span>
         <span><b>Last in-game date:</b> <?= lorkhan_ui_h($snapshotCalendar) ?></span>
     </div>
+    <?php if($snapshotTimeline!==[]): ?>
+    <div class="timeline" id="pt-timeline" role="group" aria-label="Snapshot timeline by recorded Morrowind time" data-snapshot-timeline="<?= lorkhan_ui_h(json_encode($snapshotTimeline,JSON_THROW_ON_ERROR)) ?>">
+        <div class="timeline-title"></div>
+        <div class="timeline-track"></div><div class="timeline-notches"></div><div class="timeline-nodes"></div>
+        <div class="timeline-legend"><span data-timeline-min></span><span data-timeline-max></span></div>
+        <div class="timeline-tooltip" role="tooltip" id="pt-tooltip"></div>
+    </div>
+    <?php endif; ?>
 </section>
 <div class="content-grid database-snapshot-grid">
     <section class="content-section" aria-labelledby="database-save-title">
@@ -38,11 +46,18 @@ $snapshotCalendar=\LorkhanServer\Application\MorrowindCalendar::parse($liveDatab
         <p class="section-note">Stored snapshots are not actively used. Copy to Public replaces the active database after saving a rollback snapshot. Keep the game closed, then reconnect with the corresponding game save. Schema and installation IDs must match.</p>
         <?php if($storedSnapshots===[]): ?><p class="playthrough-empty">No snapshots on this page. Save one from the left panel.</p><?php else: ?>
         <div class="backup-list" role="region" aria-label="Stored database snapshots" tabindex="0">
-        <?php foreach($storedSnapshots as $snapshot): $isSource=$snapshotSource['backup_id']===$snapshot['backup_id']; ?>
+        <?php foreach($storedSnapshots as $snapshot): $isSource=$snapshotSource['backup_id']===$snapshot['backup_id'];
+            $metadata=json_decode($snapshot['game_metadata']??'null',true)??[];
+            $calendar=\LorkhanServer\Application\MorrowindCalendar::parse($metadata['calendar']??null);
+            $timeDifference=$calendar!==null&&$snapshotLiveCalendar!==null?$calendar['minute']-$snapshotLiveCalendar['minute']:null;
+            $daysApart=$timeDifference===null?0:(int)floor(abs($timeDifference)/1440);
+        ?>
             <article class="backup-item<?= $isSource?' selected':'' ?>">
                 <div class="backup-info">
                     <h3><?php if($isSource): ?><span class="snapshot-source-badge">✓ SOURCE OF PUBLIC</span><?php endif; ?><?= lorkhan_ui_h($snapshot['name']) ?></h3>
                     <div class="backup-meta"><span><?= lorkhan_ui_h($playthroughUtc($snapshot['created_at'])) ?> UTC</span><span><?= lorkhan_ui_table_value($snapshot['byte_count'],'bytes') ?></span><?php if($snapshot['rollback_for']): ?><span>Automatic rollback</span><?php endif; ?></div>
+                    <div class="backup-meta"><span>Player: <?= lorkhan_ui_h($metadata['player_name']??'Not recorded') ?></span><span>Game: Morrowind</span><span>Events: <?= isset($metadata['events'])?number_format((int)$metadata['events']):'n/a' ?></span><span>Oghma: <?= isset($metadata['knowledge'])?number_format((int)$metadata['knowledge']):'n/a' ?></span><span>Last in-game: <?= lorkhan_ui_h($calendar['label']??'n/a') ?></span></div>
+                    <?php if($timeDifference!==null): ?><span class="snapshot-time <?= $timeDifference<0?'behind':($timeDifference>0?'ahead':'') ?>"><?= $timeDifference===0?'Current Time':number_format($daysApart).' '.($daysApart===1?'day':'days').' '.($timeDifference<0?'behind':'ahead') ?></span><?php endif; ?>
                     <?php if($snapshot['notes']!==''): ?><p class="scope-note"><?= lorkhan_ui_h($snapshot['notes']) ?></p><?php endif; ?>
                     <div class="button-group snapshot-actions">
                         <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthrough-snapshot" data-snapshot-confirm="copy" data-snapshot-name="<?= lorkhan_ui_h($snapshot['name']) ?>">

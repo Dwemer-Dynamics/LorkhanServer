@@ -1,4 +1,43 @@
 "use strict";
+const timeline=document.querySelector('[data-snapshot-timeline]');
+if(timeline){
+    const items=JSON.parse(timeline.dataset.snapshotTimeline).sort((a,b)=>a.minute-b.minute);
+    const min=items[0].minute,max=items[items.length-1].minute;
+    const pct=value=>max===min?50:(value-min)/(max-min)*100;
+    timeline.querySelector('[data-timeline-min]').textContent='Earliest: '+items[0].date;
+    timeline.querySelector('[data-timeline-max]').textContent='Latest: '+items[items.length-1].date;
+    const tooltip=timeline.querySelector('.timeline-tooltip');
+    items.forEach(item=>{
+        const node=document.createElement('button');node.type='button';node.className='timeline-node'+(item.active?' active':'');
+        node.style.left=pct(item.minute)+'%';node.setAttribute('aria-label',item.name+' · '+item.date);node.setAttribute('aria-describedby','pt-tooltip');
+        const show=()=>{
+            tooltip.replaceChildren();
+            [item.name,'Morrowind date: '+item.date,'Created: '+item.created,item.bytes===null?'Live database':'Size: '+(item.bytes/1048576).toFixed(1)+' MiB'].forEach((text,index)=>{
+                const line=document.createElement('div');line.textContent=text;if(index===0)line.className='name';tooltip.append(line);
+            });
+            tooltip.style.display='block';
+            tooltip.style.left=Math.max(0,Math.min(node.offsetLeft, timeline.clientWidth-tooltip.offsetWidth))+'px';
+            tooltip.style.top='58px';
+        };
+        const hide=()=>{tooltip.style.display='none';};
+        node.addEventListener('mouseenter',show);node.addEventListener('focus',show);node.addEventListener('click',show);
+        node.addEventListener('mouseleave',hide);node.addEventListener('blur',hide);node.addEventListener('keydown',e=>{if(e.key==='Escape')hide();});
+        timeline.querySelector('.timeline-nodes').append(node);
+    });
+    const segments=max===min?0:Math.min(Math.max(items.length-1,4),12);
+    for(let index=0;index<=segments;index++){
+        const notch=document.createElement('div');notch.className='timeline-notch'+(index%2===0?' major':'');
+        notch.style.left=(segments===0?50:index/segments*100)+'%';timeline.querySelector('.timeline-notches').append(notch);
+        if(index>0&&index<segments&&index%2===0){
+            let day=Math.floor((min+index/segments*(max-min))/1440);
+            const year=Math.floor(day/365)+1;day%=365;
+            const lengths=[31,28,31,30,31,30,31,31,30,31,30,31],months=['Morning Star',"Sun's Dawn",'First Seed',"Rain's Hand",'Second Seed','Midyear',"Sun's Height",'Last Seed','Hearthfire','Frostfall',"Sun's Dusk",'Evening Star'];
+            let month=0;while(day>=lengths[month]){day-=lengths[month];month++;}
+            const label=document.createElement('div');label.className='timeline-tick-label';label.style.left=index/segments*100+'%';
+            label.textContent=(day+1)+' '+months[month]+', 3E '+year;timeline.querySelector('.timeline-notches').append(label);
+        }
+    }
+}
 document.querySelectorAll('[data-snapshot-confirm]').forEach(form => form.addEventListener('submit', event => {
     const name=form.dataset.snapshotName;
     const message=form.dataset.snapshotConfirm==='copy'

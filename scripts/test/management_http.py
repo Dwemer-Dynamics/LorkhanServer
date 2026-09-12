@@ -3214,6 +3214,17 @@ restore_page,_=parse(request('/LorkhanServer/ui/database_manager.php'))
 snapshot_page,_=parse(request('/LorkhanServer/ui/playthrough_manager.php'))
 backup_form=next(f for f in snapshot_page.forms if f['action'].endswith('/forms/playthrough-snapshot') and f['fields'].get('operation')=='create')
 snapshot_fields=dict(backup_form['fields'],name='<Balmora> before quest',notes='Full snapshot HTTP fixture')
+# The earlier response fixture was deleted. Add a valid recorded session for snapshot calendar proof.
+snapshot_session=str(uuid.uuid4())
+snapshot_context=json.dumps({'world':{'calendar':{'year':427,'month':7,'day':16,'hour':9.5}},'player':{'display_name':'Snapshot Player'}})
+snapshot_fixture=subprocess.run([*pg_test,f"""
+UPDATE lorkhan_internal.sessions SET state='ended' WHERE installation_id='{valid['installation_id']}' AND state='active';
+INSERT INTO lorkhan_internal.sessions(session_id,installation_id,profile_id,playthrough_id,generation,content_fingerprint,openmw_version,openmw_commit,lua_api_revision,client_version,platform,state,created_at)
+VALUES ('{snapshot_session}','{valid['installation_id']}','{profile_id}','{playthrough_id}',999001,'sha256:'||repeat('0',64),'fixture',repeat('0',40),1,'fixture','fixture','active',clock_timestamp()+interval '1 day');
+INSERT INTO lorkhan_internal.turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at,completed_at)
+VALUES (gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),'{snapshot_session}',999001,'text','en','Snapshot metadata fixture','{{}}','{{}}','[]','{snapshot_context}','complete',now(),now());
+"""],capture_output=True,text=True)
+assert snapshot_fixture.returncode==0,snapshot_fixture.stderr
 assert request(backup_form['action'],'POST',dict(snapshot_fields,name=' ')).status==422
 assert request(backup_form['action'],'POST',dict(snapshot_fields,name='x'*129)).status==422
 guard_id=str(uuid.uuid4())
@@ -3227,6 +3238,7 @@ assert 'Another backup or restore is pending' in request(backup_form['action'],'
 backup_args=list(sql_worker.args);backup_args[-1]=restore_target
 backup_result=subprocess.run(backup_args,capture_output=True,text=True,timeout=60)
 assert backup_result.returncode==0 and json.loads(backup_result.stdout)['succeeded']==1,(backup_result.stdout,backup_result.stderr)
+subprocess.run([*pg_test,"UPDATE lorkhan_internal.turns SET context=jsonb_set(context,'{world,calendar,day}','19'::jsonb) WHERE session_id='"+snapshot_session+"'"],check=True,capture_output=True)
 subprocess.run([*pg_test,"UPDATE public.bio_templates SET core='Restore mutation sentinel' WHERE npc_name='ZZZ Literal %_ Name'"],check=True,capture_output=True)
 restore_page,snapshot_html=parse(request('/LorkhanServer/ui/playthrough_manager.php'))
 assert '&lt;Balmora&gt; before quest' in snapshot_html and '<Balmora>' not in snapshot_html
@@ -3249,6 +3261,12 @@ assert json.load(request(restore_status,accept='application/json'))['job']['stat
 assert subprocess.run([*pg_test,'SELECT backup_id FROM lorkhan_internal.database_snapshot_source WHERE singleton'],capture_output=True,text=True,check=True).stdout.strip()==restore_target
 snapshot_html=request('/LorkhanServer/ui/playthrough_manager.php').read().decode()
 assert 'SOURCE OF PUBLIC' in snapshot_html
+snapshot_metadata=json.loads(subprocess.run([*pg_test,"SELECT scope->'game_metadata' FROM lorkhan_internal.backup_records WHERE backup_id='"+restore_target+"'"],check=True,capture_output=True,text=True).stdout)
+assert int(snapshot_metadata['events'])>0 and int(snapshot_metadata['knowledge'])>0,snapshot_metadata
+assert int(subprocess.run([*pg_test,'SELECT count(*) FROM public.eventlog'],check=True,capture_output=True,text=True).stdout)==int(snapshot_metadata['events'])
+assert int(subprocess.run([*pg_test,'SELECT count(*) FROM public.oghma'],check=True,capture_output=True,text=True).stdout)==int(snapshot_metadata['knowledge'])
+assert snapshot_metadata['calendar']['label']=='16 Last Seed, 3E 427 · 09:30',snapshot_metadata
+assert 'data-snapshot-timeline=' in snapshot_html and 'Snapshot Player' in snapshot_html
 if os.environ.get('LORKHAN_SNAPSHOT_EVIDENCE'):
     pathlib.Path(os.environ['LORKHAN_SNAPSHOT_EVIDENCE']).write_text(snapshot_html,encoding='utf-8')
 assert subprocess.run([*pg_test,pairing_sql],capture_output=True,text=True,check=True).stdout==pairing_before
@@ -3259,6 +3277,8 @@ restored_guard=subprocess.run([*pg_test,"SELECT state FROM lorkhan_internal.dura
 assert restored_guard=='dead',restored_guard
 rollback_id=subprocess.run([*pg_test,"SELECT backup_id FROM lorkhan_internal.backup_records WHERE scope->>'rollback_for'='"+restore_job['job_id']+"'"],capture_output=True,text=True,check=True).stdout.strip()
 assert request('/LorkhanServer/manage/exports/database/'+rollback_id+'.sql').status==200
+rollback_calendar=json.loads(subprocess.run([*pg_test,"SELECT scope#>'{game_metadata,calendar}' FROM lorkhan_internal.backup_records WHERE backup_id='"+rollback_id+"'"],check=True,capture_output=True,text=True).stdout)
+assert rollback_calendar['day']==19 and rollback_calendar['minute']-snapshot_metadata['calendar']['minute']==3*1440,rollback_calendar
 assert subprocess.run([*pg_test,"SELECT scope#>>'{snapshot,name}' FROM lorkhan_internal.backup_records WHERE backup_id='"+rollback_id+"'"],capture_output=True,text=True,check=True).stdout.startswith('Before copy')
 assert request('/LorkhanServer/manage/exports/database/'+restore_target+'.sql').status==200
 # A deliberately mismatched schema ledger makes import fail transactionally and retains the current row.

@@ -24,7 +24,10 @@ final class MorrowindCalendar
         } elseif (is_string($value['time'] ?? null) && preg_match('/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/D', $value['time'])) {
             $time = $value['time'];
         }
-        return ['year'=>$year, 'month'=>$month, 'day'=>$day, 'date'=>sprintf('%04d-%02d-%02d',$year,$month+1,$day),
+        $minuteOfDay=$time===''?0:((int)substr($time,0,2)*60+(int)substr($time,3,2));
+        return ['year'=>$year, 'month'=>$month, 'day'=>$day, 'time'=>$time,
+            'minute'=>(($year-1)*365+array_sum(array_slice(self::DAYS_PER_MONTH,0,$month))+$day-1)*1440+$minuteOfDay,
+            'date'=>sprintf('%04d-%02d-%02d',$year,$month+1,$day),
             'label'=>$day.' '.self::MONTHS[$month].', 3E '.$year.($time===''?'':' · '.$time)];
     }
 }

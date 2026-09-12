@@ -59,6 +59,10 @@ $check = static function (bool $condition, string $message) use (&$failures, &$c
 
 $recordedCalendar=\LorkhanServer\Application\MorrowindCalendar::parse(['year'=>427,'month'=>7,'day'=>16,'hour'=>9.5]);
 $check($recordedCalendar['date']==='0427-08-16' && $recordedCalendar['label']==='16 Last Seed, 3E 427 · 09:30', 'Morrowind zero-based calendar month and hour');
+$calendarEnd=\LorkhanServer\Application\MorrowindCalendar::parse(['year'=>427,'month'=>11,'day'=>31,'hour'=>23.5]);
+$calendarStart=\LorkhanServer\Application\MorrowindCalendar::parse(['year'=>428,'month'=>0,'day'=>1,'hour'=>0]);
+$check($calendarStart['minute']-$calendarEnd['minute']===30
+    &&\LorkhanServer\Application\MorrowindCalendar::parse($recordedCalendar)['minute']===$recordedCalendar['minute'], 'Snapshot calendar ordering crosses year boundaries and preserves stored minutes');
 $check(\LorkhanServer\Application\MorrowindCalendar::parse(['year'=>428,'month'=>1,'day'=>29])===null
     &&\LorkhanServer\Application\MorrowindCalendar::parse(['year'=>427,'month'=>12,'day'=>1])===null
     &&\LorkhanServer\Application\MorrowindCalendar::parse(null)===null, 'Morrowind calendar rejects leap days and unknown dates');

@@ -30,3 +30,16 @@ body.playthrough-shell .playthrough-page .playthrough-scope button{background:#3
 body.playthrough-shell .playthrough-page button.snapshot-save { background:rgba(1,53,166,.9)!important; color:#fff!important; }
 body.playthrough-shell .playthrough-page button.snapshot-copy { background:#176529!important; color:#fff!important; }
 body.playthrough-shell .playthrough-page button.snapshot-delete { background:rgba(166,53,63,.9)!important; color:#fff!important; }
+.playthrough-page .timeline{position:relative;padding:28px 8px 30px}
+.playthrough-page .timeline-title{text-align:center;color:#e0e0e0;font-size:13px;margin-bottom:12px}
+.playthrough-page .timeline-track{position:relative;height:4px;background:linear-gradient(90deg,#8a9bb680,#bc9d5a99);border-radius:2px}
+.playthrough-page .timeline-nodes,.playthrough-page .timeline-notches{position:relative;height:0}
+body.playthrough-shell .playthrough-page button.timeline-node{position:absolute;top:-8px;box-sizing:border-box;width:16px!important;height:16px!important;min-width:0!important;min-height:0!important;padding:0!important;margin:0!important;border-radius:50%!important;background:#bc9d5a!important;border:2px solid #1a1a1a!important;box-shadow:0 0 0 2px #ffffff14;transform:translateX(-50%);cursor:pointer}
+body.playthrough-shell .playthrough-page button.timeline-node.active{background:#2ea8ff!important;box-shadow:0 0 0 2px #2ea8ff40,0 0 12px #2ea8ff59}
+.playthrough-page .timeline-tooltip{position:absolute;display:none;max-width:min(280px,100%);box-sizing:border-box;background:#111;border:1px solid #8a9bb666;color:#e0e0e0;padding:8px 10px;border-radius:6px;font-size:12px;z-index:20;pointer-events:none;box-shadow:0 8px 24px #0006;overflow-wrap:anywhere}
+.playthrough-page .timeline-tooltip .name{color:#bc9d5a;font-weight:bold}
+.playthrough-page .timeline-legend{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#9fb1c9;margin-top:8px}
+.playthrough-page .timeline-notch{position:absolute;top:-12px;width:2px;height:10px;background:#9fb1c9;opacity:.7;transform:translateX(-50%)}
+.playthrough-page .timeline-notch.major{height:14px;background:#e0e0e0;opacity:.9}
+.playthrough-page .timeline-tick-label{position:absolute;top:-30px;transform:translateX(-50%);color:#9fb1c9;font-size:11px;white-space:nowrap;pointer-events:none}
+.playthrough-page .snapshot-time{font-size:12px;color:#9fb1c9}.playthrough-page .snapshot-time.behind{color:#dc2626}.playthrough-page .snapshot-time.ahead{color:#16a34a}

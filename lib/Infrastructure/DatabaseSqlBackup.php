@@ -46,11 +46,19 @@ final class DatabaseSqlBackup
         $oldMask=umask(0077);
         try{$output=fopen($partial,'xb');}finally{umask($oldMask);}
         if ($output===false) throw new RuntimeException('backup_storage_unavailable');
-        $process=null; $pipes=[];
+        $process=null; $pipes=[];$capture=null;
         try {
             if(!chmod($partial,0640)||!chgrp($partial,filegroup(dirname($path))))throw new RuntimeException('backup_storage_permissions');
             if (!$heartbeat()) throw new RuntimeException('lease_lost');
-            $process=proc_open(['pg_dump','--no-password','--format=custom','--no-owner','--no-privileges'],
+            // Keep metadata and the archive on the same PostgreSQL MVCC snapshot while lease heartbeats use the worker connection.
+            $capture=Connection::open($this->config,false);
+            $capture->beginTransaction();$capture->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            $snapshotId=$capture->query('SELECT pg_export_snapshot()')->fetchColumn();
+            $current=(new ManagementUiRepository($capture))->currentDatabase();
+            $metadata=$capture->query('SELECT (SELECT count(*) FROM public.eventlog) AS events,(SELECT count(*) FROM public.oghma) AS knowledge')->fetch(PDO::FETCH_ASSOC);
+            $metadata['player_name']=$current['player_name']??null;
+            $metadata['calendar']=\LorkhanServer\Application\MorrowindCalendar::parse($current['calendar_data']??null);
+            $process=proc_open(['pg_dump','--no-password','--format=custom','--no-owner','--no-privileges','--snapshot='.$snapshotId],
                 [0=>['pipe','r'],1=>$output,2=>['pipe','w']],$pipes,null,$env,['bypass_shell'=>true]);
             if (!is_resource($process)) throw new RuntimeException('database_backup_failed');
             fclose($pipes[0]);unset($pipes[0]);stream_set_blocking($pipes[2],false);
@@ -67,11 +75,13 @@ final class DatabaseSqlBackup
             $exit=$status['exitcode'];fclose($pipes[2]);unset($pipes[2]);proc_close($process);$process=null;
             if(is_resource($output)){fflush($output);fclose($output);}$output=null;
             if ($exit!==0 || !is_file($partial) || filesize($partial)<1) throw new RuntimeException('database_backup_failed');
+            $capture->commit();$capture=null;
             $this->archiveOutput($partial,$sqlPartial,$heartbeat,['--clean','--if-exists','--no-owner','--no-privileges']);
             if (!rename($partial,$path.'.dump')||!rename($sqlPartial,$path)) throw new RuntimeException('backup_storage_unavailable');
             $statement=$db->prepare("INSERT INTO backup_records(backup_id,format_version,content_sha256,byte_count,scope,state) VALUES(:id,2,:sha,:bytes,CAST(:scope AS jsonb),'created')");
-            $statement->execute(['id'=>$id,'sha'=>hash_file('sha256',$path),'bytes'=>filesize($path),'scope'=>json_encode(['kind'=>'database_sql','automatic'=>$automatic,'archive_sha256'=>hash_file('sha256',$path.'.dump'),'archive_bytes'=>filesize($path.'.dump')])]);
+            $statement->execute(['id'=>$id,'sha'=>hash_file('sha256',$path),'bytes'=>filesize($path),'scope'=>json_encode(['kind'=>'database_sql','automatic'=>$automatic,'archive_sha256'=>hash_file('sha256',$path.'.dump'),'archive_bytes'=>filesize($path.'.dump'),'game_metadata'=>$metadata],JSON_THROW_ON_ERROR)]);
         } finally {
+            if($capture!==null&&$capture->inTransaction())$capture->rollBack();
             if (is_resource($process)) {proc_terminate($process);proc_close($process);}
             foreach($pipes as $pipe)if(is_resource($pipe))fclose($pipe);
             if(is_resource($output))fclose($output);
