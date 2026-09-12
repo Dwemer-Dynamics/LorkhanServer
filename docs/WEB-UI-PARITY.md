@@ -107,7 +107,7 @@ Current delivery order: close visible page structure and interactions directly f
 | --- | --- | --- |
 | `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty and desktop/narrow layout reviewed. Latest-diary author audio is wired, with populated-template playback/error checks; live-provider acceptance remains open |
 | `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; MiniMe Service and its bounded reachability probe implemented; visible Setup/Local LLM, all-Core presets and network helpers implemented; Herika service choices now create or reuse installation-owned speech connectors while preserving custom endpoints and badges; Player2 switch, immutable routing overlay and four recap cards are implemented and mock/browser tested; whole-page desktop/narrow structure and complete save-flow checks are complete, including key errors/retry, local setup, service reuse and stale-revision rejection. Live-provider acceptance remains untested. Service process installation is not performed by this form in either product |
-| `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. Remaining children and full embedded interactions still pending |
+| `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. All 15 shared tab entry views now load and retain mounted documents at 1280/390, with draft values retained in the eleven entry views containing editable fields. Tab names/order/style and keyboard activation match the reference grouping, with excluded tabs absent. Shared shell review is complete; individual editor/runtime gaps remain tracked in their own rows |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Hide Ambient Combat, Power Awareness, Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Other Context event controls and profile-affecting built-ins remain open; see the dated checkpoints |
 | `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Advanced metadata is now merged with visible controls; Oghma overrides and knowledge tags reach retrieval and both preset formats. Oghma, Context, Prompt, Relationship and Rechat overrides use the reference inline Global Settings rows, with raw JSON synchronization and inherited values. Core Prompt Head, timestamps and description-only item filters reach prompt assembly; Rechat Mode reaches chain selection, Relationship System controls job eligibility, and Power Awareness uses exact observed actor levels. Remaining: other runtime-backed Global Settings override categories, full metadata editor interaction review and page-wide interaction closure. Physical Diary, cumulative memory semantics and Core-slot client selection are separate unfinished runtime features. |
 | `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Typed per-NPC override leaves now include language, summaries, Diary Prompt/Cooldown/History, Dynamic Profile History, Context, Prompt Head, Oghma, Relationship Enabled/Update Chance, Rechat Mode/Strict Targeting/Open Rechat and End Conversation Cooldown. Prompt assembly, queued evolution history, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. General profile metadata now uses the reference vanilla-jsoneditor tree/text/table library, with revisioned native content and separate immutable Recorded State. Bounded target inventory capture and sorted count/total presentation are deployed in server d09d717 and client 1a35727; empty/unavailable states remain distinct. Remaining: full runtime-backed override catalogue, complete editor/modal review, continuous inventory updates and NPC Visit/Teleport/Return. |
@@ -11407,3 +11407,29 @@ native screenshot inspected. PHP/JS syntax passed. Scoped deployment backup:
 `/var/backups/lorkhanserver-player2-model.JBpCzc`. Exact deployed comparison: 858
 files, no hash mismatches/extras/old paths, private access still protected. Live
 Player2-app and game acceptance remain untested; whole-project parity remains open.
+
+
+## Complete Configuration hub navigation review (2026-09-12)
+
+Reviewed all 15 enabled Configuration entries as one set using current deployed
+assets: globals, profiles, NPCs, Player, Narration, LLM, TTS, TTS Studio, STT,
+API Keys, NPC Biographies, Oghma, Descriptions, Action Editor and Prompts Manager.
+`config-all-current.cjs` loaded each at 1280/390, then returned through every tab.
+All documents retained their browser identity; eleven entry views containing
+editable fields retained unsaved DOM values. The four list-only entries retained
+their documents; editor-specific draft proofs are recorded separately. This is
+mount/value retention proof, not a claim of save round trips for all fifteen pages.
+All iframe bounds fit, all child documents report no horizontal overflow, exactly
+one tab remained selected, and no page errors occurred. Screenshots and measurements
+are in temporary `config-all-*.png` and `config-all-current.json`.
+
+`config-nav-current.cjs` compared current reference/native labels, group order and
+button styles at both widths. The shared fifteen labels match after the NPC brand
+substitution and exclusion of ITT/Server Plugins. Padding is 4px 8px desktop and
+4px 7px narrow; font size 12.3px, radius 6px in both. Native Home/End focus movement,
+Enter/Space activation and one reachable tab stop per group passed. Inspected the
+reference/native narrow navigation and native Action Editor embedding screenshots.
+All browser POSTs were blocked; no settings, secrets, providers or game changed.
+No product code or redeployment was needed for this review. Individual page/editor
+and runtime requirements remain open in their own matrix rows; the shared shell
+must not be repeatedly treated as an unreviewed fifteen-page feature gap.
