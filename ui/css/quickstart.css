@@ -516,3 +516,5 @@ body > main.quickstart-page{max-width:none;margin:0;padding:80px 10px 40px;color
     .quickstart-page .qs-local-llm-status{flex-basis:auto}
     .quickstart-page .qs-local-llm-actions .qs-mini-btn{flex:1 1 100%}
 }
+
+.quickstart-page [data-local-endpoint]{overflow-wrap:anywhere;word-break:break-word}
