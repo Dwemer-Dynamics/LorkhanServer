@@ -106,4 +106,77 @@ final class SqlImportData
         $tick();
         return ['tables'=>$staged,'summary'=>$expected];
     }
+
+    /** Replace staged data in the caller's backed-up transaction; the callback restores captured control state before constraints return. */
+    public function replaceStagedRows(PDO $db,array $staged,callable $restoreControlState,callable $progress):void
+    {
+        if(!$db->inTransaction())throw new RuntimeException('import_transaction_required');
+        if(self::destinationTables($db)!==$this->tables)throw new RuntimeException('import_destination_changed');
+        $quote=static fn(string $name):string=>'"'.str_replace('"','""',$name).'"';
+        $tick=static function()use($progress):void{if($progress()===false)throw new RuntimeException('lease_lost');};
+        $expected=[];$destinations=[];
+        foreach($this->tables as $key=>$columns){
+            [$schema,$name]=explode('.',$key,2);
+            $destinations[$key]=$quote($schema).'.'.$quote($name);
+            $expected[$key]='pg_temp.'.$quote('sql_import_'.substr(hash('sha256',$key),0,32));
+        }
+        if(($staged['tables']??null)!==$expected)throw new RuntimeException('import_staging_mismatch');
+        foreach(['lorkhan_internal.schema_migrations'=>'version,name,checksum','lorkhan_internal.installations'=>'installation_id'] as $key=>$columns){
+            if($db->query('SELECT EXISTS((SELECT '.$columns.' FROM '.$expected[$key].' EXCEPT SELECT '.$columns.' FROM '.$destinations[$key].') UNION ALL (SELECT '.$columns.' FROM '.$destinations[$key].' EXCEPT SELECT '.$columns.' FROM '.$expected[$key].'))')->fetchColumn())throw new RuntimeException('import_compatibility_mismatch');
+        }
+        // Definitions and identifiers below come only from the destination catalog, not the imported dump.
+        $constraints=$db->query("SELECT format('%I.%I',n.nspname,r.relname) AS relation,c.conname,pg_get_constraintdef(c.oid) AS definition
+            FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid JOIN pg_namespace n ON n.oid=r.relnamespace
+            WHERE c.contype='f' AND n.nspname IN ('public','lorkhan_internal')
+            AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=r.oid AND d.deptype='e') ORDER BY n.nspname,r.relname,c.conname")->fetchAll(PDO::FETCH_ASSOC);
+        $triggers=$db->query("SELECT format('%I.%I',n.nspname,r.relname) AS relation,t.tgname,t.tgenabled
+            FROM pg_trigger t JOIN pg_class r ON r.oid=t.tgrelid JOIN pg_namespace n ON n.oid=r.relnamespace
+            WHERE NOT t.tgisinternal AND n.nspname IN ('public','lorkhan_internal')
+            AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=r.oid AND d.deptype='e') ORDER BY n.nspname,r.relname,t.tgname")->fetchAll(PDO::FETCH_ASSOC);
+        foreach($triggers as $trigger){$tick();$db->exec('ALTER TABLE '.$trigger['relation'].' DISABLE TRIGGER '.$quote($trigger['tgname']));}
+        foreach($constraints as $constraint){$tick();$db->exec('ALTER TABLE '.$constraint['relation'].' DROP CONSTRAINT '.$quote($constraint['conname']));}
+        $tick();$db->exec('TRUNCATE TABLE '.implode(',',$destinations));
+        $preserved=['lorkhan_internal.installations','lorkhan_internal.pairing_tokens','lorkhan_internal.request_mac_nonces',
+            'lorkhan_internal.browser_sessions','lorkhan_internal.backup_records','lorkhan_internal.database_backup_settings'];
+        foreach($destinations as $key=>$destination){
+            if(in_array($key,$preserved,true))continue;
+            $tick();
+            $statement=$db->prepare('SELECT attname FROM pg_attribute WHERE attrelid=CAST(:relation AS regclass) AND attnum>0 AND NOT attisdropped AND attgenerated=\'\' ORDER BY attnum');
+            $statement->execute(['relation'=>$destination]);
+            $columns=implode(',',array_map($quote,$statement->fetchAll(PDO::FETCH_COLUMN)));
+            $db->exec('INSERT INTO '.$destination.' ('.$columns.') OVERRIDING SYSTEM VALUE SELECT '.$columns.' FROM '.$expected[$key]);
+        }
+        // Retain restored history, but never restart queued work from the uploaded snapshot.
+        $db->exec("UPDATE lorkhan_internal.sessions SET state='ended',ended_at=clock_timestamp() WHERE state='active';
+            UPDATE lorkhan_internal.turns SET state='cancelled',completed_at=clock_timestamp() WHERE state IN ('accepted','processing');
+            UPDATE lorkhan_internal.stt_requests SET state='failed',completed_at=clock_timestamp(),provider_error_code='database_restored' WHERE state IN ('accepted','processing');
+            UPDATE lorkhan_internal.dialogue_utterances SET delivery_state='interrupted' WHERE delivery_state='pending';
+            UPDATE lorkhan_internal.provider_attempts SET state='cancelled',finished_at=clock_timestamp(),error_code='database_restored' WHERE state='started';
+            UPDATE lorkhan_internal.durable_jobs SET state='dead',last_error_code='database_restored',last_error_detail=NULL,completed_at=clock_timestamp(),updated_at=clock_timestamp(),lease_owner=NULL,lease_token=NULL,leased_at=NULL,lease_expires_at=NULL,heartbeat_at=NULL WHERE state IN ('queued','leased');
+            UPDATE lorkhan_internal.durable_job_attempts SET outcome='dead',finished_at=clock_timestamp(),error_code='database_restored',error_detail=NULL WHERE finished_at IS NULL");
+        $restoreControlState();$tick();
+        foreach($constraints as $constraint){$tick();$db->exec('ALTER TABLE '.$constraint['relation'].' ADD CONSTRAINT '.$quote($constraint['conname']).' '.$constraint['definition']);}
+        foreach($triggers as $trigger){
+            $mode=match($trigger['tgenabled']){'O'=>'ENABLE','R'=>'ENABLE REPLICA','A'=>'ENABLE ALWAYS','D'=>'DISABLE'};
+            $db->exec('ALTER TABLE '.$trigger['relation'].' '.$mode.' TRIGGER '.$quote($trigger['tgname']));
+        }
+        // ALTER SEQUENCE RESTART is transactional, unlike setval; failed imports must not rewind live counters.
+        $sequences=$db->query("SELECT format('%I.%I',n.nspname,r.relname) AS relation,a.attname,pg_get_serial_sequence(format('%I.%I',n.nspname,r.relname),a.attname) AS sequence
+            FROM pg_class r JOIN pg_namespace n ON n.oid=r.relnamespace JOIN pg_attribute a ON a.attrelid=r.oid AND a.attnum>0 AND NOT a.attisdropped
+            WHERE n.nspname IN ('public','lorkhan_internal') AND r.relkind IN ('r','p') AND pg_get_serial_sequence(format('%I.%I',n.nspname,r.relname),a.attname) IS NOT NULL
+            AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=r.oid AND d.deptype='e')")->fetchAll(PDO::FETCH_ASSOC);
+        foreach($sequences as $sequence){
+            $tick();$definition=$db->prepare('SELECT seqincrement,seqmin,seqmax,seqstart FROM pg_sequence WHERE seqrelid=CAST(:sequence AS regclass)');
+            $definition->execute(['sequence'=>$sequence['sequence']]);$limits=$definition->fetch(PDO::FETCH_ASSOC);
+            if((int)$limits['seqincrement']!==1)throw new RuntimeException('import_sequence_unsupported');
+            $next=$db->query('SELECT GREATEST('.(int)$limits['seqstart'].',COALESCE(max('.$quote($sequence['attname']).')::numeric+1,'.(int)$limits['seqstart'].'),'
+                .'(SELECT last_value::numeric+CASE WHEN is_called THEN 1 ELSE 0 END FROM '.$sequence['sequence'].'))::text FROM '.$sequence['relation'])->fetchColumn();
+            if(!is_string($next)||preg_match('/^-?[0-9]+$/D',$next)!==1)throw new RuntimeException('import_sequence_exhausted');
+            $range=$db->prepare('SELECT CAST(:next AS numeric) BETWEEN CAST(:minimum AS numeric) AND CAST(:maximum AS numeric)');
+            $range->execute(['next'=>$next,'minimum'=>$limits['seqmin'],'maximum'=>$limits['seqmax']]);
+            if(!$range->fetchColumn())throw new RuntimeException('import_sequence_exhausted');
+            $db->exec('ALTER SEQUENCE '.$sequence['sequence'].' RESTART WITH '.$next);
+        }
+        $tick();
+    }
 }

@@ -102,6 +102,50 @@ finally{$db->rollBack();fclose($stream);}
 if(!$cancelled||$ticks!==3||(int)$db->query('SELECT count(*) FROM lorkhan_internal.source_events')->fetchColumn()!==$original
     ||$db->query("SELECT EXISTS(SELECT 1 FROM pg_class WHERE relnamespace=pg_my_temp_schema() AND relname LIKE 'sql_import_%')")->fetchColumn())throw new RuntimeException('cancelled_import_not_rolled_back');
 echo "cancelled SQL staging stops and rolls back cleanly\n";
+$db->exec('SET search_path TO lorkhan_internal,public,pg_temp');
+$importJob=\LorkhanServer\Infrastructure\Uuid::v4();$jobs=new \LorkhanServer\Infrastructure\JobRepository($db);
+$jobs->enqueue($importJob,'database.import',1,$importJob,[],1);$claimed=$jobs->claim('import-apply-fixture',1,3600,['database.import']);
+if(count($claimed)!==1||$claimed[0]['job_id']!==$importJob)throw new RuntimeException('import_job_fixture_missing');
+$bioHash=static fn():string=>(string)$db->query("SELECT md5(COALESCE(string_agg(md5(to_jsonb(t)::text),'' ORDER BY to_jsonb(t)::text COLLATE \"C\"),'')) FROM public.bio_templates t")->fetchColumn();
+$controlHash=static fn():string=>(string)$db->query("SELECT md5(COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY installation_id)::text FROM installations t),'')||COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY pairing_token_id)::text FROM pairing_tokens t),'')||COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY session_hash)::text FROM browser_sessions t),''))")->fetchColumn();
+$originalBio=$bioHash();$originalControl=$controlHash();
+$db->exec("UPDATE public.bio_templates SET core='post-export import fixture' WHERE npc_name=(SELECT npc_name FROM public.bio_templates ORDER BY npc_name LIMIT 1)");
+$changedBio=$bioHash();if($changedBio===$originalBio)throw new RuntimeException('import_fixture_not_changed');
+$attemptSequence=$db->query("SELECT pg_get_serial_sequence('lorkhan_internal.durable_job_attempts','attempt_id')")->fetchColumn();
+$sequenceState=$db->query('SELECT last_value,is_called FROM '.$attemptSequence)->fetch(PDO::FETCH_ASSOC);
+$currentAttempt=$db->query('SELECT attempt_id FROM durable_job_attempts WHERE job_id='.$db->quote($importJob))->fetchColumn();
+foreach(['schema','foreign_key','late','success'] as $phase){
+    $db->beginTransaction();$stream=fopen($argv[2],'rb');
+    try{
+        $data=new \LorkhanServer\Infrastructure\SqlImportData($tables);$staged=$data->stage($db,$stream,static function():void{});
+        if($phase==='schema')$db->exec('UPDATE '.$staged['tables']['lorkhan_internal.schema_migrations']." SET checksum=repeat('0',64) WHERE version=(SELECT max(version) FROM ".$staged['tables']['lorkhan_internal.schema_migrations'].')');
+        if($phase==='foreign_key')$db->exec('UPDATE '.$staged['tables']['lorkhan_internal.profiles']." SET installation_id='00000000-0000-4000-8000-000000000999'");
+        $history=$db->query('SELECT job_id,attempt_number FROM '.$staged['tables']['lorkhan_internal.durable_job_attempts'].' ORDER BY attempt_id LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+        if(!$history)throw new RuntimeException('import_history_fixture_missing');
+        $db->exec('UPDATE '.$staged['tables']['lorkhan_internal.durable_jobs']." SET state='queued',completed_at=NULL,lease_owner=NULL,lease_token=NULL,leased_at=NULL,lease_expires_at=NULL,heartbeat_at=NULL WHERE job_id=".$db->quote($history['job_id']));
+        $db->exec('UPDATE '.$staged['tables']['lorkhan_internal.durable_job_attempts'].' SET attempt_id='.(int)$currentAttempt.' WHERE attempt_id=(SELECT min(attempt_id) FROM '.$staged['tables']['lorkhan_internal.durable_job_attempts'].')');
+        $state=new \LorkhanServer\Infrastructure\MigrationReplayState($db,$importJob);$state->capture();
+        $data->replaceStagedRows($db,$staged,static function()use($state):void{$state->restore(true);},static function():void{});
+        if($bioHash()!==$originalBio||$controlHash()!==$originalControl)throw new RuntimeException('import_replacement_or_control_failed');
+        $historyCheck=$db->prepare('SELECT count(*) FROM durable_job_attempts WHERE job_id=:job AND attempt_number=:attempt');
+        $historyCheck->execute(['job'=>$history['job_id'],'attempt'=>$history['attempt_number']]);
+        if((int)$historyCheck->fetchColumn()!==1||(int)$db->query('SELECT attempt_id FROM durable_job_attempts WHERE job_id='.$db->quote($importJob))->fetchColumn()===(int)$currentAttempt)throw new RuntimeException('import_attempt_history_overwritten');
+        if($db->query('SELECT state FROM durable_jobs WHERE job_id='.$db->quote($history['job_id']))->fetchColumn()!=='dead')throw new RuntimeException('import_resumed_historical_work');
+        if($phase==='late')$db->exec('SELECT 1/0');
+        if($phase!=='success')throw new RuntimeException('import_failure_not_reached');
+        $db->commit();
+    }catch(RuntimeException $error){
+        $expectedError=['schema'=>'import_compatibility_mismatch','foreign_key'=>'23503','late'=>'22012'][$phase]??'';
+        if(($error instanceof PDOException?$error->getCode():$error->getMessage())!==$expectedError)throw $error;
+        $db->rollBack();
+    }finally{if($db->inTransaction())$db->rollBack();fclose($stream);}
+    if($bioHash()!==($phase==='success'?$originalBio:$changedBio)||$controlHash()!==$originalControl)throw new RuntimeException('import_atomicity_failed');
+    if($phase!=='success'&&$db->query('SELECT last_value,is_called FROM '.$attemptSequence)->fetch(PDO::FETCH_ASSOC)!==$sequenceState)throw new RuntimeException('import_rollback_changed_sequence');
+}
+$jobs->succeed($importJob,$claimed[0]['lease_token']);
+echo "SQL data replacement preserves control state and rolls back late failures\n";
 PHP
+LORKHAN_SCHEMA_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=lorkhan_test" \
+LORKHAN_TEST_DB_USER=factory_runtime php "$ROOT/scripts/schema-inventory.php" --check
 LORKHAN_TEST_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=lorkhan_migrations_test" \
 php "$ROOT/tests/migrations_jobs.php"

@@ -31,13 +31,20 @@ final class MigrationReplayState
     }
 
     /** Upsert exact captured rows whether the migration retained or recreated each protected table. */
-    public function restore():void
+    public function restore(bool $reassignAttemptIds=false):void
     {
         if(!$this->db->inTransaction())throw new RuntimeException('replay_transaction_required');
         foreach(self::TABLES as$table=>$keys){
             $columns=$this->db->query("SELECT attname FROM pg_attribute WHERE attrelid='lorkhan_internal.".$table."'::regclass AND attnum>0 AND NOT attisdropped ORDER BY attnum")->fetchAll(PDO::FETCH_COLUMN);
             $captured=$this->db->query("SELECT attname FROM pg_attribute WHERE attrelid='pg_temp.replay_".$table."'::regclass AND attnum>0 AND NOT attisdropped ORDER BY attnum")->fetchAll(PDO::FETCH_COLUMN);
             if(array_diff($columns,$captured)!==[]||array_diff($captured,$columns)!==[])throw new RuntimeException('replay_control_schema_mismatch');
+            if($reassignAttemptIds&&$table==='durable_job_attempts'){
+                // Imported history can already use this job's local numeric attempt IDs. Preserve logical job/attempt identity instead.
+                $columns=array_values(array_diff($columns,['attempt_id']));$keys=['job_id','attempt_number'];
+                $sequence=$this->db->query("SELECT pg_get_serial_sequence('lorkhan_internal.durable_job_attempts','attempt_id')")->fetchColumn();
+                $next=$this->db->query('SELECT GREATEST(COALESCE((SELECT max(attempt_id)::numeric+1 FROM lorkhan_internal.durable_job_attempts),1),COALESCE((SELECT max(attempt_id)::numeric+1 FROM pg_temp.replay_durable_job_attempts),1),(SELECT last_value::numeric+CASE WHEN is_called THEN 1 ELSE 0 END FROM '.$sequence.'))::text')->fetchColumn();
+                $this->db->exec('ALTER SEQUENCE '.$sequence.' RESTART WITH '.$next);
+            }
             $columnList=implode(',',array_map(static fn(string $column):string=>'"'.str_replace('"','""',$column).'"',$columns));
             $updates=[];
             foreach(array_diff($columns,$keys)as$column){$quoted='"'.str_replace('"','""',$column).'"';$updates[]=$quoted.'=EXCLUDED.'.$quoted;}
@@ -46,6 +53,6 @@ final class MigrationReplayState
             if($this->db->query('SELECT EXISTS(SELECT '.$columnList.' FROM pg_temp.replay_'.$table.' EXCEPT SELECT '.$columnList.' FROM lorkhan_internal.'.$table.')')->fetchColumn())
                 throw new RuntimeException('replay_control_state_mismatch');
         }
-        $this->db->exec("SELECT pg_catalog.setval(pg_get_serial_sequence('lorkhan_internal.durable_job_attempts','attempt_id'), GREATEST(1,(SELECT COALESCE(max(attempt_id),0) FROM lorkhan_internal.durable_job_attempts)),true)");
+        if(!$reassignAttemptIds)$this->db->exec("SELECT pg_catalog.setval(pg_get_serial_sequence('lorkhan_internal.durable_job_attempts','attempt_id'), GREATEST(1,(SELECT COALESCE(max(attempt_id),0) FROM lorkhan_internal.durable_job_attempts)),true)");
     }
 }
