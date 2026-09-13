@@ -10,3 +10,11 @@ CREATE TEMP TABLE restore_backups AS SELECT * FROM lorkhan_internal.backup_recor
 CREATE TEMP TABLE restore_backup_settings AS SELECT * FROM lorkhan_internal.database_backup_settings;
 CREATE TEMP TABLE restore_job AS SELECT * FROM lorkhan_internal.durable_jobs WHERE job_id=:'job_id';
 CREATE TEMP TABLE restore_attempt AS SELECT * FROM lorkhan_internal.durable_job_attempts WHERE job_id=:'job_id';
+-- Remember the active named playthrough outside the archive being loaded.
+CREATE TEMP TABLE restore_named_source AS
+    SELECT b.backup_id,b.scope->'snapshot' AS snapshot
+    FROM lorkhan_internal.database_snapshot_source s
+    JOIN lorkhan_internal.backup_records b ON b.backup_id=s.backup_id
+    WHERE s.singleton AND b.scope ? 'snapshot'
+      AND EXISTS (SELECT 1 FROM lorkhan_internal.backup_records target
+                  WHERE target.backup_id=:'backup_id' AND target.scope ? 'snapshot');

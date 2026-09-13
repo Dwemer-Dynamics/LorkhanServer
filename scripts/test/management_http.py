@@ -3648,6 +3648,25 @@ rollback_calendar=json.loads(subprocess.run([*pg_test,"SELECT scope#>'{game_meta
 assert rollback_calendar['day']==19 and rollback_calendar['minute']-snapshot_metadata['calendar']['minute']==3*1440,rollback_calendar
 assert subprocess.run([*pg_test,"SELECT scope#>>'{snapshot,name}' FROM lorkhan_internal.backup_records WHERE backup_id='"+rollback_id+"'"],capture_output=True,text=True,check=True).stdout.startswith('Before copy')
 assert request('/LorkhanServer/manage/exports/database/'+restore_target+'.sql').status==200
+# Named switching autosaves the source generation, preserving edits across A -> B -> A.
+source_name=subprocess.run([*pg_test,"SELECT scope#>>'{snapshot,name}' FROM lorkhan_internal.backup_records WHERE backup_id='"+restore_target+"'"],capture_output=True,text=True,check=True).stdout.strip()
+subprocess.run([*pg_test,"UPDATE public.bio_templates SET core='Named A latest edit' WHERE npc_name='ZZZ Literal %_ Name'"],check=True,capture_output=True)
+# Re-selecting the active named source is a no-op, not a rewind.
+assert request(restore_form['action'],'POST',restore_fields).status==200
+same_source=subprocess.run(['php','-r',restore_code,str(repository_root),sys.argv[3],restore_backup_path],capture_output=True,text=True,timeout=60)
+assert same_source.returncode==0 and json.loads(same_source.stdout)['succeeded']==1,(same_source.stdout,same_source.stderr)
+assert subprocess.run([*pg_test,"SELECT core FROM public.bio_templates WHERE npc_name='ZZZ Literal %_ Name'"],capture_output=True,text=True,check=True).stdout.strip()=='Named A latest edit'
+assert request(restore_form['action'],'POST',dict(restore_fields,backup_id=rollback_id)).status==200
+switch_b=subprocess.run(['php','-r',restore_code,str(repository_root),sys.argv[3],restore_backup_path],capture_output=True,text=True,timeout=60)
+assert switch_b.returncode==0 and json.loads(switch_b.stdout)['succeeded']==1,(switch_b.stdout,switch_b.stderr)
+new_a=subprocess.run([*pg_test,"SELECT scope->>'superseded_by' FROM lorkhan_internal.backup_records WHERE backup_id='"+restore_target+"'"],capture_output=True,text=True,check=True).stdout.strip()
+assert new_a and new_a!=restore_target
+assert subprocess.run([*pg_test,"SELECT scope#>>'{snapshot,name}' FROM lorkhan_internal.backup_records WHERE backup_id='"+new_a+"'"],capture_output=True,text=True,check=True).stdout.strip()==source_name
+assert request(restore_form['action'],'POST',dict(restore_fields,backup_id=new_a)).status==200
+switch_a=subprocess.run(['php','-r',restore_code,str(repository_root),sys.argv[3],restore_backup_path],capture_output=True,text=True,timeout=60)
+assert switch_a.returncode==0 and json.loads(switch_a.stdout)['succeeded']==1,(switch_a.stdout,switch_a.stderr)
+assert subprocess.run([*pg_test,"SELECT core FROM public.bio_templates WHERE npc_name='ZZZ Literal %_ Name'"],capture_output=True,text=True,check=True).stdout.strip()=='Named A latest edit'
+assert request('/LorkhanServer/manage/exports/database/'+restore_target+'.sql').status==200
 # A deliberately mismatched schema ledger makes import fail transactionally and retains the current row.
 restore_checksum=subprocess.run([*pg_test,"SELECT checksum FROM lorkhan_internal.schema_migrations WHERE version=97"],capture_output=True,text=True,check=True).stdout.strip()
 subprocess.run([*pg_test,"UPDATE public.bio_templates SET core='Must survive failed restore' WHERE npc_name='ZZZ Literal %_ Name'; UPDATE lorkhan_internal.schema_migrations SET checksum=repeat('a',64) WHERE version=97"],check=True,capture_output=True)

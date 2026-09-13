@@ -24,6 +24,15 @@ INSERT INTO lorkhan_internal.backup_records SELECT * FROM pg_temp.restore_backup
 DELETE FROM lorkhan_internal.database_backup_settings;
 INSERT INTO lorkhan_internal.database_backup_settings SELECT * FROM pg_temp.restore_backup_settings;
 
+-- Publish the newly captured generation under the previous playthrough's name only
+-- if the switch commits. Archives remain immutable; the old generation stays recoverable.
+UPDATE lorkhan_internal.backup_records b SET scope=(b.scope-'snapshot')||
+    jsonb_build_object('superseded_snapshot',s.snapshot,'superseded_by',:'rollback_id')
+    FROM pg_temp.restore_named_source s WHERE b.backup_id=s.backup_id;
+UPDATE lorkhan_internal.backup_records b SET scope=b.scope||
+    jsonb_build_object('snapshot',s.snapshot,'previous_generation',s.backup_id)
+    FROM pg_temp.restore_named_source s WHERE b.backup_id=:'rollback_id';
+
 -- Restored history is retained, but old queued game/provider work must never be resumed.
 UPDATE lorkhan_internal.sessions SET state='ended',ended_at=clock_timestamp() WHERE state='active';
 UPDATE lorkhan_internal.turns SET state='cancelled',completed_at=clock_timestamp() WHERE state IN ('accepted','processing');

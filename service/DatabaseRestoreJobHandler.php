@@ -34,6 +34,9 @@ final class DatabaseRestoreJobHandler implements JobHandler
                 ||filesize($path)!==(int)$record['byte_count']||!hash_equals($record['content_sha256'],hash_file('sha256',$path)))throw new RuntimeException('backup_integrity_failed');
             if(!isset($record['scope']['archive_sha256'])||!is_file($path.'.dump')||is_link($path.'.dump')
                 ||!hash_equals($record['scope']['archive_sha256'],hash_file('sha256',$path.'.dump')))throw new RuntimeException('restore_archive_unavailable');
+            // Re-selecting the live named playthrough must not rewind it to its stored copy.
+            $source=$this->db->query('SELECT backup_id FROM lorkhan_internal.database_snapshot_source WHERE singleton')->fetchColumn();
+            if(isset($record['scope']['snapshot'])&&$source===$payload['backup_id'])return;
             $native=$path.'.restore-'.$job['job_id'].'.partial';$list=$native.'.list';
             $store->archiveOutput($path.'.dump',$list,$heartbeat,['--list']);
             if(filesize($list)>4194304)throw new RuntimeException('backup_archive_too_large');
@@ -54,7 +57,7 @@ final class DatabaseRestoreJobHandler implements JobHandler
             if(!(new JobRepository($this->db))->heartbeat($job['job_id'],$job['lease_token'],3600))throw new RuntimeException('lease_lost');
             $root=dirname(__DIR__).'/data/restore';
             $process=proc_open(['psql','--no-password','--no-psqlrc','--single-transaction','--set','ON_ERROR_STOP=1',
-                '--set','job_id='.$job['job_id'],'--set','backup_id='.$payload['backup_id'],
+                '--set','job_id='.$job['job_id'],'--set','backup_id='.$payload['backup_id'],'--set','rollback_id='.$payload['rollback_id'],
                 '--file',$root.'/before.sql','--file',$native,'--file',$root.'/after.sql'],
                 [0=>['pipe','r'],1=>['file','/dev/null','w'],2=>['pipe','w']],$pipes,null,$store->processEnvironment(),['bypass_shell'=>true]);
             if(!is_resource($process))throw new RuntimeException('database_restore_failed');
