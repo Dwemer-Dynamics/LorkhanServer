@@ -145,7 +145,7 @@ Current delivery order: close visible page structure and interactions directly f
 | `provider_attempts.php` | `request_logs.php` operational presentation; no exact all-provider CHIM page | Explicit safe metadata columns, toolbar, status pills, scoped filters, full pagination and page CSV. Populated/empty source-rendered comparison and narrow keyboard scrolling checked. |
 | `jobs.php` | `request_logs.php` operational presentation; no exact durable-job CHIM page | Same shared reader, native queued/running/success/dead-letter states and retry/schedule metadata. Populated/empty comparison checked; no invented worker actions or exposed payloads. |
 | `game_debug.php` | Herika Request Logs operational components; no equivalent OpenMW command page | Generic widgets replaced with compact session controls, grouped commands and a shared status/UTC history table. Desktop/narrow populated, offline and outdated-client fixtures compared; command names/parameters preserved. Existing checks and local deployment passed; no live commands issued. |
-| `database_manager.php` | Dwemer-Dashboard `database_manager.php`, embedded by Herika Control Panel | Configuration backup create/download/restore and migration table are implemented. Confirmed, scoped VACUUM FULL ANALYZE with overlap/cooldown protection and audit outcomes is implemented and tested on an isolated database; web requests now queue durable background maintenance with a 30-minute SQL deadline and a fenced one-hour worker lease; progress, completion and failures are polled on the page. Full SQL backup creation, immutable private storage and streamed authenticated download are implemented with isolated restore proof. Automatic backups now have the reference Home-visit/10-minute cooldown, On/Off and 1-10 retention controls, background dumps and verified-replacement retention. Stored SQL restore is implemented for current-format backups, with automatic rollback capture, transactional schema/installation checks, runtime gating and preserved control state. Automatic backups also have the reference individual-delete control, protected against queued restoration and concurrent maintenance. Version-reset controls now queue confirmed, backed-up atomic source replay with lifecycle status; Database Access uses a validated deployment-owned pgAdmin URL and the reference card layout. The independent factory worker and private artifact deployment now pass restricted-owner reset and rollback-restore checks. Factory reset now has the reference destructive card, verified plan, typed confirmation, protected single-attempt queue and lifecycle status. Browser upload and private server-folder import are implemented. Known historical Lorkhan schemas now upgrade inside the sandbox before current-schema validation; source 1/91/105/106 fixtures pass. Legacy full data-replacement acceptance remains untested; see dated evidence. |
+| `database_manager.php` | Dwemer-Dashboard `database_manager.php`, embedded by Herika Control Panel | Configuration backup create/download/restore and migration table are implemented. Confirmed, scoped VACUUM FULL ANALYZE with overlap/cooldown protection and audit outcomes is implemented and tested on an isolated database; web requests now queue durable background maintenance with a 30-minute SQL deadline and a fenced one-hour worker lease; progress, completion and failures are polled on the page. Full SQL backup creation, immutable private storage and streamed authenticated download are implemented with isolated restore proof. Automatic backups now have the reference Home-visit/10-minute cooldown, On/Off and 1-10 retention controls, background dumps and verified-replacement retention. Stored SQL restore is implemented for current-format backups, with automatic rollback capture, transactional schema/installation checks, runtime gating and preserved control state. Automatic backups also have the reference individual-delete control, protected against queued restoration and concurrent maintenance. Version-reset controls now queue confirmed, backed-up atomic source replay with lifecycle status; Database Access uses a validated deployment-owned pgAdmin URL and the reference card layout. The independent factory worker and private artifact deployment now pass restricted-owner reset and rollback-restore checks. Factory reset now has the reference destructive card, verified plan, typed confirmation, protected single-attempt queue and lifecycle status. Browser upload and private server-folder import are implemented. Known historical Lorkhan schemas now upgrade inside the sandbox before current-schema validation; source 1/91/105/106 fixtures pass. Full legacy import handler transaction now passes with a disposable schema-105 NPC fixture, protected pairing/login state, rollback archive and wrong-installation rejection; see dated evidence. |
 | `diagnostics.php` | Herika Request Logs operational layout + Dashboard summary tiles; native health data | Server-wide snapshot and paged audit with identifier-only scope. Populated/empty desktop and narrow source/reference style comparisons, HTTP redaction/UTC and deployed checks passed. Counts explicitly do not claim worker/provider connectivity. |
 | `backup_health.php` | Herika Request Logs operational layout + Dashboard instruction panel; native backup data | Explicit backup columns, paging, safe CSV and explained retention scope. Populated/empty desktop/narrow comparison, native confirmation keyboard checks, HTTP and local deployment passed. Backup metadata does not claim file-integrity verification. |
 | `narrative_manager.php` | Herika `diarylog.php` entry table/editor; native create/generate extension | Replaced inline forms/cards with a compact searchable paged table, content-first editor, create/generate dialogs and separate delete confirmation. Source/reference editor and table styling compared; CRUD and generation refusal covered by existing HTTP tests. No equivalent standalone manual narrative manager exists in Herika. |
@@ -12297,7 +12297,7 @@ features as exceptions. No missing item below is completed by shared CSS alone.
 - Core: Physical Diary and client Core-slot selection. Cumulative NPC memory is implemented and deployed in 4983988; see the dated evidence below.
 - Narrator: action support and remaining event/profile behavior mappings.
 - Playthroughs: future-history pruning, external import and full rollback.
-- Database Manager: uploads and server-folder selection are deployed. Known historical Lorkhan schema upgrades are implemented and isolated-validated; legacy full data-replacement acceptance remains untested (see dated evidence below).
+- Database Manager: uploads and server-folder selection are deployed. Known historical Lorkhan schema upgrades and a complete deployed import/rejection transaction are isolated-validated (see dated evidence below).
 
 The evolution report reference is ui/core/npc_report.php. It deduplicates
 personality history, combines backstory/personality chronologically, and asks
@@ -13216,3 +13216,33 @@ URL returns 403; live Database Manager loads at 1280/390 with no POST sent. Heal
 and protected routes pass; configuration, credentials and voice hashes preserved.
 Rollback: /var/backups/lorkhanserver-code.t8tv5X. Workflow remains disabled_manually.
 Full legacy row replacement and the wider parity goal remain unverified/open.
+
+
+## Complete deployed legacy import transaction (2026-09-12)
+
+Used the deployed code under the actual lorkhan OS worker account and a disposable
+PostgreSQL cluster. A schema-105 dump contained a fixture installation and NPC
+biography. The destination was upgraded to 106 and given a newer biography,
+different local pairing fingerprint and browser login/CSRF session. The test then
+used DatabaseImportStore.enqueue, JobRepository.claim and DatabaseImportJobHandler
+with real lease heartbeats, sandbox upgrade, rollback backup and replacement.
+
+Verified the legacy biography was restored, local pairing and browser session
+were preserved, rollback SQL hash and private archive existed, the job completed
+as succeeded inside the import transaction, the quarantine copy was removed and
+the original source file remained. A second dump with a different installation
+was rejected with import_compatibility_mismatch; destination persona and login
+were unchanged and failed quarantine removed. This is full handler transaction
+proof with fixture data, not a live user-data import or exhaustive historical-data
+migration claim. No product code changed for this acceptance pass.
+
+### Playthrough switch semantic gap identified
+
+Pinned Herika playthrough_manager.php's switch path auto-saves the live database
+back to the currently active named snapshot before loading the selected snapshot.
+Native DatabaseRestoreJobHandler retains a separately named Before copy rollback
+but does not refresh the previous named snapshot. Data is retained, but switching
+back by the previous name can load its older contents. This specific autosave/name
+behavior needs alignment; generic rollback-backup existence does not prove it.
+The pinned Playthrough page itself offers create/switch/delete, not a separate
+external upload form; external SQL belongs to Database Manager in that reference.
