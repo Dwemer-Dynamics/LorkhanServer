@@ -572,6 +572,25 @@ $tieProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'
     'payload'=>['target'=>$tieTarget,'context'=>$automaticContext]],$automaticVoice,$now);
 $assert(($products->getRevisioned('profile',$tieProfileId)['core_profile_id']??null)===$tieCoreNew['core_profile_id'],
     'equal-priority assignment rules did not apply the newer rule like Herika');
+// Advanced rules use PostgreSQL regex and apply all matching actions before first profile creation.
+$advancedTarget=$tieTarget;$advancedTarget['record_id']='advanced_rule_actor';$advancedTarget['display_name']='Rule Advanced NPC';$advancedTarget['refnum']['index']+=100;
+$advancedInput=['installation_id'=>$installationId,'description'=>'Advanced low','core_profile_id'=>$tieCoreOld['core_profile_id'],'priority'=>60,'enabled'=>true,'match'=>$emptyRuleMatch,
+    'advanced'=>['regex'=>['names'=>'^Rule Advanced','record_ids'=>'^advanced_'], 'action'=>['npc_static_bio'=>'Rule biography','personality'=>'Low priority','settings_overrides'=>['prompt'=>['prompt_head'=>'Rule prompt']]]]];
+$advancedLow=$products->saveProfileAssignmentRule($advancedInput,$now);
+$advancedInput['description']='Advanced high';$advancedInput['priority']=70;$advancedInput['core_profile_id']=$tieCoreNew['core_profile_id'];$advancedInput['advanced']['action']=['personality'=>'High priority'];
+$advancedHigh=$products->saveProfileAssignmentRule($advancedInput,$now);
+$advancedTurn=['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],'payload'=>['target'=>$advancedTarget,'context'=>$automaticContext]];
+$advancedProfileId=$products->ensureMorrowindActorProfile($advancedTurn,$automaticVoice,$now);
+$advancedProfile=$products->getRevisioned('profile',$advancedProfileId);
+$assert($advancedProfile['core_profile_id']===$tieCoreNew['core_profile_id']&&$advancedProfile['content']['personality']==='High priority'&&$advancedProfile['content']['biography']==='Rule biography'&&$advancedProfile['content']['settings_overrides']['prompt']['prompt_head']==='Rule prompt','advanced regex/actions did not reach the created NPC');
+$advancedManual=$advancedProfile['content'];$advancedManual['personality']='Manual edit';$products->revise('profile',$advancedProfileId,$advancedManual,'test',$now);
+$products->ensureMorrowindActorProfile($advancedTurn,$automaticVoice,$now);
+$assert($products->getRevisioned('profile',$advancedProfileId)['content']['personality']==='Manual edit','rules overwrote an existing NPC');
+$advancedInput['advanced']['regex']['names']='[';
+try{$products->saveProfileAssignmentRule($advancedInput,$now);$assert(false,'invalid PostgreSQL regex saved');}catch(InvalidArgumentException $error){$assert($error->getMessage()==='invalid_or_expensive_rule_regex','invalid regex was not rejected explicitly');}
+$assert((int)$db->query('SELECT 1')->fetchColumn()===1,'regex validation poisoned the database transaction');
+$products->deleteProfileAssignmentRule($installationId,$advancedLow['rule_id']);$products->deleteProfileAssignmentRule($installationId,$advancedHigh['rule_id']);
+
 $ruleOnlyCore=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule deletion guard',
     'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
 $ruleOnly=$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'description'=>'Rule-only Core Profile use',

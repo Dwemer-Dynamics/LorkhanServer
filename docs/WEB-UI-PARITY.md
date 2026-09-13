@@ -12453,3 +12453,45 @@ all matching rules in ascending priority order. Native exact matching only picks
 a Core Profile; exposing an Action JSON box without implementing that ordered,
 validated profile-content application would be inert. This gap is not closed by
 the ordering fix.
+
+## Advanced Rules regex and typed actions (2026-09-12)
+
+The Rules editor now exposes Name, Race, Gender, Base/Record ID, Faction and Class
+regex fields, Required Mods, Priority and Action JSON inside Advanced Rules.
+Opening Advanced Rules converts exact selections to escaped, anchored PostgreSQL
+regex while preserving their case-insensitive meaning. Closing/reopening the
+panel retains the advanced draft. Invalid JSON and server-side regex errors keep
+the draft; successful saves reopen with the persisted values. Expanded cards no
+longer duplicate their title. Desktop two-column and narrow one-column fields use
+the existing reference-derived Rules grid; screenshots were inspected.
+
+Runtime uses PostgreSQL regex rather than substituting PCRE. A 250ms query budget
+and savepoint isolate bad/expensive expressions; exact rules remain eligible if
+advanced matching fails. All matched actions apply in ascending priority/creation
+order before the new NPC is inserted; the final Core Profile wins. Actions set
+shared biography fields and merge native typed settings overrides field by field,
+replacing list values completely. npc_static_bio/speechstyle translate to native
+biography/speech_style. Identity, secrets and connector IDs cannot be overwritten.
+Existing NPCs and later manual edits are not changed by assignment rules.
+
+1107 server checks and 111 protocol files pass. The existing integration prefix
+through assignment rules passes in a fresh migrated PostgreSQL fixture, including
+actual first-NPC creation with regex, low/high action merging, shared field mapping,
+manual-edit preservation and invalid-regex rejection without poisoning the DB.
+Actual isolated browser submissions at 1280/390 exercise create, escaped conversion,
+save/reopen, invalid regex/JSON, retained drafts and successful retry. No paid
+providers are used. Deployed existing Rules checks also pass all six simple pickers,
+empty/populated/new/edit/cancel/conflict/delete-cancel/Escape focus at both widths,
+with their live writes mocked. Evidence: advanced-rules-probe.txt,
+advanced-rules-browser.txt, advanced-rules-review.cjs and rules-fields-review.cjs
+in local Temp. No full integration suite or in-game test is claimed for this change.
+
+Local rollback: /var/backups/lorkhanserver-code.hgIrXy. All 876 runtime files match
+source, no extra/old paths; private/auth/NPC checks pass. Configuration, credentials
+and voices were preserved. GitHub workflow remains disabled_manually.
+
+Remaining Rules parity: arbitrary Herika metadata/action fields are not yet mapped,
+and actions still require a selected Core Profile. Required Mods uses all-of
+matching but OpenMW currently supplies only the actor's observed source file, not
+its complete override provenance. Those gaps remain open; the new editor does
+not claim support for arbitrary foreign Action JSON or unseen mod provenance.

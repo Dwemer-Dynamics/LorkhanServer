@@ -3234,6 +3234,16 @@ $check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSetti
 $backgroundGlobal=\LorkhanServer\Application\SettingsCatalog::globalDefaults();$backgroundGlobal['system_routing']['background_memory_configuration_id']='00000000-0000-4000-8000-000000000001';
 $check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($backgroundGlobal)===$backgroundGlobal,'global Background Tasks route round trip');
 
+$advancedRule=\LorkhanServer\Application\ProfileAssignmentRule::normalize(['regex'=>['names'=>'^Dagoth','record_ids'=>'(?i)^dagoth_ur$'],'action'=>['npc_static_bio'=>'Ancient','speechstyle'=>'Angry']]);
+$check($advancedRule['action']===['biography'=>'Ancient','speech_style'=>'Angry'],'advanced rule shared biography fields normalize');
+foreach([['action'=>['installation_id'=>'other']],['action'=>['personality'=>null]],['regex'=>['unknown'=>'x']],['action'=>['settings_overrides'=>['unknown'=>true]]]]as$badRule){
+    try{\LorkhanServer\Application\ProfileAssignmentRule::normalize($badRule);$check(false,'invalid advanced rule rejected');}catch(InvalidArgumentException){$check(true,'invalid advanced rule rejected');}
+}
+$check(\LorkhanServer\Application\ProfileAssignmentRule::apply(['personality'=>'old','voice'=>['id'=>'keep']],['personality'=>'new'])===['personality'=>'new','voice'=>['id'=>'keep']],'rule action preserves unrelated content');
+
+$ruleMerged=\LorkhanServer\Application\ProfileAssignmentRule::apply(['settings_overrides'=>['context'=>['location_blacklist'=>['old','stale'],'prompt_timestamp'=>true]]],['settings_overrides'=>['context'=>['location_blacklist'=>['new']]]]);
+$check($ruleMerged['settings_overrides']['context']===['location_blacklist'=>['new'],'prompt_timestamp'=>true],'rule override lists replace instead of keeping stale items');
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

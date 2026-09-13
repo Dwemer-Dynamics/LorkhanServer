@@ -253,7 +253,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 <div class="modal-body profile-rules-body">
                     <div class="connector-help rule-help" id="profile-rules-intro">
                         <strong>Profile Rules automatically assign profiles when NPCs are first activated.</strong>
-                        <span>Choose one or more values inside a field to match any of them. Different fields must all match. Existing NPC assignments are preserved. Text matches in full without regard to capitals; higher priority wins, then the newer rule.</span>
+                        <span>Choose one or more values inside a field to match any of them. Different fields must all match. Existing NPC assignments are preserved. Simple text matches in full without regard to capitals; Advanced Rules use PostgreSQL regex. Higher priority wins, then the newer rule.</span>
                     </div>
                     <p class="profile-rules-status" data-profile-rules-status role="status" aria-live="polite">Loading assignment rules.</p>
 
@@ -320,8 +320,16 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             </div>
                         </section>
 
-                        <details class="profile-rules-priority-options">
-                            <summary>Rule Priority</summary>
+                        <details class="profile-rules-priority-options" data-profile-rules-advanced>
+                            <summary>⚙ Advanced Rules</summary>
+                            <p class="hint">Raw PostgreSQL regex and action fields are for advanced users. Blank regex fields match every NPC. Higher priority rules override lower priority rules. Opening this panel converts your exact selections; closing it does not discard advanced edits.</p>
+                            <div class="profile-rules-match-grid">
+                            <?php foreach (['names'=>'Name Regex','races'=>'Race Regex','genders'=>'Gender Regex','record_ids'=>'Base / Record ID Regex','factions'=>'Faction Regex','classes'=>'Class Regex'] as $regexKey=>$regexLabel): ?>
+                                <div class="profile-rules-field"><label for="rule-regex-<?= $regexKey ?>"><?= $regexLabel ?></label><input id="rule-regex-<?= $regexKey ?>" type="text" maxlength="1024" spellcheck="false" data-profile-rules-regex="<?= $regexKey ?>"></div>
+                            <?php endforeach; ?>
+                            <div class="profile-rules-field"><label for="rule-required-mods">Required Mods</label><input id="rule-required-mods" type="text" data-profile-rules-mods><p class="hint">Comma-separated content files. Every listed file must be observed for the actor; currently OpenMW supplies its source file.</p></div>
+                            <div class="profile-rules-field"><label for="rule-action-json">Action JSON</label><textarea id="rule-action-json" rows="5" maxlength="24576" spellcheck="false" data-profile-rules-action>{}</textarea><p class="hint">Sets biography fields (core, biography, personality, appearance, relationships, occupation, skills, speech_style, goals, oghma_knowledge_tags) and merges typed settings_overrides. Identity and connector IDs cannot be changed here.</p></div>
+                            </div>
                             <div class="profile-rules-field">
                                 <label for="profile-rules-priority">Priority</label>
                                 <input id="profile-rules-priority" type="number" min="-100000" max="100000" step="1" inputmode="numeric" aria-describedby="profile-rules-priority-hint" data-profile-rules-priority>

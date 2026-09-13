@@ -17,6 +17,13 @@
     const profileSelect = overlay.querySelector('[data-profile-rules-profile]');
     const priorityInput = overlay.querySelector('[data-profile-rules-priority]');
     const enabledInput = overlay.querySelector('[data-profile-rules-enabled]');
+    const advancedPanel = overlay.querySelector('[data-profile-rules-advanced]');
+    const simplePanel = overlay.querySelector('.profile-rules-match');
+    const regexInputs = Array.from(overlay.querySelectorAll('[data-profile-rules-regex]'));
+    const actionInput = overlay.querySelector('[data-profile-rules-action]');
+    const modsInput = overlay.querySelector('[data-profile-rules-mods]');
+    let advancedActive = false;
+
     const confirmBox = overlay.querySelector('[data-profile-rules-confirm]');
     const confirmText = overlay.querySelector('[data-profile-rules-confirm-text]');
     const confirmDelete = overlay.querySelector('[data-profile-rules-confirm-delete]');
@@ -159,8 +166,8 @@
             target.className = 'profile-rules-summary-target';
             target.textContent = (text(rule.core_profile_label) || profileLabel(rule.core_profile_id));
             summary.append(target);
-            const matches = matchSummary(rule.match);
-            for (const caption of (matches.length ? matches : ['No match fields: this rule never runs'])) {
+            const matches = rule.match?._advanced ? ['Advanced Rules', ...Object.entries(rule.match._advanced.regex || {}).map(([key,value]) => (MATCH_LABELS[key] || 'Record ID') + ': ' + value)] : matchSummary(rule.match);
+            for (const caption of (matches.length ? matches : ['All NPCs'])) {
                 const chip = document.createElement('span');
                 chip.className = 'profile-rules-summary-chip';
                 chip.textContent = caption;
@@ -303,6 +310,7 @@
         for (const row of listHost.querySelectorAll('[data-rule-id]')) {
             const active = !inList && row.dataset.ruleId === editingId;
             row.classList.toggle('editing', active);
+            row.querySelector('.profile-rules-row-head').hidden = active;
             row.querySelector('.profile-rules-row-match').hidden = active;
             row.querySelector('.profile-rules-row-actions').hidden = active;
             row.querySelectorAll('.profile-rules-row-actions button').forEach(button => { button.disabled = busy; });
@@ -348,6 +356,12 @@
             draft.enabled = rule.enabled !== false;
             MATCH_FIELDS.forEach((key) => { draft.match[key] = listOf(rule.match ? rule.match[key] : []); });
         }
+        advancedActive = !!rule?.match?._advanced;
+        regexInputs.forEach(input => { input.value = text(rule?.match?._advanced?.regex?.[input.dataset.profileRulesRegex]); });
+        actionInput.value = JSON.stringify(rule?.match?._advanced?.action && !Array.isArray(rule.match._advanced.action) ? rule.match._advanced.action : {}, null, 2);
+        modsInput.value = listOf(draft.match.content_files).join(', ');
+        advancedPanel.open = advancedActive;
+        simplePanel.hidden = advancedActive;
         formTitle.textContent = editingId === null ? 'New Rule' : (draft.description || 'Untitled Rule');
         const stateBadge = form.querySelector('[data-profile-rules-form-state]');
         stateBadge.textContent = draft.enabled ? 'Enabled' : 'Disabled';
@@ -405,7 +419,7 @@
             return { field: priorityInput, message: 'Priority must be a whole number from -100000 to 100000.' };
         }
         const populated = MATCH_FIELDS.filter((key) => listOf(draft.match[key]).length > 0);
-        if (populated.length === 0) {
+        if (!advancedActive && populated.length === 0) {
             const first = matchFieldNodes.get(MATCH_FIELDS[0]);
             return { field: first ? first.input : null, message: 'Add at least one match value. A rule with no match fields would never run.' };
         }
@@ -431,6 +445,14 @@
     const save = async () => {
         if (busy || !draft) return;
         const current = collectDraft();
+        let advanced = null;
+        if (advancedActive) {
+            try {
+                const action = JSON.parse(actionInput.value || '{}');
+                if (!action || typeof action !== 'object' || Array.isArray(action)) throw new Error('object required');
+                advanced = {regex: Object.fromEntries(regexInputs.filter(input => input.value.trim() !== '').map(input => [input.dataset.profileRulesRegex, input.value])), action};
+            } catch (_error) { showError('Action JSON must be a JSON object. Your draft has been kept.'); advancedPanel.open = true; actionInput.focus(); return; }
+        }
         const problem = validate(current);
         if (problem) {
             showError(problem.message);
@@ -455,7 +477,8 @@
                 core_profile_id: current.core_profile_id,
                 priority: current.priority,
                 enabled: current.enabled,
-                match: MATCH_FIELDS.reduce((carry, key) => { carry[key] = listOf(draft.match[key]); return carry; }, {}),
+                match: MATCH_FIELDS.reduce((carry, key) => { carry[key] = advancedActive ? (key === 'content_files' ? modsInput.value.split(',').map(value => value.trim()).filter(Boolean) : []) : listOf(draft.match[key]); return carry; }, {}),
+                ...(advanced ? {advanced} : {}),
             });
             busy = false;
             await loadRules(false);
@@ -619,6 +642,17 @@
     overlay.querySelectorAll('[data-profile-rules-close]').forEach((button) => { button.addEventListener('click', () => close()); });
     overlay.addEventListener('mousedown', (event) => { if (event.target === overlay) close(); });
     form.addEventListener('submit', (event) => { event.preventDefault(); save(); });
+    advancedPanel.addEventListener('toggle', () => {
+        if (!advancedPanel.open || !draft || advancedActive) return;
+        // Preserve the existing case-insensitive exact selections when moving into regex mode.
+        regexInputs.forEach(input => {
+            const values = listOf(draft.match[input.dataset.profileRulesRegex]);
+            input.value = values.length ? '(?i)^(?:' + values.map(value => value.replace(/[\\.^$|()[\]{}*+?]/g, '\\$&')).join('|') + ')$' : '';
+        });
+        modsInput.value = listOf(draft.match.content_files).join(', ');
+        advancedActive = true;
+        simplePanel.hidden = true;
+    });
     newButton.addEventListener('click', () => openForm(null));
     reloadButton.addEventListener('click', () => loadRules(true));
     deleteButton.addEventListener('click', () => showConfirm());

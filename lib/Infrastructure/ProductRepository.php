@@ -10,6 +10,7 @@ use LorkhanServer\Application\MorrowindVoiceCatalog;
 use LorkhanServer\Application\DeterministicRetrieval;
 use LorkhanServer\Application\OghmaGroundedRetriever;
 use LorkhanServer\Application\SettingsCatalog;
+use LorkhanServer\Application\ProfileAssignmentRule;
 use InvalidArgumentException;
 use PDO;
 use RuntimeException;
@@ -791,7 +792,7 @@ final class ProductRepository
         return['rules'=>$ruleRows,'core_profiles'=>$coreRows,'options'=>$options];
     }
 
-    /** Create or update one installation-owned exact-match assignment rule. */
+    /** Create or update an installation-owned simple or advanced assignment rule. */
     public function saveProfileAssignmentRule(array $input,string $now):array
     {
         $installation=trim((string)($input['installation_id']??''));$core=trim((string)($input['core_profile_id']??''));
@@ -802,8 +803,11 @@ final class ProductRepository
         if($ruleId!==null&&!Uuid::isValid($ruleId))throw new InvalidArgumentException('invalid_rule_id');
         if($description===''||strlen($description)>200||preg_match('/[\x00-\x1F\x7F]/',$description)===1)throw new InvalidArgumentException('invalid_rule_description');
         if($priority===false||$priority< -100000||$priority>100000)throw new InvalidArgumentException('invalid_rule_priority');
-        $match=$this->normalizeProfileRuleMatch($input['match']??null,true);$enabled=($input['enabled']??false)===true;
+        $matchInput=$input['match']??null;
+        if(isset($input['advanced'])){if(!is_array($matchInput))throw new InvalidArgumentException('invalid_rule_match');$matchInput['_advanced']=$input['advanced'];}
+        $match=$this->normalizeProfileRuleMatch($matchInput,true);$enabled=($input['enabled']??false)===true;
         return$this->transaction(function()use($installation,$core,$description,$priority,$ruleId,$match,$enabled,$now):array{
+            $this->profileRuleRegexRows([['rule_id'=>'validation','matchers'=>$match]],[],true);
             $target=$this->db->prepare('SELECT 1 FROM core_profiles WHERE core_profile_id=:core AND installation_id=:installation AND deleted_at IS NULL FOR SHARE');
             $target->execute(['core'=>$core,'installation'=>$installation]);if(!$target->fetchColumn())throw new InvalidArgumentException('core_profile_scope_mismatch');
             $id=$ruleId??Uuid::v4();
@@ -1825,7 +1829,9 @@ SQL);
                     $nameExists->execute(['installation'=>$turn['installation_id'],'name'=>$name]);
                     if($nameExists->fetchColumn()){$suffix=' [Ref '.(string)($refnum['content_file']??'?').':'.(string)($refnum['index']??'?').']';
                         $name=mb_substr($name,0,max(0,256-mb_strlen($suffix))).$suffix;}
-                    $coreProfileId=$this->matchingCoreProfileForTurn($turn,$target);
+                    $assignment=$this->matchingProfileRulesForTurn($turn,$target);
+                    $coreProfileId=$assignment['core_profile_id'];
+                    foreach($assignment['actions']as$action)$seed=ProfileAssignmentRule::apply($seed,$action);
                     $createInput=['installation_id'=>$turn['installation_id'],'name'=>$name,'actor_identity'=>$target,
                         'content'=>$seed,'change_reason'=>'automatic Morrowind actor discovery'];
                     if($coreProfileId!==null)$createInput['core_profile_id']=$coreProfileId;
@@ -3271,26 +3277,65 @@ SQL);
         return['race'=>$races,'location'=>array_values(array_unique(array_merge($locations,$regions)))];
     }
 
-    /** Select the first enabled rule whose exact OpenMW values all match this newly discovered actor. */
-    private function matchingCoreProfileForTurn(array $turn,array $target):?string
+    /** Apply every matching rule in reference priority order; the last profile assignment wins. */
+    private function matchingProfileRulesForTurn(array $turn,array $target):array
     {
         $context=is_array($turn['payload']['context']??null)&&!array_is_list($turn['payload']['context'])
             ?$turn['payload']['context']:[];
         $actor=$this->profileRuleActorValues($target,$context);$normalized=[];
         foreach(self::PROFILE_RULE_MATCH_FIELDS as$field)$normalized[$field]=array_map(
             static fn(string$value):string=>mb_strtolower($value,'UTF-8'),$actor[$field]);
-        $rules=$this->db->prepare('SELECT r.core_profile_id,r.matchers FROM profile_assignment_rules r JOIN core_profiles c '
+        $rules=$this->db->prepare('SELECT r.rule_id,r.core_profile_id,r.matchers FROM profile_assignment_rules r JOIN core_profiles c '
             .'ON c.core_profile_id=r.core_profile_id AND c.installation_id=r.installation_id AND c.deleted_at IS NULL '
-            .'WHERE r.installation_id=:installation AND r.enabled=true ORDER BY r.priority DESC,r.created_at DESC,r.rule_id DESC LIMIT 100');
+            .'WHERE r.installation_id=:installation AND r.enabled=true ORDER BY r.priority ASC,r.created_at ASC,r.rule_id ASC LIMIT 100');
         $rules->execute(['installation'=>$turn['installation_id']]);
-        foreach($rules->fetchAll()as$rule){try{$match=$this->normalizeProfileRuleMatch($this->json($rule['matchers']),true);}
+        $rows=$rules->fetchAll();
+        foreach($rows as&$row)$row['matchers']=$this->json($row['matchers']);unset($row);
+        $actor['record_ids']=[(string)($target['record_id']??'')];
+        foreach(['names','races','genders','classes']as$field)if($actor[$field]===[])$actor[$field]=[''];
+        $eligible=$this->profileRuleRegexRows($rows,$actor);
+        $result=['core_profile_id'=>null,'actions'=>[]];
+        foreach($rows as$rule){if(!isset($eligible[$rule['rule_id']]))continue;try{$match=$this->normalizeProfileRuleMatch($rule['matchers'],true);}
             catch(InvalidArgumentException){continue;}$matches=true;
             foreach(self::PROFILE_RULE_MATCH_FIELDS as$field){if($match[$field]===[])continue;
                 $wanted=array_map(static fn(string$value):string=>mb_strtolower($value,'UTF-8'),$match[$field]);
-                if(array_intersect($wanted,$normalized[$field])===[]){$matches=false;break;}}
-            if($matches)return(string)$rule['core_profile_id'];
+                if(($field==='content_files'&&isset($match['_advanced']))?array_diff($wanted,$normalized[$field])!==[]:array_intersect($wanted,$normalized[$field])===[]){$matches=false;break;}}
+            if($matches){$result['core_profile_id']=(string)$rule['core_profile_id'];
+                if(!empty($match['_advanced']['action']))$result['actions'][]=$match['_advanced']['action'];}
         }
-        return null;
+        return $result;
+    }
+
+    /** Use Herika's PostgreSQL regex engine with a bounded query and an isolated failure savepoint. */
+    private function profileRuleRegexRows(array $rows,array $actor,bool $validation=false):array
+    {
+        $input=[];$simple=[];
+        foreach($rows as$row){$regex=$row['matchers']['_advanced']['regex']??[];
+            $input[]=['rule_id'=>$row['rule_id'],'regex'=>(object)$regex];
+            if($regex===[])$simple[(string)$row['rule_id']]=true;}
+        if(count($simple)===count($rows))return$simple;
+        $own=!$this->db->inTransaction();if($own)$this->db->beginTransaction();
+        $this->db->exec('SAVEPOINT profile_rule_regex');
+        try{
+            $timeout=(string)$this->db->query("SELECT current_setting('statement_timeout')")->fetchColumn();
+            $this->db->exec("SET LOCAL statement_timeout='250ms'");
+            $sql=$validation
+                ? "SELECT count(*) FILTER (WHERE '' ~ pattern.value) FROM jsonb_array_elements(CAST(:rules AS jsonb)) r CROSS JOIN LATERAL jsonb_each_text(r.value->'regex') pattern"
+                : "SELECT r.value->>'rule_id' FROM jsonb_array_elements(CAST(:rules AS jsonb)) r WHERE NOT EXISTS (SELECT 1 FROM jsonb_each_text(r.value->'regex') pattern WHERE NOT EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(CAST(:actor AS jsonb)->pattern.key,'[\"\"]'::jsonb)) observed WHERE observed.value ~ pattern.value))";
+            $query=$this->db->prepare($sql);$parameters=['rules'=>$this->encode($input)];
+            if(!$validation)$parameters['actor']=json_encode((object)$actor,JSON_THROW_ON_ERROR);
+            $query->execute($parameters);$matched=array_fill_keys($query->fetchAll(PDO::FETCH_COLUMN),true);
+            $this->db->prepare("SELECT set_config('statement_timeout',:timeout,true)")->execute(['timeout'=>$timeout]);
+            $this->db->exec('RELEASE SAVEPOINT profile_rule_regex');if($own)$this->db->commit();
+            return$validation?$simple:$matched;
+        }catch(\PDOException $error){
+            $this->db->exec('ROLLBACK TO SAVEPOINT profile_rule_regex');$this->db->exec('RELEASE SAVEPOINT profile_rule_regex');
+            if($own)$this->db->rollBack();
+            if($validation)throw new InvalidArgumentException('invalid_or_expensive_rule_regex',0,$error);
+            // Invalid/expensive administrator regex must not block an otherwise valid NPC conversation.
+            error_log('Lorkhan profile assignment: advanced regex query rejected; exact rules retained.');
+            return$simple;
+        }
     }
 
     /** Extract only the bounded actor fields that assignment rules are allowed to inspect. */
@@ -3316,6 +3361,7 @@ SQL);
     private function normalizeProfileRuleMatch(mixed $value,bool $requirePopulated=false):array
     {
         if(!is_array($value)||array_is_list($value))throw new InvalidArgumentException('invalid_rule_match');
+        $advanced=null;if(array_key_exists('_advanced',$value)){$advanced=ProfileAssignmentRule::normalize($value['_advanced']);unset($value['_advanced']);}
         $keys=array_keys($value);sort($keys,SORT_STRING);$expected=self::PROFILE_RULE_MATCH_FIELDS;sort($expected,SORT_STRING);
         if($keys!==$expected)throw new InvalidArgumentException('invalid_rule_match');
         $result=[];$total=0;
@@ -3326,7 +3372,8 @@ SQL);
                     throw new InvalidArgumentException('invalid_rule_match');
                 $key=mb_strtolower($item,'UTF-8');if(!isset($clean[$key]))$clean[$key]=$item;}
             $result[$field]=array_values($clean);$total+=count($result[$field]);}
-        if($requirePopulated&&$total===0)throw new InvalidArgumentException('profile_assignment_rule_match_required');
+        if($requirePopulated&&$total===0&&$advanced===null)throw new InvalidArgumentException('profile_assignment_rule_match_required');
+        if($advanced!==null)$result['_advanced']=$advanced;
         return$result;
     }
 
