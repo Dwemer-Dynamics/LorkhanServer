@@ -34,3 +34,7 @@ ui/tmpl/backup_retention.html.php
 ui/js/backup-retention.js
 ui/tmpl/diary_entry_editor.php
 ui/tmpl/adventure_log.php
+scripts/import-sql-sandbox.sh
+scripts/sql-import-capture.py
+scripts/sql-import-reader.py
+scripts/sql-import-upgrade.php

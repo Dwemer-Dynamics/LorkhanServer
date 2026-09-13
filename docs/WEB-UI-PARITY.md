@@ -13200,3 +13200,9 @@ claiming all older releases are rejected. Publication/deployment pending.
 Schema-1 with its ledger moved to public.schema_migrations also upgrades and passes
 current validation. Source-106 import passes unchanged. 1210 server checks, 111
 protocol checks, shell syntax and PHP lint pass. No live import was submitted.
+
+Deployment inspection caught a runtime allowlist omission: none of the SQL import
+sandbox/capture/reader scripts were packaged, including the new upgrade entrypoint.
+All four are now explicitly included. The earlier 893-file hash check did not
+cover omitted dependencies and is not proof of deployed import execution. A deployed
+sandbox fixture must pass before this deployment is considered verified.
