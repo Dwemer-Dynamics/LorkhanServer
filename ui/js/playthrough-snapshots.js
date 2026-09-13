@@ -38,13 +38,30 @@ if(timeline){
         }
     }
 }
-document.querySelectorAll('[data-snapshot-confirm]').forEach(form => form.addEventListener('submit', event => {
-    const name=form.dataset.snapshotName;
-    const message=form.dataset.snapshotConfirm==='copy'
-        ? 'Copy '+name+' to the active database? Close the game first. Current data will be replaced after a rollback snapshot is saved.'
-        : 'Permanently delete stored snapshot '+name+'? This does not delete the active database.';
-    if(!confirm(message))event.preventDefault();
+// Match the reference's submit feedback without replacing the durable job status page.
+const snapshotOverlay = document.getElementById('switch-overlay');
+let snapshotSubmitting = false;
+document.querySelectorAll('.create-form, [data-snapshot-confirm]').forEach(form => form.addEventListener('submit', event => {
+    if (event.defaultPrevented) return;
+    if (snapshotSubmitting) { event.preventDefault(); return; }
+    const operation = form.dataset.snapshotConfirm;
+    if (operation) {
+        const name = form.dataset.snapshotName;
+        const message = operation === 'copy'
+            ? 'Copy '+name+' to the active database? Close the game first. Current data will be replaced after a rollback snapshot is saved.'
+            : 'Permanently delete stored snapshot '+name+'? This does not delete the active database.';
+        if (!confirm(message)) { event.preventDefault(); return; }
+    }
+    if (operation === 'delete' || !snapshotOverlay) return;
+    snapshotOverlay.querySelector('.loading-title').textContent = operation === 'copy' ? 'Loading Snapshot' : 'Creating Snapshot…';
+    snapshotOverlay.showModal();
+    snapshotSubmitting = true;
 }));
+if (snapshotOverlay) {
+    // Dismissing a submitted request cannot cancel the server's backup or restore.
+    snapshotOverlay.addEventListener('cancel', event => event.preventDefault());
+    addEventListener('pageshow', () => { snapshotOverlay.close(); snapshotSubmitting = false; });
+}
 const snapshotFile = document.getElementById("playthrough-snapshot-file");
 const snapshotText = document.getElementById("playthrough-snapshot-json");
 const snapshotStatus = document.getElementById("playthrough-file-status");

@@ -13708,3 +13708,29 @@ No paid provider or running game was used.
 A further bounded consumer audit confirmed lock, Rechat, blacklist/context sections
 and independent latest-diary recall wiring; it found no additional demonstrated
 bug in those paths. This is not exhaustive engine or page acceptance.
+
+
+## Snapshot submission feedback (2026-09-13)
+
+The pinned Herika snapshot page displays a loading overlay on create/copy submit.
+Lorkhan now uses that panel/ring presentation with gold branding, a native modal
+focus boundary and the same create/copy distinction. Restore confirmation remains
+mandatory; cancelled confirmation and invalid forms do not show the overlay.
+Repeated submit events are blocked while navigation is pending. Browser page
+restoration clears the modal. Background work still uses the existing queued-job
+status page; the overlay does not claim the archive or restore is complete.
+
+Desktop save submission and required-name refusal were checked in the in-app
+browser against an isolated rendered fixture, with all submits intercepted and no
+production POST. The modal was visually inspected. The browser stalled on its
+native confirmation dialog, so restore-click and narrow-screen evidence are not
+claimed. Local JavaScript probes pass create/copy labels, confirmation cancellation,
+delete confirmation, duplicate submissions, Escape handling and pageshow reset.
+1,247 server checks, template PHP lint and git diff checks pass. This small UI change
+does not modify backup/restore behavior or replace the earlier database tests.
+
+History-limit deployment d658014 is on main. All three PHP files are installed;
+900 runtime hashes match with no extras or old paths. Protected routes remain
+403, unauthenticated sessions 401. Rollback: /var/backups/lorkhan-history-limits.jaeXRn.
+A further read-only Core/NPC editor audit found no new mismatch in override save,
+Copy-to-all, preset revision handling or embedded Save All. It is not visual proof.

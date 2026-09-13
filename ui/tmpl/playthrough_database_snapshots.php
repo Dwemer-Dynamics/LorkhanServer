@@ -12,6 +12,13 @@ $snapshotMessages=[
 ];
 $snapshotCalendar=\LorkhanServer\Application\MorrowindCalendar::parse($liveDatabase['current']['calendar_data']??null)['label']??'n/a';
 ?>
+<dialog id="switch-overlay" aria-labelledby="loading-title" aria-describedby="loading-sub">
+    <div class="loading-modal">
+        <h2 class="loading-title" id="loading-title">Creating Snapshot…</h2>
+        <div class="lds-ring" aria-hidden="true"><div></div><div></div><div></div><div></div></div>
+        <p class="loading-sub" id="loading-sub">Submitting the request. Please keep this tab open. The next page shows the background job status.</p>
+    </div>
+</dialog>
 <?php if(isset($snapshotMessages[$_GET['status']??''])): ?><p class="playthrough-notice" role="status"><?= lorkhan_ui_h($snapshotMessages[$_GET['status']]) ?></p><?php endif; ?>
 <section class="content-section selected-playthrough" aria-labelledby="active-database-title">
     <div class="selected-title"><span aria-hidden="true">🎮</span><div><h2 id="active-database-title">Active Database</h2><p>This is the live database used by Lorkhan, including the native data behind its public views.</p></div></div>
