@@ -1603,6 +1603,8 @@ final class ManagementRouter
             foreach(['prompt_head','core','biography','personality','speech_style','goals','notes']as$field)$settings[$field]=$content[$field]??'';
             $settings['oghma_knowledge_tags']=$content['oghma_knowledge_tags']??'';
             $settings['latest_diary_context_enabled']=$content['diary']['latest_entry_in_context']??null;
+            $settings['dynamic_profile']=($content['dynamic_profile']??false)===true;
+            $settings['dynamic_profile_fields']=$content['dynamic_profile_fields']??['personality','speech_style','goals'];
             $settings['only_diary_access']=($content['only_diary_access']??false)===true;
             $settings['hide_from_context']=($content['hide_from_context']??true)===true;
             $voice=is_array($content['voice']??null)?$content['voice']:[];
@@ -1620,6 +1622,17 @@ final class ManagementRouter
         $expected=$textFields;
         if($kind==='player'&&$includeV2Fields)$expected[]='biography_known_by_all';
         $narratorV2=$kind==='narrator'&&$includeV2Fields;
+        if($narratorV2&&array_key_exists('dynamic_profile',$settings)){
+            if(!is_bool($settings['dynamic_profile']))throw new InvalidArgumentException($error);$expected[]='dynamic_profile';
+        }
+        if($narratorV2&&array_key_exists('dynamic_profile_fields',$settings)){
+            $fields=$settings['dynamic_profile_fields'];
+            if(!is_array($fields)||!array_is_list($fields)||count($fields)>3||count(array_unique($fields,SORT_REGULAR))!==count($fields))
+                throw new InvalidArgumentException($error);
+            foreach($fields as$field)if(!is_string($field)||!in_array($field,EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS,true))throw new InvalidArgumentException($error);
+            if(($settings['dynamic_profile']??false)&&$fields===[])throw new InvalidArgumentException($error);
+            $expected[]='dynamic_profile_fields';
+        }
         if($narratorV2&&array_key_exists('only_diary_access',$settings)){
             if(!is_bool($settings['only_diary_access']))throw new InvalidArgumentException($error);$expected[]='only_diary_access';
         }

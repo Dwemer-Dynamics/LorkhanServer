@@ -2195,6 +2195,24 @@ $assert(in_array($manualMemory['memory_id'],$visibleIds,true)
     &&!in_array($mixedMemory['memory_id'],$hiddenIds,true)
     &&!in_array($manualMemory['memory_id'],$hiddenIds,true),
     'NPC-profile manual memory or all-source summary eligibility was not enforced');
+$db->exec('SAVEPOINT narrator_portability_probe');
+$portableNarrator=new ReflectionMethod($previewManager,'portableSpecialProfileSettings');
+$importNarrator=new ReflectionMethod($previewManager,'importSpecialProfileSettings');
+$narratorPortable=$portableNarrator->invoke($previewManager,['dynamic_profile'=>true,'dynamic_profile_fields'=>['goals']],'narrator');
+$assert($narratorPortable['dynamic_profile']===true&&$narratorPortable['dynamic_profile_fields']===['goals'],'Narration export omitted dynamic profile selection');
+$narratorDocument=['schema'=>'lorkhan.narrator-profile-settings.v2','exported_at'=>$now,'settings'=>['dynamic_profile'=>true,'dynamic_profile_fields'=>['goals']]];
+$importNarrator->invoke($previewManager,['preset_json'=>json_encode($narratorDocument)],['installation_id'=>$installationId],'narrator');
+$storedNarrator=$products->narratorProfileForInstallation($installationId);
+$assert($storedNarrator['content']['dynamic_profile']===true&&$storedNarrator['content']['dynamic_profile_fields']===['goals'],'Narration import lost dynamic settings');
+$narratorDocument['settings']=['goals'=>'Older preset does not change evolution selection'];
+$importNarrator->invoke($previewManager,['preset_json'=>json_encode($narratorDocument)],['installation_id'=>$installationId],'narrator');
+$assert($products->narratorProfileForInstallation($installationId)['content']['dynamic_profile_fields']===['goals'],'partial Narration import reset omitted selection');
+foreach([['dynamic_profile'=>'true'],['dynamic_profile_fields'=>['voice']],['dynamic_profile_fields'=>['goals','goals']],['dynamic_profile'=>true,'dynamic_profile_fields'=>[]]]as$badSettings){
+    $narratorDocument['settings']=$badSettings;
+    try{$importNarrator->invoke($previewManager,['preset_json'=>json_encode($narratorDocument)],['installation_id'=>$installationId],'narrator');$assert(false,'invalid Narration evolution preset accepted');}
+    catch(InvalidArgumentException){$assert(true,'invalid Narration evolution preset rejected');}
+}
+$db->exec('ROLLBACK TO SAVEPOINT narrator_portability_probe');
 $db->exec('SAVEPOINT digest_witness_probe');
 $db->prepare('UPDATE profiles SET actor_identity=CAST(:identity AS jsonb) WHERE profile_id=:profile')->execute(['identity'=>json_encode($memoryProbe['payload']['target'],JSON_THROW_ON_ERROR),'profile'=>$actorProfile['profile_id']]);
 $db->prepare("UPDATE memory_records SET derivation_key='digest-witness-fixture',provenance=provenance||'{\"provider\":\"first-party\",\"model\":\"deterministic-extractive-v1\"}'::jsonb WHERE memory_id=:id")

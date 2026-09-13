@@ -12986,3 +12986,23 @@ are preserved. Health/private/session/NPC scope checks pass. Live 1280/390 Core
 checks confirm the Memory override exists, checkbox maps are wider than 200px,
 and document overflow is absent, with every non-GET request blocked. This closes
 the compact-memory follow-up, not the remaining full-page/runtime parity goal.
+
+## Narration dynamic-profile portability (2026-09-12; local only)
+
+Confirmed pinned Herika settings_portability.php includes dynamic_profile and
+dynamic_profile_fields. Native Narration export omitted both despite the page
+saving them. The existing v2 portable document now exports both and validates
+optional imports as strict boolean plus unique supported field names. Partial
+older imports retain omitted values; enabled evolution with no fields is rejected.
+The existing isolated integration fixture checks export, persisted import, omitted
+field preservation and malformed type/field/duplicate/empty rejection. It passes
+without generation/provider calls. Actual browser import/export and deployment
+remain pending. This does not implement missing narrator actions or broader
+Core/runtime semantics; those remain open.
+
+Narration portability browser checks pass at 1280/390 in an isolated database.
+Actual Export JSON -> file picker Import -> confirmation -> saved reload ->
+re-export retains dynamic_profile true/false and a Goals-only field selection.
+Both states are tested at both widths, with no script errors or horizontal
+overflow. This exercised the real authenticated import endpoint without provider
+or generation jobs. Existing prompt and connector selections were not changed.
