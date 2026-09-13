@@ -41,7 +41,7 @@ Lorkhan's Journal remains an OpenMW-specific entry.
 Quickstart MiniMe Service is implemented, including its bounded reachability probe.
 Managed Local LLM persistence, routing API and partial built-in profile application
 and the visible Setup/Local LLM workflow are implemented; see the dated checks below.
-Service selection now creates or reuses native connectors. Player2 and complete page closure remain open; the pinned Herika Quickstart does not impose service-availability gates. Do not present
+Service selection now creates or reuses native connectors. Player2 and whole-page save-flow checks are complete; see the 2026-09-12 Quickstart closure. The pinned Herika Quickstart does not impose service-availability gates. Do not present
 partial or unwired controls as completed counterparts.
 
 Evidence is recorded in the dated checkpoints below. Current API Keys review uses
@@ -12294,7 +12294,7 @@ features as exceptions. No missing item below is completed by shared CSS alone.
 
 - Global Context: magic-cast capture, reanimation tracking and item-pickup source/value capture remain open. Scene Classifier and observed werewolf Transformation Detection are implemented; see their dated evidence below.
 - NPC: continuous inventory updates and exact-profile Visit/Teleport/Return.
-- Core: Physical Diary, cumulative memory and client Core-slot selection.
+- Core: Physical Diary and client Core-slot selection. Cumulative NPC memory is implemented and deployed in 4983988; see the dated evidence below.
 - Narrator: action support and remaining event/profile behavior mappings.
 - Playthroughs: future-history pruning, external import and full rollback.
 - Database Manager: current-schema SQL uploads are implemented and deployed; legacy SQL conversion remains open (see dated evidence below).
@@ -12925,3 +12925,23 @@ JavaScript errors; every non-GET request was blocked and the narrow screenshot w
 inspected. GitHub workflow 330702270 remains disabled_manually. Client untouched.
 Paid provider and in-game generation acceptance remain untested. Full webpage
 parity remains active, including the other unresolved rows and runtime counterparts.
+
+## Compact short-term memory control (2026-09-12; local only)
+
+Pinned Herika prisma_settings_catalog.php exposes SHORT_TERM_MEMORY_IN_COMPACT_CHAT
+in Memory with default true. Added the corresponding Memory checkbox and typed NPC
+Memory-category override, mapped to context.short_term_in_compact_chat. Missing
+saved values retain true. Prompt assembly suppresses short-term summaries when off,
+while preserving original live dialogue and independent middle/long-term memory.
+Existing overlap fixtures verify summary omission and restored live history;
+legacy defaults and typed NPC overrides are checked. 1194 server checks and 111
+protocol checks pass. Browser persistence and publication/deployment are pending.
+Quickstart's stale introductory Player2/open-page statement was corrected against
+its existing whole-page closure evidence; no Quickstart implementation was repeated.
+
+Compact-memory Global Settings browser acceptance passes at 1280/390 against an
+isolated database: existing default checked, disable/save/reload, re-enable/save/
+reload, no document overflow and no JavaScript errors. Narrow screenshot inspected.
+The NPC setting uses the existing typed Memory-category override editor; typed
+validation and resolver precedence are checked in source, but its individual
+browser modal save was not separately exercised in this slice.

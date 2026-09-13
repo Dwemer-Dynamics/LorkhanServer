@@ -2534,6 +2534,18 @@ $offScenePrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$overlap
 $check(array_column($offScenePrompt['trace']['sources'],null,'source_id')['scene-live']['included'],
     'disabling STM restores live history rather than leaving the summary overlap hidden');
 $overlapSelection['effective_settings']['settings']['memory']['short_term_enabled']=true;
+$compactOff=$overlapSelection;
+$compactOff['effective_settings']['context']??=SettingsCatalog::globalDefaults()['context'];
+$compactOff['effective_settings']['context']['short_term_in_compact_chat']=false;
+$compactOffPrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$compactOff);
+$check(array_column($compactOffPrompt['trace']['sources'],null,'source_id')['scene-live']['included']
+    &&!str_contains($compactOffPrompt['provider_input']['_assembled_prompt'],'Earlier quest discovered.'),
+    'compact memory opt-out excludes scene summaries but preserves live dialogue');
+$legacyCompact=SettingsCatalog::globalDefaults();unset($legacyCompact['context']['short_term_in_compact_chat']);
+$check(EffectiveSettingsResolver::validateGlobalSettings($legacyCompact)['context']['short_term_in_compact_chat']===true,
+    'existing global settings retain compact memory by default');
+$check(EffectiveSettingsResolver::validateSettingsOverrides(['context'=>['short_term_in_compact_chat'=>false]],true)['context']['short_term_in_compact_chat']===false,
+    'NPC compact memory opt-out is a typed override');
 $minimalOverlap=(new PromptAssembler(512,256))->assemble($promptTurn,$overlapSelection);
 $check(!in_array('covered_by_memory',array_column($minimalOverlap['trace']['sources'],'reason'),true)
     &&$minimalOverlap['trace']['memory_retrieval']['result_ids']===[],

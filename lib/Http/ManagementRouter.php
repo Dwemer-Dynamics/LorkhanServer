@@ -2587,6 +2587,10 @@ final class ManagementRouter
             ? isset($values['context_transformation_detection'])
             : (is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id'])
                 ? ($this->repository->globalSettingsForInstallation($values['installation_id'])['content']['context']['transformation_detection']??true) : true);
+        $content['context']['short_term_in_compact_chat'] = isset($values['context_short_term_in_compact_chat_present'])
+            ? isset($values['context_short_term_in_compact_chat'])
+            : (is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id'])
+                ? ($this->repository->globalSettingsForInstallation($values['installation_id'])['content']['context']['short_term_in_compact_chat']??true) : true);
         $content['context']['hide_ambient_combat'] = isset($values['context_hide_ambient_combat']);
         $content['context']['ground_items_descriptions_only'] = isset($values['context_ground_items_descriptions_only']);
         $content['context']['inventory_items_descriptions_only'] = isset($values['context_inventory_items_descriptions_only']);

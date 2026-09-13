@@ -28,6 +28,7 @@ $overrideLabels = [
     'relationship.update_chance_percent'=>'Relationship Update Chance',
     'context.prompt_timestamp'=>'Prompt Timestamp', 'context.ground_items_descriptions_only'=>'Ground Items Descriptions Only',
     'context.inventory_items_descriptions_only'=>'Inventory Items Descriptions Only', 'context.power_awareness_enabled'=>'Power Awareness Enabled',
+    'context.short_term_in_compact_chat'=>'Short Term Memory in Compact Chat',
     'context.transformation_detection'=>'Transformation Detection', 'context.hide_ambient_combat'=>'Hide Ambient Combat', 'prompt.prompt_head'=>'Prompt Head',
     'oghma.location_context_enabled'=>'Force Location Oghma', 'oghma.topic_count'=>'Oghma Topic Count',
     'oghma.extractor_fallback_enabled'=>'Oghma Extractor Fallback', 'oghma.extractor_timeout_ms'=>'Oghma Extractor Timeout',
@@ -98,6 +99,7 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
             $overrideCatalog[$path]['category']='Prompt';
         if(in_array($path,['behavior.rechat_strict_targeting','behavior.open_rechat','behavior.end_conversation_cooldown_seconds'],true))
             $overrideCatalog[$path]['category']='Misc';
+        if($path==='context.short_term_in_compact_chat')$overrideCatalog[$path]['category']='Memory';
         if($section==='profile_management')$overrideCatalog[$path]['category']='Misc';
         if(array_key_exists($key,$content['settings_overrides'][$section]??[]))$overrideValues[$section][$key]=$content['settings_overrides'][$section][$key];
         if($section==='diary'&&array_key_exists($key,$content['diary']??[]))$overrideValues[$section][$key]=$content['diary'][$key];

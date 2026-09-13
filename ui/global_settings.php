@@ -96,6 +96,7 @@ $sections = [
         'Memory' => [
             ['memory_embedding_enabled', 'Memory Embedding', '&#x1F9E0;', 'boolean', $memoryEmbedding['enabled'] ?? false, 'Use semantic memory retrieval. Existing lexical retrieval remains available if the service cannot be reached.', []],
             ['memory_embedding_endpoint', 'MiniMe / TXT2VEC URL', '&#x1F517;', 'url', $memoryEmbedding['endpoint'] ?? '', 'Address of your memory embedding service. Use a loopback HTTP address or an HTTPS endpoint.', []],
+            ['context_short_term_in_compact_chat', 'Short Term Memory in Compact Chat', '&#x1F9E0;', 'boolean', $contextPolicy['short_term_in_compact_chat'] ?? true, 'Keep injecting short-term memory summaries while Compact Chat is active. Turn this off to keep the prompt small. Has no effect on profiles that do not have Short Term Memory enabled.', []],
             ['memory_summary_interval', 'Summary Interval', '&#x23F3;', 'integer', $memorySummary['summary_interval'] ?? 0, 'Each point represents 0.24 in-game hours. 10 = 2.4 hours; 50 = 12 hours. Zero uses event-count grouping.', ['min'=>0,'max'=>100]],
             ['memory_embedding_timeout', 'Memory Query Timeout', '&#x23F1;', 'integer', $memoryEmbedding['timeout_ms'] ?? 1500, 'Maximum wait for one semantic query, in milliseconds.', ['min'=>250,'max'=>5000,'advanced'=>true]],
             ['memory_summary_minimum_events', 'Minimum Summary Events', '&#x1F4AC;', 'integer', $memorySummary['minimum_events'] ?? 4, 'Minimum eligible memories before a summary group is created.', ['min'=>2,'max'=>16,'advanced'=>true]],
@@ -278,6 +279,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <input type="hidden" name="task_availability_present" value="1">
         <input type="hidden" name="scene_classifier_present" value="1">
         <input type="hidden" name="context_transformation_detection_present" value="1">
+        <input type="hidden" name="context_short_term_in_compact_chat_present" value="1">
         <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
         <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
         <input type="hidden" name="change_reason" value="Management global settings">

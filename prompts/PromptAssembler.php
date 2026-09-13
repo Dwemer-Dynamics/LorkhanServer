@@ -87,6 +87,8 @@ final class PromptAssembler
         if (!$enabled['memories']) $memory = [];
         $memoryFlags = $selection['effective_settings']['settings']['memory']
             ?? $coreProfile['content']['settings_overrides']['memory'] ?? [];
+        // Lorkhan uses compact history; disabling summaries must leave original dialogue intact.
+        if(($contextPolicy['short_term_in_compact_chat']??true)===false)$memoryFlags['short_term_enabled']=false;
         $responseMaxWords = (int)($selection['effective_settings']['settings']['response']['max_words']
             ?? $coreProfile['content']['settings_overrides']['response']['max_words'] ?? 0);
         $memory = array_values(array_filter($memory, static function (array $row) use ($memoryFlags): bool {
