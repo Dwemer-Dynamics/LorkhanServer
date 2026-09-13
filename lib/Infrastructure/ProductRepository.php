@@ -2713,13 +2713,16 @@ SQL);
     }
 
     /** Share only editable fields with the client, retaining full documents on the server for fenced edits. */
-    private function inGameSettingsState(array $session,array $target,?array $effective=null):array
+    private function inGameSettingsState(array $session,array $target,?array $effective=null,bool $lockSlots=false):array
     {
         $effective??=$this->effectiveSettingsForActor((string)$session['installation_id'],(string)$session['playthrough_id'],$target);
         $global=$this->globalSettingsForInstallation((string)$session['installation_id']);
         $documents=['global'=>$global??['content'=>\LorkhanServer\Application\SettingsCatalog::globalDefaults()]];
         if(is_array($effective['core_profile']??null))$documents['core_profile']=$effective['core_profile'];
         if(is_array($effective['npc_profile']??null))$documents['npc']=$effective['npc_profile'];
+        // Slot labels and assignments participate in the menu token, including edits made on the web.
+        $query=$this->db->prepare('SELECT core_profile_id,label,slot,current_revision FROM core_profiles WHERE installation_id=:installation AND deleted_at IS NULL AND slot BETWEEN 1 AND 4 ORDER BY slot'.($lockSlots?' FOR SHARE':''));
+        $query->execute(['installation'=>$session['installation_id']]);$slots=$query->fetchAll();
         $sections=[];
         foreach($documents as$scope=>$document){
             $content=$document['content'];
@@ -2732,10 +2735,19 @@ SQL);
             }
             $fields=\LorkhanServer\Application\InGameSettings::fields($scope,$displayContent);
             foreach($fields as&$field)unset($field['_path']);unset($field);
+            if($scope==='npc'&&$slots!==[]&&in_array($target['kind']??'',['npc','actor','creature'],true)){
+                $choices=[];$selected='current';
+                foreach($slots as$slot){$value=(string)$slot['slot'];
+                    $choices[]=['value'=>$value,'label'=>'Slot '.$value.': '.mb_substr($slot['label'],0,110,'UTF-8')];
+                    if($slot['core_profile_id']===($effective['core_profile']['core_profile_id']??null))$selected=$value;}
+                if($selected==='current')array_unshift($choices,['value'=>'current','label'=>'Current (not in a quick slot)']);
+                array_unshift($fields,['key'=>'management.core_profile_slot','label'=>'Assign Core Profile to this NPC',
+                    'kind'=>'choice','value'=>$selected,'choices'=>$choices]);
+            }
             $sections[]=['scope'=>$scope,'label'=>match($scope){'global'=>'Global Settings','core_profile'=>'Core Profile',default=>'NPC Settings'},'fields'=>$fields];
         }
-        $token=hash('sha256',$this->encodeCanonical([$session['session_id']??'',$session['generation'],$target,$documents]));
-        return ['documents'=>$documents,'editor'=>['change_token'=>$token,'sections'=>$sections]];
+        $token=hash('sha256',$this->encodeCanonical([$session['session_id']??'',$session['generation'],$target,$documents,$slots]));
+        return ['documents'=>$documents,'slots'=>$slots,'editor'=>['change_token'=>$token,'sections'=>$sections]];
     }
 
     /** Apply a user-selected setting to the same session, target and revision that supplied the menu. */
@@ -2745,10 +2757,26 @@ SQL);
             $lock=$this->db->prepare("SELECT generation FROM sessions WHERE session_id=:session AND state='active' FOR UPDATE");
             $lock->execute(['session'=>$session['session_id']]);
             if((int)$lock->fetchColumn()!==(int)$session['generation'])throw new \DomainException('stale_generation');
-            $state=$this->inGameSettingsState($session,$target);
+            $slotSelection=($selection['scope']??'')==='npc'&&($selection['key']??'')==='management.core_profile_slot';
+            if($slotSelection){
+                $binding=$this->db->prepare('SELECT p.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:key AND p.deleted_at IS NULL FOR UPDATE OF b,p');
+                $binding->execute(['installation'=>$session['installation_id'],'playthrough'=>$session['playthrough_id'],'key'=>$this->actorKey($target)]);
+                if(!$binding->fetchColumn())throw new \InvalidArgumentException('invalid_settings_scope');
+            }
+            $state=$this->inGameSettingsState($session,$target,null,$slotSelection);
             if(!hash_equals($state['editor']['change_token'],(string)($selection['change_token']??'')))throw new \DomainException('revision_conflict');
             $scope=(string)($selection['scope']??'');$document=$state['documents'][$scope]??null;
             if($document===null)throw new \InvalidArgumentException('invalid_settings_scope');
+            if($slotSelection){
+                $field=null;foreach($state['editor']['sections']as$section)if($section['scope']==='npc')
+                    foreach($section['fields']as$candidate)if($candidate['key']==='management.core_profile_slot')$field=$candidate;
+                $value=(string)($selection['value']??'');
+                if($field===null||!in_array($value,array_column($field['choices'],'value'),true))throw new \InvalidArgumentException('invalid_setting');
+                if($value==='current')return;
+                foreach($state['slots']as$slot)if((string)$slot['slot']===$value){
+                    $this->assignCoreProfile((string)$document['profile_id'],(string)$slot['core_profile_id']);return;}
+                throw new \InvalidArgumentException('invalid_setting');
+            }
             $content=\LorkhanServer\Application\InGameSettings::apply($scope,$document['content'],
                 (string)($selection['key']??''),(string)($selection['value']??''));
             $kind=match($scope){'global'=>'global_settings','core_profile'=>'core_profile','npc'=>'profile'};

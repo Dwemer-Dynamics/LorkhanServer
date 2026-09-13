@@ -746,6 +746,43 @@ $selectProfile['kind']='actor_profile';$selectProfile['selection_id']=$actorProf
         &&($profileSelected['effective_settings']['profile_id']??null)===$actorProfile['profile_id']
         &&($profileSelected['effective_settings']['change_token']??null)!==($controls['effective_settings']['change_token']??null),
         'in-game actor profile selection failed');
+// Core quick slots use the existing typed Interact editor, independently of LLM mode selection.
+$slotOwnsTransaction=!$db->inTransaction();if($slotOwnsTransaction)$db->beginTransaction();
+$db->exec('SAVEPOINT core_slot_menu_probe');
+try{
+    $db->prepare('UPDATE core_profiles SET slot=NULL WHERE installation_id=:installation')->execute(['installation'=>$installationId]);
+    $db->prepare('UPDATE core_profiles SET slot=1 WHERE core_profile_id=:id')->execute(['id'=>$actorCoreProfile['core_profile_id']]);
+    $db->prepare('UPDATE core_profiles SET slot=2 WHERE core_profile_id=:id')->execute(['id'=>$speechCore['core_profile_id']]);
+    $query=$controlsQuery;$query['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();$query['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();$query['include_settings_editor']=true;
+    [$status,$menu]=$call($router,'POST',$base.'/controls/query',$jsonAuth,[],$query);
+    $npcFields=array_column($menu['settings_editor']['sections'],null,'scope')['npc']['fields'];
+    $slotField=array_column($npcFields,null,'key')['management.core_profile_slot'];
+    $assert($status===200&&$slotField['value']==='1'&&array_column($slotField['choices'],'value')===['1','2'],'Core slot menu did not reflect configured slots and current assignment');
+    $beforeOther=$products->getRevisioned('profile',$speechProfile['profile_id']);
+    $beforeNpc=$products->getRevisioned('profile',$actorProfile['profile_id']);
+    $beforeDefaults=$db->query('SELECT core_profile_id FROM core_profiles WHERE default_npc=true ORDER BY core_profile_id')->fetchAll(\PDO::FETCH_COLUMN);
+    $pick=$selectModel;$pick['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();$pick['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+    $pick['kind']='setting';$pick['selection_id']=null;$pick['selection_key']=null;
+    $pick['setting']=['scope'=>'npc','key'=>'management.core_profile_slot','value'=>'2','change_token'=>$menu['settings_editor']['change_token']];
+    [$status,$selected]=$call($router,'POST',$base.'/controls/select',$headers($pick['message_id']),[],$pick);
+    $assert($status===200&&$selected['effective_settings']['core_profile_id']===$speechCore['core_profile_id']&&$selected['selected_model_slot_key']==='fast','Core slot selection did not change only the targeted Core assignment');
+    $afterNpc=$products->getRevisioned('profile',$actorProfile['profile_id']);
+    $assert($afterNpc['content']===$beforeNpc['content']&&$afterNpc['current_revision']===$beforeNpc['current_revision'],'Core assignment rewrote NPC personality or lock state');
+    $assert($products->getRevisioned('profile',$speechProfile['profile_id'])===$beforeOther&&$db->query('SELECT core_profile_id FROM core_profiles WHERE default_npc=true ORDER BY core_profile_id')->fetchAll(\PDO::FETCH_COLUMN)===$beforeDefaults,'Core slot selection changed another NPC or automatic defaults');
+    [$status,$replay]=$call($router,'POST',$base.'/controls/select',$headers($pick['message_id']),[],$pick);
+    $assert($status===200&&$replay==$selected,'Core slot selection was not idempotent');
+    $pick['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();$pick['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();$pick['setting']['value']='1';
+    [$status]=$call($router,'POST',$base.'/controls/select',$headers($pick['message_id']),[],$pick);
+    $assert($status===409,'stale Core slot menu changed an assignment');
+    $pick['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();$pick['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();$pick['setting']['change_token']=$selected['settings_editor']['change_token'];$pick['setting']['value']='4';
+    [$status]=$call($router,'POST',$base.'/controls/select',$headers($pick['message_id']),[],$pick);
+    $assert($status===422,'an unconfigured Core slot was accepted');
+    $db->prepare('UPDATE core_profiles SET slot=3 WHERE core_profile_id=:id')->execute(['id'=>$speechCore['core_profile_id']]);
+    $pick['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();$pick['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();$pick['setting']['value']='1';
+    [$status]=$call($router,'POST',$base.'/controls/select',$headers($pick['message_id']),[],$pick);
+    $assert($status===409,'web slot reassignment did not invalidate the game menu');
+}finally{$db->exec('ROLLBACK TO SAVEPOINT core_slot_menu_probe');if($slotOwnsTransaction)$db->rollBack();}
+
 $turnLike=['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId,
     'playthrough_id'=>$session['playthrough_id'],'payload'=>['target'=>$controlsQuery['target']]];
 $explicitContext=$products->providerContext($turnLike);
@@ -1322,6 +1359,20 @@ $assert(count($snapshot['message']['_allowed_action_definitions']??[])===17
         '`ai.follow(distance: 192)` — Follow: Ask one actor to follow the player at the exact negotiated distance.')
     &&!str_contains((string)($promptMessages[0]['content']??''),'"const":192'),
     'accepted turn did not freeze the server-negotiated catalog contract before prompt assembly');
+// Direct Narrator input must not advertise actions that require a physical NPC executor.
+$narratorOwnsTransaction=!$db->inTransaction();if($narratorOwnsTransaction)$db->beginTransaction();
+$db->exec('SAVEPOINT narrator_action_scope_probe');
+try{
+    $narratorTurn=$turn;foreach(['message_id','request_id','turn_id']as$key)$narratorTurn[$key]=\LorkhanServer\Infrastructure\Uuid::v4();
+    $narratorTurn['payload']['target']=array_replace($turn['payload']['target'],['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN','display_name'=>'The Narrator']);
+    $narratorTurn['payload']['input']['text']='Describe this place.';
+    [$status,$narratorAdmission]=$call($router,'POST',$base.'/turns',$headers($narratorTurn['message_id']),[],$narratorTurn);
+    $assert($status===202,'direct Narrator input failed admission: '.json_encode($narratorAdmission));
+    $q=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');$q->execute(['turn'=>$narratorTurn['turn_id']]);
+    $manifest=json_decode($q->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+    $assert(($manifest['message']['_allowed_action_definitions']??null)===[],'direct Narrator received NPC-only action definitions');
+}finally{$db->exec('ROLLBACK TO SAVEPOINT narrator_action_scope_probe');if($narratorOwnsTransaction)$db->rollBack();}
+
 $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&is_array($promptMessages)&&array_is_list($promptMessages)&&count($promptMessages)>=2
     &&($promptMessages[0]['role']??null)==='system'

@@ -197,6 +197,13 @@ final class Router
                     ||str_starts_with((string)$source,'lorkhan_narrator_')
                     ||($source==='lorkhan_action_followup'&&!($m['_action_continuation']['allow_action']??false))
                     ?[]:$this->repository->allowedPromptActions($m['session_id'],$m['generation']);
+                // A synthetic Narrator cannot execute NPC actions; inline narration keeps the NPC target unchanged.
+                if (($m['payload']['target']['kind'] ?? null) === 'narrator') {
+                    $providerInput['_allowed_action_definitions'] = array_values(array_filter(
+                        $providerInput['_allowed_action_definitions'],
+                        static fn (array $definition): bool => ($definition['available_to_narrator'] ?? false) === true
+                    ));
+                }
             }
             $assembled = null;
             if ($directAction === null && $this->products !== null && $this->promptAssembler !== null) {
@@ -420,7 +427,8 @@ final class Router
             if($cached!==null)return Response::json($cached['status'],$cached['body']);
             if($m['kind']==='setting'){
                 if($m['selection_id']!==null||$m['selection_key']!==null||!is_array($m['setting']??null))throw new ApiException(422,'invalid_schema','The selected setting is invalid.');
-                $this->products->selectInGameSetting($session,$m['target'],$m['setting'],$m['created_at']);
+                try{$this->products->selectInGameSetting($session,$m['target'],$m['setting'],$m['created_at']);}
+                catch(\InvalidArgumentException){throw new ApiException(422,'invalid_schema','The selected setting is unavailable or invalid.');}
             }elseif($m['kind']==='model_slot'){
                 if($m['selection_id']!==null||!is_string($m['selection_key']))throw new ApiException(422,'invalid_schema','The selected model slot is invalid.');
                 $this->products->selectModelSlot($session,$m['selection_key'],$m['created_at']);

@@ -13642,3 +13642,36 @@ worker is running the deployed runner. Configuration, credential and voice file
 hashes are unchanged. Rollback: /var/backups/lorkhanserver-code.4JKdYZ.
 GitHub main matches the implementation commit and workflow 330702270 remains
 disabled_manually. No client was changed or game launched.
+
+
+## Core quick-slot assignment from Interact (2026-09-13)
+
+Pinned Herika processor/comm.php core_profile_assign resolves slot 1-4 server-side
+and permanently assigns it to the targeted NPC only. Core slots are distinct from
+Standard/Fast/Powerful/Experimental LLM slots. Lorkhan now exposes configured slots
+under Interact > Settings > NPC Settings > Assign Core Profile to this NPC through
+the existing typed choice editor. Empty slots are not offered; an unslotted current
+assignment remains visible without forcing a change.
+
+Selections use exact bound actor/session identity and same-installation Core IDs.
+The token includes slot labels/mapping/revisions, so web changes invalidate stale
+menus. Binding/profile and slot rows are locked during selection. NPC personality,
+lock state, other NPC assignments, default Core selection and the saved LLM mode
+are preserved. No protocol or client changes are required. Installed settings.lua
+matches the checked client source.
+
+Existing integration tests exercise current highlighting, assignment, unchanged
+NPC text/defaults/other NPCs/LLM mode, replay, stale token, empty-slot rejection and
+web slot reassignment. The first run exposed that invalid settings returned 500;
+the typed settings route now returns 422 for invalid selections. Full integration,
+SQL backup/restore, migration and durable-job tests pass using the verified schema
+107 factory artifact. 1,247 server checks, 111 protocol files and 76 existing client
+Lua tests pass. Game clicks are not claimed as tested.
+
+Direct Narrator-targeted input now filters out NPC-only actions before prompt
+assembly. The integration fixture verifies no NPC-only definitions reach its frozen
+prompt; the existing NPC fixture retains all 17 negotiated definitions. This fixes
+admission/execution mismatch, not the missing typed global Narrator action family.
+Autonomous narration remains speech-only, matching the pinned reference distinction.
+
+Core slot runtime wiring is implemented; other engine-backed parity gaps remain.
