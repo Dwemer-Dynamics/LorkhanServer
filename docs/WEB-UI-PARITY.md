@@ -13559,3 +13559,33 @@ and transaction failure. No live save, game launch, provider call or production
 history mutation is needed for this work. A page-only filter is insufficient.
 This section records a source-backed implementation boundary, not completion;
 no runtime behavior was changed or redeployed for this audit.
+
+
+## Deleted derived records survive job replay (2026-09-13)
+
+The loaded-save trace exposed a real prerequisite defect: FirstPartyJobRepository
+upserts explicitly reset deleted_at to NULL for recent memories, consolidated
+summaries and narratives. A delayed/retried job could therefore resurrect a
+record removed through the UI or by future timeline pruning.
+
+These three upserts now preserve soft deletion. Consolidation also treats a
+removed summary's sources as already consumed, so it does not repeatedly rebuild
+that old batch or starve new source events. Records and deletion evidence remain
+stored; this does not perform any production deletion or restore.
+
+The existing tests/migrations_jobs.php fixture now checks deleted recent-memory
+replay, deleted summary replay, consolidation of four genuinely new events after
+deletion and deleted diary persistence replay. Tests use a disposable database
+transaction and mock providers. The full migrations/durable-jobs suite passed;
+its replay_plan_changed diagnostic is the existing expected failure-case probe.
+1247 server checks, 111 protocol files and PHP/diff checks pass.
+
+Scoped deployment rollback: /var/backups/lorkhan-job-tombstones.LiKlOH. All 897
+runtime hashes match source; protected routes stay 403 and unauthenticated
+sessions 401. No client change, game launch or paid provider request was made.
+The existing bounded worker loop reloads the changed class on its next normal
+process cycle; no extra job execution was requested.
+
+This closes resurrection of existing deleted records only. The actual loaded-save
+cutoff, invalidation of affected source/derived records and first-time queued-job
+publication fence remain unfinished. It is not full future-history pruning.

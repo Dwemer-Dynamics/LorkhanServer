@@ -33,7 +33,7 @@ final class FirstPartyJobRepository
         throw new RuntimeException('memory_source_ineligible');
     }
 
-    /** @param array<string,mixed> $memory */
+    /** Retries update the same derived record without clearing a user or timeline deletion. */
     public function upsertMemory(string $memoryId, array $memory, string $now): void
     {
         $content = (string) $memory['content'];
@@ -42,7 +42,7 @@ final class FirstPartyJobRepository
             . 'VALUES (:id,:installation,:profile,:playthrough,:tier,:content,CAST(:terms AS text[]),CAST(:vector AS jsonb),:source,CAST(:provenance AS jsonb),:occurred,:expires,:now,:now) '
             . 'ON CONFLICT (memory_id) DO UPDATE SET tier=EXCLUDED.tier,content=EXCLUDED.content,lexical_terms=EXCLUDED.lexical_terms,'
             . 'fake_vector=EXCLUDED.fake_vector,source_event_id=EXCLUDED.source_event_id,provenance=EXCLUDED.provenance,'
-            . 'occurred_at=EXCLUDED.occurred_at,expires_at=EXCLUDED.expires_at,updated_at=EXCLUDED.updated_at,deleted_at=NULL '
+            . 'occurred_at=EXCLUDED.occurred_at,expires_at=EXCLUDED.expires_at,updated_at=EXCLUDED.updated_at '
             . 'WHERE memory_records.installation_id=EXCLUDED.installation_id AND memory_records.profile_id=EXCLUDED.profile_id '
             . 'AND memory_records.playthrough_id=EXCLUDED.playthrough_id');
         $statement->execute([
@@ -115,6 +115,7 @@ final class FirstPartyJobRepository
                 . "AND m.provenance->>'provider'='first-party' "
                 . "AND m.provenance->>'model'='deterministic-extractive-v1' "
                 . "AND m.provenance->>'source_tier'='recent'";
+        // A deleted summary still consumed its sources; do not endlessly regenerate its old batch.
         $sql = "WITH eligible AS (SELECT m.memory_id,m.content,m.source_event_id,m.provenance,m.occurred_at,"
             . "CASE WHEN jsonb_typeof(source_turn.context#>'{world,game_time}')='number' THEN (source_turn.context#>>'{world,game_time}')::numeric END AS game_time "
             . "FROM memory_records m LEFT JOIN source_events se ON se.source_event_id=m.source_event_id "
@@ -126,7 +127,7 @@ final class FirstPartyJobRepository
             . "unused AS (SELECT e.* FROM eligible e WHERE NOT EXISTS (SELECT 1 FROM memory_records derived "
             . "CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(derived.provenance->'source_memory_ids','[]'::jsonb)) used(memory_id) "
             . "WHERE derived.installation_id=:installation AND derived.profile_id=:profile "
-            . "AND derived.playthrough_id=:playthrough AND derived.tier=:target_tier AND derived.deleted_at IS NULL "
+            . "AND derived.playthrough_id=:playthrough AND derived.tier=:target_tier "
             . "AND used.memory_id=e.memory_id::text) ORDER BY e.occurred_at,e.memory_id LIMIT {$limit}) "
             . "SELECT unused.*,(SELECT max(game_time) FROM eligible) AS latest_game_time FROM unused "
             . "WHERE EXISTS (SELECT 1 FROM eligible WHERE memory_id=:source_memory) "
@@ -240,12 +241,12 @@ final class FirstPartyJobRepository
             . 'VALUES (:id,:installation,:profile,:playthrough,:tier,:content,CAST(:terms AS text[]),CAST(:vector AS jsonb),NULL,CAST(:provenance AS jsonb),:occurred,NULL,:now,:now,:derivation) '
             . 'ON CONFLICT (memory_id) DO UPDATE SET tier=EXCLUDED.tier,content=EXCLUDED.content,lexical_terms=EXCLUDED.lexical_terms,'
             . 'fake_vector=EXCLUDED.fake_vector,source_event_id=NULL,provenance=EXCLUDED.provenance,occurred_at=EXCLUDED.occurred_at,'
-            . 'expires_at=NULL,updated_at=EXCLUDED.updated_at,derivation_key=EXCLUDED.derivation_key,deleted_at=NULL '
+            . 'expires_at=NULL,updated_at=EXCLUDED.updated_at,derivation_key=EXCLUDED.derivation_key '
             . 'WHERE memory_records.installation_id=EXCLUDED.installation_id AND memory_records.profile_id=EXCLUDED.profile_id '
             . 'AND memory_records.playthrough_id=EXCLUDED.playthrough_id AND memory_records.derivation_key=EXCLUDED.derivation_key '
             . 'AND (memory_records.tier, memory_records.content, memory_records.lexical_terms, memory_records.fake_vector, '
-            . 'memory_records.provenance, memory_records.occurred_at, memory_records.deleted_at) IS DISTINCT FROM '
-            . '(EXCLUDED.tier, EXCLUDED.content, EXCLUDED.lexical_terms, EXCLUDED.fake_vector, EXCLUDED.provenance, EXCLUDED.occurred_at, NULL)');
+            . 'memory_records.provenance, memory_records.occurred_at) IS DISTINCT FROM '
+            . '(EXCLUDED.tier, EXCLUDED.content, EXCLUDED.lexical_terms, EXCLUDED.fake_vector, EXCLUDED.provenance, EXCLUDED.occurred_at)');
         $statement->execute([
             'id' => $memory['memory_id'],
             'installation' => $memory['installation_id'],
@@ -297,14 +298,14 @@ final class FirstPartyJobRepository
         return $count;
     }
 
-    /** @param array<string,mixed> $narrative */
+    /** Job replays preserve soft deletion; they are not restoration requests. */
     public function upsertNarrative(string $narrativeId, array $narrative, string $now): void
     {
         $statement = $this->db->prepare('INSERT INTO narrative_records '
             . '(narrative_id,installation_id,profile_id,playthrough_id,kind,title,content,provenance,created_at,updated_at) '
             . 'VALUES (:id,:installation,:profile,:playthrough,:kind,:title,:content,CAST(:provenance AS jsonb),:now,:now) '
             . 'ON CONFLICT (narrative_id) DO UPDATE SET kind=EXCLUDED.kind,title=EXCLUDED.title,content=EXCLUDED.content,'
-            . 'provenance=EXCLUDED.provenance,updated_at=EXCLUDED.updated_at,deleted_at=NULL '
+            . 'provenance=EXCLUDED.provenance,updated_at=EXCLUDED.updated_at '
             . 'WHERE narrative_records.installation_id=EXCLUDED.installation_id AND narrative_records.profile_id=EXCLUDED.profile_id '
             . 'AND narrative_records.playthrough_id=EXCLUDED.playthrough_id');
         $statement->execute($this->scope($narrative) + ['id' => $narrativeId, 'kind' => $narrative['kind'],

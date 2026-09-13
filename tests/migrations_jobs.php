@@ -1556,6 +1556,32 @@ $consolidate->handle(['installation_id'=>$legacyInstallation,'profile_id'=>$lega
 $check((int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long') AND deleted_at IS NULL")->fetchColumn()===5
     &&(int)$db->query("SELECT max(current_revision) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long')")->fetchColumn()===1,
     'memory consolidation replay was not idempotent');
+
+// A delayed job retry must not restore records removed by the user or a loaded-save rollback.
+$db->beginTransaction();
+try {
+    $db->exec("UPDATE memory_records SET deleted_at=clock_timestamp() WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN ('mid','long')");
+    $consolidate->handle(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
+        'source_memory_id'=>$derivedMemoryId,'source_tier'=>'recent'],'memory.consolidate:deleted-replay',static fn():bool=>true);
+    $check((int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN ('mid','long') AND deleted_at IS NULL")->fetchColumn()===0,
+        'consolidation replay resurrected a deleted summary');
+    foreach(range(21,24) as $ordinal) $derivePlayedMemory($ordinal);
+    $consolidate->handle(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
+        'source_memory_id'=>$derivedMemoryId,'source_tier'=>'recent'],'memory.consolidate:after-deletion',static fn():bool=>true);
+    $check((int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier='mid' AND deleted_at IS NULL")->fetchColumn()===1,
+        'deleted summaries blocked consolidation of new source events');
+    $db->exec("UPDATE memory_records SET deleted_at=clock_timestamp() WHERE memory_id='{$derivedMemoryId}'");
+    $derive->handle($derivedPayload,'memory.derive:deleted-replay',static fn():bool=>true);
+    $check($db->query("SELECT deleted_at IS NOT NULL FROM memory_records WHERE memory_id='{$derivedMemoryId}'")->fetchColumn()===true,
+        'derive replay resurrected a deleted memory');
+    $db->exec("UPDATE narrative_records SET deleted_at=clock_timestamp() WHERE narrative_id='{$diaryJob['narrative_id']}'");
+    (new \LorkhanServer\Infrastructure\FirstPartyJobRepository($db))->upsertNarrative($diaryJob['narrative_id'],
+        ['installation_id'=>$installation,'profile_id'=>$diaryProfile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id'],
+         'kind'=>$diaryRow['kind'],'title'=>$diaryRow['title'],'content'=>$diaryRow['content'],'provenance'=>$diaryProvenance],$clock->iso());
+    $check($db->query("SELECT deleted_at IS NOT NULL FROM narrative_records WHERE narrative_id='{$diaryJob['narrative_id']}'")->fetchColumn()===true,
+        'diary persistence replay resurrected a deleted narrative');
+} finally { $db->rollBack(); }
+
 $summaryRepository=new \LorkhanServer\Infrastructure\MemorySummaryRepository($db);
 $summaryMemory=$middleRows[0];
 $check($summaryRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1)===null
