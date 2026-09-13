@@ -1,11 +1,14 @@
 # All user-facing pages: HerikaServer UI parity
 
-## Goal status: active, not complete
+## Supported-page presentation closure (2026-09-13)
 
 The user rejected the earlier shared-style pass as insufficient on 2026-09-05.
 Availability, no-overflow checks and shared CSS do **not** establish page parity.
-Every row below stays pending until its actual structure, controls and relevant
-populated/empty/editor states have been compared with its current counterpart.
+The supported-page structure, controls and relevant populated/empty/editor states
+have now been compared with the pinned counterpart. The dated evidence below is
+an audit trail: earlier pending statements are superseded by later closures.
+This closes webpage presentation and supported interactions, not unrestricted
+CHIM runtime feature parity or live-provider/in-game acceptance.
 
 Reference: Dwemer-Dynamics/HerikaServer `unstable`
 `529364c4c12b3a8bd4cc12a481f400ce19b3a344`, with the local port-8081 server as
@@ -44,7 +47,8 @@ only the listed states, not completion of every page or feature.
 Core Profiles now includes the RPG Comments card with supported event choices and
 probability, bound-responder policy, portable/named presets and built-in probabilities.
 Its actual hub desktop card and native 860/390 controls were compared; the complete
-Core editor and remaining profile features are still open. The Short Term Memory card now matches the reference desktop geometry, with saved 1-50/default10 controls and native 860/390 interactions verified. Retained exact digest coverage now applies before the scene cap, and complete dated scene text can replace matching live history. Semantic model-summary source coverage remains unfinished runtime parity work.
+Core editor presentation and supported interactions were subsequently closed in
+the dated evidence below; missing runtime features remain a separate backlog. The Short Term Memory card now matches the reference desktop geometry, with saved 1-50/default10 controls and native 860/390 interactions verified. Retained exact digest coverage now applies before the scene cap, and complete dated scene text can replace matching live history. Semantic model-summary source coverage remains unfinished runtime parity work.
 
 The reference's extra excluded navigation entries change wrapping and page origins.
 Do not add blank tabs or reintroduce excluded features to force absolute offsets.
@@ -120,8 +124,8 @@ Current delivery order: close visible page structure and interactions directly f
 | `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; MiniMe Service and its bounded reachability probe implemented; visible Setup/Local LLM, all-Core presets and network helpers implemented; Herika service choices now create or reuse installation-owned speech connectors while preserving custom endpoints and badges; Player2 switch, immutable routing overlay and four recap cards are implemented and mock/browser tested; whole-page desktop/narrow structure and complete save-flow checks are complete, including key errors/retry, local setup, service reuse and stale-revision rejection. Live-provider acceptance remains untested. Service process installation is not performed by this form in either product |
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. All 15 shared tab entry views now load and retain mounted documents at 1280/390, with draft values retained in the eleven entry views containing editable fields. Tab names/order/style and keyboard activation match the reference grouping, with excluded tabs absent. Shared shell review is complete; individual editor/runtime gaps remain tracked in their own rows |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Hide Ambient Combat, Power Awareness, Transformation Detection, Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Scene Classifier has an active connector card, background classification and timed prompt notes. Default/Local LLM built-ins and named presets apply saved settings across existing Core Profiles with revision guards and persist independent defaults for future Core creation. Import now uses the reference file picker and confirmation instead of a JSON panel, with scoped requests and failed-import draft retention. Other Context event controls remain open. Portable global export of Core settings is not a requirement of the pinned reference; see the dated scope correction |
-| `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Advanced metadata is now merged with visible controls; Oghma overrides and knowledge tags reach retrieval and both preset formats. Oghma, Context, Prompt, Relationship and Rechat overrides use the reference inline Global Settings rows, with raw JSON synchronization and inherited values. Core Prompt Head, timestamps and description-only item filters reach prompt assembly; Rechat Mode reaches chain selection, Relationship System controls job eligibility, and Power Awareness uses exact observed actor levels. Metadata Text/Tree/Table switching, immediate serialization, invalid JSON handling and empty-object preservation are verified, including fresh deployed mode-switch checks. All 17 main section titles/order match the reference; the native audit note is inside Advanced Metadata. All 15 enabled toggles, 10 slider pairs and 15 typed Copy to all dialogs are checked at 1280/390, including chained copy-to-preset revision handling. Sidebar create/clone/save/import/default/rollback/delete return paths and import/history interactions are now verified in standalone/embedded modes. Advanced Rules label/value layout, badges, priority order, regex conversion, action-only save/reopen and invalid-input draft retention are now verified at 1280/390. All 37 supported reference metadata keys reach resolved NPC settings. Remaining: missing runtime-backed Global Settings override categories and downstream consumer acceptance. Physical Diary remains unfinished; Core-slot client selection is implemented in 04778d6. Cumulative memory semantics were completed in 4983988. |
-| `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Typed per-NPC override leaves now include language, summaries, Diary Prompt/Cooldown/History, Dynamic Profile History, Context, Prompt Head, Oghma, Relationship Enabled/Update Chance, Rechat Mode/Strict Targeting/Open Rechat and End Conversation Cooldown. Prompt assembly, queued evolution history, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. General profile metadata now uses the reference vanilla-jsoneditor tree/text/table library, with revisioned native content and separate immutable Recorded State. Bounded target inventory capture and sorted count/total presentation are deployed in server d09d717 and client 1a35727; empty/unavailable states remain distinct. All 47 currently supported override editors apply typed values to drafts at desktop/narrow widths; grouped search, metadata mode switching and failed-save retention are checked. All six editor tabs retain the eight Roleplay drafts and Notes through keyboard navigation and form serialization. View Diary, Bio Import, Profile Versions and Evolution Report entry interactions are implemented and checked. Remaining: full runtime-backed override catalogue, other editor/modal interactions, continuous inventory updates and NPC Visit/Teleport/Return. |
+| `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Advanced metadata is now merged with visible controls; Oghma overrides and knowledge tags reach retrieval and both preset formats. Oghma, Context, Prompt, Relationship and Rechat overrides use the reference inline Global Settings rows, with raw JSON synchronization and inherited values. Core Prompt Head, timestamps and description-only item filters reach prompt assembly; Rechat Mode reaches chain selection, Relationship System controls job eligibility, and Power Awareness uses exact observed actor levels. Metadata Text/Tree/Table switching, immediate serialization, invalid JSON handling and empty-object preservation are verified, including fresh deployed mode-switch checks. All 17 main section titles/order match the reference; the native audit note is inside Advanced Metadata. All 15 enabled toggles, 10 slider pairs and 15 typed Copy to all dialogs are checked at 1280/390, including chained copy-to-preset revision handling. Sidebar create/clone/save/import/default/rollback/delete return paths and import/history interactions are now verified in standalone/embedded modes. Advanced Rules label/value layout, badges, priority order, regex conversion, action-only save/reopen and invalid-input draft retention are now verified at 1280/390. All 37 supported reference metadata keys reach resolved NPC settings. Presentation closed. Separate runtime backlog: missing runtime-backed Global Settings override categories and downstream consumer acceptance. Physical Diary remains unfinished; Core-slot client selection is implemented in 04778d6. Cumulative memory semantics were completed in 4983988. |
+| `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Typed per-NPC override leaves now include language, summaries, Diary Prompt/Cooldown/History, Dynamic Profile History, Context, Prompt Head, Oghma, Relationship Enabled/Update Chance, Rechat Mode/Strict Targeting/Open Rechat and End Conversation Cooldown. Prompt assembly, queued evolution history, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. General profile metadata now uses the reference vanilla-jsoneditor tree/text/table library, with revisioned native content and separate immutable Recorded State. Bounded target inventory capture and sorted count/total presentation are deployed in server d09d717 and client 1a35727; empty/unavailable states remain distinct. All 47 currently supported override editors apply typed values to drafts at desktop/narrow widths; grouped search, metadata mode switching and failed-save retention are checked. All six editor tabs retain the eight Roleplay drafts and Notes through keyboard navigation and form serialization. View Diary, Bio Import, Profile Versions and Evolution Report entry interactions are implemented and checked. Presentation and supported editor/modal interactions closed. Continuous inventory is implemented in da8e4e8/dccb86c. NPC Visit/Teleport/Return is implemented in 5e6cbe0/75d92a5 with exact identity, capability gating and deferred receipts. Separate runtime backlog: full runtime-backed override catalogue and live-game acceptance. |
 | `core/npc_report.php` | Same path | Reference report card, chronological deduplicated history and AI report generation implemented. Native queued reports use the separate global Background & Memory Tasks connector, immutable UUID-scoped input and separate report storage. Desktop/narrow empty/populated/loading/failure/retry states, real localhost transport, mock worker persistence, authentication and lease protection checked; live paid-provider acceptance remains untested. |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; generation success, failed/stale jobs, concurrent edits, retry idempotency and empty-result rejection are checked with browser mocks; live-provider acceptance remains untested |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; all 42 current editable form controls now pass whole-form persistence in all four inline modes at 1280/390; import/export is verified separately below. Broader Core runtime semantics remain pending; queued generation now has mock handler persistence and browser receipt evidence (not live-provider acceptance); current action catalog has no narrator-capable actions |
@@ -144,13 +148,13 @@ Current delivery order: close visible page structure and interactions directly f
 | `diary_book.php` | Same path | Printable chronological parchment book and author-list link implemented; scoped IDs, escaped text, desktop/narrow populated comparisons and print/PDF checks passed (see Diary authors and printable book checkpoint) |
 | Roleplay `adventure` tab | Herika Adventure Log | Chronological context/people/game-time/UTC rows, location dividers, contiguous speaker bands and counterpart CSV formatting implemented. Desktop/narrow populated, empty and long fixtures compared; date-selection, selected/latest-day and full exports checked. Full checks and 744-file deployment passed; live populated calendar/table verified. Native dates and complete OpenMW cell names retained. Month navigation now uses measured reference rules, including its narrow-screen clipping limitation; see source-parity checkpoint below. |
 | Roleplay `journal` tab | Morrowind-only Journal using Herika's record table | Full-content striped table, Journal ID, game/UTC/TS columns and content dialog implemented; three live records, reader and focus restoration verified |
-| `control_panel.php` | Same path | Shared geometry and label typography corrected; all 12 embedded tabs load at desktop/narrow widths and retain mounted frames on switches. Request reader Escape/focus and unsaved filter retention verified. Remaining child feature/interaction comparisons are tracked in their rows; see embedded checkpoint below |
+| `control_panel.php` | Same path | Shared geometry and label typography corrected; all 12 embedded tabs load at desktop/narrow widths and retain mounted frames on switches. Request reader Escape/focus and unsaved filter retention verified. Supported child presentation/interaction comparisons are closed in their rows; missing runtime features remain separately identified |
 | `request_logs.php` | Same path | Nine-column LLM-attempt table, toolbar, page sizes and separate payload readers aligned; populated/empty, keyboard and narrow fixture states compared. Safe scoped Clear preserves accounting/history/pending work; URL and unretained raw provider payloads remain explicit data limitations. See Request Logs evidence below. |
 | `response_queue.php` | Control Panel -> `index.php?table=responselog` | Actual queued-message projection and seven-column striped table aligned; populated/empty, narrow, confirmation, playback details, pagination, CSV and live hub embedding checked. Row removal preserves native delivery/history and protects pending work. |
 | `cache_browser.php` | Same path, audio portion | Compact file-list panel, typography and inline players aligned; populated/empty, expired/unavailable, keyboard, narrow and live hub states checked. Private authenticated media replaces public paths; excluded Soulgaze image panel stays absent. |
 | `relationship_logs.php` | Same path | Evaluation-first header/filter/table/context/cleanup compared populated and empty; request/proposal and committed per-target/type-change evidence implemented and checked. Historical missing data stays explicit. Final native-tool placement and live Control Panel tab-state review completed below; tools remain in a secondary collapsed disclosure |
 | `oghma_audit.php` | Same path | Header, filters/pager, nine metadata pills and five trace sections compared populated/empty at 1280px and narrow 390px; native retrieval evidence retained in secondary details; see Oghma Audit checkpoint |
-| `playthrough_manager.php` | Same path | Full named database snapshots support save, copy, download, delete, automatic rollback and live-source provenance. Active Database and paired Save/Stored panels use the reference structure; legacy profile-only tools are separately collapsed. Snapshot player/count/calendar metadata, time ordering, ahead/behind labels and the interactive timeline are implemented. First visit queues a protected default snapshot and marks it active after successful capture; repeat visits reuse pending work and deletion is refused server-side. Restricted-role lifecycle and populated/empty desktop/narrow checks passed. Automatic Dragon Break capture now runs at the loaded-save boundary before session replacement, with a three-day threshold and isolated archive inspection. Named switching now refreshes the previous named generation atomically, preserving edits across A/B/A/B; same-source selection does not rewind live data. External/legacy SQL import is implemented in Database Manager, matching its pinned placement. Active-history future pruning is implemented in 94f53f4; historical NPC personality/relationship pullback remains separate. Snapshot submit feedback is implemented in acc874a; final restore-click browser acceptance remains open. Profile-scoped JSON exports are not substitutes for full database snapshots. |
+| `playthrough_manager.php` | Same path | Full named database snapshots support save, copy, download, delete, automatic rollback and live-source provenance. Active Database and paired Save/Stored panels use the reference structure; legacy profile-only tools are separately collapsed. Snapshot player/count/calendar metadata, time ordering, ahead/behind labels and the interactive timeline are implemented. First visit queues a protected default snapshot and marks it active after successful capture; repeat visits reuse pending work and deletion is refused server-side. Restricted-role lifecycle and populated/empty desktop/narrow checks passed. Automatic Dragon Break capture now runs at the loaded-save boundary before session replacement, with a three-day threshold and isolated archive inspection. Named switching now refreshes the previous named generation atomically, preserving edits across A/B/A/B; same-source selection does not rewind live data. External/legacy SQL import is implemented in Database Manager, matching its pinned placement. Active-history future pruning is implemented in 94f53f4; historical NPC personality/relationship pullback remains separate. Snapshot submit feedback is implemented in acc874a; restore confirmation cancel/accept and desktop/390 loading overlay were verified with production JavaScript and a nonmutating browser fixture on 2026-09-13. Profile-scoped JSON exports are not substitutes for full database snapshots. |
 | `server_logs.php` | Control Panel -> Dwemer Debugger CHIM log panels | Three-column log panels, search/severity controls, expanded readers, refresh, visible-entry download and UTC/local display aligned; populated/empty/narrow fixtures and dense live standalone/hub views checked. Only actual Lorkhan service logs are read; cross-product dashboard/MCP controls are not imported. |
 | `provider_usage.php` | `audit.php` (Cost Breakdown) | Date/week header/filter/pie layout aligned; desktop and narrow populated/empty/unknown-cost states compared. Whole-range request-type totals, scoped UTC boundaries and CSV coverage checked; token/provider details remain collapsed. See Cost Breakdown checkpoint below. |
 | `provider_attempts.php` | `request_logs.php` operational presentation; no exact all-provider CHIM page | Explicit safe metadata columns, toolbar, status pills, scoped filters, full pagination and page CSV. Populated/empty source-rendered comparison and narrow keyboard scrolling checked. |
@@ -13799,3 +13803,89 @@ items, inventory-only Info and mixed-playthrough rejection. SQL backup/import/
 restore and migration/job checks pass. The generated reader map was refreshed;
 schema107 still has182 relations and1680 columns, with no new migration.
 No game or paid provider was invoked. In-game capture remains unverified.
+
+
+## 2026-09-13 supported webpage closure: NPC actions and snapshot restore
+
+Server implementation: `5e6cbe0`; paired client: `75d92a5`.
+Reference remains Herika `529364c4c12b3a8bd4cc12a481f400ce19b3a344`.
+
+### Final NPC Actions interaction gap
+
+- Retained the reference Visit and Teleport/Return card structure, copy, status
+  placement and responsive stacking, with Lorkhan gold. Added an explicit Refresh
+  status control because the OpenMW bridge is asynchronous and disconnected/old
+  clients cannot truthfully expose ready movement controls.
+- Opening Actions requests status only. Browser sends profile ID and one closed
+  operation; server resolves the exact current-playthrough bound NPC/creature.
+  Native commands require `debug.npc_manager.v1`. No selected-target substitute,
+  browser coordinates, model action, arbitrary command or code execution is added.
+- Queued/delivered never mean success. Lua checks the deferred move's cell,
+  position and rotation before a terminal receipt. Original NPC location is a
+  bounded save-backed Return ticket, retained on failed movement and cleared only
+  after verified Return. Status may materialize one known cell but never moves an
+  actor. Unknown/deleted references remain unavailable, without scanning the world.
+- Browser fixture using actual `resource-page.js` and NPC CSS: status-to-ready,
+  Teleport-to-Return, failed Return retaining location, successful Return reset,
+  expiry disabling movement, unsupported-client and network failure, unchanged
+  unsaved Notes/General draft. Queued controls disable; terminal messages use the
+  corresponding command receipt. Desktop and 390px iframe card states inspected.
+- The fixture replaces transport, not production data. No in-game move was sent.
+  This is browser/contract proof, not live-game proof.
+
+### Final Playthrough overlay acceptance gap
+
+- Actual `playthrough-snapshots.js` exercised against the populated isolated
+  snapshot fixture. Cancel leaves the overlay closed; accept opens the real
+  `Loading Snapshot` dialog with the reference ring and submission guidance.
+- The complete confirmation message includes the selected snapshot, close-game
+  requirement, replacement warning and rollback snapshot. Browser fixture stubs
+  the native confirm return and intercepts every submit; no live database restore,
+  backup or deletion occurred. Desktop and 390px dialog fit inspected.
+- Earlier focused JavaScript checks cover duplicate submissions, deletion without
+  overlay, invalid create, Escape protection and pageshow reset. The native OS
+  confirmation automation failure is not represented as a real restore test.
+
+### Automated evidence
+
+- 1,259 existing PHP checks; full fresh-factory108 PostgreSQL integration,
+  SQL snapshot import/restore/control-state/roundtrip, migrations and durable jobs.
+- 78 Lua tests, zero failures; Windows Release engine build; native and Beast
+  bridge executables passed. Lua rotation matches API129 and wrapped yaw is tested.
+- 111 paired protocol files / 38 schemas / 73 fixtures; PHP manifest check and
+  JavaScript syntax check passed. Migration108 only expands the existing typed
+  debug command allowlist. Schema inventory remains 182 relations/1,680 columns.
+
+### Separate runtime parity backlog, not hidden presentation exceptions
+
+- Successful magic-cast and item-pickup source/value native capture; applicable
+  TES3 resurrection semantics instead of pretending Skyrim reanimation exists.
+- Runtime-backed Global/Core/NPC override categories beyond the currently
+  supported and tested catalogue; complete actor override provenance.
+- Physical diary books; Narrator's global action family.
+- Loaded-save historical personality/relationship restoration beyond active-history
+  future pruning.
+- Live provider, microphone, observed-book/inventory and in-game acceptance remain
+  untested. No game launch/control or paid provider call is authorized by this goal.
+
+These items must not be advertised as full CHIM feature parity. They are kept
+separate from the now-closed supported webpage presentation/interaction audit.
+
+
+### 2026-09-13 final local deployment evidence
+
+- Server `5e6cbe0` and client `75d92a5` pushed directly to their respective
+  `main` branches. No new PR or reference-repository changes.
+- Server full deployment completed at `/var/www/html/LorkhanServer`; migration108
+  applied and fresh factory artifact verified. All 902 runtime files match source,
+  with no extras or legacy runtime paths. Configuration, credentials and voice
+  contents passed pre/post hash preservation checks. Health200, private paths403,
+  unauthenticated session creation401; Windows port7514 NPC page200 with the new
+  Actions markup and no obsolete unavailable placeholder.
+- All 29 client runtime data files match source. Installed engine SHA256:
+  `49ca3a14b7f0aca2cb53287d5f227f878357c5ea79c64bfbfcb50242be00ea1e`.
+- Rollback server: `/var/backups/lorkhanserver-code.wtlKEv`.
+  Client: `%TEMP%/lorkhan-npc-manager-c2c19cf49b234340830638dffa0a7fac`.
+- GitHub workflow330702270 is still `disabled_manually`.
+- The game was not launched or controlled; no paid provider was called. Live
+  movement must be tested after the user starts the newly deployed client.
