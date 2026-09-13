@@ -1457,7 +1457,7 @@ final class ProductRepository
                 $lock=$this->db->prepare("SELECT configuration_id FROM configuration_sets WHERE configuration_id=:id AND deleted_at IS NULL FOR UPDATE");
                 $lock->execute(['id'=>$id]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
                 (new Player2RoutingRepository($this->db))->assertNotActive($id);
-                $queued=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type IN ('profile.generate','profile.report','scene.classify','memory.summarize','relationship.evaluate','relationship.build','relationship.convert','narrative.generate') AND state IN ('queued','leased') AND payload->>'provider_configuration_id'=:id LIMIT 1");
+                $queued=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type IN ('profile.generate','profile.report','scene.classify','memory.digest','memory.summarize','relationship.evaluate','relationship.build','relationship.convert','narrative.generate') AND state IN ('queued','leased') AND payload->>'provider_configuration_id'=:id LIMIT 1");
                 $queued->execute(['id'=>$id]);if($queued->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $policy=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
                     WHERE c.kind='memory_policy' AND c.deleted_at IS NULL AND r.content->>'provider_configuration_id'=:id LIMIT 1");
@@ -2222,9 +2222,37 @@ SQL);
         $stmt=$this->db->prepare('SELECT memory_id AS id,tier,content,lexical_terms,fake_vector,provenance,source_event_id,occurred_at,updated_at,current_revision FROM memory_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at>:now) ORDER BY occurred_at DESC LIMIT 500');$stmt->execute($this->scopeParams($scope)+['now'=>$now]);return array_map(fn($r)=>$this->decodeMemory($r),$stmt->fetchAll());
     }
 
+    /** Reuse prompt privacy/witness checks for a digest, across session profiles in the same playthrough. */
+    public function memoryDigestCandidates(string $installation,string $playthrough,string $profile,string $now,?array $memoryIds=null):array
+    {
+        foreach([$installation,$playthrough,$profile]as$id)if(!Uuid::isValid($id))throw new \InvalidArgumentException('invalid_digest_scope');
+        $q=$this->db->prepare("SELECT COALESCE((SELECT b.actor_identity FROM actor_profile_bindings b WHERE b.installation_id=p.installation_id
+                AND b.playthrough_id=t.playthrough_id AND b.profile_id=p.profile_id
+                AND (SELECT count(*) FROM actor_profile_bindings all_b WHERE all_b.installation_id=p.installation_id AND all_b.playthrough_id=t.playthrough_id AND all_b.profile_id=p.profile_id)=1),p.actor_identity) AS actor_identity
+            FROM profiles p JOIN playthroughs t ON t.installation_id=p.installation_id
+            WHERE p.profile_id=:profile AND p.installation_id=:installation AND t.playthrough_id=:playthrough
+            AND p.deleted_at IS NULL");
+        $q->execute(['profile'=>$profile,'installation'=>$installation,'playthrough'=>$playthrough]);$identity=$q->fetchColumn();
+        if($identity===false)return [];$actor=$this->json($identity);$key=[];
+        if(!in_array($actor['kind']??'', ['actor','npc','creature'],true))return [];
+        if($memoryIds!==null){if(count($memoryIds)>100)throw new \InvalidArgumentException('digest_source_limit');foreach($memoryIds as$id)if(!is_string($id)||!Uuid::isValid($id))throw new \InvalidArgumentException('invalid_digest_source');if($memoryIds===[])return [];}
+        foreach(['kind','record_id','content_file']as$field)if(is_string($actor[$field]??null)&&$actor[$field]!=='')$key[$field]=$actor[$field];
+        if(!isset($key['record_id'],$key['content_file']))return [];
+        if(is_array($actor['refnum']??null))$key['refnum']=$actor['refnum'];
+        $scope=['installation_id'=>$installation,'playthrough_id'=>$playthrough,'profile_id'=>$profile];
+        $rows=[];$offset=0;$deadline=hrtime(true)+10000000000;
+        do{
+            $scanned=0;$batch=$this->promptMemoryCandidates($scope,$key,$profile,true,$now,[],true,$offset,$memoryIds,$scanned);
+            foreach($batch as$memory)if($memory['_source_event_ids']!==[])$rows[]=$memory;
+            $offset+=$scanned;
+            if(hrtime(true)>$deadline)throw new RuntimeException('digest_scan_timeout');
+        }while($memoryIds===null&&$scanned===500&&count($rows)<100);
+        return array_slice($rows,0,100);
+    }
+
     /** Keep manual memories with their NPC profile and require witnessed provenance for derived rows. */
     private function promptMemoryCandidates(array $turn,array $actorKey,string $activeProfileId,bool $ownsProfile,
-        string $now,array $semantic=[]):array
+        string $now,array $semantic=[],bool $allSessionProfiles=false,int $offset=0,?array $memoryIds=null,?int &$scanned=null):array
     {
         $statement = $this->db->prepare("SELECT m.memory_id AS id,m.profile_id,m.tier,m.content,m.lexical_terms,m.fake_vector,
             m.provenance,m.source_event_id,m.derivation_key,m.occurred_at,m.updated_at,m.current_revision,
@@ -2242,10 +2270,14 @@ SQL);
                 AND embedding.policy_configuration_id=CAST(:embedding_policy AS uuid)
                 AND embedding.policy_revision=:embedding_policy_revision
             WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough
-                AND m.profile_id IN (:session_profile,:actor_profile) AND m.deleted_at IS NULL
-                AND (m.expires_at IS NULL OR m.expires_at>:now) ORDER BY m.occurred_at DESC,m.memory_id LIMIT 500");
+                AND (CAST(:all_session_profiles AS boolean) OR m.profile_id IN (:session_profile,:actor_profile)) AND m.deleted_at IS NULL
+                AND (NOT CAST(:all_session_profiles AS boolean) OR (m.tier='mid' AND m.derivation_key IS NOT NULL
+                    AND m.provenance->>'source'='memory.consolidate' AND m.provenance->>'provider'='first-party'
+                    AND m.provenance->>'model'='deterministic-extractive-v1'))
+                AND (CAST(:memory_ids AS uuid[]) IS NULL OR m.memory_id=ANY(CAST(:memory_ids AS uuid[])))
+                AND (m.expires_at IS NULL OR m.expires_at>:now) ORDER BY m.occurred_at DESC,CASE WHEN CAST(:all_session_profiles AS boolean) THEN m.memory_id END DESC,m.memory_id LIMIT 500 OFFSET :offset");
         $statement->execute(['installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
-            'session_profile'=>$turn['profile_id'],'actor_profile'=>$activeProfileId,'now'=>$now,
+            'session_profile'=>$turn['profile_id'],'actor_profile'=>$activeProfileId,'now'=>$now,'all_session_profiles'=>$allSessionProfiles?'true':'false','offset'=>$offset,'memory_ids'=>$memoryIds===null?null:$this->pgArray($memoryIds),
             'embedding_policy'=>is_array($semantic['embedding']??null)&&array_is_list($semantic['embedding'])
                 &&is_string($semantic['policy_configuration_id']??null)
                 ?$semantic['policy_configuration_id']:'00000000-0000-0000-0000-000000000000',
@@ -2253,7 +2285,8 @@ SQL);
                 &&is_int($semantic['policy_revision']??null)?$semantic['policy_revision']:0]);
         $candidates = [];
         $sourceIds = [];
-        foreach ($statement->fetchAll() as $row) {
+        $selectedRows=$statement->fetchAll();$scanned=count($selectedRows);
+        foreach ($selectedRows as $row) {
             $memory = $this->decodeMemory($row);
             if(is_string($row['semantic_embedding']??null)){
                 $memory['_semantic_embedding']=$this->json($row['semantic_embedding']);
@@ -3124,6 +3157,14 @@ SQL);
             $this->promptMemoryCandidates($turn,$actorKey,$activeProfileId,$ownsProfile,$now,$semanticMemory),$now,$semanticMemory)
             :['rows'=>[],'candidates'=>[],'trace'=>['status'=>'disabled','reason'=>'disabled_by_global_context','result_ids'=>[]]];
         $memories=$memorySelection['rows'];
+        $memoryDigest=[];
+        if($ownsProfile&&$contextSections['memories']&&($effective['settings']['memory']['mid_term_enabled']??true)===true
+            &&($turn['payload']['target']['kind']??'')!=='narrator'){
+            try{$digest=(new NpcMemoryDigestRepository($this->db))->latest($turn['installation_id'],$turn['playthrough_id'],$activeProfileId);}
+            catch(RuntimeException $error){if(!in_array($error->getMessage(),['digest_history_limit','digest_scan_timeout'],true))throw $error;$digest=null;}
+            if($digest!==null)$memoryDigest=[$digest+['installation_id'=>$turn['installation_id'],'playthrough_id'=>$turn['playthrough_id'],'profile_id'=>$activeProfileId]];
+        }
+
         $recentTurnLimit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
         $history=[];
         if($contextSections['conversation_history']&&$contextPolicy['event_types']!==[]){$typeParameters=[];$historyParameters=[];
@@ -3226,7 +3267,7 @@ SQL);
                 ?$this->powerObservationsForTurn($turn):[],
             'item_descriptions'=>($contextSections['record_descriptions']||($contextPolicy['ground_items_descriptions_only']??false)||($contextPolicy['inventory_items_descriptions_only']??false))?$this->itemDescriptionsForTurn($turn):[],
             'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),
-            'memory_candidates'=>$memorySelection['candidates'],'memory_retrieval'=>$memorySelection['trace'],
+            'memory_candidates'=>$memorySelection['candidates'],'memory_retrieval'=>$memorySelection['trace'],'memory_digest'=>$memoryDigest,
             'relationship'=>array_slice($relationships,0,10),'knowledge'=>$knowledge,'knowledge_retrieval'=>$knowledgeSelection['trace'],
             'latest_diary'=>$latestDiary,'narrative'=>array_slice($narratives,0,10),'recent_action_results'=>$recent];
     }
@@ -4037,6 +4078,12 @@ SQL);
                 'description'=>$description,'configuration'=>$configurationId,'revision'=>$revision,'now'=>$now]);
     }
     private function revisionMeta(string $kind):array{return match($kind){'profile'=>['profiles','profile_id','profile_revisions'],'core_profile'=>['core_profiles','core_profile_id','core_profile_revisions'],'playthrough'=>['playthroughs','playthrough_id','playthrough_revisions'],'prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'=>['configuration_sets','configuration_id','configuration_revisions'],default=>throw new RuntimeException('invalid_resource_kind')};}
+    /** Apply memory edits within the same transaction as the NPC Save All operation. */
+    public function editNpcMemoryDigest(string $installation,string $playthrough,string $profile,int $revision,string $content):void
+    {
+        (new NpcMemoryDigestRepository($this->db))->edit($installation,$playthrough,$profile,$revision,$content);
+    }
+
     public function transaction(callable $callback):mixed{$owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();try{$v=$callback();if($owns)$this->db->commit();return$v;}catch(Throwable $e){if($owns&&$this->db->inTransaction())$this->db->rollBack();throw$e;}}
     private function deterministicUuid(string $value):string{$h=md5($value);return substr($h,0,8).'-'.substr($h,8,4).'-4'.substr($h,13,3).'-8'.substr($h,17,3).'-'.substr($h,20,12);}
     private function selectedActorProfileId(string $installation,string $playthrough,array $identity):?string{$s=$this->db->prepare('SELECT b.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.installation_id=b.installation_id AND p.deleted_at IS NULL WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:key');$s->execute(['installation'=>$installation,'playthrough'=>$playthrough,'key'=>$this->actorKey($identity)]);$value=$s->fetchColumn();return$value===false?null:(string)$value;}

@@ -15,6 +15,11 @@ final class MockProfileGenerationProvider implements ProfileGenerationProvider
         if(in_array($profile['generation_mode']??'',['relationship_build','relationship_text_conversion'],true))return ['relationships'=>[]];
         if(($profile['generation_mode']??'')==='relationship_evaluation')
             return ['disposition_delta'=>0,'affinity_delta'=>0,'reason'=>'Mock evaluation preserves the current relationship.'];
+        if(($profile['generation_mode']??'')==='memory_digest'){
+            $prior=(string)($profile['previous_digest']??'');$lines=[];
+            foreach($profile['history']??[]as$entry)$lines[]='* '.(string)($entry['content']??'');
+            return ['summary'=>mb_strcut(($prior!==''?$prior."\n":"### Notable Events in Chronological Order\n").implode("\n",$lines),0,MemoryDigestPolicy::MAX_CONTENT_BYTES,'UTF-8')];
+        }
         if(($profile['generation_mode']??'')==='memory_summary'){
             return['summary'=>mb_strcut(trim((string)($profile['memory']??'')),0,4096,'UTF-8')];
         }

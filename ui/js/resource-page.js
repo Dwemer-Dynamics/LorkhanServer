@@ -1,6 +1,29 @@
 (() => {
     const dirtyForms = new Set();
 
+    // Keep drafts per playthrough; only submit edited memory entries with Save All.
+    document.querySelectorAll('[data-npc-memory-editor]').forEach(editor => {
+        const panels = [...editor.querySelectorAll('[data-memory-panel]')];
+        panels.forEach(panel => {
+            const content = panel.querySelector('[data-memory-content]');
+            const revision = panel.querySelector('[data-memory-revision]');
+            const original = content.value;
+            const name = content.name;
+            content.removeAttribute('name');
+            revision.disabled = true;
+            content.addEventListener('input', () => {
+                const changed = content.value !== original;
+                if (changed) content.name = name;
+                else content.removeAttribute('name');
+                revision.disabled = !changed;
+            });
+        });
+        editor.querySelector('[data-memory-playthrough]')?.addEventListener('change', event => {
+            panels.forEach(panel => { panel.hidden = panel.dataset.memoryPanel !== event.target.value; });
+        });
+    });
+
+
     // Keep the native audit note out of the main editor, but reveal it if validation fails.
     document.querySelectorAll('.profile-metadata [name="change_reason"]').forEach(control => {
         control.addEventListener('invalid', () => { control.closest('details').open = true; });

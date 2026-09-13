@@ -70,6 +70,7 @@ final class FirstPartyJobRepository
     public function enqueueMemoryConsolidation(string $memoryId, array $memory): void
     {
         $sourceTier = (string) ($memory['tier'] ?? '');
+        if($sourceTier==='mid')(new NpcMemoryDigestRepository($this->db))->enqueueScan($memory);
         if (!in_array($sourceTier, ['recent', 'mid'], true)) {
             return;
         }

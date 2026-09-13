@@ -39,6 +39,7 @@ final class PromptAssembler
         'knowledge' => ['limit' => 10, 'bytes' => 24_576],
         'narrative' => ['limit' => 10, 'bytes' => 16_384],
         'latest_diary' => ['limit' => 1, 'bytes' => 16_384],
+        'memory_digest' => ['limit' => 1, 'bytes' => 16_384],
         'action_result' => ['limit' => 16, 'bytes' => 12_288],
         'turn' => ['limit' => 1, 'bytes' => 16_384],
     ];
@@ -98,6 +99,8 @@ final class PromptAssembler
         $knowledge = $enabled['oghma'] ? $this->limitedSelection($selection, 'knowledge') : [];
         $narrative = $enabled['narratives'] ? $this->limitedSelection($selection, 'narrative') : [];
         $latestDiary = $this->limitedSelection($selection, 'latest_diary');
+        $memoryDigest = $enabled['memories']&&($memoryFlags['mid_term_enabled']??true)===true&&($turn['payload']['target']['kind']??'')!=='narrator'
+            ?$this->limitedSelection($selection,'memory_digest'):[];
         $actions = $enabled['recent_action_results'] ? $this->terminalActionResults($selection) : [];
         foreach ([
             'history' => $history,
@@ -106,6 +109,7 @@ final class PromptAssembler
             'knowledge' => $knowledge,
             'narrative' => $narrative,
             'latest_diary' => $latestDiary,
+            'memory_digest' => $memoryDigest,
             'action_result' => $actions,
         ] as $kind => $rows) {
             foreach ($rows as $row) $this->assertSourceScope($row, $turn, $kind);
@@ -150,6 +154,7 @@ final class PromptAssembler
             $knowledgeStatus,
             $narrative,
             $latestDiary,
+            $memoryDigest,
             $actions,
             $actorName,
             $playerName,
@@ -205,6 +210,7 @@ Return a tones object before mood and text in every utterance. Include all eight
             'knowledge' => $knowledge,
             'narrative' => $narrative,
             'latest_diary' => $latestDiary,
+            'memory_digest' => $memoryDigest,
             'action_result' => $actions,
             'turn' => [['id' => $turn['turn_id'], 'content' => $this->turnTraceContent($turn)]],
         ];
@@ -309,6 +315,7 @@ Return a tones object before mood and text in every utterance. Include all eight
         string $knowledgeStatus,
         array $narrative,
         array $latestDiary,
+        array $memoryDigest,
         array $actions,
         string $actorName,
         string $playerName,
@@ -367,6 +374,7 @@ Return a tones object before mood and text in every utterance. Include all eight
         $magicBlacklist = $this->blacklistSet($contextPolicy['magic_effects_blacklist']);
         $npc .= $this->characterXml($turn, $roleplayProfile, $actorName, $details, $itemBlacklist, $magicBlacklist);
         foreach ($latestDiary as $entry) $npc .= $this->xmlTag('latest_diary_entry', $this->truncateUtf8($this->sourceContent('latest_diary', $entry), min($this->maxSourceBytes, self::SECTIONS['latest_diary']['bytes'])));
+        foreach ($memoryDigest as $entry) $npc .= $this->xmlTag('middle_term_memory',$this->truncateUtf8($this->sourceContent('memory_digest',$entry),min($this->maxSourceBytes,self::SECTIONS['memory_digest']['bytes'])));
         $core = $coreProfile === null ? '' : $this->fieldText($coreProfile['content'] ?? [], ['prompt']);
         if ($details['npc_group'] && $core !== '') $npc .= $this->xmlTag('core_profile_instructions', $core);
         $instruction = $this->fieldText($prompt['content'] ?? [], ['instruction', 'prompt', 'default_prompt', 'custom_prompt']);
@@ -1356,8 +1364,8 @@ Return a tones object before mood and text in every utterance. Include all eight
                 $includedContent = $includedBytes > 0 ? $this->truncateUtf8($content, $includedBytes) : '';
                 $reason = !$included ? ($kind === 'history' ? 'section_limit' : 'byte_limit')
                     : ($includedBytes < strlen($content) ? 'byte_limit' : 'included');
-                if ($kind === 'latest_diary') {
-                    $included = $includedContent !== '' && str_contains($sectionBodies[$section] ?? '', $this->xmlTag('latest_diary_entry', $includedContent));
+                if (in_array($kind,['latest_diary','memory_digest'],true)) {
+                    $included = $includedContent !== '' && str_contains($sectionBodies[$section] ?? '', $this->xmlTag($kind==='memory_digest'?'middle_term_memory':'latest_diary_entry', $includedContent));
                     if (!$included) {$includedBytes=0;$includedContent='';$reason='byte_limit';}
                 }
                 if ($kind === 'history' && !$included && ($sectionBodies['memory_context'] ?? '') !== ''
@@ -1468,7 +1476,7 @@ Return a tones object before mood and text in every utterance. Include all eight
     private function sectionForSource(string $kind): string
     {
         return match ($kind) {
-            'profile', 'core_profile', 'prompt', 'latest_diary' => 'npc_context',
+            'profile', 'core_profile', 'prompt', 'latest_diary', 'memory_digest' => 'npc_context',
             'knowledge' => 'oghma_context',
             'narrative' => 'morrowind_context',
             'relationship' => 'relationships_factions',
@@ -1488,6 +1496,7 @@ Return a tones object before mood and text in every utterance. Include all eight
             'prompt' => 'configuration_revisions',
             'history' => 'eventlog',
             'memory' => 'memory_records',
+            'memory_digest' => 'npc_memory_digests',
             'relationship' => 'relationship_records',
             'knowledge' => 'knowledge_documents',
             'narrative', 'latest_diary' => 'narrative_records',
@@ -1602,7 +1611,7 @@ Return a tones object before mood and text in every utterance. Include all eight
             if ($field === 'profile_id' && $kind === 'memory'
                 && is_string($turn['_selected_profile_id'] ?? null)
                 && $source[$field] === $turn['_selected_profile_id']) continue;
-            if ($field === 'profile_id' && in_array($kind, ['profile', 'prompt', 'knowledge', 'relationship', 'latest_diary'], true)
+            if ($field === 'profile_id' && in_array($kind, ['profile', 'prompt', 'knowledge', 'relationship', 'latest_diary', 'memory_digest'], true)
                 && is_string($turn['_selected_profile_id'] ?? null)) $expected = $turn['_selected_profile_id'];
             if (!is_string($source[$field]) || !hash_equals((string) $expected, $source[$field])) {
                 throw new InvalidArgumentException('prompt_source_scope_mismatch');
@@ -1616,7 +1625,7 @@ Return a tones object before mood and text in every utterance. Include all eight
         $keys = match ($kind) {
             'profile' => ['profile_id', 'id'], 'core_profile' => ['core_profile_id', 'id'],
             'prompt' => ['configuration_id', 'id'], 'history' => ['history_id', 'id'],
-            'memory' => ['memory_id', 'id'], 'relationship' => ['relationship_id', 'id'],
+            'memory_digest'=>['digest_id','id'], 'memory' => ['memory_id', 'id'], 'relationship' => ['relationship_id', 'id'],
             'knowledge' => ['document_id', 'id'], 'narrative', 'latest_diary' => ['narrative_id', 'id'],
             'action_result' => ['action_id', 'id'], 'turn' => ['turn_id', 'id'],
             default => throw new InvalidArgumentException('invalid_prompt_source_kind'),

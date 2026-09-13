@@ -3112,6 +3112,32 @@ $importTable=['kind'=>'table','schema'=>'public','name'=>'fixture','columns'=>['
 $importRow=['kind'=>'row','schema'=>'public','table'=>'fixture','data'=>['id'=>'9223372036854775807','body'=>"Literal ; DROP TABLE\nSecond line"]];
 $importComplete=['kind'=>'complete'];
 $importRecords=[$importHeader,$importTable,$importRow,$importComplete];
+// Middle-term digest batches advance independently from scene retrieval and preserve prior canon.
+$digestMemories=[];
+for($i=1;$i<=120;$i++)$digestMemories[]=['id'=>sprintf('00000000-0000-4000-8000-%012d',$i),
+    'current_revision'=>1,'occurred_at'=>sprintf('2026-01-%02dT%02d:00:00Z',1+intdiv($i,24),$i%24),'content'=>'Scene '.$i];
+$digestPolicy=\LorkhanServer\Application\MemoryDigestPolicy::class;
+$check($digestPolicy::input(array_slice($digestMemories,0,4))===null,'first NPC digest requires five scenes');
+$digestFirst=$digestPolicy::input(array_reverse(array_slice($digestMemories,0,5)));
+$check(array_column($digestFirst['history'],'content')===['Scene 1','Scene 2','Scene 3','Scene 4','Scene 5']&&$digestFirst['previous_digest']==='','first digest sorts frozen sources chronologically');
+$digestPrevious=['content'=>'Prior canon','cursor'=>$digestFirst['cursor']];
+$check($digestPolicy::input(array_slice($digestMemories,0,14),$digestPrevious)===null,'subsequent NPC digest requires ten new scenes');
+$digestNext=$digestPolicy::input(array_slice($digestMemories,0,15),$digestPrevious);
+$check(count($digestNext['history'])===10&&$digestNext['history'][0]['content']==='Scene 6'&&$digestNext['previous_digest']==='Prior canon','next digest combines prior canon with only newer scenes');
+$check($digestPolicy::input(array_slice($digestMemories,0,15),['content'=>'New canon','cursor'=>$digestNext['cursor']])===null,'completed digest inputs do not generate another batch');
+$digestLarge=$digestPolicy::input($digestMemories);
+$check(count($digestLarge['history'])===100&&$digestLarge['history'][0]['content']==='Scene 21','digest uses the reference newest-100 bound');
+$check($digestPolicy::input(array_merge(array_slice($digestMemories,0,4),[$digestMemories[0]]))===null,'duplicate source IDs cannot satisfy a digest threshold');
+try{$conflict=$digestMemories[0];$conflict['current_revision']=2;$digestPolicy::input([$digestMemories[0],$conflict]);$check(false,'conflicting digest revisions accepted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='conflicting_digest_memory','conflicting digest revisions are rejected');}
+$check($digestNext['history'][0]['content_sha256']===hash('sha256','Scene 6'),'digest freezes exact source content hashes');
+$digestTied=array_slice($digestMemories,0,5);
+foreach($digestTied as &$entry)$entry['occurred_at']='2026-01-01T01:00:00+01:00';unset($entry);
+$digestTieResult=$digestPolicy::input(array_reverse($digestTied));
+$check(array_column($digestTieResult['history'],'memory_id')===array_column($digestTied,'id')&&$digestTieResult['cursor']['occurred_at']==='2026-01-01T00:00:00.000000Z','digest cursor normalizes timezones and breaks timestamp ties by immutable ID');
+$digestMock=(new \LorkhanServer\Application\MockProfileGenerationProvider())->generate(
+    ['generation_mode'=>'memory_digest']+$digestNext,new \LorkhanServer\Application\CallbackCancellationToken(static fn():bool=>false));
+$check(str_contains($digestMock['summary'],'Prior canon')&&str_contains($digestMock['summary'],'Scene 15')&&!str_contains($digestMock['summary'],'Scene 5'),'mock digest receives previous canon and only the new scene batch');
 $importValidator=new \LorkhanServer\Infrastructure\SqlImportData(['public.fixture'=>['id','body']],['public.fixture'=>['id']]);
 $validateImport=static function(array $records,string $suffix='')use($importValidator):array{
     $stream=fopen('php://temp','w+b');

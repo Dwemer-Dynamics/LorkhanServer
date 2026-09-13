@@ -46,6 +46,8 @@ spl_autoload_register(static function (string $class): void {
         'Application\\MemoryDeriveJobHandler' => '/service/MemoryDeriveJobHandler.php',
         'Application\\MemoryEmbedJobHandler' => '/service/MemoryEmbedJobHandler.php',
         'Application\\MemoryPromptSelection' => '/prompts/MemoryPromptSelection.php',
+        'Application\\MemoryDigestScanJobHandler' => '/service/MemoryDigestScanJobHandler.php',
+        'Application\\MemoryDigestJobHandler' => '/service/MemoryDigestJobHandler.php',
         'Application\\MemorySummaryJobHandler' => '/service/MemorySummaryJobHandler.php',
         'Application\\MiniMeEmbeddingProvider' => '/connector/MiniMeEmbeddingProvider.php',
         'Application\\MockOghmaTopicExtractor' => '/connector/MockOghmaTopicExtractor.php',

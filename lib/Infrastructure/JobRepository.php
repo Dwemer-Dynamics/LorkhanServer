@@ -146,9 +146,9 @@ final class JobRepository
 
     public function succeed(string $jobId, string $leaseToken): bool
     {
-        // Database import commits its rows and job acknowledgement together; accept only that exact completed lease.
+        // Database imports and memory digests commit their rows and job acknowledgement together; accept only that completed lease.
         $completed = $this->db->prepare("SELECT 1 FROM durable_jobs j JOIN durable_job_attempts a ON a.job_id=j.job_id "
-            . "WHERE j.job_id=:job AND j.job_type='database.import' AND j.state='succeeded' "
+            . "WHERE j.job_id=:job AND j.job_type IN ('database.import','memory.digest') AND j.state='succeeded' "
             . "AND a.lease_token=:token AND a.outcome='succeeded' AND a.finished_at IS NOT NULL");
         $completed->execute(['job'=>$jobId,'token'=>$leaseToken]);
         if ($completed->fetchColumn()) return true;

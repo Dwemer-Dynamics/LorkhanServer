@@ -12808,3 +12808,109 @@ blocked; the narrow screenshot was inspected. Private imports directory is
 lorkhan:www-data mode 2770. Existing configuration, credentials and voices were
 hash-preserved. Workflow 330702270 remains disabled_manually. No live SQL import
 was attempted. Full webpage parity and legacy SQL conversion remain unfinished.
+
+## NPC middle-term digest implementation in progress (2026-09-12; local only)
+
+Confirmed reference service/processors/middleterm/cmd/generate.php: first digest
+after five scoped summaries, later digests after ten new summaries; newest 100
+since the prior cursor are ordered chronologically and combined with prior canon.
+MemoryDigestPolicy implements these thresholds, immutable ID tie breaks, UTC
+cursors, source revision/content hashes, duplicate rejection and bounded text.
+The LLM adapter has a separate memory_digest contract and 2048-token limit using
+Morrowind continuity instructions, plus a deterministic mock. Existing unit tests
+cover two batches, no-new-input, limits, duplicates, timestamp ties and prior canon.
+1191 server checks and 111 protocol files pass.
+
+ProductRepository.memoryDigestCandidates reuses the prompt witness/hidden-event
+filter for derived mid-tier scenes across session profiles in the same playthrough.
+It excludes Narrator, manual rows and incomplete actor identities. The integration
+fixture supplies the exact actor identity explicitly; legacy record-name-only
+profiles cannot safely identify a witnessed actor without their runtime binding.
+Migration 106 drafts versioned per-NPC digest storage with same-scope parent keys.
+No new control, scheduler, prompt output or deployed migration is claimed.
+
+Next: durable queue/lease-fenced persistence using Background & Memory Tasks;
+validate source revisions and visibility through the whole prior-digest chain so
+hiding old conversations cannot leak through prior canon; avoid starving NPC
+scenes behind the global candidate bound; persist/edit revisions with conflicts;
+wire the distinct middle-term fragment and editor. Integration witness/suppression
+probe now passes in an isolated database (digest-witness-probe.sh): exact NPC
+witnesses accepted, bystander excluded, hidden sources excluded, playthrough
+isolation retained. The earlier complete probe reached these assertions but
+stopped on a missing namespace in the new test, now fixed. Keep the counterpart
+OPEN; it is not yet queued, saved, exposed or deployed.
+
+## Digest worker and prompt wiring checkpoint (2026-09-12; not deployed)
+
+Added NpcMemoryDigestRepository with per-NPC pending-job deduplication, frozen
+Background & Memory Tasks connector revisions and source batches, source-chain
+revalidation, immutable saved revisions and atomic job acknowledgement. The
+existing worker's exact-completed-lease acknowledgement now also accepts memory.digest.
+Source revision/hash changes, hidden history and scope changes prevent reuse;
+no source memory is overwritten. Canon validation follows prior versions with
+a bounded-depth check instead of treating a previous digest as trusted forever.
+
+New mid-tier scenes enqueue memory.digest.scan. It pages participating bound NPCs
+in groups of 25 and queues separate memory.digest provider jobs only when the
+reference thresholds are met. Candidate lookup pages beyond unrelated recent
+scenes; a 501-unwitnessed-scene fixture still finds the older witnessed batch.
+A unique runtime binding supplies exact identity for legacy profiles when possible.
+
+Saved digests now enter a distinct middle_term_memory prompt fragment and a
+memory_digest trace source, gated by Memories and Middle Term Memory and excluded
+for Narrator. Migration 106 includes the trace-source kind. Existing test fixtures
+verify scanner-to-worker delivery, two successive digests carrying prior canon,
+no-new-input, pending-job deduplication, prompt inclusion/disable, pagination,
+bystander exclusion, playthrough isolation and hiding a source across prior canon.
+The focused isolated probe passes (digest-witness-probe.sh).
+
+Still required before this counterpart is complete: reference Recent Middle Term
+Memory textarea and revision-aware save/clear semantics; stale lease, changed
+source and disabled-generation acceptance; full integration/inventory/migration
+checks, publication and local deploy. No UI acceptance or deployed digest feature
+is claimed. Main/live remain the SQL upload checkpoint, with no live provider calls.
+
+## NPC digest editor persistence checkpoint (2026-09-12; local only)
+
+Added revision-checked manual save and clear operations. Manual edits replace the
+latest logical entry while retaining immutable audit revisions; clearing reveals
+the preceding logical entry, and clearing the last entry writes a tombstone.
+Empty history can be seeded manually. Existing integration fixtures now exercise
+edit, stale draft rejection, both clear cases and seeding, alongside the scanner,
+worker, prompt, pagination and source privacy checks. The focused isolated probe
+passes. Migration 106 remains undeployed. NPC textarea and atomic Save All wiring,
+browser acceptance and full migration/inventory checks remain open.
+
+## NPC memory field and Save All wiring (2026-09-12; local only)
+
+Recent Middle Term Memory now follows Emote Moods Override in the NPC Info tab,
+using the reference label, textarea and hint. Playthrough selection retains local
+drafts. JavaScript submits only changed entries, with revision tokens, through the
+existing NPC Save All transaction. A stale digest fails before revising the profile.
+The isolated integration probe verifies successful combined saves and stale-draft
+rejection without a partial profile revision. Its legacy actor fixture explicitly
+clears an obsolete voice value to satisfy current profile validation; production
+voice validation is unchanged. Rendered desktop/narrow browser acceptance and full
+migration/schema validation remain pending. Nothing in this slice is deployed yet.
+
+NPC memory browser acceptance: the actual card-to-modal Info editor and Save button
+now pass save/reload checks at 1280 and 390 pixels against an isolated database.
+Only the edited playthrough content and revision are serialized. Both widths have
+no document overflow or JavaScript errors. Screenshots were inspected; nested
+memory label styling was corrected to reuse the existing form-item label rule.
+This proves browser persistence for the edited scope, not all scope-switch/clear
+interactions. Full migration/inventory checks and live deployment remain pending.
+
+Full integration vertical slice now passes against a freshly built migration-106
+factory database (fingerprint e607b4fcbb4c5f59d9c85d403cc0e36190bff9d61d107e10bda20f58c5c00f1e).
+The run used mock providers. Expected negative reset/snapshot probes logged their
+rejections and the process exited zero. This does not replace the separate schema
+inventory/up-down checks or remaining browser scope-switch/clear acceptance.
+
+Final digest pre-publication checks: migration 106 down/up passed in an isolated
+database; schema inventory write/check match at 179 relations and 1648 columns,
+hash 7089c1e9b54ff6550c127c778452bc7a594a9fd4800c67853023f0760cb2f7ce.
+Browser checks now also switch away/back while retaining the draft, verify another
+playthrough remains empty, and clear/save/reload at both desktop and narrow widths.
+Final review adds pending digest jobs to the existing connector deletion guard.
+No game, microphone, paid provider or live user-data mutation was used in checks.

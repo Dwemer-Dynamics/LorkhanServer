@@ -2863,6 +2863,16 @@ final class ManagementRouter
         $batch=trim((string)($values['npc_relationship_edits']??''))===''?null:$this->jsonField($values,'npc_relationship_edits');
         if($batch!==null&&(!is_int($batch['profile_revision']??null)||$batch['profile_revision']<1))throw new InvalidArgumentException('invalid_expected_revision');
         if($batch!==null)$batch=$this->resolveNpcRelationshipPreviews($batch,['installation_id'=>(string)$profile['installation_id'],'profile_id'=>$profileId]);
+        if(isset($values['npc_memory_edits'])){
+            $edits=$values['npc_memory_edits'];
+            if(!is_array($edits)||count($edits)>50)throw new InvalidArgumentException('invalid_digest_edits');
+            foreach($edits as $playthrough=>$edit){
+                if(!is_array($edit)||array_diff(array_keys($edit),['revision','content'])!==[]
+                    ||!is_string($edit['content']??null)||!is_scalar($edit['revision']??null)||!preg_match('/^(0|[1-9][0-9]{0,8})$/D',(string)($edit['revision']??'')))
+                    throw new InvalidArgumentException('invalid_digest_edits');
+                $this->repository->editNpcMemoryDigest((string)$profile['installation_id'],(string)$playthrough,$profileId,(int)$edit['revision'],$edit['content']);
+            }
+        }
         $revised=$this->service->revise('profile',$profileId,$content,$this->need($values,'change_reason'),$batch['profile_revision']??null);
         if(isset($values['core_profile_id'])&&trim((string)$values['core_profile_id'])!==''){
             $this->uuid((string)$values['core_profile_id'],'core_profile_id');$this->repository->assignCoreProfile($profileId,(string)$values['core_profile_id']);

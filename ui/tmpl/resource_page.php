@@ -738,6 +738,7 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="info" hidden>';
     $field('emote_moods','Emote Moods Override','textarea',(string)($content['emote_moods']??''),[],'span-2','Allowed mood/emote cues. Leave empty to use the inherited defaults.');
+    include __DIR__.'/npc_memory_digest.php';
     include __DIR__.'/npc_observed_state.php';
     include __DIR__.'/npc_profile_metadata.php';
     include __DIR__.'/npc_setting_overrides.php';

@@ -2195,6 +2195,96 @@ $assert(in_array($manualMemory['memory_id'],$visibleIds,true)
     &&!in_array($mixedMemory['memory_id'],$hiddenIds,true)
     &&!in_array($manualMemory['memory_id'],$hiddenIds,true),
     'NPC-profile manual memory or all-source summary eligibility was not enforced');
+$db->exec('SAVEPOINT digest_witness_probe');
+$db->prepare('UPDATE profiles SET actor_identity=CAST(:identity AS jsonb) WHERE profile_id=:profile')->execute(['identity'=>json_encode($memoryProbe['payload']['target'],JSON_THROW_ON_ERROR),'profile'=>$actorProfile['profile_id']]);
+$db->prepare("UPDATE memory_records SET derivation_key='digest-witness-fixture',provenance=provenance||'{\"provider\":\"first-party\",\"model\":\"deterministic-extractive-v1\"}'::jsonb WHERE memory_id=:id")
+    ->execute(['id'=>$mixedMemory['memory_id']]);
+$digestBystander=$memoryService->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Digest bystander',
+    'actor_identity'=>$bystanderProbe['payload']['target'],'content'=>['biography'=>'Unwitnessing NPC.']]);
+$digestSeen=$products->memoryDigestCandidates($installationId,$turn['playthrough_id'],$actorProfile['profile_id'],$memoryNow);
+$digestUnseen=$products->memoryDigestCandidates($installationId,$turn['playthrough_id'],$digestBystander['profile_id'],$memoryNow);
+$assert(in_array($mixedMemory['memory_id'],array_column($digestSeen,'id'),true)
+    &&!in_array($mixedMemory['memory_id'],array_column($digestUnseen,'id'),true),'digest candidate selection must reuse all-source witness filtering');
+$digestConnector=$memoryService->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Digest fixture mock','content'=>['driver'=>'mock','model'=>'digest-fixture']]);
+$digestGlobal=$products->globalSettingsForInstallation($installationId);$digestGlobalContent=$digestGlobal['content'];
+$digestGlobalContent['system_routing']['background_memory_configuration_id']=$digestConnector['configuration_id'];
+$digestGlobalContent['task_availability']['background_memory']=true;
+$memoryService->revise('global_settings',$digestGlobal['configuration_id'],$digestGlobalContent,'digest fixture route');
+for($digestIndex=1;$digestIndex<=4;$digestIndex++){
+    $digestMemory=$memoryService->createMemory(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],'playthrough_id'=>$turn['playthrough_id'],
+        'tier'=>'mid','content'=>'First digest scene '.$digestIndex,'provenance'=>['source'=>'memory.consolidate','provider'=>'first-party','model'=>'deterministic-extractive-v1','source_event_ids'=>[$sharedSource,$delivery['message_id']]]]);
+    $db->prepare('UPDATE memory_records SET derivation_key=:key WHERE memory_id=:id')->execute(['key'=>'digest-fixture-'.$digestIndex,'id'=>$digestMemory['memory_id']]);
+}
+$digests=new \LorkhanServer\Infrastructure\NpcMemoryDigestRepository($db);$digestJobs=new JobRepository($db);
+(new \LorkhanServer\Infrastructure\FirstPartyJobRepository($db))->enqueueMemoryConsolidation($mixedMemory['memory_id'],$mixedMemory);
+$digestScanRegistry=new \LorkhanServer\Application\JobHandlerRegistry([new \LorkhanServer\Application\MemoryDigestScanJobHandler($digests)]);
+$digestScanStats=(new Worker($digestJobs,$digestScanRegistry,'digest-scan-fixture',30,1,1,0,60,['memory.digest.scan']))->run();
+$assert($digestScanStats['succeeded']===1,'scene consolidation did not schedule a digest eligibility scan');
+$digestQueued=$digests->enqueue($installationId,$turn['playthrough_id'],$actorProfile['profile_id']);
+$assert($digestQueued!==null&&$digests->enqueue($installationId,$turn['playthrough_id'],$actorProfile['profile_id'])['job_id']===$digestQueued['job_id'],'digest queue must deduplicate pending NPC batches');
+$digestRegistry=new \LorkhanServer\Application\JobHandlerRegistry([new \LorkhanServer\Application\MemoryDigestJobHandler($digests,$products,new ProviderAttemptRepository($db))]);
+$digestStats=(new Worker($digestJobs,$digestRegistry,'digest-fixture',30,1,1,0,60,['memory.digest']))->run();
+$firstDigest=$digests->latest($installationId,$turn['playthrough_id'],$actorProfile['profile_id']);
+$assert($digestStats['succeeded']===1&&$firstDigest['revision']===1&&str_contains($firstDigest['content'],'First digest scene'),'first digest worker did not save its witnessed source batch');
+$assert($digests->enqueue($installationId,$turn['playthrough_id'],$actorProfile['profile_id'])===null,'digest worker requeued without new scenes');
+for($digestIndex=5;$digestIndex<=14;$digestIndex++){
+    $digestMemory=$memoryService->createMemory(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],'playthrough_id'=>$turn['playthrough_id'],
+        'tier'=>'mid','content'=>'Second digest scene '.$digestIndex,'provenance'=>['source'=>'memory.consolidate','provider'=>'first-party','model'=>'deterministic-extractive-v1','source_event_ids'=>[$sharedSource,$delivery['message_id']]]]);
+    $db->prepare("UPDATE memory_records SET derivation_key=:key,occurred_at=CAST(:now AS timestamptz)+interval '1 minute' WHERE memory_id=:id")->execute(['key'=>'digest-fixture-'.$digestIndex,'id'=>$digestMemory['memory_id'],'now'=>$memoryNow]);
+}
+$secondDigestJob=$digests->enqueue($installationId,$turn['playthrough_id'],$actorProfile['profile_id']);
+$secondDigestStats=(new Worker($digestJobs,$digestRegistry,'digest-fixture-next',30,1,1,0,60,['memory.digest']))->run();
+$secondDigest=$digests->latest($installationId,$turn['playthrough_id'],$actorProfile['profile_id']);
+$assert($secondDigestStats['succeeded']===1&&$secondDigest['revision']===2&&str_contains($secondDigest['content'],'First digest scene')&&str_contains($secondDigest['content'],'Second digest scene'),'second digest lost previous canon or newer scenes');
+$digestSelection=$products->promptContext($memoryProbe,$memoryNow);
+$digestPromptTurn=$memoryProbe;$digestPromptTurn['_selected_profile_id']=$actorProfile['profile_id'];
+$digestPrompt=(new PromptAssembler())->assemble($digestPromptTurn,$digestSelection);
+$digestTraceRows=array_values(array_filter($digestPrompt['trace']['sources'],static fn(array $row):bool=>$row['source_kind']==='memory_digest'));
+$assert(str_contains($digestPrompt['provider_input']['_assembled_prompt'],'First digest scene')&&count($digestTraceRows)===1
+    &&$digestTraceRows[0]['source_table']==='npc_memory_digests'&&$digestTraceRows[0]['included'],'saved NPC digest did not reach its distinct traced prompt fragment');
+$digestDisabled=$digestSelection;$digestDisabled['effective_settings']['settings']['memory']['mid_term_enabled']=false;
+$assert(!str_contains((new PromptAssembler())->assemble($digestPromptTurn,$digestDisabled)['provider_input']['_assembled_prompt'],$secondDigest['content']),
+    'disabled Middle Term Memory still injected its saved digest');
+$db->exec('SAVEPOINT digest_edit_probe');
+$digestScope=[$installationId,$turn['playthrough_id'],$actorProfile['profile_id']];
+$editor=$digests->editor(...$digestScope);
+$digests->edit(...[...$digestScope,$editor['revision'],'Manually corrected canon']);
+$assert($digests->editor(...$digestScope)['content']==='Manually corrected canon','digest manual edit was not saved');
+try{$digests->edit(...[...$digestScope,$editor['revision'],'Stale draft']);$assert(false,'stale digest draft overwrote newer canon');}
+catch(RuntimeException $error){$assert($error->getMessage()==='revision_conflict','unexpected digest conflict error');}
+$digests->edit(...[...$digestScope,$editor['revision']+1,'']);
+$assert($digests->editor(...$digestScope)['content']===$firstDigest['content'],'clearing edited latest digest failed to reveal previous logical entry');
+$digests->edit(...[...$digestScope,$editor['revision']+2,'']);
+$assert($digests->latest(...$digestScope)===null,'clearing last digest did not leave an empty editor');
+$digests->edit(...[...$digestScope,$editor['revision']+3,'Seeded canon']);
+$assert($digests->editor(...$digestScope)['content']==='Seeded canon','manual initial canon was not saved');
+$digestBeforeProfile=$products->getRevisioned('profile',$actorProfile['profile_id']);
+$digestForm=['profile_id'=>$actorProfile['profile_id'],'base_content_json'=>json_encode($digestBeforeProfile['content']),
+    'change_reason'=>'memory editor test','voice_id'=>'','notes'=>'Save All marker','npc_memory_edits'=>[$turn['playthrough_id']=>['revision'=>(string)($editor['revision']+4),'content'=>'Save All canon']]];
+$previewSave->invoke($previewManager,$digestForm);
+$assert($products->getRevisioned('profile',$actorProfile['profile_id'])['content']['notes']==='Save All marker'
+    &&$digests->editor(...$digestScope)['content']==='Save All canon','NPC Save All did not save both profile and digest');
+$digestSavedProfile=$products->getRevisioned('profile',$actorProfile['profile_id']);
+try{$previewSave->invoke($previewManager,array_replace($digestForm,['notes'=>'Stale profile marker']));$assert(false,'NPC Save All accepted stale digest');}
+catch(RuntimeException $error){$assert($error->getMessage()==='revision_conflict','unexpected Save All conflict');}
+$assert($products->getRevisioned('profile',$actorProfile['profile_id'])['current_revision']===$digestSavedProfile['current_revision'],'stale memory draft partially saved the NPC profile');
+$db->exec('ROLLBACK TO SAVEPOINT digest_edit_probe');
+$db->exec('SAVEPOINT digest_pagination_probe');
+$db->prepare("INSERT INTO memory_records(memory_id,installation_id,profile_id,playthrough_id,tier,content,lexical_terms,fake_vector,provenance,occurred_at,derivation_key)
+    SELECT md5('digest-page-'||n)::uuid,m.installation_id,m.profile_id,m.playthrough_id,'mid','Unwitnessed recent scene',ARRAY[]::text[],'[]'::jsonb,m.provenance,m.occurred_at+interval '1 day','digest-page-'||n FROM memory_records m CROSS JOIN generate_series(1,501) n WHERE m.memory_id=:id")->execute(['id'=>$mixedMemory['memory_id']]);
+for($digestIndex=1;$digestIndex<=5;$digestIndex++){
+    $bystanderScene=$memoryService->createMemory(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],'playthrough_id'=>$turn['playthrough_id'],
+        'tier'=>'mid','content'=>'Witnessed older scene '.$digestIndex,'provenance'=>['source'=>'memory.consolidate','provider'=>'first-party','model'=>'deterministic-extractive-v1','source_event_ids'=>[$sharedSource]]]);
+    $db->prepare('UPDATE memory_records SET derivation_key=:key WHERE memory_id=:id')->execute(['key'=>'bystander-page-'.$digestIndex,'id'=>$bystanderScene['memory_id']]);
+}
+$assert(count($products->memoryDigestCandidates($installationId,$turn['playthrough_id'],$digestBystander['profile_id'],$memoryNow))===5,'unrelated newer NPC scenes starved the witnessed digest batch');
+$db->exec('ROLLBACK TO SAVEPOINT digest_pagination_probe');
+$db->prepare("UPDATE eventlog_metadata SET suppressed_at=clock_timestamp() WHERE source_event_id=:source AND projection_kind='turn'")->execute(['source'=>$sharedSource]);
+$assert(!in_array($mixedMemory['memory_id'],array_column($products->memoryDigestCandidates($installationId,$turn['playthrough_id'],$actorProfile['profile_id'],$memoryNow),'id'),true),
+    'digest generation cannot resurrect suppressed source history');
+$assert($digests->latest($installationId,$turn['playthrough_id'],$actorProfile['profile_id'])===null,'hidden source history leaked through the cumulative digest chain');
+$assert($products->memoryDigestCandidates($installationId,\LorkhanServer\Infrastructure\Uuid::v4(),$actorProfile['profile_id'],$memoryNow)===[],'digest generation crossed playthrough scope');
+$db->exec('ROLLBACK TO SAVEPOINT digest_witness_probe');
 $semanticPolicyContent=['schema'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
     'endpoint'=>'http://127.0.0.1:8085','timeout_ms'=>1500];
 $semanticPolicy=$memoryService->createRevisioned('memory_embedding_policy',['installation_id'=>$installationId,
