@@ -133,6 +133,8 @@ final class ManagementRepository
             $record=(new ProductRepository($db))->configurationBackupRecord($id);
             if(($record['scope']['kind']??'')!=='database_sql'||($kind==='automatic'?($record['scope']['automatic']??false)!==true:!isset($record['scope']['snapshot'])))throw new RuntimeException('not_found');
             if(strtolower($record['scope']['snapshot']['name']??'')==='default')throw new RuntimeException('default_snapshot_protected');
+            $active=$db->prepare('SELECT 1 FROM lorkhan_internal.database_snapshot_source WHERE singleton AND backup_id=:id');
+            $active->execute(['id'=>$id]);if($active->fetchColumn()!==false&&$kind==='snapshot')throw new RuntimeException('active_snapshot_protected');
             $pending=$db->prepare("SELECT 1 FROM durable_jobs WHERE job_type='database.restore' AND state IN ('queued','leased') AND payload->>'backup_id'=:id LIMIT 1");
             $pending->execute(['id'=>$id]);if($pending->fetchColumn()!==false)throw new RuntimeException('backup_restore_pending');
             if(is_link($path)||is_link($path.'.dump'))throw new RuntimeException('backup_integrity_failed');

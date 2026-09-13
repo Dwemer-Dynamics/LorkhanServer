@@ -13283,3 +13283,38 @@ Manager GET (management_http.py:391) after its five-second request timeout, befo
 reaching the added snapshot regression section. This is not a full-suite pass.
 The isolated handler acceptance above passed independently. Investigate the cold
 Database Manager render rather than treating this timeout as snapshot failure.
+
+
+## Active snapshot controls (2026-09-12)
+
+The pinned reference renders Already Active disabled and disables Delete for the
+active entry. Native rows now match those controls; Download SQL stays usable.
+ManagementRepository rejects active snapshot deletion under the maintenance lock,
+and the form router returns the specific protected notice. Stored-panel guidance
+now explains named autosave instead of implying only a separate rollback is made.
+
+The disposable A/B/A/B handler fixture also verifies protected default deletion,
+preserved notes and active non-default deletion rejection. Actual source-rendered
+browser pages at 1280/390 verify one selected row, disabled Already Active/Delete,
+working Download SQL link, enabled inactive Copy, no page errors and no horizontal
+overflow. No live snapshot manipulation was performed. PHP template lint, 1210
+server checks and 111 protocol comparisons pass.
+
+A separate read-only live Database Manager GET completed HTTP 200 in 0.317 seconds.
+The earlier five-second timeout was in the Windows-mounted source test checkout;
+its exact cause is not established and the full HTTP suite is still not passed.
+
+Active-control deployment verified against all 897 source files with no extras or
+old paths. Restricted worker-account deployed fixture passes again, including
+active/default deletion rejection. Guard applies to named-snapshot deletion;
+automatic-backup deletion keeps its existing behavior. Rollback code snapshot:
+/var/backups/lorkhanserver-code.1E5cIL. A final single-file atomic deployment scoped
+the guard to named snapshots; lint and complete runtime hashes were rechecked.
+Both desktop and narrow active-row screenshots were inspected. Workflow remains
+disabled_manually; no client or live database state was changed.
+
+Remaining concrete Playthrough interaction audit: first default capture currently
+creates a named archive without setting database_snapshot_source, whereas pinned
+Herika marks that first default active. Also complete source-versus-live cold-page
+HTTP test diagnosis. Future-history pruning is a runtime feature gap, not a CSS
+or page-layout claim.

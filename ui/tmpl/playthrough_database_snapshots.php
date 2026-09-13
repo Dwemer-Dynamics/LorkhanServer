@@ -6,6 +6,7 @@ $snapshotMessages=[
     'snapshot-busy'=>'Another backup or restore is pending. Wait for it to finish before retrying.',
     'snapshot-name-exists'=>'A stored snapshot already has that name. Choose a different name; the existing snapshot was not changed.',
     'snapshot-protected'=>'This snapshot is queued for copying and cannot be deleted yet.',
+    'snapshot-active-protected'=>'The active snapshot cannot be deleted. Switch to another snapshot first.',
     'snapshot-default-protected'=>'The initial default snapshot is protected and cannot be deleted.',
     'snapshot-delete-failed'=>'Snapshot deletion did not finish. A file may already be removed; retry to finish deletion.',
 ];
@@ -46,7 +47,7 @@ $snapshotCalendar=\LorkhanServer\Application\MorrowindCalendar::parse($liveDatab
     </section>
     <section class="content-section" aria-labelledby="stored-snapshots-title">
         <h2 id="stored-snapshots-title">💾 Stored Snapshots</h2>
-        <p class="section-note">Stored snapshots are not actively used. Copy to Public replaces the active database after saving a rollback snapshot. Keep the game closed, then reconnect with the corresponding game save. Schema and installation IDs must match.</p>
+        <p class="section-note">Stored snapshots are not actively used. Copy to Public saves the current named playthrough before loading the selected snapshot. A separate rollback is kept when there is no current named playthrough. Keep the game closed, then reconnect with the corresponding game save. Schema and installation IDs must match.</p>
         <?php if($storedSnapshots===[]): ?><p class="playthrough-empty">No snapshots on this page. Save one from the left panel.</p><?php else: ?>
         <div class="backup-list" role="region" aria-label="Stored database snapshots" tabindex="0">
         <?php foreach($storedSnapshots as $snapshot): $isSource=$snapshotSource['backup_id']===$snapshot['backup_id'];
@@ -66,13 +67,13 @@ $snapshotCalendar=\LorkhanServer\Application\MorrowindCalendar::parse($liveDatab
                         <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthrough-snapshot" data-snapshot-confirm="copy" data-snapshot-name="<?= lorkhan_ui_h($snapshot['name']) ?>">
                             <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="operation" value="copy"><input type="hidden" name="backup_id" value="<?= lorkhan_ui_h($snapshot['backup_id']) ?>"><input type="hidden" name="confirm" value="Copy">
                             <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
-                            <button class="button snapshot-copy" type="submit">Copy to Public</button>
+                            <button class="button snapshot-copy" type="submit"<?= $isSource?' disabled':'' ?>><?= $isSource?'Already Active':'Copy to Public' ?></button>
                         </form>
                         <a class="button" href="<?= lorkhan_ui_h($managementBasePath.'/exports/database/'.$snapshot['backup_id'].'.sql') ?>">Download SQL</a>
                         <?php if(strtolower($snapshot['name'])!=='default'): ?><form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthrough-snapshot" data-snapshot-confirm="delete" data-snapshot-name="<?= lorkhan_ui_h($snapshot['name']) ?>">
                             <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="operation" value="delete"><input type="hidden" name="backup_id" value="<?= lorkhan_ui_h($snapshot['backup_id']) ?>"><input type="hidden" name="confirm" value="Delete">
                             <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
-                            <button class="button snapshot-delete btn-danger" type="submit" aria-label="Delete snapshot <?= lorkhan_ui_h($snapshot['name']) ?>">🗑️</button>
+                            <button class="button snapshot-delete btn-danger" type="submit"<?= $isSource?' disabled':'' ?> aria-label="Delete snapshot <?= lorkhan_ui_h($snapshot['name']) ?>">🗑️</button>
                         </form><?php else: ?><span class="selected-badge">Protected default</span><?php endif; ?>
                     </div>
                 </div>

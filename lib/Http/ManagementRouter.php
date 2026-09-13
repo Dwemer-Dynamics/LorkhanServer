@@ -484,7 +484,7 @@ final class ManagementRouter
                     if($operation==='copy'){$this->management->queueDatabaseRestore($id);$status='snapshot-copy-queued';}
                     else{$this->management->deleteStoredDatabaseBackup($id,$this->providerConfig,'snapshot');$status='snapshot-deleted';}
                 }else throw new InvalidArgumentException('invalid_snapshot_operation');
-            }catch(RuntimeException $error){$status=match($error->getMessage()){'maintenance_busy'=>'snapshot-busy','snapshot_name_exists'=>'snapshot-name-exists','backup_restore_pending'=>'snapshot-protected','default_snapshot_protected'=>'snapshot-default-protected','backup_delete_failed'=>'snapshot-delete-failed',default=>throw $error};}
+            }catch(RuntimeException $error){$status=match($error->getMessage()){'maintenance_busy'=>'snapshot-busy','snapshot_name_exists'=>'snapshot-name-exists','backup_restore_pending'=>'snapshot-protected','default_snapshot_protected'=>'snapshot-default-protected','active_snapshot_protected'=>'snapshot-active-protected','backup_delete_failed'=>'snapshot-delete-failed',default=>throw $error};}
             return $this->redirect($this->webRoot().'/ui/playthrough_manager.php?'.http_build_query(['status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
         }
         if($domain==='database-backup-delete'){
