@@ -12978,3 +12978,11 @@ squeezed into the scalar controls column: the previous flex-direction override
 had no effect on grid layout. Those map rows now use one full-width grid column;
 scalar overrides retain their reference layout. Both viewport checks pass again,
 including a >200px map width and no overflow; desktop screenshot inspected.
+
+Core/Rules compact-memory mapping and checkbox layout published/deployed in
+e1ba19e. Rollback /var/backups/lorkhanserver-code.MvHpJV. All 893 runtime files
+match source without extra or old paths; configuration/credential/voice hashes
+are preserved. Health/private/session/NPC scope checks pass. Live 1280/390 Core
+checks confirm the Memory override exists, checkbox maps are wider than 200px,
+and document overflow is absent, with every non-GET request blocked. This closes
+the compact-memory follow-up, not the remaining full-page/runtime parity goal.
