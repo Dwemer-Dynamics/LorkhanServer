@@ -12297,7 +12297,7 @@ features as exceptions. No missing item below is completed by shared CSS alone.
 - Core: Physical Diary, cumulative memory and client Core-slot selection.
 - Narrator: action support and remaining event/profile behavior mappings.
 - Playthroughs: future-history pruning, external import and full rollback.
-- Database Manager: uploaded/legacy SQL import with current restore safeguards.
+- Database Manager: current-schema SQL uploads are implemented and deployed; legacy SQL conversion remains open (see dated evidence below).
 
 The evolution report reference is ui/core/npc_report.php. It deduplicates
 personality history, combines backstory/personality chronologically, and asks
@@ -12798,3 +12798,13 @@ job component was rerun independently against a fresh cluster. The exposed
 current-schema upload workflow is ready for deployment; older-schema conversion
 and reference server-folder import interaction remain separate open requirements.
 No game, microphone, paid provider or live SQL import was used.
+
+Published SQL upload workflow in 62eca82178617632b98b608d95743f3e792abbae.
+Server-only deployment completed with rollback /var/backups/lorkhanserver-code.Bn1XoK.
+All 886 runtime files match source, with no extra/old paths. Private files return
+403, unauthenticated session returns 401 and NPC page scope probes return 200/404.
+Deployed 1280/390 import page checks pass with every non-GET browser request
+blocked; the narrow screenshot was inspected. Private imports directory is
+lorkhan:www-data mode 2770. Existing configuration, credentials and voices were
+hash-preserved. Workflow 330702270 remains disabled_manually. No live SQL import
+was attempted. Full webpage parity and legacy SQL conversion remain unfinished.
