@@ -13134,3 +13134,15 @@ advanced-rule integration scenario confirms canonical storage and effective
 values on a newly created NPC. 1201 server checks and all 111 protocol files pass.
 The focused isolated integration prefix, including Narrator portability/generation
 and advanced profile assignment, passes. Full runtime parity remains open.
+
+Published/deployed in 55455c2. All 893 runtime files match source; no extras or
+old paths. Health/private-route checks pass. Configuration, credentials and voices
+were hash-preserved. Rollback: /var/backups/lorkhanserver-code.Yz7Tj4. Workflow
+330702270 remains disabled_manually. No game or paid provider was used.
+
+Next database interaction: pinned Herika ui/import_db.php lists server-folder SQL
+files as well as accepting uploads. Native ui/tmpl/database_manager.html.php only
+has uploads. A folder picker must reuse DatabaseImportStore quarantine/enqueue and
+DatabaseImportJobHandler isolated schema validation, rollback and protected-state
+restoration; it must not execute arbitrary selected SQL directly. Legacy-schema
+conversion remains a separate requirement from choosing a file on the server.
