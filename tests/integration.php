@@ -579,7 +579,7 @@ $advancedInput=['installation_id'=>$installationId,'description'=>'Advanced low'
 $advancedLow=$products->saveProfileAssignmentRule($advancedInput,$now);
 $advancedInput['description']='Advanced high';$advancedInput['priority']=70;$advancedInput['core_profile_id']=$tieCoreNew['core_profile_id'];$advancedInput['advanced']['action']=['personality'=>'High priority'];
 $advancedHigh=$products->saveProfileAssignmentRule($advancedInput,$now);
-$actionOnlyInput=$advancedInput;$actionOnlyInput['description']='Action only';$actionOnlyInput['priority']=80;$actionOnlyInput['core_profile_id']='';$actionOnlyInput['advanced']['action']=['appearance'=>'Rule appearance','metadata'=>['MAX_WORDS_LIMIT'=>'173','RECHAT_P'=>'0','RECHAT_ALLOW_ACTIONS'=>'false']];
+$actionOnlyInput=$advancedInput;$actionOnlyInput['description']='Action only';$actionOnlyInput['priority']=80;$actionOnlyInput['core_profile_id']='';$actionOnlyInput['advanced']['action']=['appearance'=>'Rule appearance','metadata'=>['MAX_WORDS_LIMIT'=>'173','RECHAT_P'=>'0','RECHAT_ALLOW_ACTIONS'=>'false','DIARY_PROMPT'=>'Rule diary instructions','DIARY_COOLDOWN'=>'240','CONTEXT_HISTORY_DIARY'=>'35']];
 $actionOnly=$products->saveProfileAssignmentRule($actionOnlyInput,$now);
 $listedActionOnly=array_values(array_filter($products->profileAssignmentRulesPlan($installationId)['rules'],static fn(array $row):bool=>$row['rule_id']===$actionOnly['rule_id']))[0];
 $assert($listedActionOnly['core_profile_id']==='','action-only rule missing from editor list');
@@ -594,6 +594,10 @@ $advancedProfile=$products->getRevisioned('profile',$advancedProfileId);
 $advancedEffective=$products->effectiveSettingsForProfile($installationId,$advancedProfileId);
 $assert($advancedEffective['settings']['response']['max_words']===173&&$advancedEffective['settings']['behavior']['rechat_probability_percent']===0&&$advancedEffective['settings']['behavior']['rechat_allow_actions']===false,'rule metadata did not reach effective NPC settings');
 $assert($advancedProfile['core_profile_id']===$tieCoreNew['core_profile_id']&&$advancedProfile['content']['appearance']==='Rule appearance'&&$advancedProfile['content']['personality']==='High priority'&&$advancedProfile['content']['biography']==='Rule biography'&&$advancedProfile['content']['settings_overrides']['prompt']['prompt_head']==='Rule prompt','advanced regex/actions did not reach the created NPC');
+$advancedDiary=$products->effectiveSettingsForProfile($installationId,$advancedProfileId)['settings']['diary'];
+$assert($advancedProfile['content']['diary']['prompt']==='Rule diary instructions'
+    &&$advancedDiary['automatic_interval_seconds']===240&&$advancedDiary['context_turn_limit']===35,
+    'profile rule diary fields did not persist into the NPC editor and effective settings');
 $db->beginTransaction();
 $automaticTaskGlobal=$products->globalSettingsForInstallation($installationId);$automaticTaskContent=$automaticTaskGlobal['content']??\LorkhanServer\Application\SettingsCatalog::globalDefaults();$automaticTaskContent['task_availability']['profile_generation']=false;
 if($automaticTaskGlobal)$products->revise('global_settings',$automaticTaskGlobal['configuration_id'],$automaticTaskContent,'test',$now);
@@ -2234,6 +2238,27 @@ $assert($exportedNarrator['prompts']['narrator_welcome_prompt']==='Welcome custo
 $narratorDocument['prompts']=['narrator_welcome_prompt'=>''];
 $importNarrator->invoke($previewManager,['preset_json'=>json_encode($narratorDocument)],['installation_id'=>$installationId],'narrator');
 $assert(!isset($products->narratorEventPromptTexts($installationId)['narrator_welcome_prompt']),'empty Narration import did not restore default prompt');
+$beforeNarratorGeneration=$products->getRevisioned('profile',$narratorProfile['profile_id']);
+$narratorGenerationJob=$products->enqueueNarratorProfileGeneration($narratorProfile['profile_id']);
+$narratorGenerationQuery=$db->prepare('SELECT payload FROM durable_jobs WHERE job_id=:job');
+$narratorGenerationQuery->execute(['job'=>$narratorGenerationJob['job_id']]);
+$narratorGenerationPayload=json_decode($narratorGenerationQuery->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
+$narratorGenerationPayload['_job']=['job_id'=>$narratorGenerationJob['job_id'],'attempt'=>1];
+$narratorGenerator=new \LorkhanServer\Application\ProfileGenerateJobHandler($products,new \LorkhanServer\Application\MockProfileGenerationProvider());
+$narratorGenerator->handle($narratorGenerationPayload,'narrator-composition-probe',static fn():bool=>true);
+$generatedNarrator=$products->getRevisioned('profile',$narratorProfile['profile_id']);
+$assert($generatedNarrator['current_revision']===$beforeNarratorGeneration['current_revision']+1
+    &&$generatedNarrator['content']['biography']!==($beforeNarratorGeneration['content']['biography']??''),
+    'queued Narrator generation did not apply a persona revision');
+foreach(['enabled','voice','routing','diary','dynamic_profile','dynamic_profile_fields','inline_narration_mode','only_diary_access','prompt_head']as$field)
+    $assert(($generatedNarrator['content'][$field]??null)===($beforeNarratorGeneration['content'][$field]??null),
+        'Narrator generation changed unrelated setting '.$field);
+$assert($generatedNarrator['actor_identity']===$beforeNarratorGeneration['actor_identity']
+    &&$generatedNarrator['core_profile_id']===$beforeNarratorGeneration['core_profile_id'],
+    'Narrator generation changed identity or Core assignment');
+$narratorGenerator->handle($narratorGenerationPayload,'narrator-composition-probe',static fn():bool=>true);
+$assert($products->getRevisioned('profile',$narratorProfile['profile_id'])['current_revision']===$generatedNarrator['current_revision'],
+    'replayed stale Narrator generation created another revision');
 $db->exec('ROLLBACK TO SAVEPOINT narrator_portability_probe');
 $db->exec('SAVEPOINT digest_witness_probe');
 $db->prepare('UPDATE profiles SET actor_identity=CAST(:identity AS jsonb) WHERE profile_id=:profile')->execute(['identity'=>json_encode($memoryProbe['payload']['target'],JSON_THROW_ON_ERROR),'profile'=>$actorProfile['profile_id']]);

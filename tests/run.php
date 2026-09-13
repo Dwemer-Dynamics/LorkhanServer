@@ -3295,6 +3295,18 @@ $check(\LorkhanServer\Application\ProfileAssignmentRule::apply(['personality'=>'
 $ruleMerged=\LorkhanServer\Application\ProfileAssignmentRule::apply(['settings_overrides'=>['context'=>['location_blacklist'=>['old','stale'],'prompt_timestamp'=>true]]],['settings_overrides'=>['context'=>['location_blacklist'=>['new']]]]);
 $check($ruleMerged['settings_overrides']['context']===['location_blacklist'=>['new'],'prompt_timestamp'=>true],'rule override lists replace instead of keeping stale items');
 
+$diaryRule=\LorkhanServer\Application\ProfileAssignmentRule::normalize(['action'=>['metadata'=>[
+    'DIARY_PROMPT'=>'Rule diary instructions','DIARY_COOLDOWN'=>'240','CONTEXT_HISTORY_DIARY'=>'35']]]);
+$diaryRuleProfile=\LorkhanServer\Application\ProfileAssignmentRule::apply([
+    'diary'=>['prompt'=>'Old diary instructions','automatic_interval_seconds'=>120,'context_turn_limit'=>20,'enabled'=>false],
+    'voice'=>['id'=>'preserved']],$diaryRule['action']);
+$diaryRuleEffective=(new EffectiveSettingsResolver())->resolve([],[],$diaryRuleProfile);
+$check($diaryRuleEffective['settings']['diary']['prompt']==='Rule diary instructions'
+    &&$diaryRuleEffective['settings']['diary']['automatic_interval_seconds']===240
+    &&$diaryRuleEffective['settings']['diary']['context_turn_limit']===35
+    &&$diaryRuleEffective['settings']['diary']['enabled']===false
+    &&$diaryRuleProfile['voice']['id']==='preserved','diary rules override existing NPC diary fields without enabling generation or changing voice');
+
 $ruleMetadataSamples=['RECHAT_H'=>'2','AUTOFILL_CUSTOM_PROFILES_TRIGGER'=>'40','DIARY_COOLDOWN'=>'120','CORE_LANG'=>'es','RECHAT_MODE'=>'tight','OGHMA_AMOUNT'=>'1'];
 foreach(\LorkhanServer\Application\ProfileAssignmentRule::METADATA_FIELDS as$key=>[$section,$field,$type]){
     $sample=$ruleMetadataSamples[$key]??match($type){'boolean'=>'false','integer'=>'10','percent'=>'25%','list'=>'Seyda Neen, Balmora',default=>'Rule text'};

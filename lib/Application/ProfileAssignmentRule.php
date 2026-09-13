@@ -128,7 +128,12 @@ final class ProfileAssignmentRule
     {
         if (isset($action['settings_overrides'])) {
             foreach ($action['settings_overrides'] as $section=>$fields) {
-                foreach ($fields as $field=>$value) $content['settings_overrides'][$section][$field]=$value;
+                if($section==='diary'){
+                    // NPC diary fields override settings_overrides in the resolver and own the editor values.
+                    $content['diary']=array_replace($content['diary']??[],$fields);
+                    foreach(array_keys($fields)as$field)unset($content['settings_overrides']['diary'][$field]);
+                    if(($content['settings_overrides']['diary']??null)===[])unset($content['settings_overrides']['diary']);
+                }else foreach ($fields as $field=>$value) $content['settings_overrides'][$section][$field]=$value;
             }
             unset($action['settings_overrides']);
         }

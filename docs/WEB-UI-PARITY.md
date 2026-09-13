@@ -13113,3 +13113,24 @@ old paths. Health and protected-route probes pass. Rollback:
 /var/backups/lorkhanserver-code.OYh4U3. Configuration, credential and voice hashes
 preserved. GitHub workflow 330702270 remains disabled_manually. No game or paid
 provider was used. Full parity remains open.
+
+
+## Narrator handler composition and diary rule precedence (2026-09-12)
+
+An isolated integration probe now queues Narrator generation through the real
+repository, reads its frozen connector payload, and runs ProfileGenerateJobHandler
+with the deterministic mock provider. It verifies one generated persona revision,
+unchanged identity/Core/voice/routing/diary/dynamic/inline settings, and a stale
+replay producing no second revision. This is handler/database proof, not a live
+provider or full worker-loop/browser completion claim.
+
+Profile Rules had a real diary precedence defect: DIARY_PROMPT, DIARY_COOLDOWN and
+CONTEXT_HISTORY_DIARY were saved under settings_overrides, then shadowed by the
+NPC's canonical diary document. Rule application now writes the canonical diary
+fields used by the editor/resolver and removes only matching stale shadow values.
+Unrelated diary fields and all other settings remain unchanged. The targeted
+existing unit regression failed before the fix and passes after it; the existing
+advanced-rule integration scenario confirms canonical storage and effective
+values on a newly created NPC. 1201 server checks and all 111 protocol files pass.
+The focused isolated integration prefix, including Narrator portability/generation
+and advanced profile assignment, passes. Full runtime parity remains open.
