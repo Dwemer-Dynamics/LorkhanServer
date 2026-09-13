@@ -13206,3 +13206,13 @@ sandbox/capture/reader scripts were packaged, including the new upgrade entrypoi
 All four are now explicitly included. The earlier 893-file hash check did not
 cover omitted dependencies and is not proof of deployed import execution. A deployed
 sandbox fixture must pass before this deployment is considered verified.
+
+Upgrade support published in 279b608; complete importer packaging fixed in cb02e53.
+Both are deployed. The deployed IsolatedSqlImport/capture/sandbox/upgrade chain ran
+as the actual lorkhan worker user against a disposable schema-105 database, upgraded
+to 106, preserved the fixture row, passed current validation and rejected a changed
+ledger. All 897 runtime files match source, with no extras/old paths. Upgrade PHP
+URL returns 403; live Database Manager loads at 1280/390 with no POST sent. Health
+and protected routes pass; configuration, credentials and voice hashes preserved.
+Rollback: /var/backups/lorkhanserver-code.t8tv5X. Workflow remains disabled_manually.
+Full legacy row replacement and the wider parity goal remain unverified/open.
