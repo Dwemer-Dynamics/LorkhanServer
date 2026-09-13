@@ -31,9 +31,9 @@ $overrideLabels = [
     'context.inventory_items_descriptions_only'=>'Inventory Items Descriptions Only', 'context.power_awareness_enabled'=>'Power Awareness Enabled',
     'context.short_term_in_compact_chat'=>'Short Term Memory in Compact Chat',
     'context.transformation_detection'=>'Transformation Detection', 'context.hide_ambient_combat'=>'Hide Ambient Combat', 'prompt.prompt_head'=>'Prompt Head',
-    'oghma.location_context_enabled'=>'Force Location Oghma', 'oghma.topic_count'=>'Oghma Topic Count',
+    'oghma.location_context_enabled'=>'Force Location Oghma', 'oghma.topic_count'=>'Oghma Articles Amount',
     'oghma.extractor_fallback_enabled'=>'Oghma Extractor Fallback', 'oghma.extractor_timeout_ms'=>'Oghma Extractor Timeout',
-    'oghma.enabled'=>'Enable Oghma', 'oghma.result_limit'=>'Oghma Result Limit', 'oghma.racial_context_enabled'=>'Force Racial Oghma',
+    'oghma.enabled'=>'Oghma Infinium', 'oghma.result_limit'=>'Oghma Result Limit', 'oghma.racial_context_enabled'=>'Force Racial Oghma',
 ];
 $help=[
     'behavior.combat_bark_period_seconds'=>'Cooldown in seconds between combat barks (5–600). Does not enable combat barks. The active actor’s effective setting is sent to the game controls.',

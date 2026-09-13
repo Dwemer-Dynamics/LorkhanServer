@@ -5,9 +5,9 @@ $coreOverrideCatalog = [
     'profile_management.autofill_custom_profiles'=>['label'=>'Autofill Custom Profiles','type'=>'boolean','value'=>true],
     'profile_management.autofill_custom_profiles_trigger'=>['label'=>'Autofill Custom Profiles Trigger','type'=>'integer','value'=>40,'range'=>[10,100]],
 ];
-foreach (['location_context_enabled'=>'Force Location Oghma', 'topic_count'=>'Oghma Topic Count',
+foreach (['location_context_enabled'=>'Force Location Oghma', 'topic_count'=>'Oghma Articles Amount',
     'extractor_fallback_enabled'=>'Oghma Extractor Fallback', 'extractor_timeout_ms'=>'Oghma Extractor Timeout',
-    'enabled'=>'Enable Oghma', 'result_limit'=>'Oghma Result Limit', 'racial_context_enabled'=>'Force Racial Oghma'] as $key=>$label) {
+    'enabled'=>'Oghma Infinium', 'result_limit'=>'Oghma Result Limit', 'racial_context_enabled'=>'Force Racial Oghma'] as $key=>$label) {
     $default = \LorkhanServer\Application\SettingsCatalog::oghmaDefaults()[$key];
     $coreOverrideCatalog['oghma.'.$key] = ['label'=>$label, 'type'=>is_bool($default)?'boolean':'integer',
         'value'=>$default, 'range'=>match($key){'topic_count'=>[1,3],'result_limit'=>[1,5],default=>[250,3000]}];
