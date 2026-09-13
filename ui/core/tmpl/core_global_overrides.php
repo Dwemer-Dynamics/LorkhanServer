@@ -26,6 +26,7 @@ $coreOverrideCatalog['behavior.open_rechat']=['label'=>'Open Rechat','type'=>'bo
 $coreOverrideCatalog['behavior.end_conversation_cooldown_seconds']=['label'=>'End Conversation Cooldown','type'=>'integer','value'=>60,'range'=>[0,300]];
 $coreOverrideCatalog['relationship.enabled']=['label'=>'Relationship System Enabled','type'=>'boolean','value'=>($globalContent['relationship']['enabled']??false)===true];
 $coreOverrideCatalog['relationship.update_chance_percent']=['label'=>'Relationship Update Chance','type'=>'integer','value'=>50,'range'=>[0,100]];
+$coreOverrideCatalog['context.transformation_detection']=['label'=>'Transformation Detection','type'=>'boolean','value'=>true];
 $coreOverrideCatalog['context.power_awareness_enabled']=['label'=>'Power Awareness Enabled','type'=>'boolean','value'=>false];
 $contextSelectionGroups=require dirname(__DIR__,2).'/tmpl/context_selection_groups.php';
 foreach(['sections'=>'Context Sections','details'=>'Context Details']as$key=>$label){
@@ -44,6 +45,7 @@ $coreOverrideHelp = [
     'context.item_blacklist'=>'One item record ID or name per line. Matching items are omitted from prompt context. Blank clears the inherited blacklist; turn off Override to inherit. Maximum 256 entries, 256 UTF-8 bytes each.',
     'context.magic_effects_blacklist'=>'One magic effect per line. Matching effects are omitted from prompt context. Blank clears the inherited blacklist; turn off Override to inherit. Maximum 256 entries, 256 UTF-8 bytes each.',
     'context.hide_ambient_combat'=>'Hide ambient death events containing has killed from conversation context. Other death events and the stored event log are retained.',
+    'context.transformation_detection'=>'Include the observed werewolf form in player and NPC current-state context.',
     'context.power_awareness_enabled'=>'Compare observed character levels so NPCs can assess relative threats. The Nearby Actor Details Power selection must also be enabled. Missing levels produce no assessment.',
     'behavior.rechat_mode'=>'Tight uses the listener; Conversational prefers the current partner; Group rotates nearby NPCs; Random chooses a mode at the start of each chain. Existing chains retain their starting mode.',
     'behavior.rechat_strict_targeting'=>'Require the chosen responder to address the previous speaker directly. The selected responder’s setting is captured when the chain starts.',

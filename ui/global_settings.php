@@ -142,6 +142,7 @@ $sections = [
         ],
         'Context' => [
             ['context_hide_ambient_combat', 'Hide Ambient Combat', '&#x1F54A;&#xFE0F;', 'boolean', $contextPolicy['hide_ambient_combat'] ?? false, 'Hide ambient death events containing has killed from conversation context. Other death events and the stored event log are retained.', []],
+            ['context_transformation_detection', 'Transformation Detection', '&#x1F43A;', 'boolean', $contextPolicy['transformation_detection'] ?? true, 'Include an observed werewolf form in player and NPC current-state context. Requires a current OpenMW observation; does not infer transformations from race or biography.', []],
             ['context_power_awareness_enabled', 'Power Awareness Enabled', '&#x2694;&#xFE0F;', 'boolean', $contextPolicy['power_awareness_enabled'] ?? false, 'Compare observed character levels so NPCs can assess relative threats. Missing levels produce no assessment.', []],
             ['context_ground_items_descriptions_only', 'Ground Items Descriptions Only', '&#x1FAA8;', 'boolean', $contextPolicy['ground_items_descriptions_only'] ?? false, 'Only include nearby ground items that have a saved description. Description text can remain hidden through Context Selections. Does not filter equipment or inventory.', []],
             ['context_inventory_items_descriptions_only', 'Inventory Items Descriptions Only', '&#x1F392;', 'boolean', $contextPolicy['inventory_items_descriptions_only'] ?? false, 'Only include inventory items with a saved description and a stack of five or fewer. Description text can remain hidden through Context Selections. Does not filter equipped or nearby ground items.', []],
@@ -276,6 +277,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <input type="hidden" name="memory_settings_present" value="1">
         <input type="hidden" name="task_availability_present" value="1">
         <input type="hidden" name="scene_classifier_present" value="1">
+        <input type="hidden" name="context_transformation_detection_present" value="1">
         <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
         <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
         <input type="hidden" name="change_reason" value="Management global settings">

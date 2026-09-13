@@ -2570,6 +2570,10 @@ final class ManagementRouter
         }
         $content['context']['prompt_timestamp'] = isset($values['context_prompt_timestamp']);
         $content['context']['power_awareness_enabled'] = isset($values['context_power_awareness_enabled']);
+        $content['context']['transformation_detection'] = isset($values['context_transformation_detection_present'])
+            ? isset($values['context_transformation_detection'])
+            : (is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id'])
+                ? ($this->repository->globalSettingsForInstallation($values['installation_id'])['content']['context']['transformation_detection']??true) : true);
         $content['context']['hide_ambient_combat'] = isset($values['context_hide_ambient_combat']);
         $content['context']['ground_items_descriptions_only'] = isset($values['context_ground_items_descriptions_only']);
         $content['context']['inventory_items_descriptions_only'] = isset($values['context_inventory_items_descriptions_only']);

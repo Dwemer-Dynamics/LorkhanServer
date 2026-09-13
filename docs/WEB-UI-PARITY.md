@@ -108,7 +108,7 @@ Current delivery order: close visible page structure and interactions directly f
 | `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty and desktop/narrow layout reviewed. Latest-diary author audio is wired, with populated-template playback/error checks; live-provider acceptance remains open |
 | `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; MiniMe Service and its bounded reachability probe implemented; visible Setup/Local LLM, all-Core presets and network helpers implemented; Herika service choices now create or reuse installation-owned speech connectors while preserving custom endpoints and badges; Player2 switch, immutable routing overlay and four recap cards are implemented and mock/browser tested; whole-page desktop/narrow structure and complete save-flow checks are complete, including key errors/retry, local setup, service reuse and stale-revision rejection. Live-provider acceptance remains untested. Service process installation is not performed by this form in either product |
 | `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. All 15 shared tab entry views now load and retain mounted documents at 1280/390, with draft values retained in the eleven entry views containing editable fields. Tab names/order/style and keyboard activation match the reference grouping, with excluded tabs absent. Shared shell review is complete; individual editor/runtime gaps remain tracked in their own rows |
-| `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Hide Ambient Combat, Power Awareness, Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Default/Local LLM built-ins and named presets apply saved settings across existing Core Profiles with revision guards and persist independent defaults for future Core creation. Import now uses the reference file picker and confirmation instead of a JSON panel, with scoped requests and failed-import draft retention. Other Context event controls remain open. Portable global export of Core settings is not a requirement of the pinned reference; see the dated scope correction |
+| `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; Context now includes Hide Ambient Combat, Power Awareness, Transformation Detection, Prompt Timestamp and ground/inventory description-only controls with persistence and prompt checks. Scene Classifier has an active connector card, background classification and timed prompt notes. Default/Local LLM built-ins and named presets apply saved settings across existing Core Profiles with revision guards and persist independent defaults for future Core creation. Import now uses the reference file picker and confirmation instead of a JSON panel, with scoped requests and failed-import draft retention. Other Context event controls remain open. Portable global export of Core settings is not a requirement of the pinned reference; see the dated scope correction |
 | `core/core_profiles.php` | Same path | Response limits, memory/diary groups, settings/range controls, Copy to all, sticky toolbar, assigned slots and portable/named presets are implemented. Embedded LLM/TTS and Dialogue Prompt editors participate in Save All, with duplicate/conflicting shared drafts, revision-aware repeat saves and failed-save retention checked. Advanced metadata is now merged with visible controls; Oghma overrides and knowledge tags reach retrieval and both preset formats. Oghma, Context, Prompt, Relationship and Rechat overrides use the reference inline Global Settings rows, with raw JSON synchronization and inherited values. Core Prompt Head, timestamps and description-only item filters reach prompt assembly; Rechat Mode reaches chain selection, Relationship System controls job eligibility, and Power Awareness uses exact observed actor levels. Metadata Text/Tree/Table switching, immediate serialization, invalid JSON handling and empty-object preservation are verified, including fresh deployed mode-switch checks. All 17 main section titles/order match the reference; the native audit note is inside Advanced Metadata. All 15 enabled toggles, 10 slider pairs and 15 typed Copy to all dialogs are checked at 1280/390, including chained copy-to-preset revision handling. Sidebar create/clone/save/import/default/rollback/delete return paths and import/history interactions are now verified in standalone/embedded modes. Remaining: other runtime-backed Global Settings override categories and advanced Rules matching/action metadata. Physical Diary, cumulative memory semantics and Core-slot client selection are separate unfinished runtime features. |
 | `core/npc_master.php` | Same path | Mass Core Profile switching, Roleplay/General tabs, staged relationship edits/builds, locks/clear/details, diary switches and exact-target observed Info panels are implemented. Typed per-NPC override leaves now include language, summaries, Diary Prompt/Cooldown/History, Dynamic Profile History, Context, Prompt Head, Oghma, Relationship Enabled/Update Chance, Rechat Mode/Strict Targeting/Open Rechat and End Conversation Cooldown. Prompt assembly, queued evolution history, revisioned save/remove and invalid-input rejection are checked. Equipment and Metadata disclosure presentation corrected. General profile metadata now uses the reference vanilla-jsoneditor tree/text/table library, with revisioned native content and separate immutable Recorded State. Bounded target inventory capture and sorted count/total presentation are deployed in server d09d717 and client 1a35727; empty/unavailable states remain distinct. All 47 currently supported override editors apply typed values to drafts at desktop/narrow widths; grouped search, metadata mode switching and failed-save retention are checked. All six editor tabs retain the eight Roleplay drafts and Notes through keyboard navigation and form serialization. View Diary, Bio Import, Profile Versions and Evolution Report entry interactions are implemented and checked. Remaining: full runtime-backed override catalogue, other editor/modal interactions, continuous inventory updates and NPC Visit/Teleport/Return. |
 | `core/npc_report.php` | Same path | Reference report card, chronological deduplicated history and AI report generation implemented. Native queued reports use the separate global Background & Memory Tasks connector, immutable UUID-scoped input and separate report storage. Desktop/narrow empty/populated/loading/failure/retry states, real localhost transport, mock worker persistence, authentication and lease protection checked; live paid-provider acceptance remains untested. |
@@ -12272,7 +12272,7 @@ all 867 runtime files match source, private/auth/NPC probes pass, and existing
 configuration, credentials and voice contents are preserved. Workflow remains
 disabled_manually. No game launch or paid provider calls. Full parity is still open.
 
-## Remaining delivery checklist (2026-09-12, refreshed after report routing)
+## Remaining delivery checklist (2026-09-12, refreshed after Scene Classifier and Transformation Detection)
 
 The page matrix and dated evidence above remain authoritative; this checklist
 separates presentation work from runtime features instead of treating those
@@ -12292,7 +12292,7 @@ features as exceptions. No missing item below is completed by shared CSS alone.
 
 ### Runtime features required by those pages
 
-- Global Context: remaining event-capture controls and scene classification.
+- Global Context: magic-cast capture, reanimation tracking and item-pickup source/value capture remain open. Scene Classifier and observed werewolf Transformation Detection are implemented; see their dated evidence below.
 - NPC: continuous inventory updates and exact-profile Visit/Teleport/Return.
 - Core: Physical Diary, cumulative memory and client Core-slot selection.
 - Narrator: action support and remaining event/profile behavior mappings.
@@ -12674,3 +12674,35 @@ no extra/old paths remain, private files return 403 and unauthenticated sessions
 401. Deployed 1280/390 card checks pass with all writes blocked
 (scene-live-review.cjs). Existing secrets/configuration/voices are preserved.
 The GitHub server workflow remains disabled.
+
+## Transformation Detection uses observed OpenMW form (2026-09-12)
+
+Reference lib/core/transformation_state.php gates current-form prompt lines with
+TRANSFORMATION_DETECTION. OpenMW already sends a strict is_werewolf observation
+in playerState/targetState.identity (client adapters/openmw.lua); no new client
+API or protocol field is necessary. The server previously ignored this field.
+
+Global Context now includes Transformation Detection, enabled by default and
+disabled by the Local LLM preset like the pinned reference. Core/NPC override
+catalogues, portable Core presets and TRANSFORMATION_DETECTION Action JSON
+metadata support the same typed flag. Older documents normalize to enabled;
+older forms preserve the saved value. Prompt assembly adds the current werewolf
+form only for a true observed boolean and respects the effective setting and
+existing state sections. Normal, absent or malformed observations add nothing.
+Skyrim Vampire Lord form is not claimed as an OpenMW observation.
+
+1179 server checks and 111 protocol files pass. Existing prompt tests cover both
+player/NPC observed forms, disabled output and normal/malformed observations;
+existing metadata mapping checks cover the added key. Isolated Global Settings
+forms save off/on and reopen correctly at 1280/390 (transformation-ui-probe.sh and
+transformation-review.cjs in Temp). Schema remains 178 relations/1635 columns.
+No client build, game launch, microphone or paid-provider call was performed.
+Magic-cast events, reanimation and item-pickup source/value capture remain open;
+inventory snapshot differences alone do not prove a pickup, barter suppression
+or a source owner, so they were not substituted for the reference event.
+
+Local deploy completed with rollback /var/backups/lorkhanserver-code.53ZpM6.
+All 883 runtime files match source; private/auth/NPC probes pass. Deployed
+1280/390 Transformation Detection checks pass with writes blocked, and isolated
+desktop/narrow screenshots were inspected. Existing configuration, credentials
+and voice contents were preserved. The GitHub workflow remains disabled.

@@ -3278,6 +3278,21 @@ $check(str_contains($scenePrompt['provider_input']['_assembled_prompt'],'Overall
 $scenePromptTurn['_scene_classification']['note']='';
 $check(!str_contains((new PromptAssembler())->assemble($scenePromptTurn,$promptSelection)['provider_input']['_assembled_prompt'],'Overall ambient seems intimate.'),'expired scene note omitted from prompt');
 
+$transformedTurn=$promptTurn;
+$transformedTurn['payload']['context']['targetState']['identity']['is_werewolf']=true;
+$transformedTurn['payload']['context']['playerState']['identity']['is_werewolf']=true;
+$transformationSelection=$promptSelection;$transformationSelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
+$transformationPrompt=(new PromptAssembler())->assemble($transformedTurn,$transformationSelection)['provider_input']['_assembled_prompt'];
+$check(substr_count($transformationPrompt,'Currently transformed into a werewolf')===2,'observed player and NPC transformations reach prompt');
+$transformationSelection['effective_settings']['context']['transformation_detection']=false;
+$check(!str_contains((new PromptAssembler())->assemble($transformedTurn,$transformationSelection)['provider_input']['_assembled_prompt'],'Currently transformed into a werewolf'),'disabled transformation detection omits forms');
+$transformationSelection['effective_settings']['context']['transformation_detection']=true;
+$transformedTurn['payload']['context']['targetState']['identity']['is_werewolf']=false;
+$transformedTurn['payload']['context']['playerState']['identity']['is_werewolf']='true';
+$check(!str_contains((new PromptAssembler())->assemble($transformedTurn,$transformationSelection)['provider_input']['_assembled_prompt'],'Currently transformed into a werewolf'),'normal or malformed observations do not imply transformations');
+$legacyTransformation=\LorkhanServer\Application\SettingsCatalog::globalDefaults();unset($legacyTransformation['context']['transformation_detection']);
+$check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($legacyTransformation)['context']['transformation_detection']===true,'legacy global settings inherit transformation detection');
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

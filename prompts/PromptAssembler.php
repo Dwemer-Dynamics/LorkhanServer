@@ -362,6 +362,7 @@ Return a tones object before mood and text in every utterance. Include all eight
             }
         }
         $details = $contextPolicy['details'];
+        $details['transformation_detection']=$contextPolicy['transformation_detection']??true;
         $itemBlacklist = $this->blacklistSet($contextPolicy['item_blacklist']);
         $magicBlacklist = $this->blacklistSet($contextPolicy['magic_effects_blacklist']);
         $npc .= $this->characterXml($turn, $roleplayProfile, $actorName, $details, $itemBlacklist, $magicBlacklist);
@@ -642,7 +643,7 @@ Return a tones object before mood and text in every utterance. Include all eight
             if ($skillsXml !== '') $xml .= '<rpg_skills>' . $skillsXml . '</rpg_skills>';
         }
         $stateXml = $details['npc_current_state'] ? $this->actorStateXml($state, ['activity', 'disposition', 'health', 'health_percent'],
-            $details['npc_equipment'], $details['npc_inventory'], $details['npc_magic_effects'], $itemBlacklist, $magicBlacklist) : '';
+            $details['npc_equipment'], $details['npc_inventory'], $details['npc_magic_effects'], $itemBlacklist, $magicBlacklist, $details['transformation_detection']??true) : '';
         if ($stateXml !== '') $xml .= '<current_state>' . $stateXml . '</current_state>';
         return '<character>' . $xml . '</character>';
     }
@@ -675,7 +676,7 @@ Return a tones object before mood and text in every utterance. Include all eight
             $state['inventory'] = $turn['payload']['context']['inventory'] ?? [];
         }
         $stateXml = $this->actorStateXml($state, ['race', 'class', 'level', 'health', 'health_percent'],
-            $details['npc_equipment'], $details['npc_inventory'], $details['npc_magic_effects'], $itemBlacklist, $magicBlacklist);
+            $details['npc_equipment'], $details['npc_inventory'], $details['npc_magic_effects'], $itemBlacklist, $magicBlacklist, $details['transformation_detection']??true);
         if ($stateXml !== '') $xml .= '<current_state>' . $stateXml . '</current_state>';
         $assessment = PowerAwareness::describe($assessorLevel, $state['stats']['level'] ?? null);
         if ($assessment !== '') $xml .= $this->xmlTag('power_assessment', $assessment);
@@ -707,12 +708,13 @@ Return a tones object before mood and text in every utterance. Include all eight
     }
 
     /** Render actor state as semantic XML rather than embedding OpenMW state JSON. */
-    private function actorStateXml(array $state, array $scalarKeys, bool $includeEquipment, bool $includeInventory, bool $includeMagic, array $itemBlacklist, array $magicBlacklist): string
+    private function actorStateXml(array $state, array $scalarKeys, bool $includeEquipment, bool $includeInventory, bool $includeMagic, array $itemBlacklist, array $magicBlacklist, bool $includeTransformations=true): string
     {
         $xml = $this->knownFieldsXml($state, $scalarKeys);
         $identity = $state['identity'] ?? null;
         if (is_array($identity) && !array_is_list($identity)) {
             $xml .= $this->knownFieldsXml($identity, ['race', 'class', 'gender', 'primary_faction']);
+            if($includeTransformations&&($identity['is_werewolf']??false)===true)$xml.=$this->xmlTag('form','Currently transformed into a werewolf');
         }
         $stats = $state['stats'] ?? null;
         if (is_array($stats) && !array_is_list($stats)) {

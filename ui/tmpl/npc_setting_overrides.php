@@ -28,7 +28,7 @@ $overrideLabels = [
     'relationship.update_chance_percent'=>'Relationship Update Chance',
     'context.prompt_timestamp'=>'Prompt Timestamp', 'context.ground_items_descriptions_only'=>'Ground Items Descriptions Only',
     'context.inventory_items_descriptions_only'=>'Inventory Items Descriptions Only', 'context.power_awareness_enabled'=>'Power Awareness Enabled',
-    'context.hide_ambient_combat'=>'Hide Ambient Combat', 'prompt.prompt_head'=>'Prompt Head',
+    'context.transformation_detection'=>'Transformation Detection', 'context.hide_ambient_combat'=>'Hide Ambient Combat', 'prompt.prompt_head'=>'Prompt Head',
     'oghma.location_context_enabled'=>'Force Location Oghma', 'oghma.topic_count'=>'Oghma Topic Count',
     'oghma.extractor_fallback_enabled'=>'Oghma Extractor Fallback', 'oghma.extractor_timeout_ms'=>'Oghma Extractor Timeout',
     'oghma.enabled'=>'Enable Oghma', 'oghma.result_limit'=>'Oghma Result Limit', 'oghma.racial_context_enabled'=>'Force Racial Oghma',

@@ -212,6 +212,7 @@ final class SettingsCatalog
             'context' => [
                 'prompt_timestamp' => false,
                 'power_awareness_enabled' => false,
+                'transformation_detection' => true,
                 'hide_ambient_combat' => false,
                 'ground_items_descriptions_only' => false,
                 'inventory_items_descriptions_only' => false,
@@ -322,7 +323,7 @@ final class SettingsCatalog
             'diary' => ['prompt', 'automatic_interval_seconds', 'context_turn_limit'],
             'profile_evolution' => ['history_limit'],
             'profile_management' => ['autofill_custom_profiles','autofill_custom_profiles_trigger'],
-            'context' => ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','hide_ambient_combat','location_blacklist','item_blacklist','magic_effects_blacklist','event_types','sections','details'],
+            'context' => ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','transformation_detection','hide_ambient_combat','location_blacklist','item_blacklist','magic_effects_blacklist','event_types','sections','details'],
             'prompt' => ['prompt_head','emote_moods'],
             'oghma' => ['location_context_enabled','topic_count','extractor_fallback_enabled','extractor_timeout_ms','enabled','result_limit','racial_context_enabled'],
             'relationship' => ['enabled','update_chance_percent'],
