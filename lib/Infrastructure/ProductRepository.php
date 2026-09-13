@@ -897,6 +897,7 @@ final class ProductRepository
             if(!$row)throw new RuntimeException('not_found');
             if(!$this->profileTasksEnabled((string)$row['installation_id']))return['queued'=>false,'reason'=>'profile_tasks_disabled','observed'=>0,'required'=>0];
             $effective=$this->effectiveSettingsForProfile((string)$row['installation_id'],$profileId);
+            if(empty($effective['routing']['profile_generation_configuration_id']))return['queued'=>false,'reason'=>'profile_generation_connector_unavailable','observed'=>0,'required'=>0];
             $policy=$effective['settings']['profile_management'];$trigger=(int)$policy['autofill_custom_profiles_trigger'];
             if(!$policy['autofill_custom_profiles'])return['queued'=>false,'reason'=>'disabled','observed'=>0,'required'=>$trigger];
             $identity=$this->json($row['actor_identity']);
@@ -954,6 +955,7 @@ final class ProductRepository
             $pending->execute(['profile'=>$profileId,'playthrough'=>$playthroughId,'mode'=>$mode]);
             if($pending->fetchColumn())return['queued'=>false,'reason'=>'interval','observed'=>0];
             $effective=$this->effectiveSettingsForProfile((string)$row['installation_id'],$profileId);
+            if(empty($effective['routing']['profile_generation_configuration_id']))return['queued'=>false,'reason'=>'profile_generation_connector_unavailable','observed'=>0];
             $historyLimit=(int)($effective['settings']['profile_evolution']['history_limit']??50);
             if($historyLimit===0)$historyLimit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
             $history=$narrator?$this->narratorEvolutionHistory((string)$row['installation_id'],$playthroughId,$historyLimit)
@@ -1061,7 +1063,7 @@ final class ProductRepository
         $payload=['profile_id'=>$profileId,'base_revision'=>$revision];if($mode!==null)$payload['mode']=$mode;
         $routing=$this->effectiveSettingsForProfile($installationId,$profileId)['routing'];
         $configurationId=(string)($routing['profile_generation_configuration_id']??'');
-        if($configurationId==='')return$payload;
+        if($configurationId==='')throw new InvalidArgumentException('profile_generation_connector_unavailable');
         $statement=$this->db->prepare("SELECT configuration_id,current_revision FROM configuration_sets "
             ."WHERE configuration_id=:configuration AND installation_id=:installation AND kind='provider' AND deleted_at IS NULL FOR SHARE");
         $statement->execute(['configuration'=>$configurationId,'installation'=>$installationId]);$connector=$statement->fetch();

@@ -1022,6 +1022,11 @@ $backfillGlobal=$products->globalSettingsForInstallation($installationId);$backf
 $backfillSettings['profile_management']['autofill_custom_profiles']=true;
 $backfillSettings['profile_management']['autofill_custom_profiles_trigger']=10;
 $products->revise('global_settings',$backfillGlobal['configuration_id'],$backfillSettings,'enable profile backfill fixture',$now);
+$unassignedProfileTasks=$backfillSettings;$unassignedProfileTasks['system_routing']['profile_generation_configuration_id']='';
+$products->revise('global_settings',$backfillGlobal['configuration_id'],$unassignedProfileTasks,'unassigned profile tasks fixture',$now);
+$unassignedBackfill=$products->maybeEnqueueAutomaticProfileBackfill($backfillProfile['profile_id'],$session['playthrough_id']);
+$assert($unassignedBackfill['queued']===false&&$unassignedBackfill['reason']==='profile_generation_connector_unavailable','unassigned automatic backfill did not skip');
+$products->revise('global_settings',$backfillGlobal['configuration_id'],$backfillSettings,'restore profile task route',$now);
 $backfillBeforeHistory=$products->maybeEnqueueAutomaticProfileBackfill($backfillProfile['profile_id'],$session['playthrough_id']);
 $assert($backfillBeforeHistory['queued']===false&&$backfillBeforeHistory['reason']==='history_threshold'
     &&$backfillBeforeHistory['observed']===0&&$backfillBeforeHistory['required']===10,
@@ -1067,7 +1072,7 @@ $assert($backfillJobRow&&$backfillJobRow['state']==='queued'
     &&count($backfillPayload['source_turn_ids']??[])===10&&count($backfillPayload['recent_events']??[])===10,
     'automatic profile backfill did not freeze bounded actor history or persist its source observation: '.json_encode([
         'status'=>$backfillStatus,'job'=>$backfillJobRow,'payload'=>$backfillPayload],JSON_UNESCAPED_SLASHES));
-$backfillHandlerPayload=$backfillPayload;unset($backfillHandlerPayload['provider_configuration_id'],$backfillHandlerPayload['provider_revision']);
+$backfillHandlerPayload=$backfillPayload;
 $backfillHandlerPayload['_job']=['job_id'=>$backfillJobRow['job_id'],'attempt'=>1];
 (new \LorkhanServer\Application\ProfileGenerateJobHandler($products,
     new \LorkhanServer\Application\MockProfileGenerationProvider()))->handle($backfillHandlerPayload,'profile-backfill-test',static fn():bool=>true);
@@ -1108,6 +1113,10 @@ $evolutionHistoryContent=$evolutionHistoryCore['content'];$evolutionHistoryConte
 $products->revise('core_profile',$evolutionCore['core_profile_id'],$evolutionHistoryContent,'bounded evolution history fixture',$now);
 $db->prepare('UPDATE profiles SET core_profile_id=:core WHERE profile_id IN (:npc,:narrator)')->execute([
     'core'=>$evolutionCore['core_profile_id'],'npc'=>$dynamicProfile['profile_id'],'narrator'=>$narratorProfile['profile_id']]);
+$products->revise('global_settings',$backfillGlobal['configuration_id'],$unassignedProfileTasks,'unassigned evolution route fixture',$now);
+$unassignedEvolution=$products->maybeEnqueueDynamicProfileEvolution($dynamicProfile['profile_id'],$session['playthrough_id'],$sessionId);
+$assert($unassignedEvolution['queued']===false&&$unassignedEvolution['reason']==='profile_generation_connector_unavailable','unassigned evolution did not skip');
+$products->revise('global_settings',$backfillGlobal['configuration_id'],$backfillSettings,'restore evolution route',$now);
 $dynamicQueued=$products->maybeEnqueueDynamicProfileEvolution($dynamicProfile['profile_id'],$session['playthrough_id'],$sessionId);
 $dynamicJob=$db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='profile.generate' "
     ."AND payload->>'profile_id'=:profile AND payload->>'mode'='profile_evolution'");
@@ -1117,7 +1126,7 @@ $assert(($dynamicQueued['queued']??false)===true&&$dynamicJobRow&&$dynamicJobRow
     &&($dynamicPayload['dynamic_fields']??null)===['personality','occupation','skills']
     &&count($dynamicPayload['source_turn_ids']??[])===2&&count($dynamicPayload['recent_events']??[])===2,
     'dynamic NPC profile evolution did not freeze its selected fields and NPC-limited witnessed history');
-$dynamicHandlerPayload=$dynamicPayload;unset($dynamicHandlerPayload['provider_configuration_id'],$dynamicHandlerPayload['provider_revision']);
+$dynamicHandlerPayload=$dynamicPayload;
 $dynamicHandlerPayload['_job']=['job_id'=>$dynamicJobRow['job_id'],'attempt'=>1];
 (new \LorkhanServer\Application\ProfileGenerateJobHandler($products,
     new \LorkhanServer\Application\MockProfileGenerationProvider()))->handle($dynamicHandlerPayload,'profile-evolution-test',static fn():bool=>true);
@@ -1149,7 +1158,7 @@ $assert(($narratorEvolution['queued']??false)===true&&$narratorEvolutionRow
     &&($narratorEvolutionPayload['dynamic_fields']??null)===['goals']
     &&count($narratorEvolutionPayload['recent_events']??[])===3,
     'dynamic narrator evolution did not freeze the shared witnessed history');
-$narratorEvolutionHandler=$narratorEvolutionPayload;unset($narratorEvolutionHandler['provider_configuration_id'],$narratorEvolutionHandler['provider_revision']);
+$narratorEvolutionHandler=$narratorEvolutionPayload;
 $narratorEvolutionHandler['_job']=['job_id'=>$narratorEvolutionRow['job_id'],'attempt'=>1];
 (new \LorkhanServer\Application\ProfileGenerateJobHandler($products,
     new \LorkhanServer\Application\MockProfileGenerationProvider()))->handle($narratorEvolutionHandler,'narrator-evolution-test',static fn():bool=>true);
@@ -3812,6 +3821,11 @@ $assert($claimed['payload']['provider_configuration_id']===$backgroundProvider['
 $reportHandler=new \LorkhanServer\Application\NpcEvolutionReportJobHandler($reports,$reportProducts,new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db));
 // Availability switches retain selected routes and stop both enqueue and already queued provider work.
 $taskNpc=$reportProducts->createRevisioned('profile',['installation_id'=>$reportInstallation,'name'=>'Task availability NPC','actor_identity'=>['kind'=>'actor'],'content'=>[]],$reportNow);
+try{$reportProducts->enqueueProfileGeneration($taskNpc['profile_id']);$assert(false,'unassigned profile tasks queued');}catch(InvalidArgumentException $e){$assert($e->getMessage()==='profile_generation_connector_unavailable','wrong missing profile connector error');}
+$taskHandler=new \LorkhanServer\Application\ProfileGenerateJobHandler($reportProducts,null);
+try{$taskHandler->handle(['profile_id'=>$taskNpc['profile_id'],'base_revision'=>1,'_job'=>['job_id'=>\LorkhanServer\Infrastructure\Uuid::v4(),'attempt'=>1]],'test',static fn()=>true);$assert(false,'legacy profile job used runtime provider');}catch(RuntimeException $e){$assert($e->getMessage()==='profile_generation_connector_unavailable','wrong missing queued profile connector error');}
+$reportGlobals['system_routing']['profile_generation_configuration_id']=$reportProvider['configuration_id'];
+$reportProducts->revise('global_settings',$reportGlobal['configuration_id'],$reportGlobals,'test',$reportNow);
 $taskJob=$reportProducts->enqueueProfileGeneration($taskNpc['profile_id']);
 $taskOff=$reportGlobals;$taskOff['task_availability']=['background_memory'=>false,'profile_generation'=>false];
 $reportProducts->revise('global_settings',$reportGlobal['configuration_id'],$taskOff,'test',$reportNow);

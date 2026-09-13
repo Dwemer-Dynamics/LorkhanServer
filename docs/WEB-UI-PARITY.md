@@ -12591,3 +12591,35 @@ All 878 runtime files match source; private/auth/NPC probes pass. Deployed paire
 switches preserve connector drafts at 1280/390 with no writes
 (task-availability-live-review.cjs). Configuration, credentials and voice contents
 were preserved, and GitHub workflow remains disabled_manually.
+
+## Profile Tasks requires an assigned connector (2026-09-12)
+
+Closed the empty-route fallback gap above. Reference dynamic_update_util.php
+returns without generation when CORE_CONNECTOR_PROFILES has no connector.
+Lorkhan now rejects manual generation with profile_generation_connector_unavailable
+and skips automatic backfill/evolution when the effective task route is blank.
+Workers require a frozen connector ID/revision; older unassigned jobs fail without
+creating a runtime provider. Existing explicit jobs retain their frozen selection.
+The global availability switch still independently stops queued work.
+
+Existing integration fixtures now retain their connector references during mock
+worker execution, rather than deleting them to exercise the removed fallback.
+Focused migrated-database checks cover missing manual and legacy-job routes,
+automatic backfill/evolution skips, successful selected NPC/Narrator generation,
+and disabled availability. No game or paid provider was invoked.
+
+1149 server checks and 111 protocol files pass. Focused integration evidence:
+Temp/profile-generation-probe.sh and profile-route-probe.sh (fresh migrated
+databases; mock providers only). Full integration/import suite was not rerun.
+Local deploy completed; rollback /var/backups/lorkhanserver-code.yJROx7.
+All 878 runtime files match source, with no extra/old paths. Private files return
+403, unauthenticated sessions 401, NPC pages 200/404. Configuration, credentials
+and voice contents are unchanged. GitHub workflow remains disabled_manually.
+
+Next reference investigation: Scene Classifier in processor/postrequest.php uses
+ten recent speech-journal entries after input text, gated by minimeEnabled and
+SCENE_CLASSIFIER_ENABLED. It selects a dedicated connector, then known classifier
+labels, then enabled Medium Term Tasks. It detects one of eight genres, stores
+NPC scene_status, and adds a 60-second romance scene note. This is a missing
+runtime feature, not a Skyrim-only presentation exception. No native classifier
+implementation is claimed in this checkpoint.

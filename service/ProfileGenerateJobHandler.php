@@ -15,7 +15,7 @@ final class ProfileGenerateJobHandler implements JobHandler
 {
     public const TYPE='profile.generate';
 
-    public function __construct(private readonly ProductRepository $repository,private ?ProfileGenerationProvider $provider,
+    public function __construct(private readonly ProductRepository $repository,private readonly ?ProfileGenerationProvider $testProvider,
         private readonly ?ProviderAttemptRepository $attempts=null,private readonly int $timeoutMs=30_000,
         private readonly array $providerConfig=[]){}
 
@@ -52,11 +52,11 @@ final class ProfileGenerateJobHandler implements JobHandler
             if(!is_string($configurationId)||preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$configurationId)!==1
                 ||!is_int($revision)||$revision<1)throw new \InvalidArgumentException('invalid_profile_provider_revision');
             $slot=$this->repository->providerRevisionForInstallation((string)$profile['installation_id'],$configurationId,$revision);
-            $provider=ProviderFactory::profileGenerationForSlot($this->providerConfig,$slot);
+            $provider=$this->testProvider??ProviderFactory::profileGenerationForSlot($this->providerConfig,$slot);
             $timeout=(int)($slot['content']['timeout_ms']??$timeout);
         }else{
-            // Older jobs and profiles without an override keep the runtime provider, resolved only when needed.
-            $provider=$this->provider??=ProviderFactory::profileGeneration($this->providerConfig);
+            // A job must carry its selected connector revision; never fall through to a runtime provider.
+            throw new RuntimeException('profile_generation_connector_unavailable');
         }
         $deadline=hrtime(true)+max(1000,min(120_000,$timeout))*1_000_000;$lastCheck=0;
         $token=new CallbackCancellationToken(function()use(&$lastCheck,$deadline,$heartbeat):bool{$now=hrtime(true);if($now>=$deadline)return true;
