@@ -1167,6 +1167,38 @@ $assert(($dynamicQueued['queued']??false)===true&&$dynamicJobRow&&$dynamicJobRow
     &&($dynamicPayload['dynamic_fields']??null)===['personality','occupation','skills']
     &&count($dynamicPayload['source_turn_ids']??[])===2&&count($dynamicPayload['recent_events']??[])===2,
     'dynamic NPC profile evolution did not freeze its selected fields and NPC-limited witnessed history');
+// Exercise the UI's full 400-turn evolution range and byte-truncated provenance together.
+$historyOwns=!$db->inTransaction();if($historyOwns)$db->beginTransaction();$db->exec('SAVEPOINT profile_history_limits_probe');
+try{
+    for($index=0;$index<400;$index++)$insertBackfillTurn->execute([
+        'turn'=>\LorkhanServer\Infrastructure\Uuid::v4(),'request'=>\LorkhanServer\Infrastructure\Uuid::v4(),
+        'message'=>\LorkhanServer\Infrastructure\Uuid::v4(),'response'=>\LorkhanServer\Infrastructure\Uuid::v4(),
+        'session'=>$sessionId,'input'=>'Hello','speaker'=>json_encode($playerProfile['actor_identity']),
+        'target'=>json_encode($backfillTarget),'response_payload'=>json_encode(['lines'=>[['action'=>'say','speaker_identity'=>$backfillTarget,'text'=>'Hello']]]),'now'=>$now]);
+    foreach(['npc','narrator','truncated']as$case){
+        if($case==='truncated')$db->prepare("UPDATE turns SET input_text=repeat('history / ',800) WHERE session_id=:session AND target @> CAST(:target AS jsonb)")->execute(['session'=>$sessionId,'target'=>json_encode($backfillTarget)]);
+        $largeContent=$dynamicContent;$largeContent['settings_overrides']['profile_evolution']['history_limit']=400;
+        $largeIdentity=$case==='narrator'?['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN']:$backfillTarget;
+        $largeProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'History limit '.$case,
+            'actor_identity'=>$largeIdentity,'core_profile_id'=>$evolutionCore['core_profile_id'],'content'=>$largeContent],$now);
+        $queued=$products->maybeEnqueueDynamicProfileEvolution($largeProfile['profile_id'],$session['playthrough_id'],$sessionId);
+        $assert(($queued['queued']??false)===true,'history range fixture did not queue');
+        $q=$db->prepare('SELECT payload FROM durable_jobs WHERE job_id=:id');$q->execute(['id'=>$queued['job_id']]);$largePayload=json_decode($q->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+        $events=$largePayload['recent_events'];$sources=$largePayload['source_turn_ids'];
+        $assert($sources===array_column($events,'turn_id')&&strlen(json_encode($events,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))<=65536,'truncated history retained discarded source IDs or exceeded the worker byte cap');
+        $assert($case==='truncated'?(count($events)>0&&count($events)<400):count($events)===400,'configured 400-turn limit was not honored within its byte budget');
+        $largePayload['_job']=['job_id'=>$queued['job_id'],'attempt'=>1];
+        $handler=new \LorkhanServer\Application\ProfileGenerateJobHandler($products,new \LorkhanServer\Application\MockProfileGenerationProvider());
+        if($case!=='truncated'){
+            $tooLarge=$largePayload;$id=\LorkhanServer\Infrastructure\Uuid::v4();$tooLarge['source_turn_ids'][]=$id;$tooLarge['recent_events'][]=['turn_id'=>$id,'player_input'=>'Hello','npc_responses'=>['Hello']];
+            try{$handler->handle($tooLarge,'oversized-history',static fn():bool=>true);$assert(false,'401 evolution turns were accepted');}
+            catch(\InvalidArgumentException $error){$assert($error->getMessage()==='invalid_profile_backfill_context','unexpected evolution limit error');}
+        }
+        $handler->handle($largePayload,'history-limit-probe',static fn():bool=>true);
+        $assert($products->getRevisioned('profile',$largeProfile['profile_id'])['current_revision']===$largePayload['base_revision']+1,'valid large or truncated history failed mock evolution');
+    }
+}finally{$db->exec('ROLLBACK TO SAVEPOINT profile_history_limits_probe');if($historyOwns)$db->rollBack();}
+
 $dynamicHandlerPayload=$dynamicPayload;
 $dynamicHandlerPayload['_job']=['job_id'=>$dynamicJobRow['job_id'],'attempt'=>1];
 (new \LorkhanServer\Application\ProfileGenerateJobHandler($products,

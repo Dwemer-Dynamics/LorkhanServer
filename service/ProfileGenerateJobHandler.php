@@ -69,8 +69,9 @@ final class ProfileGenerateJobHandler implements JobHandler
         if($mode==='player_speech_style'){$sample=[];$sampleBytes=0;foreach($this->repository->recentPlayerInputs((string)$profile['installation_id'],200)as$text){$text=mb_strcut($text,0,2048,'UTF-8');$bytes=strlen($text);if($sampleBytes+$bytes>65_536)break;$sample[]=$text;$sampleBytes+=$bytes;}if($sample===[])throw new RuntimeException('player_inputs_unavailable');$input['recent_player_inputs']=$sample;}
         $evolution=in_array($mode,['profile_evolution','narrator_profile_evolution'],true);
         if($mode==='npc_profile_backfill'||$evolution){$events=$payload['recent_events']??null;$sources=$payload['source_turn_ids']??null;
-            if(!is_array($events)||!array_is_list($events)||$events===[]||count($events)>100
-                ||!is_array($sources)||!array_is_list($sources)||count($sources)!==count($events)||count($sources)>100
+            $historyLimit=$evolution?400:100;
+            if(!is_array($events)||!array_is_list($events)||$events===[]||count($events)>$historyLimit
+                ||!is_array($sources)||!array_is_list($sources)||count($sources)!==count($events)||count($sources)>$historyLimit
                 ||strlen(json_encode($events,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>65_536)
                 throw new \InvalidArgumentException('invalid_profile_backfill_context');
             foreach($sources as$index=>$source){$event=$events[$index]??null;$keys=is_array($event)?array_keys($event):[];sort($keys);

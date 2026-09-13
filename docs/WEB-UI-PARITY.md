@@ -13675,3 +13675,36 @@ admission/execution mismatch, not the missing typed global Narrator action famil
 Autonomous narration remains speech-only, matching the pinned reference distinction.
 
 Core slot runtime wiring is implemented; other engine-backed parity gaps remain.
+
+
+Core-slot deployment: 04778d6 is on main. The two changed runtime files were
+installed with rollback /var/backups/lorkhan-core-slots.OMBLaD. All 900 runtime
+hashes match; private routes remain 403, unauthenticated sessions 401 and scoped
+NPC routes 200/404. No client files or private configuration were changed.
+
+## Supported history controls reach their workers (2026-09-13)
+
+The downstream audit found that Diary Context and Dynamic Profile Context accepted
+0-400 in saved settings, but their workers rejected counts above 100. Diary jobs
+now accept up to 400 source turns and 1,600 witnessed events within the existing
+byte budget, with typed event validation. NPC/Narrator evolution accepts 400;
+automatic profile backfill retains its separate 100-turn bound.
+
+NPC history previously appended source IDs before deciding whether the matching
+event fit the byte budget. Skipped events therefore made the worker reject the
+whole batch. Source IDs now follow only included events. NPC and Narrator builders
+count JSON brackets/separators with the same encoding as worker validation. Diary
+provenance likewise excludes events discarded by its byte budget.
+
+Existing integration fixtures exercise 400 compact NPC and Narrator histories,
+401-event rejection, long slash-containing histories truncated below 400 with exact
+source correspondence, and successful mock evolution. Existing migrations/jobs
+fixtures execute a 101-source/101-event diary through the worker and verify saved
+provenance; 401-source and 1,601-event jobs reject. Full integration, SQL
+capture/staging/restore and migration/job suites pass. Schema remains 107/182
+relations; 1,247 server checks, 111 protocol matches, PHP lint and diff checks pass.
+No paid provider or running game was used.
+
+A further bounded consumer audit confirmed lock, Rechat, blacklist/context sections
+and independent latest-diary recall wiring; it found no additional demonstrated
+bug in those paths. This is not exhaustive engine or page acceptance.

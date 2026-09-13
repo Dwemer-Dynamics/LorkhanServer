@@ -1428,6 +1428,30 @@ $check($diaryStats['succeeded']===1&&$diaryRow['kind']==='diary'&&$diaryRow['tit
     &&$diaryAttempt['config_revision']==='1'&&$diaryAttempt['state']==='succeeded',
     'manual diary worker did not use the frozen provider revision or persist exact scoped provenance');
 
+// The supported diary history range must survive worker validation beyond the former 100-row cap.
+$largeDiaryPayload=$diaryPayload;$largeDiaryPayload['request_id']=Uuid::v4();$largeDiaryPayload['narrative_id']=Uuid::v4();
+$largeDiaryPayload['source_turn_ids']=[];$largeDiaryPayload['input']['witnessed_context']=[];
+for($index=0;$index<101;$index++){
+    $sourceId=Uuid::v4();$largeDiaryPayload['source_turn_ids'][]=$sourceId;
+    $largeDiaryPayload['input']['witnessed_context'][]=['turn_id'=>$sourceId,'at'=>$clock->iso(),'type'=>'inputtext','content'=>'A short witnessed event.'];
+}
+$largeDiaryJobId=Uuid::v4();$largeDiaryKey='narrative.generate:'.$largeDiaryPayload['request_id'];
+$jobs->enqueue($largeDiaryJobId,'narrative.generate',1,$largeDiaryKey,$largeDiaryPayload);
+$largeDiaryStats=(new Worker($jobs,$diaryRegistry,'large-diary-test',5,1,1,0,10,['narrative.generate'],static fn(int $microseconds):mixed=>null))->run();
+$largeDiaryRow=$db->query("SELECT content,provenance FROM narrative_records WHERE narrative_id='{$largeDiaryPayload['narrative_id']}'")->fetch();
+$largeDiaryProvenance=$largeDiaryRow?json_decode($largeDiaryRow['provenance'],true,32,JSON_THROW_ON_ERROR):[];
+$check($largeDiaryStats['succeeded']===1&&str_contains($largeDiaryRow['content'],'101 witnessed Morrowind event')
+    &&($largeDiaryProvenance['source_turn_ids']??[])===$largeDiaryPayload['source_turn_ids'],
+    'supported diary history over 100 rows failed mock generation or exact provenance persistence');
+$diaryHandler=$diaryRegistry->for('narrative.generate',1);
+foreach(['source_turn_ids','witnessed_context']as$overLimitField){
+    $oversizedDiary=$largeDiaryPayload;
+    if($overLimitField==='source_turn_ids')$oversizedDiary['source_turn_ids']=array_fill(0,401,$diaryTurn);
+    else $oversizedDiary['input']['witnessed_context']=array_fill(0,1601,['at'=>$clock->iso(),'type'=>'inputtext','content'=>'Event.']);
+    try{$diaryHandler->handle($oversizedDiary,$largeDiaryKey,static fn():bool=>true);throw new RuntimeException('over-limit diary history accepted');}
+    catch(InvalidArgumentException $error){$check($error->getMessage()==='invalid_diary_generation_job','diary count bound failed at the wrong validation stage');}
+}
+
 // Automatic candidates remain server-gated by profile opt-in, wait permission, and a per-profile cooldown.
 $products->bindActorProfile(['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']],
     $diaryActor,$diaryProfile['profile_id'],$clock->iso());

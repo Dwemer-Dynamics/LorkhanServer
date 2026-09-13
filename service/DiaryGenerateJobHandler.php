@@ -30,7 +30,7 @@ final class DiaryGenerateJobHandler implements JobHandler
             ||!is_int($payload['profile_revision']??null)||$payload['profile_revision']<1
             ||!is_int($payload['provider_revision']??null)||$payload['provider_revision']<1
             ||!is_array($payload['source_turn_ids']??null)||!array_is_list($payload['source_turn_ids'])
-            ||count($payload['source_turn_ids'])>100)
+            ||count($payload['source_turn_ids'])>400)
             throw new InvalidArgumentException('invalid_diary_generation_job');
         foreach($payload['source_turn_ids']as$sourceTurnId)
             if(!is_string($sourceTurnId)||!Uuid::isValid($sourceTurnId))throw new InvalidArgumentException('invalid_diary_generation_job');
@@ -43,11 +43,27 @@ final class DiaryGenerateJobHandler implements JobHandler
         if(!is_array($input)||array_is_list($input)||($input['generation_mode']??null)!=='diary_generation'
             ||!is_string($input['name']??null)||trim($input['name'])===''||!is_array($input['actor_identity']??null)
             ||!is_array($input['profile']??null)||!is_array($input['witnessed_context']??null)
-            ||!array_is_list($input['witnessed_context'])||count($input['witnessed_context'])<1||count($input['witnessed_context'])>100
+            ||!array_is_list($input['witnessed_context'])||count($input['witnessed_context'])<1||count($input['witnessed_context'])>1600
             ||!is_string($input['instruction']??null)||trim($input['instruction'])===''||strlen($input['instruction'])>8192
             ||!mb_check_encoding($input['instruction'],'UTF-8')
             ||strlen(json_encode($input,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>131_072)
             throw new InvalidArgumentException('invalid_diary_generation_job');
+        // Match the producer's finite event budget; multiple witnessed events can belong to one turn.
+        $contextBytes=0;
+        foreach($input['witnessed_context']as$event){
+            if(!is_array($event)||array_is_list($event)
+                ||array_diff(array_keys($event),['turn_id','at','type','speaker','target','content','location','game_time','people'])!==[]
+                ||!is_string($event['at']??null)||!is_string($event['type']??null))
+                throw new InvalidArgumentException('invalid_diary_generation_job');
+            foreach($event as$key=>$value){
+                if($key==='game_time'){if(!is_int($value))throw new InvalidArgumentException('invalid_diary_generation_job');}
+                elseif(!is_string($value)||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException('invalid_diary_generation_job');
+            }
+            if(isset($event['turn_id'])&&(!Uuid::isValid($event['turn_id'])||!in_array($event['turn_id'],$payload['source_turn_ids'],true)))
+                throw new InvalidArgumentException('invalid_diary_generation_job');
+            $contextBytes+=strlen(json_encode($event,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));
+            if($contextBytes>65_536)throw new InvalidArgumentException('invalid_diary_generation_job');
+        }
         $job=$payload['_job']??null;
         if(!is_array($job)||!is_string($job['job_id']??null)||!Uuid::isValid($job['job_id'])
             ||!is_string($job['lease_token']??null)||!Uuid::isValid($job['lease_token'])

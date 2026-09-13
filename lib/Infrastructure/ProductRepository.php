@@ -1100,14 +1100,14 @@ final class ProductRepository
         $statement->bindValue(':installation',$installationId);$statement->bindValue(':playthrough',$playthroughId);
         $statement->bindValue(':identity',$this->encode($stable));$statement->bindValue(':speaker_identity',$this->encode($stable));
         $statement->bindValue(':limit',$limit,PDO::PARAM_INT);$statement->execute();$rows=$statement->fetchAll();
-        $turnIds=[];$events=[];$bytes=0;$targetKey=$this->actorKey($stable);
-        foreach(array_reverse($rows)as$row){$turnIds[]=(string)$row['turn_id'];$response=$this->json($row['response_payload']);$replies=[];
+        $turnIds=[];$events=[];$bytes=2;$targetKey=$this->actorKey($stable);
+        foreach(array_reverse($rows)as$row){$response=$this->json($row['response_payload']);$replies=[];
             foreach(($response['lines']??[])as$line)if(is_array($line)&&($line['action']??null)==='say'){
                 $speaker=$line['speaker_identity']??null;if(!is_array($speaker)||$this->actorKey($speaker)!==$targetKey)continue;
                 $text=trim((string)($line['text']??''));if($text!=='')$replies[]=$text;}
             $event=['turn_id'=>(string)$row['turn_id'],'player_input'=>(string)$row['input_text'],'npc_responses'=>$replies];
-            $eventBytes=strlen($this->encode($event));if($bytes+$eventBytes>65_536)continue;
-            $events[]=$event;$bytes+=$eventBytes;}
+            $eventBytes=strlen(json_encode($event,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))+($events===[]?0:1);if($bytes+$eventBytes>65_536)continue;
+            $turnIds[]=(string)$row['turn_id'];$events[]=$event;$bytes+=$eventBytes;}
         return['source_turn_ids'=>$turnIds,'recent_events'=>$events];
     }
 
@@ -1119,7 +1119,7 @@ final class ProductRepository
             .'AND s.playthrough_id=:playthrough AND t.state=\'complete\' ORDER BY t.completed_at DESC,t.turn_id DESC LIMIT :limit');
         $statement->bindValue(':installation',$installationId);$statement->bindValue(':playthrough',$playthroughId);
         $statement->bindValue(':limit',$limit,PDO::PARAM_INT);$statement->execute();$rows=$statement->fetchAll();
-        $turnIds=[];$events=[];$bytes=0;
+        $turnIds=[];$events=[];$bytes=2;
         foreach(array_reverse($rows)as$row){$response=$this->json($row['response_payload']);$lines=[];
             foreach(($response['lines']??[])as$line)if(is_array($line)&&($line['action']??null)==='say'){
                 $speaker=is_array($line['speaker_identity']??null)?$line['speaker_identity']:[];
@@ -1127,7 +1127,7 @@ final class ProductRepository
                 $text=trim((string)($line['text']??''));if($text!=='')$lines[]=$name.': '.$text;}
             if($lines===[])continue;$turnId=(string)$row['turn_id'];
             $event=['turn_id'=>$turnId,'player_input'=>(string)$row['input_text'],'npc_responses'=>$lines];
-            $eventBytes=strlen($this->encode($event));if($bytes+$eventBytes>65_536)continue;
+            $eventBytes=strlen(json_encode($event,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))+($events===[]?0:1);if($bytes+$eventBytes>65_536)continue;
             $turnIds[]=$turnId;$events[]=$event;$bytes+=$eventBytes;}
         return['source_turn_ids'=>$turnIds,'recent_events'=>$events];
     }
@@ -1200,14 +1200,16 @@ final class ProductRepository
             $historyStatement->bindValue(':limit',$candidateLimit,\PDO::PARAM_INT);$historyStatement->execute();
             $context=[];$turns=[];$sourceIds=[];$bytes=0;
             foreach($historyStatement->fetchAll()as$row){$turnId=(string)($row['turn_id']??'');$turnKey=$turnId!==''?$turnId:'event:'.count($context);
-                if(!isset($turns[$turnKey])&&count($turns)>=$limit)continue;$turns[$turnKey]=true;if($turnId!==''&&Uuid::isValid($turnId))$sourceIds[$turnId]=true;
+                if(!isset($turns[$turnKey])&&count($turns)>=$limit)continue;
                 $speaker=$this->json($row['speaker']);$target=$this->json($row['target']);$item=array_filter([
                     'turn_id'=>$turnId===''?null:$turnId,'at'=>(string)$row['created_at'],'type'=>(string)$row['type'],
                     'speaker'=>$speaker['display_name']??$speaker['record_id']??null,'target'=>$target['display_name']??$target['record_id']??null,
                     'content'=>mb_strcut(trim((string)$row['data']),0,4096,'UTF-8'),'location'=>trim((string)($row['location']??''))?:null,
                     'game_time'=>(int)($row['gamets']??0)?:null,'people'=>trim((string)($row['people']??''))?:null,
                 ],static fn(mixed$value):bool=>$value!==null&&$value!=='');$encoded=$this->encode($item);
-                if($bytes+strlen($encoded)>65_536)continue;$bytes+=strlen($encoded);$context[]=$item;}
+                if($bytes+strlen($encoded)>65_536)continue;
+                $turns[$turnKey]=true;if($turnId!==''&&Uuid::isValid($turnId))$sourceIds[$turnId]=true;
+                $bytes+=strlen($encoded);$context[]=$item;}
             if($context===[])throw new \InvalidArgumentException('diary_generation_no_context');$context=array_reverse($context);
             $profileContent=$this->json($profile['content']);$profileInput=[];
             foreach(['prompt_head','core','appearance','biography','personality','speech_style','occupation','skills','goals','relationships','gender','race']as$field)
