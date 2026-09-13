@@ -68,6 +68,21 @@
                 <div><label for="sql-import-confirm">Type Import SQL to confirm replacement</label><input id="sql-import-confirm" name="confirm" type="text" pattern="Import SQL" autocomplete="off" required></div></div>
                 <button class="button backup-restore" type="submit">Import SQL</button>
             </form>
+            <h3 class="server-import-heading">Import from Server</h3>
+            <p>Place a plain SQL backup in <code><?= lorkhan_ui_h($serverImportDirectory) ?></code>, refresh this page, then select it below. The same validation, replacement and rollback rules apply. The original file is kept.</p>
+            <?php if($serverImportError): ?><p role="alert">The import folder could not be listed. Check its permissions and keep at most 1,000 files in it.</p>
+            <?php elseif($serverImportFiles===[]): ?><p>No SQL files found in the server import folder.</p>
+            <?php else: ?>
+            <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/database-import">
+                <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>">
+                <input type="hidden" name="request_id" value="<?= lorkhan_ui_h(\LorkhanServer\Infrastructure\Uuid::v4()) ?>">
+                <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+                <div class="restore-fields"><div><label for="sql-server-file">Available SQL files on server:</label><select id="sql-server-file" name="server_file" required>
+                    <?php foreach($serverImportFiles as$file): ?><option value="<?= lorkhan_ui_h($file['name']) ?>"><?= lorkhan_ui_h($file['name']) ?> (<?= number_format($file['bytes']) ?> bytes)</option><?php endforeach; ?>
+                </select></div><div><label for="sql-server-confirm">Type Import SQL to confirm replacement</label><input id="sql-server-confirm" name="confirm" type="text" pattern="Import SQL" autocomplete="off" required></div></div>
+                <button class="button backup-restore" type="submit">Import from Server</button>
+            </form>
+            <?php endif; ?>
             <p role="status" data-database-maintenance data-kind="import" data-endpoint="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/database-import" data-state="<?= lorkhan_ui_h($sqlImportJob['state']??'') ?>">Latest SQL import: <?= lorkhan_ui_h($sqlImportJob['state']??'none') ?>.</p>
         </details>
         <nav class="backup-pagination" aria-label="SQL backup pages"><?php if($sqlPage>1): ?><a class="button" href="<?= lorkhan_ui_h($sqlPageUrl($sqlPage-1)) ?>">Previous</a><?php endif; ?><?php if($sqlHasNext): ?><a class="button" href="<?= lorkhan_ui_h($sqlPageUrl($sqlPage+1)) ?>">Next</a><?php endif; ?></nav>

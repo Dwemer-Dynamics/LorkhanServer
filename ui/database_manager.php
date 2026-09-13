@@ -12,6 +12,11 @@ if($adminParts===false||!isset($adminParts['host'])||isset($adminParts['user'])|
 $maintenanceJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus();
 $sqlBackupJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus('database.backup');
 $sqlImportJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus('database.import');
+$serverImportFiles=[];$serverImportDirectory='';$serverImportError=false;
+try{
+    $importStore=new \LorkhanServer\Infrastructure\DatabaseImportStore($config);
+    $serverImportDirectory=$importStore->serverDirectory();$serverImportFiles=$importStore->serverFiles();
+}catch(\RuntimeException $error){$serverImportError=true;}
 $sqlRestoreJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus('database.restore');
 $replayRepository=new \LorkhanServer\Infrastructure\ManagementRepository($database);
 $replayJob=$replayRepository->databaseMaintenanceStatus('database.replay');

@@ -13146,3 +13146,26 @@ has uploads. A folder picker must reuse DatabaseImportStore quarantine/enqueue a
 DatabaseImportJobHandler isolated schema validation, rollback and protected-state
 restoration; it must not execute arbitrary selected SQL directly. Legacy-schema
 conversion remains a separate requirement from choosing a file on the server.
+
+
+## Database Manager server-folder SQL import (2026-09-12)
+
+Added the missing pinned Herika import_db.php server-file picker to the existing
+SQL import section: file names/sizes, empty state, private folder instructions,
+selection and explicit Import SQL confirmation. Source files live under the
+configured private backup directory's incoming subfolder, outside the web root.
+Only readable, nonempty regular SQL files up to 1 GiB are accepted. Traversal,
+symlinks, directories and other extensions are rejected; enumeration is bounded
+to 1,000 entries. The original operator file remains after queueing.
+
+The form reuses DatabaseImportStore quarantine/hash verification, shared maintenance
+locking and DatabaseImportJobHandler sandbox validation/rollback/state restoration.
+No arbitrary SQL execution path was added. This closes folder selection, not
+legacy-schema conversion (which still rejects older releases).
+
+1210 existing server checks and 111 protocol checks pass. Isolated actual-browser
+checks at 1280/390 cover populated/empty states, explicit confirmation, traversal
+and bad-confirmation 422s, queue success, maintenance-busy refusal and retained
+source selection. Narrow populated/empty screenshots were inspected; no page errors
+or horizontal overflow. The browser used a fixture file and no worker; it did not
+execute SQL or prove a database replacement. No live data, game or providers used.

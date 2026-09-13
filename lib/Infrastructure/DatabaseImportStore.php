@@ -10,6 +10,46 @@ use RuntimeException;
 final class DatabaseImportStore
 {
     public function __construct(private readonly array $config){}
+    /** Operator-provided dumps stay outside the web root and separate from active import quarantine. */
+    public function serverDirectory():string
+    {
+        $root=rtrim((string)($this->config['backup_storage_path']??'/var/lib/lorkhanserver/backups'),DIRECTORY_SEPARATOR);
+        $directory=$root.'/incoming';
+        if(is_link($root)||is_link($directory))throw new RuntimeException('import_storage_unavailable');
+        if(!is_dir($directory)){
+            $mask=umask(0007);try{$made=mkdir($directory,0770,true);}finally{umask($mask);}
+            if(!$made&&!is_dir($directory))throw new RuntimeException('import_storage_unavailable');
+        }
+        return $directory;
+    }
+
+    /** Resolve only a regular SQL file immediately inside the dedicated import folder. */
+    public function serverFile(string $name):string
+    {
+        if($name===''||strlen($name)>255||preg_match('/[\\\\\/\x00-\x1f\x7f]/',$name)
+            ||strtolower(pathinfo($name,PATHINFO_EXTENSION))!=='sql')throw new RuntimeException('invalid_import_file');
+        $directory=$this->serverDirectory();$path=$directory.'/'.$name;$resolved=realpath($path);
+        if(is_link($path)||$resolved===false||dirname($resolved)!==realpath($directory)
+            ||!is_file($resolved)||!is_readable($resolved)||filesize($resolved)<1||filesize($resolved)>SqlImportData::MAX_BYTES)
+            throw new RuntimeException('invalid_import_file');
+        return $resolved;
+    }
+
+    /** Bound folder enumeration without reading multi-gigabyte dump contents on page loads. */
+    public function serverFiles():array
+    {
+        $files=[];$examined=0;
+        foreach(new \DirectoryIterator($this->serverDirectory())as$entry){
+            if($entry->isDot())continue;
+            if(++$examined>1000)throw new RuntimeException('import_folder_too_large');
+            try{$path=$this->serverFile($entry->getFilename());}
+            catch(RuntimeException $error){if($error->getMessage()==='invalid_import_file')continue;throw $error;}
+            $files[]=['name'=>$entry->getFilename(),'bytes'=>filesize($path)];
+        }
+        usort($files,static fn(array $a,array $b):int=>strnatcasecmp($a['name'],$b['name']));
+        return $files;
+    }
+
     public function path(string $id):string
     {
         if(!Uuid::isValid($id))throw new RuntimeException('invalid_import_id');

@@ -3157,6 +3157,28 @@ $check(array_column($digestTieResult['history'],'memory_id')===array_column($dig
 $digestMock=(new \LorkhanServer\Application\MockProfileGenerationProvider())->generate(
     ['generation_mode'=>'memory_digest']+$digestNext,new \LorkhanServer\Application\CallbackCancellationToken(static fn():bool=>false));
 $check(str_contains($digestMock['summary'],'Prior canon')&&str_contains($digestMock['summary'],'Scene 15')&&!str_contains($digestMock['summary'],'Scene 5'),'mock digest receives previous canon and only the new scene batch');
+$folderRoot=sys_get_temp_dir().'/lorkhan-import-folder-'.bin2hex(random_bytes(8));
+$folderStore=new \LorkhanServer\Infrastructure\DatabaseImportStore(['backup_storage_path'=>$folderRoot]);
+$folderPath=$folderStore->serverDirectory();
+try{
+    file_put_contents($folderPath.'/fixture.sql','SELECT 1;');file_put_contents($folderPath.'/empty.sql','');
+    file_put_contents($folderPath.'/ignored.txt','not a dump');mkdir($folderPath.'/directory.sql');
+    $check($folderStore->serverFiles()===[['name'=>'fixture.sql','bytes'=>9]],'server SQL picker lists only nonempty regular SQL files');
+    foreach(['../fixture.sql','..\\fixture.sql','/fixture.sql','empty.sql','ignored.txt','directory.sql',"bad\0.sql"]as$name){
+        try{$folderStore->serverFile($name);$check(false,'unsafe server SQL filename rejected');}
+        catch(RuntimeException $error){$check($error->getMessage()==='invalid_import_file','unsafe server SQL filename rejected');}
+    }
+    if(PHP_OS_FAMILY!=='Windows'){
+        symlink($folderPath.'/fixture.sql',$folderPath.'/linked.sql');
+        try{$folderStore->serverFile('linked.sql');$check(false,'server SQL symlink rejected');}
+        catch(RuntimeException $error){$check($error->getMessage()==='invalid_import_file','server SQL symlink rejected');}
+        unlink($folderPath.'/linked.sql');
+    }
+}finally{
+    foreach(['fixture.sql','empty.sql','ignored.txt']as$name)unlink($folderPath.'/'.$name);
+    rmdir($folderPath.'/directory.sql');rmdir($folderPath);rmdir($folderRoot);
+}
+
 $importValidator=new \LorkhanServer\Infrastructure\SqlImportData(['public.fixture'=>['id','body']],['public.fixture'=>['id']]);
 $validateImport=static function(array $records,string $suffix='')use($importValidator):array{
     $stream=fopen('php://temp','w+b');

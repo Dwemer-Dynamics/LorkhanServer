@@ -511,12 +511,19 @@ final class ManagementRouter
         if($domain==='database-import'){
             if(($v['confirm']??'')!=='Import SQL')throw new InvalidArgumentException('confirmation_mismatch');
             $id=$this->need($v,'request_id');$this->uuid($id,'request_id');
-            $file=$r->files['sql_file']??null;
-            if(!is_array($file)||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||($file['size']??0)<1
-                ||$file['size']>\LorkhanServer\Infrastructure\SqlImportData::MAX_BYTES
-                ||strtolower(pathinfo((string)($file['name']??''),PATHINFO_EXTENSION))!=='sql'
-                ||!is_uploaded_file((string)($file['tmp_name']??'')))throw new InvalidArgumentException('invalid_import_file');
-            try{$this->management->queueDatabaseImport($id,$file['tmp_name'],$this->providerConfig);$status='import-queued';}
+            if(isset($v['server_file'])){
+                if(isset($r->files['sql_file']))throw new InvalidArgumentException('invalid_import_file');
+                try{$source=(new \LorkhanServer\Infrastructure\DatabaseImportStore($this->providerConfig))->serverFile($this->need($v,'server_file'));}
+                catch(RuntimeException $error){if($error->getMessage()==='invalid_import_file')throw new InvalidArgumentException('invalid_import_file');throw $error;}
+            }else{
+                $file=$r->files['sql_file']??null;
+                if(!is_array($file)||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||($file['size']??0)<1
+                    ||$file['size']>\LorkhanServer\Infrastructure\SqlImportData::MAX_BYTES
+                    ||strtolower(pathinfo((string)($file['name']??''),PATHINFO_EXTENSION))!=='sql'
+                    ||!is_uploaded_file((string)($file['tmp_name']??'')))throw new InvalidArgumentException('invalid_import_file');
+                $source=$file['tmp_name'];
+            }
+            try{$this->management->queueDatabaseImport($id,$source,$this->providerConfig);$status='import-queued';}
             catch(RuntimeException $error){$status=match($error->getMessage()){'maintenance_busy'=>'maintenance-busy','import_confirmation_conflict'=>'import-conflict',default=>throw $error};}
             return $this->redirect($this->webRoot().'/ui/database_manager.php?'.http_build_query(['status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
         }
