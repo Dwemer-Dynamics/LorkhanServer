@@ -13169,3 +13169,10 @@ and bad-confirmation 422s, queue success, maintenance-busy refusal and retained
 source selection. Narrow populated/empty screenshots were inspected; no page errors
 or horizontal overflow. The browser used a fixture file and no worker; it did not
 execute SQL or prove a database replacement. No live data, game or providers used.
+
+Published/deployed in ba3ceab. All 893 source/runtime files match; no extra files
+or old paths. Health and protected routes pass. Configuration, credentials and
+voice hashes preserved. Rollback: /var/backups/lorkhanserver-code.I1R20M. The live
+Database Manager server-folder section loads at 1280/390 without a folder error
+or overflow; browser blocked non-GET requests and no live import was submitted.
+Workflow 330702270 remains disabled_manually. Full parity remains open.
