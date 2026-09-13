@@ -14,9 +14,21 @@ OpenMW data ownership, authenticated forms, revisions and protected credentials.
 Background Life, AI Quest Manager, Active Quests, Soulgaze Gallery, ITT and Server
 Plugins remain excluded from this release.
 
-## Current priority presentation checkpoint (2026-09-11)
+## Latest verification checkpoint (2026-09-12)
 
-Latest presentation checkpoint: shared context labels and appearance grouping (de38f77); see the final dated sections for remaining ownership differences. Quickstart Setup / Local LLM cards, all-Core preset application, memory switches and network helpers are implemented. Narrator quest grounding is deployed at server `75984dc` / client `b133b4b`; the client is unchanged by this UI checkpoint.
+The complete existing `scripts/test/management_http.py` suite now passes in an
+isolated native-Linux checkout under the postgres test account. It exercises the
+browser-form/API/worker flows, including NPC/Core edits, connector ownership,
+Narrator portability and full snapshot operations. This is HTTP/fixture evidence,
+not a blanket visual, live-provider or in-game acceptance claim. The last rerun
+reused the verified deployed factory artifact; earlier native runs rebuilt it.
+NPC queued-generation feedback was additionally clicked and visually inspected
+at 1280/390. All 897 deployed runtime files match source. Remaining presentation
+and runtime gaps are still explicit in the matrix; the goal remains active.
+
+## Earlier presentation checkpoint (2026-09-11)
+
+Earlier presentation checkpoint: shared context labels and appearance grouping (de38f77); see the final dated sections for remaining ownership differences. Quickstart Setup / Local LLM cards, all-Core preset application, memory switches and network helpers are implemented. Narrator quest grounding is deployed at server `75984dc` / client `b133b4b`; the client is unchanged by this UI checkpoint.
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -13357,3 +13369,78 @@ has not assigned a Profile Generation connector there, while current
 profileGenerationPayload requires one; confirm the response error and repair the
 fixture setup or product behavior as appropriate. No generation fallback should
 be added merely to make this old test pass. Full HTTP acceptance remains open.
+
+
+## NPC generation route and honest receipt (2026-09-12)
+
+The full native-copy HTTP fixture confirmed the earlier 422 was exactly
+profile_generation_connector_unavailable. It now first verifies that rejection,
+creates a named mock LLM through the actual connector form, assigns the global
+Profile Generation connector through Global Settings, then successfully queues
+NPC generation. Production connector policy was not relaxed and no live provider
+was called. The test subsequently reached the NPC list-state save check; that
+separate failure is being diagnosed with its actual response body.
+
+The investigation found a presentation defect: a queued NPC generation used the
+ordinary "NPC profile change saved" notice. Its route now selects queued,
+completed or failed feedback from the returned job state, matching the Narrator
+receipt pattern. The existing character-page redirect retains filters and embed.
+Actual source-rendered NPC modal Generate clicks at 1280/390 return the queued
+notice, preserve embed=1 and leave the exported profile unchanged (excluding the
+export timestamp). Completed and failed notice presentation was checked using
+fixture URLs; this does not claim those workers executed. Screenshots inspected
+at both widths; no overflow/page errors. 1210 server checks, 111 protocol matches
+and PHP lint pass.
+
+Two changed runtime files deployed atomically with backups under
+/var/backups/lorkhan-npc-receipt.dMs5Tw. All 897 runtime files match source, no
+extra/legacy paths, private routes 403 and unauthenticated sessions 401. No user
+profile, game, provider or credential was used by these fixture interactions.
+Full page-parity completion and the broader HTTP suite remain open.
+
+The subsequent NPC list-state failure returned invalid_digest_edits. Inspection
+showed the Python HTML test parser collected the form-associated memory textarea
+but omitted its adjacent form-associated hidden revision input. A before/after
+parser probe reproduces this exact missing revision and verifies both fields are
+now submitted. Corrected the existing parser to collect explicitly associated
+successful input controls; production digest validation remains unchanged. The
+broader native-copy HTTP suite is being rerun with that fix.
+
+The corrected parser run passed the earlier NPC save/list-return check and reached
+the Global Connector test plan. That older assertion expected four entries, but
+the implemented plan has six (including Background & Memory Tasks and Scene
+Classifier). Updated the existing assertion to verify every named slot and its
+expected pending/skipped state, retaining the single shared-provider test-job
+requirement and no-provider-call-on-GET checks. No product behavior changed for
+these test corrections. Full-suite result follows after the rerun finishes.
+
+The subsequent run passed Narrator generation but found stale portable-export
+assertions. Aligned them with the already shipped prompts document and roleplay
+name/diary/dynamic fields, retaining the strict expected keys and exclusion of
+installation/profile/routing identity. The next run passed those checks and the
+new named A/B/A switch sequence. Restore-rejection tests now fetch the fresh
+named generation form rather than posting a superseded generation's old form.
+The source-delete test now verifies active-source rejection plus successful
+inactive deletion, matching the previously deployed protection. These are test
+updates for actual shipped behavior, not relaxed product validation.
+
+For faster reruns, the isolated native-copy harness reuses a private copy of the
+already deployed factory artifact instead of rebuilding it on every attempt.
+The existing factory integrity/source checks still run; the maintained test
+runner retains its normal build step. This optimization exists only in the
+local temporary probe, not the repository or deployed server.
+
+
+### Complete management HTTP suite acceptance (2026-09-12)
+
+The final native-copy run exited 0 and printed `browser-like management HTTP forms
+passed`. This includes the repaired tests above and all subsequent restore
+schema/installation rejection, active/inactive deletion, signed loaded-save
+snapshot, NPC biography import and version-restore checks through the end of the
+existing suite. The isolated PostgreSQL/PHP fixture was cleaned up by its trap.
+It used mock/local test providers, not paid services or the running game.
+
+Final checks: 1210 server checks; 111 protocol files; git diff --check; desktop and
+narrow NPC generation click/receipt checks. UI/runtime code was deployed in the
+two-file receipt deployment noted above; remaining modifications are tests/docs.
+This closes the broad HTTP test blocker, not the full visual-parity goal.

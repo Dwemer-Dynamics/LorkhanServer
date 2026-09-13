@@ -118,7 +118,7 @@ class Page(html.parser.HTMLParser):
     def __init__(self,external_form=None):
         super().__init__(); self.labels=set(); self.controls=[]; self.nav=[]; self.current=0; self.forms=[]; self.form=None; self.select_name=None; self.label_depth=0
         self.external_form=external_form; self.external_fields={}; self.external_select=None; self.external_textarea=None
-        self.textarea_control=None; self.textarea_fields={}
+        self.textarea_control=None; self.textarea_fields={}; self.associated_inputs={}
     def handle_starttag(self,tag,attrs):
         a=dict(attrs)
         if self.external_form and a.get('form')==self.external_form and a.get('name') and 'disabled' not in a:
@@ -127,6 +127,9 @@ class Page(html.parser.HTMLParser):
             if tag=='textarea': self.external_textarea=a['name']; self.external_fields[a['name']]=''
         if tag=='option' and self.external_select and (self.external_select not in self.external_fields or 'selected' in a):
             self.external_fields[self.external_select]=a.get('value','')
+        # Native form-associated revision inputs live outside the form beside their textareas.
+        if tag=='input' and a.get('form') and a.get('name') and 'disabled' not in a and (a.get('type') not in ('checkbox','radio') or 'checked' in a):
+            self.associated_inputs[(a['form'],a['name'])]=a.get('value','')
         if tag=='textarea' and a.get('name') and 'disabled' not in a:
             owner=a.get('form') or (self.form or {}).get('id')
             if owner:
@@ -148,6 +151,8 @@ class Page(html.parser.HTMLParser):
     def feed(self,data):
         super().feed(data)
         for form in self.forms:
+            for (owner,name),value in self.associated_inputs.items():
+                if owner==form['id']: form['fields'][name]=value
             for (owner,name),value in self.textarea_fields.items():
                 if owner==form['id']: form['fields'][name]=value.removeprefix('\n')
     def handle_endtag(self,tag):
@@ -1144,7 +1149,21 @@ updated_tts=json.loads(request('/LorkhanServer/manage/exports/connectors/'+tts_i
 r=request('/LorkhanServer/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':tts_id,'kind':'tts_provider'}); body=r.read().decode(); assert r.status==422 and 'connector_in_use' in body,(r.status,r.geturl(),body)
 managed_profile,_=parse(request('/LorkhanServer/ui/core/character_manager.php'))
 generate=next(f for f in managed_profile.forms if f['action'].endswith('/forms/profile-generate') and f['fields'].get('profile_id')==profile_id)
-r=request(generate['action'],'POST',dict(generate['fields'],_csrf=csrf)); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
+# Profile generation requires its explicit global connector; the runtime mock alone is not that route.
+r=request(generate['action'],'POST',dict(generate['fields'],_csrf=csrf)); generation_error=r.read().decode()
+assert r.status==422 and 'profile_generation_connector_unavailable' in generation_error,(r.status,generation_error)
+generation_connectors,_=parse(request('/LorkhanServer/ui/core/llm_connectors.php?create=1'))
+generation_connector_form=next(f for f in generation_connectors.forms if f['action'].endswith('/forms/providers'))
+generation_connector_name='HTTP initial profile generation '+uuid.uuid4().hex
+r=request(generation_connector_form['action'],'POST',dict(generation_connector_form['fields'],_csrf=csrf,name=generation_connector_name,driver='mock',model='deterministic-mock-v1'))
+generation_connector_body=r.read().decode(); assert r.status==200,(r.status,generation_connector_body)
+generation_connector_id=connector_editor_id(generation_connector_body,generation_connector_name)
+generation_globals,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+generation_route=next(f for f in generation_globals.forms if f['action'].endswith('/forms/global-settings-save'))
+r=request(generation_route['action'],'POST',dict(generation_route['fields'],_csrf=csrf,profile_generation_configuration_id=generation_connector_id,change_reason='HTTP generation fixture connector'))
+assert r.status==200,(r.status,r.read().decode())
+r=request(generate['action'],'POST',dict(generate['fields'],_csrf=csrf)); generation_body=r.read().decode()
+assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=generation-queued') and 'NPC profile generation is queued.' in generation_body and 'NPC profile change saved.' not in generation_body,(r.status,r.geturl(),generation_body)
 managed_profile,body=parse(request('/LorkhanServer/ui/core/character_manager.php'))
 revise=next(f for f in managed_profile.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
 auto_lock=next(f for f in managed_profile.forms if f['action'].endswith('/forms/profile-auto-lock'))
@@ -1239,7 +1258,7 @@ assert all(('name="ui_'+field+'"' in state_body) for field in ['embed','q','prof
 revise=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
 state_values=dict(revise['fields'],_csrf=csrf,favorite='1',change_reason='HTTP list-state continuity',ui_page='2')
 r=request(revise['action'],'POST',state_values); state_url=urllib.parse.urlparse(r.geturl()); state_params=urllib.parse.parse_qs(state_url.query)
-assert r.status==200 and state_url.path.endswith('/ui/core/npc_master.php') and state_params.get('status')==['saved']
+assert r.status==200 and state_url.path.endswith('/ui/core/npc_master.php') and state_params.get('status')==['saved'],(r.status,r.geturl(),r.read().decode())
 assert state_params.get('embed')==['1'] and state_params.get('q')==[profile_name] and state_params.get('profile')==[core_match.group(1)]
 assert state_params.get('state')==['favorites'] and state_params.get('initial')==['H'] and state_params.get('fav')==['1'] and state_params.get('lock')==['1']
 assert state_params.get('installation_id')==[valid['installation_id']] and state_params.get('page')==['2'],state_params
@@ -2465,7 +2484,10 @@ before_global_test_calls=len(VoiceProvider.llm_requests)
 r=json_request(global_test_path+'?installation_id='+valid['installation_id']); global_test_plan=json.loads(r.read())
 assert r.status==200 and len(global_test_plan['jobs'])==1 and global_test_plan['jobs'][0]['configuration_id']==slot_id,global_test_plan
 global_slots=global_test_plan['groups'][0]['slots']
-assert len(global_slots)==4 and sum(slot['status']=='pending' for slot in global_slots)==3 and global_slots[0]['status']=='skipped',global_slots
+assert {slot['field']:slot['status'] for slot in global_slots}=={
+    'memory_summary_connector':'skipped','background_memory_configuration_id':'skipped',
+    'scene_classifier_configuration_id':'skipped','profile_generation_configuration_id':'pending',
+    'oghma_configuration_id':'pending','relationship_configuration_id':'pending'},global_slots
 assert len(VoiceProvider.llm_requests)==before_global_test_calls and not any(key in json.dumps(global_test_plan).lower() for key in ['api_key','credential','endpoint','content'])
 # Quickstart lists the same saved global routes without running connector tests.
 r=request('/LorkhanServer/ui/quickstart.php?installation_id='+valid['installation_id']); _,general_quickstart_html=parse(r)
@@ -3051,7 +3073,8 @@ if create_narrator is not None:
 narrator_page,body=parse(request('/LorkhanServer/ui/narrator_management.php'))
 generate_narrator=next((f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-generate')),None)
 assert generate_narrator is not None and generate_narrator['fields'].get('profile_id'),'narrator profile generation control is missing'
-r=request(generate_narrator['action'],'POST',dict(generate_narrator['fields'],_csrf=csrf)); assert r.status==200 and r.geturl().endswith('/ui/core/config_hub.php?tab=narration-page&status=saved'),(r.status,r.geturl())
+r=request(generate_narrator['action'],'POST',dict(generate_narrator['fields'],_csrf=csrf)); narrator_generation_body=r.read().decode()
+assert r.status==200 and urllib.parse.urlparse(r.geturl()).path.endswith('/ui/narrator_management.php') and urllib.parse.parse_qs(urllib.parse.urlparse(r.geturl()).query).get('status')==['generation-queued'] and 'Narrator profile generation is queued.' in narrator_generation_body,(r.status,r.geturl(),narrator_generation_body)
 narrator_revise=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
 narrator_route_values=dict(narrator_revise['fields'],_csrf=csrf,name='Renamed HTTP Narrator',inline_narration_mode='Narrator',diary_enabled='1',oghma_knowledge_tags='knowall, Common, Tribunal, Tribunal',
     auto_diary_enabled='1',auto_diary_wait_enabled='1',diary_interval_seconds='90',change_reason='HTTP narrator portability route')
@@ -3072,9 +3095,13 @@ narrator_import=next(f for f in narrator_page.forms if f['action'].endswith('/fo
 narrator_id=generate_narrator['fields']['profile_id']
 narrator_preset_response=request('/LorkhanServer/manage/exports/narrator-profile-settings/'+narrator_id+'.json')
 narrator_preset=json.loads(narrator_preset_response.read().decode())
-assert narrator_preset_response.status==200 and sorted(narrator_preset)==['exported_at','schema','settings']
+assert narrator_preset_response.status==200 and sorted(narrator_preset)==['exported_at','prompts','schema','settings']
 assert narrator_preset['settings']['oghma_knowledge_tags']=='knowall, Tribunal'
-assert narrator_preset['schema']=='lorkhan.narrator-profile-settings.v2' and sorted(narrator_preset['settings'])==['biography','book_events','bored_chance_percent','bored_events','context_visibility','core','enabled','goals','hide_from_context','inline_narration_mode','latest_diary_context_enabled','narration_filters','notes','oghma_knowledge_tags','only_diary_access','personality','prompt_head','quest_chance_percent','quest_cooldown_minutes','quest_events','random_chance_percent','random_cooldown_rounds','random_events','speech_style','voice','welcome_cooldown_minutes','welcome_events']
+assert narrator_preset['schema']=='lorkhan.narrator-profile-settings.v2' and sorted(set(narrator_preset['settings'])-{'roleplay_name','diary_enabled','auto_diary_enabled','dynamic_profile','dynamic_profile_fields'})==['biography','book_events','bored_chance_percent','bored_events','context_visibility','core','enabled','goals','hide_from_context','inline_narration_mode','latest_diary_context_enabled','narration_filters','notes','oghma_knowledge_tags','only_diary_access','personality','prompt_head','quest_chance_percent','quest_cooldown_minutes','quest_events','random_chance_percent','random_cooldown_rounds','random_events','speech_style','voice','welcome_cooldown_minutes','welcome_events']
+assert narrator_preset['settings']['roleplay_name']=='Renamed HTTP Narrator'
+assert narrator_preset['settings']['diary_enabled'] is True and narrator_preset['settings']['auto_diary_enabled'] is True
+assert isinstance(narrator_preset['settings']['dynamic_profile'],bool) and isinstance(narrator_preset['settings']['dynamic_profile_fields'],list)
+assert isinstance(narrator_preset['prompts'],dict) and all(isinstance(text,str) for text in narrator_preset['prompts'].values())
 assert not any(key in narrator_preset for key in ['name','actor_identity','installation_id','profile_id','revision','routing'])
 invalid_narrator_preset=dict(narrator_preset,unexpected='rejected')
 r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_narrator_preset))); invalid_body=r.read().decode()
@@ -3671,6 +3698,11 @@ switch_a=subprocess.run(['php','-r',restore_code,str(repository_root),sys.argv[3
 assert switch_a.returncode==0 and json.loads(switch_a.stdout)['succeeded']==1,(switch_a.stdout,switch_a.stderr)
 assert subprocess.run([*pg_test,"SELECT core FROM public.bio_templates WHERE npc_name='ZZZ Literal %_ Name'"],capture_output=True,text=True,check=True).stdout.strip()=='Named A latest edit'
 assert request('/LorkhanServer/manage/exports/database/'+restore_target+'.sql').status==200
+# The switch created a fresh named B generation; fetch its current form as a user would.
+new_b=subprocess.run([*pg_test,"SELECT scope->>'superseded_by' FROM lorkhan_internal.backup_records WHERE backup_id='"+rollback_id+"'"],capture_output=True,text=True,check=True).stdout.strip()
+current_snapshots,_=parse(request('/LorkhanServer/ui/playthrough_manager.php'))
+restore_form=next(f for f in current_snapshots.forms if f['action'].endswith('/forms/playthrough-snapshot') and f['fields'].get('operation')=='copy' and f['fields'].get('backup_id')==new_b)
+restore_fields=dict(restore_form['fields'],confirm='Copy')
 # A deliberately mismatched schema ledger makes import fail transactionally and retains the current row.
 restore_checksum=subprocess.run([*pg_test,"SELECT checksum FROM lorkhan_internal.schema_migrations WHERE version=97"],capture_output=True,text=True,check=True).stdout.strip()
 subprocess.run([*pg_test,"UPDATE public.bio_templates SET core='Must survive failed restore' WHERE npc_name='ZZZ Literal %_ Name'; UPDATE lorkhan_internal.schema_migrations SET checksum=repeat('a',64) WHERE version=97"],check=True,capture_output=True)
@@ -3709,13 +3741,17 @@ finally:
 assert request(restore_status,accept='application/json').status==200
 
 
-# Deleting the source snapshot removes its stored copy, not active data or its provenance.
+# Active named snapshots are protected; an inactive named copy remains deletable.
 source_page,_=parse(request('/LorkhanServer/ui/playthrough_manager.php'))
-source_delete=next(f for f in source_page.forms if f['action'].endswith('/forms/playthrough-snapshot') and f['fields'].get('operation')=='delete' and f['fields'].get('backup_id')==restore_target)
+source_delete=next(f for f in source_page.forms if f['action'].endswith('/forms/playthrough-snapshot') and f['fields'].get('operation')=='delete' and f['fields'].get('backup_id')==new_a)
 assert request(source_delete['action'],'POST',dict(source_delete['fields'],confirm='wrong')).status==422
-assert 'Stored snapshot deleted. The active database was not deleted.' in request(source_delete['action'],'POST',source_delete['fields']).read().decode()
-assert request('/LorkhanServer/manage/exports/database/'+restore_target+'.sql').status==404
-assert subprocess.run([*pg_test,'SELECT backup_id FROM lorkhan_internal.database_snapshot_source WHERE singleton'],capture_output=True,text=True,check=True).stdout.strip()==restore_target
+protected_source=request(source_delete['action'],'POST',source_delete['fields'])
+assert protected_source.status==200 and 'The active snapshot cannot be deleted.' in protected_source.read().decode()
+assert request('/LorkhanServer/manage/exports/database/'+new_a+'.sql').status==200
+inactive_delete=next(f for f in source_page.forms if f['action'].endswith('/forms/playthrough-snapshot') and f['fields'].get('operation')=='delete' and f['fields'].get('backup_id')!=new_a)
+assert 'Stored snapshot deleted. The active database was not deleted.' in request(inactive_delete['action'],'POST',inactive_delete['fields']).read().decode()
+assert request('/LorkhanServer/manage/exports/database/'+inactive_delete['fields']['backup_id']+'.sql').status==404
+assert subprocess.run([*pg_test,'SELECT backup_id FROM lorkhan_internal.database_snapshot_source WHERE singleton'],capture_output=True,text=True,check=True).stdout.strip()==new_a
 assert subprocess.run([*pg_test,"SELECT core FROM public.bio_templates WHERE npc_name='ZZZ Literal %_ Name'"],capture_output=True,text=True,check=True).stdout.strip()=='Must survive failed restore'
 
 # A signed native loaded-save request captures the previous database and renders its real snapshot card.

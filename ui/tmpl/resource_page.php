@@ -1373,6 +1373,14 @@ $relationshipConversionNotice=$view==='characters'?lorkhan_ui_relationship_conve
 ?>
 <main class="management-page">
     <?php if ($relationshipConversionNotice !== null): ?><p class="<?php echo $relationshipConversionNotice[0] === 'status' ? 'page-status' : 'page-error'; ?>" role="<?php echo $relationshipConversionNotice[0]; ?>"><?php echo lorkhan_ui_h($relationshipConversionNotice[1]); ?></p><?php endif; ?>
+    <?php if($view==='characters'){
+        $generationNotice=match($_GET['status']??''){
+            'generation-queued'=>'NPC profile generation is queued. Reload this page after the worker finishes to see the generated profile.',
+            'generation-completed'=>'This generation request has completed. The latest saved NPC profiles are shown below.',
+            'generation-failed'=>'NPC profile generation failed. Check Diagnostics for details before retrying.',
+            default=>null};
+        if($generationNotice!==null)echo '<p class="page-status" role="status">'.lorkhan_ui_h($generationNotice).'</p>';
+    } ?>
     <?php if (isset($_GET['status']) && $_GET['status'] === 'saved'): ?><p class="page-status" role="status"><?php echo $view === 'characters' ? 'NPC profile change saved.' : 'Changes saved.'; ?></p><?php endif; ?>
     <?php if (isset($_GET['status']) && $_GET['status'] === 'tested'): ?><p class="page-status" role="status">Connector test passed<?php echo isset($_GET['detail']) ? ': ' . lorkhan_ui_h($_GET['detail']) : '.'; ?></p><?php endif; ?>
     <?php if (isset($_GET['error'])): ?><p class="page-error" role="alert"><?php echo lorkhan_ui_h($_GET['error']); ?></p><?php endif; ?>

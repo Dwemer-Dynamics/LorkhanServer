@@ -840,6 +840,8 @@ final class ManagementRouter
         if(in_array($domain,['relationships','relationship-delete'],true))return $this->redirect($this->relationshipPageLocation($v,'saved'));
         if($domain==='narrative-generate')return$this->redirect($this->uiPath('narrative-autonomy').'?status=diary-requested');
         if($domain==='quickstart-save')return$this->redirect($this->webRoot().'/ui/quickstart.php?'.http_build_query(['installation_id'=>$scope['installation_id'],'core_profile_id'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
+        if($domain==='profile-generate')return$this->redirect($this->characterPageLocation($v,match($result['state']??'pending'){
+            'succeeded'=>'generation-completed','dead'=>'generation-failed',default=>'generation-queued'}));
         if($domain==='narrator-profile-generate'){
             $query=['installation_id'=>$scope['installation_id'],'status'=>match($result['state']??'pending'){
                 'succeeded'=>'generation-completed','dead'=>'generation-failed',default=>'generation-queued'}];
