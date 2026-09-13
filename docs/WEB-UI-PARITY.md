@@ -13044,3 +13044,11 @@ The actual browser export/file-picker import/reload/re-export passes at 1280/390
 for dynamic On/Off, Goals-only fields, display name, diary enabled/disabled and
 custom/default welcome text. No page errors or overflow; no providers were called.
 Publication and deployment of the combined name/diary/prompt follow-up are pending.
+
+Combined Narration name/diary/prompt portability published/deployed in 96f7ebd.
+Rollback /var/backups/lorkhanserver-code.7FulQq. All 893 runtime files match source,
+no extra/old paths, protected routes and health/scope probes pass. Configurations,
+credentials and voices were hash-preserved. Workflow disabled_manually. Live has
+no saved Narrator profile; saved-profile import/export proof remains the isolated
+browser fixture, not a fabricated live test. Full Narrator action/Core behavior
+and the remaining whole-project parity requirements stay open.
