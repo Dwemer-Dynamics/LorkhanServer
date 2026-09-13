@@ -37,6 +37,7 @@ final class ProfileAssignmentRule
         'PROMPT_TIMESTAMP'=>['context','prompt_timestamp','boolean'],
         'GROUND_ITEMS_DESCRIPTIONS_ONLY'=>['context','ground_items_descriptions_only','boolean'],
         'INVENTORY_ITEMS_DESCRIPTIONS_ONLY'=>['context','inventory_items_descriptions_only','boolean'],
+        'SHORT_TERM_MEMORY_IN_COMPACT_CHAT'=>['context','short_term_in_compact_chat','boolean'],
         'TRANSFORMATION_DETECTION'=>['context','transformation_detection','boolean'],
         'POWER_AWARENESS_ENABLED'=>['context','power_awareness_enabled','boolean'],
         'HIDE_AMBIENT_COMBAT'=>['context','hide_ambient_combat','boolean'],

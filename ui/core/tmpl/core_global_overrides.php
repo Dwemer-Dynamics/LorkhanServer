@@ -26,6 +26,7 @@ $coreOverrideCatalog['behavior.open_rechat']=['label'=>'Open Rechat','type'=>'bo
 $coreOverrideCatalog['behavior.end_conversation_cooldown_seconds']=['label'=>'End Conversation Cooldown','type'=>'integer','value'=>60,'range'=>[0,300]];
 $coreOverrideCatalog['relationship.enabled']=['label'=>'Relationship System Enabled','type'=>'boolean','value'=>($globalContent['relationship']['enabled']??false)===true];
 $coreOverrideCatalog['relationship.update_chance_percent']=['label'=>'Relationship Update Chance','type'=>'integer','value'=>50,'range'=>[0,100]];
+$coreOverrideCatalog['context.short_term_in_compact_chat']=['label'=>'Short Term Memory in Compact Chat','type'=>'boolean','value'=>true];
 $coreOverrideCatalog['context.transformation_detection']=['label'=>'Transformation Detection','type'=>'boolean','value'=>true];
 $coreOverrideCatalog['context.power_awareness_enabled']=['label'=>'Power Awareness Enabled','type'=>'boolean','value'=>false];
 $contextSelectionGroups=require dirname(__DIR__,2).'/tmpl/context_selection_groups.php';
@@ -45,6 +46,7 @@ $coreOverrideHelp = [
     'context.item_blacklist'=>'One item record ID or name per line. Matching items are omitted from prompt context. Blank clears the inherited blacklist; turn off Override to inherit. Maximum 256 entries, 256 UTF-8 bytes each.',
     'context.magic_effects_blacklist'=>'One magic effect per line. Matching effects are omitted from prompt context. Blank clears the inherited blacklist; turn off Override to inherit. Maximum 256 entries, 256 UTF-8 bytes each.',
     'context.hide_ambient_combat'=>'Hide ambient death events containing has killed from conversation context. Other death events and the stored event log are retained.',
+    'context.short_term_in_compact_chat'=>'Keep past-scene summaries in compact chat. Off omits summaries without hiding original dialogue; Short Term Memory must also be enabled.',
     'context.transformation_detection'=>'Include the observed werewolf form in player and NPC current-state context.',
     'context.power_awareness_enabled'=>'Compare observed character levels so NPCs can assess relative threats. The Nearby Actor Details Power selection must also be enabled. Missing levels produce no assessment.',
     'behavior.rechat_mode'=>'Tight uses the listener; Conversational prefers the current partner; Group rotates nearby NPCs; Random chooses a mode at the start of each chain. Existing chains retain their starting mode.',
@@ -75,6 +77,7 @@ foreach ($coreOverrideCatalog as $path=>&$definition) {
         'profile_management' => 'Misc',
         'oghma', 'memory' => 'Oghma', 'prompt' => 'Prompt', 'behavior' => 'Rechat', default => 'Context'
     };
+    if($path==='context.short_term_in_compact_chat')$definition['category']='Memory';
     if (in_array($path, ['context.prompt_timestamp','context.location_blacklist','context.item_blacklist',
         'context.magic_effects_blacklist','context.event_types','relationship.update_chance_percent'], true))
         $definition['category'] = 'Prompt';
@@ -92,7 +95,7 @@ unset($definition);
     <div class="provider-body profile-provider-body">
     <small class="core-override-intro">Override global settings for this profile. Changes here take precedence over global configurations.</small>
     <div class="prof-ovr-list">
-    <?php foreach (['Misc','Context','Oghma','Prompt','Rechat'] as $category): ?>
+    <?php foreach (['Misc','Context','Memory','Oghma','Prompt','Rechat'] as $category): ?>
     <section class="prof-ovr-category"><h3 class="prof-ovr-category-title"><?= lorkhan_ui_h($category) ?></h3><div class="prof-ovr-category-settings">
     <?php foreach ($coreOverrideCatalog as $path=>$definition): [$section,$key]=explode('.', $path); if ($definition['category'] !== $category) continue; $enabled=array_key_exists($key,$overrides[$section]??[]); $value=$enabled?$overrides[$section][$key]:$definition['value']; $id='core-override-'.str_replace('.','-',$path); $globalPreview=is_array($definition['value'])?implode(', ',$definition['type']==='booleanmap'?array_values(array_intersect_key($definition['choices'],array_filter($definition['value']))):$definition['value']):(is_bool($definition['value'])?($definition['value']?'true':'false'):($definition['value']===''?'Not set':(string)$definition['value'])); $globalPreview=mb_strlen($globalPreview)>180?mb_substr($globalPreview,0,177).'…':$globalPreview; ?>
         <div class="prof-ovr-inline-item<?= $enabled?' enabled':'' ?>" data-path="<?= lorkhan_ui_h($path) ?>">

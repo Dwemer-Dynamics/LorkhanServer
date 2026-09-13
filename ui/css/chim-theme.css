@@ -1284,4 +1284,6 @@ body.lorkhan-outage p {
 .context-selection-options input[type=checkbox]{width:auto!important;flex:0 0 auto;margin-top:3px}
 .context-selection-options legend{font-size:14px;float:none;width:auto}
 
-.prof-ovr-inline-controls:has(.context-selection-options){flex-direction:column;align-items:stretch}
+/* Checkbox groups need the whole override card, not the scalar value column. */
+.prof-ovr-inline-item:has(.context-selection-options){grid-template-columns:minmax(0,1fr)}
+.prof-ovr-inline-controls:has(.context-selection-options){grid-template-columns:minmax(0,1fr);align-items:stretch}

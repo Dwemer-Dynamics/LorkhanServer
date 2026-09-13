@@ -12952,3 +12952,29 @@ no extras/old paths and preserved configuration, credentials and voices. Health,
 private-file and session/NPC scope probes pass. Deployed Global Settings at
 1280/390 shows the enabled control without overflow; all writes were blocked.
 Workflow 330702270 remains disabled_manually. No game or paid provider test.
+
+## Compact memory Core and Rules mapping (2026-09-12; local only)
+
+Completed the remaining configuration mappings for compact-memory suppression:
+Core Global Settings Overrides exposes the boolean under Memory; portable/named
+Core presets retain explicit false; Profile Rules accepts the reference metadata
+key SHORT_TERM_MEMORY_IN_COMPACT_CHAT and applies the same typed NPC context leaf.
+Existing rule-conversion coverage now includes that key. Added focused Core preset
+and Global/Core/NPC precedence assertions. 1198 server checks and 111 protocol
+checks pass; template syntax and whitespace checks pass. Core browser interaction
+and deployment of these follow-up mappings remain pending.
+
+Reference audit: NEVER_CLEAR_RELATIONSHIP_DATA is consumed by restoreNPC during
+save-time rollback, not the explicit manual Clear Relationships command. It belongs
+with the still-open playthrough rollback work; do not change manual clear semantics
+to simulate support. PLAYER_WORST_MEMORY_GAME_DAYS has schema/UI declarations in
+the pinned source but no runtime read found by exact-key search; no inert native
+control was added on the strength of its declaration alone.
+
+Core browser save/reload checks pass at 1280/390 for explicit false and removing
+the override to restore inherited true. Review caught and fixed the missing
+Memory category in the Core renderer. It also exposed checkbox context maps being
+squeezed into the scalar controls column: the previous flex-direction override
+had no effect on grid layout. Those map rows now use one full-width grid column;
+scalar overrides retain their reference layout. Both viewport checks pass again,
+including a >200px map width and no overflow; desktop screenshot inspected.

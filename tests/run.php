@@ -3337,6 +3337,16 @@ $check(!str_contains((new PromptAssembler())->assemble($transformedTurn,$transfo
 $legacyTransformation=\LorkhanServer\Application\SettingsCatalog::globalDefaults();unset($legacyTransformation['context']['transformation_detection']);
 $check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($legacyTransformation)['context']['transformation_detection']===true,'legacy global settings inherit transformation detection');
 
+$compactCore=['settings_overrides'=>['context'=>['short_term_in_compact_chat'=>false]]];
+$compactPreset=\LorkhanServer\Application\CoreProfilePreset::capture($compactCore);
+$check(\LorkhanServer\Application\CoreProfilePreset::apply($compactPreset,$corePresetSource)['settings_overrides']['context']['short_term_in_compact_chat']===false,
+    'Core presets retain explicit compact memory opt-out');
+$compactResolved=(new EffectiveSettingsResolver())->resolve([],$compactCore,[]);
+$check($compactResolved['context']['short_term_in_compact_chat']===false&&$compactResolved['sources']['context.short_term_in_compact_chat']==='core_profile',
+    'Core compact memory override reaches prompt context');
+$compactResolved=(new EffectiveSettingsResolver())->resolve([],$compactCore,['settings_overrides'=>['context'=>['short_term_in_compact_chat'=>true]]]);
+$check($compactResolved['context']['short_term_in_compact_chat']===true&&$compactResolved['sources']['context.short_term_in_compact_chat']==='npc',
+    'NPC compact memory override takes precedence over Core');
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);
