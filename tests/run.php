@@ -3244,6 +3244,18 @@ $check(\LorkhanServer\Application\ProfileAssignmentRule::apply(['personality'=>'
 $ruleMerged=\LorkhanServer\Application\ProfileAssignmentRule::apply(['settings_overrides'=>['context'=>['location_blacklist'=>['old','stale'],'prompt_timestamp'=>true]]],['settings_overrides'=>['context'=>['location_blacklist'=>['new']]]]);
 $check($ruleMerged['settings_overrides']['context']===['location_blacklist'=>['new'],'prompt_timestamp'=>true],'rule override lists replace instead of keeping stale items');
 
+$ruleMetadataSamples=['RECHAT_H'=>'2','AUTOFILL_CUSTOM_PROFILES_TRIGGER'=>'40','DIARY_COOLDOWN'=>'120','CORE_LANG'=>'es','RECHAT_MODE'=>'tight','OGHMA_AMOUNT'=>'1'];
+foreach(\LorkhanServer\Application\ProfileAssignmentRule::METADATA_FIELDS as$key=>[$section,$field,$type]){
+    $sample=$ruleMetadataSamples[$key]??match($type){'boolean'=>'false','integer'=>'10','percent'=>'25%','list'=>'Seyda Neen, Balmora',default=>'Rule text'};
+    $converted=\LorkhanServer\Application\ProfileAssignmentRule::normalize(['action'=>['metadata'=>[$key=>$sample]]]);
+    $check(array_key_exists($field,$converted['action']['settings_overrides'][$section]??[]),'rule metadata mapping '.$key);
+}
+$converted=\LorkhanServer\Application\ProfileAssignmentRule::normalize(['action'=>['metadata'=>['RECHAT_P'=>'0','RECHAT_ALLOW_ACTIONS'=>false,'PROMPT_HEAD'=>'']]]);
+$check($converted['action']['settings_overrides']['behavior']===['rechat_probability_percent'=>0,'rechat_allow_actions'=>false]&&!isset($converted['action']['settings_overrides']['prompt']),'rule metadata preserves zero and false while ignoring empty values');
+foreach([['metadata'=>['UNKNOWN_SETTING'=>true]],['metadata'=>['RECHAT_H'=>'bad']],['metadata'=>['MAX_WORDS_LIMIT'=>10],'settings_overrides'=>['response'=>['max_words'=>20]]]]as$badAction){
+    try{\LorkhanServer\Application\ProfileAssignmentRule::normalize(['action'=>$badAction]);$check(false,'invalid rule metadata rejected');}catch(InvalidArgumentException){$check(true,'invalid rule metadata rejected');}
+}
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

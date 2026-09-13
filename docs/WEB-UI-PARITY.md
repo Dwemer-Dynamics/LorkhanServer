@@ -12522,3 +12522,35 @@ All 878 runtime files match source; live information_schema confirms the nullabl
 Core Profile reference. Private/auth/NPC probes and deployed Rules interactions at
 1280/390 pass. Configuration, credentials and voice contents are preserved; GitHub
 workflow remains disabled_manually. No live rules were created or changed.
+
+## Reference Action JSON metadata mappings (2026-09-12)
+
+Rules now accept the reference metadata object for 34 existing native settings:
+prompt/emote text, Rechat controls, history limits, diary prompt/cooldown, language,
+response word limits, bored/quest chances, automatic profile backfill, context
+filters/blacklists, Oghma and relationship update chance. The exact supported keys
+are shown in an expandable help section beside Action JSON. Saving translates them
+to native typed settings_overrides; the editor reopens with that canonical document.
+
+Reference-style numeric strings, booleans, percentage chances and comma-separated
+blacklists normalize before the existing native validation. False and zero remain
+meaningful; empty reference metadata is not applied. Unknown keys, invalid values
+and conflicting native/reference assignments fail explicitly. No global variables,
+identity fields, credentials or connector IDs are assigned from this input.
+Unsupported metadata remains a missing mapping, not an inert accepted setting.
+
+1145 server checks and 111 protocol files pass. Every mapping has a typed conversion
+check; invalid/conflicting keys and false/zero/empty semantics are exercised. The
+existing integration prefix verifies metadata reaches actual effective NPC response
+and Rechat settings after first discovery. Actual isolated browser save/reopen at
+1280/390 verifies canonical metadata conversion and the prior retry/error paths.
+Evidence: rule-metadata-probe.txt and advanced-rules-review.cjs in local Temp.
+
+Scoped deployment changed only ProfileAssignmentRule.php and core_profiles.php;
+rollback /var/backups/lorkhanserver-rule-metadata.1As465. No schema/default-data or
+worker behavior changed, so no factory rebuild was required. All 878 runtime files
+match source; private/auth/NPC probes pass. Existing deployed Rules interactions
+pass at 1280/390 with writes mocked. GET-only deployed help checks pass at both
+widths and the narrow screenshot was inspected (rule-metadata-live-review.cjs).
+No live rules, settings, game or paid-provider requests changed. Workflow remains
+disabled_manually. Full parity and the remaining metadata/mod-provenance work stay open.
