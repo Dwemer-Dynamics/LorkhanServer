@@ -12945,3 +12945,10 @@ reload, no document overflow and no JavaScript errors. Narrow screenshot inspect
 The NPC setting uses the existing typed Memory-category override editor; typed
 validation and resolver precedence are checked in source, but its individual
 browser modal save was not separately exercised in this slice.
+
+Compact memory control published/deployed in 80208d7. Server rollback is
+/var/backups/lorkhanserver-code.p5biqb. All 893 runtime files match source, with
+no extras/old paths and preserved configuration, credentials and voices. Health,
+private-file and session/NPC scope probes pass. Deployed Global Settings at
+1280/390 shows the enabled control without overflow; all writes were blocked.
+Workflow 330702270 remains disabled_manually. No game or paid provider test.
