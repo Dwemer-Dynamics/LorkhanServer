@@ -168,6 +168,7 @@ final class Repository
                 'created' => $message['created_at']]);
             $this->source($message['message_id'], $message['installation_id'], $sessionId, $message['generation'], 'session.init',
                 $message['created_at'], $message['schema'], null, null, null, $message);
+            if (isset($message['loaded_save'])) (new LoadedSaveTimeline($this->db))->invalidate($message);
             return ['session_id' => $sessionId, 'generation' => $message['generation'], 'capabilities' => $capabilities];
         });
     }

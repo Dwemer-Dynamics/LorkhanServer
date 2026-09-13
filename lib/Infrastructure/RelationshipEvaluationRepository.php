@@ -121,7 +121,7 @@ final class RelationshipEvaluationRepository
             s.installation_id,s.playthrough_id,trace.selected_profile_id AS profile_id,
             t.target AS owner_identity,t.speaker AS target_identity{$inputColumn}
             FROM dialogue_delivery_results d JOIN dialogue_utterances delivered ON delivered.dialogue_message_id=d.dialogue_message_id
-            JOIN turns t ON t.turn_id=d.turn_id JOIN sessions s ON s.session_id=t.session_id
+            JOIN active_turns t ON t.turn_id=d.turn_id JOIN sessions s ON s.session_id=t.session_id
             JOIN prompt_traces trace ON trace.turn_id=t.turn_id
             JOIN eventlog_metadata input_event ON input_event.projection_key='turn:'||t.turn_id::text
                 AND input_event.projection_kind='turn' AND input_event.suppressed_at IS NULL

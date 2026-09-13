@@ -3837,9 +3837,12 @@ replay_code=replay_code.replace(r'new LorkhanServer\Application\DatabaseReplayJo
   catch(Throwable $error){fwrite(STDERR,'Isolated replay fixture: '.$error->getMessage());throw $error;}
  }
 }''')
+timeline_before_replay=subprocess.run([*pg_test,"SELECT turn_id FROM lorkhan_internal.timeline_invalidated_turns ORDER BY turn_id"],capture_output=True,text=True,check=True).stdout
 replay_result=subprocess.run(['php','-r',replay_code,str(repository_root),sys.argv[3],restore_backup_path],capture_output=True,text=True,timeout=60)
 assert replay_result.returncode==0 and json.loads(replay_result.stdout)['succeeded']==1,(replay_result.stdout,replay_result.stderr)
 assert json.load(request(replay_status,accept='application/json'))['job']['state']=='succeeded'
+assert subprocess.run([*pg_test,"SELECT turn_id FROM lorkhan_internal.timeline_invalidated_turns ORDER BY turn_id"],capture_output=True,text=True,check=True).stdout==timeline_before_replay
+
 assert json.load(request(replay_plan_path,accept='application/json'))==replay_plan
 # A plan reader cannot own or mutate the migration schema.
 subprocess.run([*pg_test,"CREATE ROLE replay_reader LOGIN; GRANT USAGE ON SCHEMA lorkhan_internal TO replay_reader; GRANT SELECT ON lorkhan_internal.schema_migrations TO replay_reader"],check=True,capture_output=True)

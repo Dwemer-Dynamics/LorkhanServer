@@ -2334,6 +2334,63 @@ try{$previewSave->invoke($previewManager,array_replace($digestForm,['notes'=>'St
 catch(RuntimeException $error){$assert($error->getMessage()==='revision_conflict','unexpected Save All conflict');}
 $assert($products->getRevisioned('profile',$actorProfile['profile_id'])['current_revision']===$digestSavedProfile['current_revision'],'stale memory draft partially saved the NPC profile');
 $db->exec('ROLLBACK TO SAVEPOINT digest_edit_probe');
+
+// Loaded-save timelines retire future context without losing recoverable raw records.
+$db->exec('SAVEPOINT loaded_timeline_probe');
+try {
+    $scope=['installation'=>$installationId,'playthrough'=>$turn['playthrough_id']];
+    $cloneTurn=\LorkhanServer\Infrastructure\Uuid::v4();$cloneSource=\LorkhanServer\Infrastructure\Uuid::v4();$cloneRequest=\LorkhanServer\Infrastructure\Uuid::v4();
+    $clone=$db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) SELECT :id,:request,:source,t.session_id,t.generation,t.input_kind,t.input_language,t.input_text,t.speaker,t.target,t.audience,t.context,'complete',t.accepted_at FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation AND s.playthrough_id=:playthrough LIMIT 1");
+    $clone->execute($scope+['id'=>$cloneTurn,'request'=>$cloneRequest,'source'=>$cloneSource]);
+    $clone=$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,turn_id,payload) SELECT :source,s.installation_id,t.session_id,t.generation,'turn.requested',clock_timestamp(),'lorkhan.turn.request.v1',t.turn_id,'{}'::jsonb FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE t.turn_id=:turn");$clone->execute(['source'=>$cloneSource,'turn'=>$cloneTurn]);
+    $rows=$db->prepare("SELECT t.turn_id,t.message_id FROM turns t JOIN sessions s ON s.session_id=t.session_id JOIN source_events e ON e.source_event_id=t.message_id WHERE s.installation_id=:installation AND s.playthrough_id=:playthrough ORDER BY t.turn_id LIMIT 2");
+    $rows->execute($scope);$timelineTurns=$rows->fetchAll();$assert(count($timelineTurns)===2,'timeline fixture needs two turns');
+    foreach($timelineTurns as$index=>$row){$date=['year'=>427,'month'=>7,'day'=>$index===0?16:13,'hour'=>12];
+        $q=$db->prepare("UPDATE turns SET context=jsonb_set(context,'{world}',COALESCE(context->'world','{}'::jsonb)||jsonb_build_object('calendar',CAST(:date AS jsonb))) WHERE turn_id=:id");$q->execute(['date'=>json_encode($date),'id'=>$row['turn_id']]);}
+    $q=$db->prepare("SELECT e.source_event_id FROM source_events e JOIN sessions s ON s.session_id=e.session_id WHERE e.installation_id=:installation AND s.playthrough_id=:playthrough AND e.event_kind='session.init' LIMIT 1");$q->execute($scope);$loadId=$q->fetchColumn();
+    $load=['message_id'=>$loadId,'installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],'loaded_save'=>['year'=>427,'month'=>7,'day'=>15,'hour'=>12]];
+    $writer=new \LorkhanServer\Infrastructure\FirstPartyJobRepository($db);$ids=[];
+    foreach($timelineTurns as$row){$id=\LorkhanServer\Infrastructure\Uuid::v4();$ids[]=$id;$writer->upsertMemory($id,['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],'profile_id'=>$actorProfile['profile_id'],'tier'=>'recent','content'=>'Timeline memory','source_event_id'=>$row['message_id'],'provenance'=>['source'=>'timeline-test']],gmdate('c'));}
+    $diaryId=\LorkhanServer\Infrastructure\Uuid::v4();$manualId=\LorkhanServer\Infrastructure\Uuid::v4();
+    foreach([$diaryId,$manualId]as$id)$writer->upsertNarrative($id,['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],'profile_id'=>$actorProfile['profile_id'],'kind'=>'diary','title'=>'Timeline diary','content'=>'Test entry','provenance'=>$id===$diaryId?['source_turn_ids'=>[$timelineTurns[0]['turn_id']]]:['source'=>'manual']],gmdate('c'));
+    $before=(int)$db->query('SELECT count(*) FROM source_events')->fetchColumn();
+    $timeline=new \LorkhanServer\Infrastructure\LoadedSaveTimeline($db);$counts=$timeline->invalidate($load);
+    $q=$db->prepare('SELECT deleted_at IS NOT NULL FROM memory_records WHERE memory_id=:id');$q->execute(['id'=>$ids[0]]);$assert($q->fetchColumn()===true,'future memory remains active');$q->execute(['id'=>$ids[1]]);$assert($q->fetchColumn()===false,'past memory was retired');
+    $q=$db->prepare('SELECT deleted_at IS NOT NULL FROM narrative_records WHERE narrative_id=:id');$q->execute(['id'=>$diaryId]);$assert($q->fetchColumn()===true,'future diary remains active');$q->execute(['id'=>$manualId]);$assert($q->fetchColumn()===false,'undated manual diary was retired');
+    $assert((int)$db->query('SELECT count(*) FROM source_events')->fetchColumn()===$before,'immutable sources changed');
+    $assert(array_sum($timeline->invalidate($load))===0,'timeline invalidation is not idempotent');
+    $bookRow=$db->query("INSERT INTO public.books(title,content,localts,gamets) VALUES('Retired book','Reconstructible book text',0,0) RETURNING rowid")->fetchColumn();
+    $bookMeta=$db->prepare('INSERT INTO book_metadata(rowid,installation_id,playthrough_id,record_id,source_turn_id) VALUES(:row,:installation,:playthrough,:record,:turn)');
+    $bookMeta->execute($scope+['row'=>$bookRow,'record'=>'timeline_late_book','turn'=>$timelineTurns[0]['turn_id']]);
+    $assert((int)$db->query('SELECT count(*) FROM public.books WHERE rowid='.(int)$bookRow)->fetchColumn()===0,'late book projection reappeared');
+    $assert(!$writer->narrativeSourcesActive([$timelineTurns[0]['turn_id']])&&$writer->narrativeSourcesActive([$timelineTurns[1]['turn_id']]),'queued diary source eligibility ignores rollback');
+    $savedProfile=$products->getRevisioned('profile',$actorProfile['profile_id']);
+    $assert(!$products->reviseGeneratedProfileIfCurrent($actorProfile['profile_id'],$savedProfile['current_revision'],$savedProfile['content'],'Retired generation',gmdate('c'),[$timelineTurns[0]['turn_id']]),'late profile generation ignored rollback');
+
+    $lateMemory=\LorkhanServer\Infrastructure\Uuid::v4();
+    $writer->upsertMemory($lateMemory,['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],'profile_id'=>$actorProfile['profile_id'],'tier'=>'recent','content'=>'Late timeline memory','source_event_id'=>$timelineTurns[0]['message_id'],'provenance'=>['source'=>'timeline-test']],gmdate('c'));
+    $q=$db->prepare('SELECT deleted_at IS NOT NULL FROM memory_records WHERE memory_id=:id');$q->execute(['id'=>$lateMemory]);$assert($q->fetchColumn()===true,'late new memory publication bypassed timeline fence');
+    $lateDiary=\LorkhanServer\Infrastructure\Uuid::v4();$writer->upsertNarrative($lateDiary,['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],'profile_id'=>$actorProfile['profile_id'],'kind'=>'diary','title'=>'Late diary','content'=>'Late entry','provenance'=>['source_turn_ids'=>[$timelineTurns[0]['turn_id']]]],gmdate('c'));
+    $q=$db->prepare('SELECT deleted_at IS NOT NULL FROM narrative_records WHERE narrative_id=:id');$q->execute(['id'=>$lateDiary]);$assert($q->fetchColumn()===true,'late new diary publication bypassed timeline fence');
+
+
+    $speechRow=$db->query("INSERT INTO public.speech(speaker,speech,localts,gamets) VALUES('Retired speaker','Late speech',0,0) RETURNING rowid")->fetchColumn();
+    $speechMeta=$db->prepare('INSERT INTO speech_metadata(rowid,installation_id,playthrough_id,turn_id) VALUES(:row,:installation,:playthrough,:turn)');
+    $speechMeta->execute($scope+['row'=>$speechRow,'turn'=>$timelineTurns[0]['turn_id']]);
+    $assert((int)$db->query('SELECT count(*) FROM public.speech WHERE rowid='.(int)$speechRow)->fetchColumn()===0,'late speech projection reappeared');
+    $db->exec('SAVEPOINT fractional_timeline_probe');
+    $load['loaded_save']['hour']=12+30/3600;
+    foreach([20=>false,40=>true]as$second=>$expected){
+        $q=$db->prepare("UPDATE turns SET context=jsonb_set(context,'{world,calendar}',CAST(:calendar AS jsonb)) WHERE turn_id=:id");
+        $q->execute(['calendar'=>json_encode(['year'=>427,'month'=>7,'day'=>15,'hour'=>12+$second/3600]),'id'=>$timelineTurns[1]['turn_id']]);
+        $timeline->invalidate($load);
+        $q=$db->prepare('SELECT EXISTS(SELECT 1 FROM timeline_invalidated_turns WHERE turn_id=:id)');$q->execute(['id'=>$timelineTurns[1]['turn_id']]);
+        $assert($q->fetchColumn()===$expected,'fractional GameHour cutoff lost second precision');
+    }
+    $db->exec('ROLLBACK TO SAVEPOINT fractional_timeline_probe');
+    // The source snapshots remain available only as audit evidence.
+}finally{$db->exec('ROLLBACK TO SAVEPOINT loaded_timeline_probe');}
+
 $db->exec('SAVEPOINT digest_pagination_probe');
 $db->prepare("INSERT INTO memory_records(memory_id,installation_id,profile_id,playthrough_id,tier,content,lexical_terms,fake_vector,provenance,occurred_at,derivation_key)
     SELECT md5('digest-page-'||n)::uuid,m.installation_id,m.profile_id,m.playthrough_id,'mid','Unwitnessed recent scene',ARRAY[]::text[],'[]'::jsonb,m.provenance,m.occurred_at+interval '1 day','digest-page-'||n FROM memory_records m CROSS JOIN generate_series(1,501) n WHERE m.memory_id=:id")->execute(['id'=>$mixedMemory['memory_id']]);

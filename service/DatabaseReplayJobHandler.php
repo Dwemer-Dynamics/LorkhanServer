@@ -46,7 +46,7 @@ final class DatabaseReplayJobHandler implements JobHandler
                 if($remaining<1)throw new RuntimeException('database_replay_timeout');
                 $this->db->exec('SET LOCAL statement_timeout = '.$remaining);
             };
-            $state=new MigrationReplayState($this->db,$job['job_id']);
+            $state=new MigrationReplayState($this->db,$job['job_id'],preserveTimeline:true);
             $runner->replayFrom($payload['version'],function()use($runner,$payload,$progress,$state):void{
                 $progress();$this->db->exec("SET LOCAL lock_timeout='3s'");
                 if(!hash_equals($runner->replayFingerprint(),$payload['fingerprint']))throw new RuntimeException('replay_plan_changed');

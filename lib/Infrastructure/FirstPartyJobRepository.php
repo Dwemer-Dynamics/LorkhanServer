@@ -298,6 +298,12 @@ final class FirstPartyJobRepository
         return $count;
     }
 
+    /** A queued diary with retired source turns must not start another provider request. */
+    public function narrativeSourcesActive(array $turnIds): bool
+    {
+        return (new LoadedSaveTimeline($this->db))->sourcesActive($turnIds);
+    }
+
     /** Job replays preserve soft deletion; they are not restoration requests. */
     public function upsertNarrative(string $narrativeId, array $narrative, string $now): void
     {

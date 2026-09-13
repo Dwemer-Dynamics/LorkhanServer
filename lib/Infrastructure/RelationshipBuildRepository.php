@@ -52,7 +52,7 @@ final class RelationshipBuildRepository
             $provider->execute(['provider'=>$policy['provider_configuration_id'],'installation'=>$scope['installation_id']]);
             $providerRevision=$provider->fetchColumn();
             if($providerRevision===false)throw new \InvalidArgumentException('relationship_build_no_connector');
-            $query=$this->db->prepare("SELECT delivery.source_event_id FROM turns t JOIN sessions s ON s.session_id=t.session_id
+            $query=$this->db->prepare("SELECT delivery.source_event_id FROM active_turns t JOIN sessions s ON s.session_id=t.session_id
                 JOIN LATERAL (SELECT d.source_event_id FROM dialogue_delivery_results d WHERE d.turn_id=t.turn_id AND d.status='played'
                     ORDER BY d.completed_at DESC,d.source_event_id DESC LIMIT 1) delivery ON true
                 WHERE s.installation_id=:installation_id AND s.playthrough_id=:playthrough_id AND t.state='complete'

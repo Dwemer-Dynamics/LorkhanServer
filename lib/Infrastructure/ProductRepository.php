@@ -667,7 +667,7 @@ final class ProductRepository
             }
         }
         // JSON projection and aggregation stay in PostgreSQL; never transfer thousands of full prompts to PHP.
-        $query = $this->db->prepare("WITH recent AS MATERIALIZED (SELECT t.context FROM turns t JOIN sessions s ON s.session_id=t.session_id "
+        $query = $this->db->prepare("WITH recent AS MATERIALIZED (SELECT t.context FROM active_turns t JOIN sessions s ON s.session_id=t.session_id "
             . "WHERE s.installation_id=:installation ORDER BY t.accepted_at DESC LIMIT 5000), names AS ("
             . "SELECT btrim(CASE jsonb_typeof(v.value) WHEN 'string' THEN v.value#>>'{}' WHEN 'object' THEN COALESCE(v.value->>'display_name',v.value->>'name',v.value->>'record_id') END) AS name "
             . "FROM recent CROSS JOIN jsonb_array_elements_text(CAST(:paths AS jsonb)) p(path) "
@@ -783,7 +783,7 @@ final class ProductRepository
             $this->addProfileRuleOption($options['classes'],$content['class']??null);
             $this->addProfileRuleOption($options['genders'],$content['gender']??null);
             $this->addProfileRuleOption($options['content_files'],$identity['content_file']??null);}
-        $turns=$this->db->prepare('SELECT t.target,t.context FROM turns t JOIN sessions s ON s.session_id=t.session_id '
+        $turns=$this->db->prepare('SELECT t.target,t.context FROM active_turns t JOIN sessions s ON s.session_id=t.session_id '
             .'WHERE s.installation_id=:installation ORDER BY t.accepted_at DESC LIMIT 1000');
         $turns->execute(['installation'=>$installationId]);
         foreach($turns->fetchAll()as$row){$target=$this->json($row['target']);$context=$this->json($row['context']);
@@ -1091,7 +1091,7 @@ final class ProductRepository
     private function profileBackfillHistory(string $installationId,string $playthroughId,array $identity,int $limit):array
     {
         $stable=array_intersect_key($identity,array_fill_keys(['kind','record_id','content_file','refnum'],true));
-        $statement=$this->db->prepare('SELECT t.turn_id,t.input_text,t.response_payload FROM turns t '
+        $statement=$this->db->prepare('SELECT t.turn_id,t.input_text,t.response_payload FROM active_turns t '
             .'JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation '
             .'AND s.playthrough_id=:playthrough AND t.state=\'complete\' AND t.target @> CAST(:identity AS jsonb) '
             .'AND EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(t.response_payload->\'lines\',\'[]\'::jsonb)) line '
@@ -1114,7 +1114,7 @@ final class ProductRepository
     /** Freeze recent completed dialogue for narrator evolution without treating one NPC as the owner. */
     private function narratorEvolutionHistory(string $installationId,string $playthroughId,int $limit):array
     {
-        $statement=$this->db->prepare('SELECT t.turn_id,t.input_text,t.response_payload FROM turns t '
+        $statement=$this->db->prepare('SELECT t.turn_id,t.input_text,t.response_payload FROM active_turns t '
             .'JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation '
             .'AND s.playthrough_id=:playthrough AND t.state=\'complete\' ORDER BY t.completed_at DESC,t.turn_id DESC LIMIT :limit');
         $statement->bindValue(':installation',$installationId);$statement->bindValue(':playthrough',$playthroughId);
@@ -1287,9 +1287,12 @@ final class ProductRepository
     }
 
     /** Commit generated fields only while the queued base revision is still current. */
-    public function reviseGeneratedProfileIfCurrent(string $profileId,int $baseRevision,array $content,string $reason,string $now):bool
+    public function reviseGeneratedProfileIfCurrent(string $profileId,int $baseRevision,array $content,string $reason,string $now,array $sourceTurnIds=[]):bool
     {
-        return$this->transaction(function()use($profileId,$baseRevision,$content,$reason,$now):bool{
+        return$this->transaction(function()use($profileId,$baseRevision,$content,$reason,$now,$sourceTurnIds):bool{
+            $installation=$this->db->prepare('SELECT i.installation_id FROM installations i JOIN profiles p ON p.installation_id=i.installation_id WHERE p.profile_id=:profile FOR SHARE OF i');
+            $installation->execute(['profile'=>$profileId]);
+            if (!(new LoadedSaveTimeline($this->db))->sourcesActive($sourceTurnIds)) return false;
             $select=$this->db->prepare('SELECT current_revision FROM profiles WHERE profile_id=:id AND deleted_at IS NULL FOR UPDATE');
             $select->execute(['id'=>$profileId]);$current=$select->fetchColumn();if($current===false||(int)$current!==$baseRevision)return false;
             $next=$baseRevision+1;$this->revision('profile_revisions','profile_id',$profileId,$next,$content,$reason,$now);
@@ -1572,7 +1575,7 @@ final class ProductRepository
         $statement=$this->db->prepare(<<<SQL
 SELECT t.context->'targetState' AS state,t.accepted_at,pt.name AS playthrough_name
 FROM profiles p JOIN sessions s ON s.installation_id=p.installation_id
-JOIN turns t ON t.session_id=s.session_id
+JOIN active_turns t ON t.session_id=s.session_id
 JOIN playthroughs pt ON pt.playthrough_id=s.playthrough_id AND pt.installation_id=s.installation_id
 WHERE p.installation_id=:installation AND p.profile_id=:profile AND p.deleted_at IS NULL
   AND p.actor_identity->>'kind' IN ('actor','npc','creature')
@@ -1707,7 +1710,7 @@ SQL);
     /** Return a newest-first bounded sample of typed or transcribed player turns for style analysis. */
     public function recentPlayerInputs(string $installationId,int $limit=200):array
     {
-        $limit=max(1,min(200,$limit));$statement=$this->db->prepare("SELECT t.input_text FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation AND t.speaker->>'kind'='player' AND btrim(t.input_text)<>'' AND NOT EXISTS (SELECT 1 FROM source_events e WHERE e.turn_id=t.turn_id AND (e.payload#>>'{payload,ui_source}' IN ('lorkhan_rpg_event','lorkhan_quest_event','lorkhan_rechat','lorkhan_action_followup') OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_auto_%' OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_narrator_%')) ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT :limit");
+        $limit=max(1,min(200,$limit));$statement=$this->db->prepare("SELECT t.input_text FROM active_turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation AND t.speaker->>'kind'='player' AND btrim(t.input_text)<>'' AND NOT EXISTS (SELECT 1 FROM source_events e WHERE e.turn_id=t.turn_id AND (e.payload#>>'{payload,ui_source}' IN ('lorkhan_rpg_event','lorkhan_quest_event','lorkhan_rechat','lorkhan_action_followup') OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_auto_%' OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_narrator_%')) ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT :limit");
         $statement->bindValue(':installation',$installationId);$statement->bindValue(':limit',$limit,\PDO::PARAM_INT);$statement->execute();
         return array_map(static fn(array$row):string=>(string)$row['input_text'],$statement->fetchAll());
     }
@@ -3537,7 +3540,7 @@ SELECT c.identity::text AS identity,o.level::text AS level
 FROM jsonb_array_elements(CAST(:identities AS jsonb)) AS c(identity)
 JOIN LATERAL (
  SELECT t.context#>'{targetState,stats,level}' AS level
- FROM turns t JOIN sessions s ON s.session_id=t.session_id
+ FROM active_turns t JOIN sessions s ON s.session_id=t.session_id
  WHERE s.installation_id=:installation AND s.playthrough_id=:playthrough
    AND t.target->>'kind'=c.identity->>'kind' AND t.target->>'record_id'=c.identity->>'record_id'
    AND t.target->>'content_file'=c.identity->>'content_file'

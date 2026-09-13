@@ -13589,3 +13589,45 @@ process cycle; no extra job execution was requested.
 This closes resurrection of existing deleted records only. The actual loaded-save
 cutoff, invalidation of affected source/derived records and first-time queued-job
 publication fence remain unfinished. It is not full future-history pruning.
+
+
+## Loaded-save active-history cutoff (2026-09-13)
+
+Migration 107 and LoadedSaveTimeline now apply the recorded OpenMW save-time
+boundary inside the accepted-session transaction, after the existing backup
+attempt. The three-day backup threshold does not gate history invalidation.
+Fractional GameHour precision is retained; an unknown calendar is not guessed.
+
+The cutoff is scoped to installation and playthrough. Immutable turns and source
+events remain stored. Future event projections are suppressed, derived memories
+and generated diaries are soft-deleted, and reconstructible speech/book/journal
+projections are removed. Active-turn readers exclude the abandoned branch from
+observed NPC/player state, generation history, relationship eligibility and scene
+classification. Raw request/audit evidence deliberately remains available.
+
+Publication guards serialize with session replacement. Delayed memory, diary,
+speech and world projections cannot republish retired sources; queued profile
+generation rechecks source turns before committing a revision. Existing digest
+source validation rejects canon containing retired memories and resets its input
+cursor, so the next digest is rebuilt from still-valid candidate scenes. This does
+not restore historical NPC personality revisions or relationship state.
+
+Backed-up migration replay captures and restores timeline markers whose parent
+records survive replay. A normal downgrade refuses to silently erase nonempty
+markers. Database import retains its separate imported-state semantics.
+
+Validation: the complete uncached native management HTTP suite passes, including
+marker preservation through migration replay. The integration vertical slice
+passes future/past and undated records, immutable-source preservation,
+idempotency, late memory/diary/book/speech publication, stale profile generation
+and fractional-second cutoffs. 1,247 server checks, 111 protocol files and PHP
+lint pass. The refreshed inventory has 182 relations. The complete integration script also passes SQL capture, staging, restore,
+migration replay and durable jobs; replay_plan_changed is its expected negative
+probe. Deployment results follow below.
+
+Remaining full-parity work is not closed by this change: Global Context capture
+(magic, reanimation, item pickup details), continuous NPC inventory, NPC
+Visit/Teleport/Return, physical diary books, client Core-slot selection, Narrator
+action/event mappings and save-time NPC profile/relationship pullback. Supported
+override consumers and remaining editor interactions still need their recorded
+acceptance. No game or paid provider was used.

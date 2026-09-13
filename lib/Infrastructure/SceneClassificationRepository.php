@@ -37,7 +37,7 @@ final class SceneClassificationRepository
         $lines=array_slice($lines,-SceneClassificationPolicy::HISTORY_LINES);if($lines===[])return ['queued'=>false,'reason'=>'history_unavailable'];
         $this->db->beginTransaction();
         try{
-            $q=$this->db->prepare("SELECT t.completed_at FROM turns t JOIN sessions s ON s.session_id=t.session_id JOIN profiles p ON p.profile_id=:profile AND p.installation_id=s.installation_id AND p.deleted_at IS NULL WHERE t.turn_id=:turn AND t.state='complete' AND s.installation_id=:installation AND s.playthrough_id=:playthrough FOR SHARE OF t");
+            $q=$this->db->prepare("SELECT t.completed_at FROM active_turns t JOIN sessions s ON s.session_id=t.session_id JOIN profiles p ON p.profile_id=:profile AND p.installation_id=s.installation_id AND p.deleted_at IS NULL WHERE t.turn_id=:turn AND t.state='complete' AND s.installation_id=:installation AND s.playthrough_id=:playthrough FOR SHARE OF t");
             $scope=['profile'=>$profile,'turn'=>$turn['turn_id'],'installation'=>$installation,'playthrough'=>$turn['playthrough_id']];$q->execute($scope);$observed=$q->fetchColumn();
             if(!$observed)throw new RuntimeException('scene_scope_unavailable');
             $key='scene:'.$turn['turn_id'];$job=Uuid::v4();$payload=['installation_id'=>$installation,'profile_id'=>$profile,'provider_configuration_id'=>$route['configuration_id'],'provider_revision'=>(int)$route['current_revision']];
