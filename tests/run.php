@@ -3334,6 +3334,11 @@ foreach(\LorkhanServer\Application\ProfileAssignmentRule::METADATA_FIELDS as$key
     $sample=$ruleMetadataSamples[$key]??match($type){'boolean'=>'false','integer'=>'10','percent'=>'25%','list'=>'Seyda Neen, Balmora',default=>'Rule text'};
     $converted=\LorkhanServer\Application\ProfileAssignmentRule::normalize(['action'=>['metadata'=>[$key=>$sample]]]);
     $check(array_key_exists($field,$converted['action']['settings_overrides'][$section]??[]),'rule metadata mapping '.$key);
+    // Enable the relationship consumer so its intentional off switch does not mask the mapped chance.
+    $ruleBase=$section==='relationship'?['settings_overrides'=>['relationship'=>['enabled'=>true]]]:[];
+    $ruleEffective=(new EffectiveSettingsResolver())->resolve([],[],\LorkhanServer\Application\ProfileAssignmentRule::apply($ruleBase, $converted['action']));
+    $effectiveSection=in_array($section,['context','prompt'],true)?$ruleEffective[$section]:$ruleEffective['settings'][$section];
+    $check(($effectiveSection[$field]??null)===$converted['action']['settings_overrides'][$section][$field], 'rule metadata reaches effective settings '.$key);
 }
 $converted=\LorkhanServer\Application\ProfileAssignmentRule::normalize(['action'=>['metadata'=>['RECHAT_P'=>'0','RECHAT_ALLOW_ACTIONS'=>false,'PROMPT_HEAD'=>'']]]);
 $check($converted['action']['settings_overrides']['behavior']===['rechat_probability_percent'=>0,'rechat_allow_actions'=>false]&&!isset($converted['action']['settings_overrides']['prompt']),'rule metadata preserves zero and false while ignoring empty values');

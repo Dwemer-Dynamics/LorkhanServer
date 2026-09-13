@@ -13480,3 +13480,16 @@ Scoped deployment verified all 897 runtime files against source with no extras o
 legacy paths; protected routes remain 403 and unauthenticated sessions 401.
 Rollback: /var/backups/lorkhan-advanced-rules.BrKudx. GitHub server workflow remains
 disabled_manually. No game or paid provider was used.
+
+
+## Rules metadata effective-settings audit (2026-09-12)
+
+Extended the existing metadata test loop through ProfileAssignmentRule::apply
+and EffectiveSettingsResolver::resolve for all 37 supported reference keys.
+Each mapped value reaches its effective settings section, including the separate
+prompt/context layers and canonical NPC diary fields. Relationship chance is
+checked with its consumer enabled; the default disabled relationship policy
+correctly forces effective chance to zero and was not relaxed. All 1247 server
+checks and 111 protocol checks pass. No new test file or product code was needed.
+This proves resolver wiring, not every downstream game/provider consumer, which
+remains a separate acceptance boundary. Runtime files are unchanged from f89ce46.
