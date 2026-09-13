@@ -377,6 +377,8 @@ Return a tones object before mood and text in every utterance. Include all eight
         $morrowind = '';
         $world = $contextPolicy['sections']['world'] ? $this->worldXml($context, $this->blacklistSet($contextPolicy['location_blacklist'])) : '';
         if ($world !== '') $morrowind .= '<world>' . $world . '</world>';
+        $sceneNote=$turn['_scene_classification']['note']??'';
+        if($contextPolicy['sections']['world']&&is_string($sceneNote)&&$sceneNote!=='')$morrowind.=$this->xmlTag('scene_note',$sceneNote);
         $people = $contextPolicy['sections']['people_present'] ? $this->peoplePresentXml($turn, $context) : '';
         if ($people !== '') $morrowind .= '<people_present>' . $people . '</people_present>';
         $assessorLevel = ($contextPolicy['power_awareness_enabled'] ?? false) && ($details['nearby_actor_power'] ?? true) && $contextPolicy['sections']['nearby_actors']
@@ -1646,7 +1648,9 @@ Return a tones object before mood and text in every utterance. Include all eight
     /** @return array<string,mixed> */
     private function turnTraceContent(array $turn): array
     {
-        return $this->allow($turn['payload'], ['input', 'speaker', 'target', 'audience', 'context', 'ui_source']);
+        $content=$this->allow($turn['payload'], ['input', 'speaker', 'target', 'audience', 'context', 'ui_source']);
+        if(is_array($turn['_scene_classification']??null))$content['scene_classification']=$turn['_scene_classification'];
+        return $content;
     }
 
     /** @param array<string,mixed> $source */

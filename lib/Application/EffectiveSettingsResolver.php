@@ -306,6 +306,7 @@ final class EffectiveSettingsResolver
         if (($content['schema'] ?? null) !== SettingsCatalog::GLOBAL_SCHEMA) throw new InvalidArgumentException('invalid_global_settings');
         self::validateSettingsShape($content['client'], SettingsCatalog::clientDefaults(), false);
         if(!is_array($content['task_availability'])||array_is_list($content['task_availability']))throw new InvalidArgumentException('invalid_global_settings');
+        $content['task_availability'] += ['scene_classifier'=>true];
         self::assertExactKeys($content['task_availability'],$expected['task_availability'],'invalid_global_settings');
         foreach($content['task_availability']as$enabled)if(!is_bool($enabled))throw new InvalidArgumentException('invalid_global_settings');
         self::assertExactKeys($content['prompt'], $expected['prompt'], 'invalid_global_settings');
@@ -333,7 +334,7 @@ final class EffectiveSettingsResolver
             throw new InvalidArgumentException('invalid_global_settings');
         }
         // New global-only task routes default to Disabled for older saved documents.
-        if(is_array($content['system_routing'])&&!array_is_list($content['system_routing']))$content['system_routing'] += ['background_memory_configuration_id'=>''];
+        if(is_array($content['system_routing'])&&!array_is_list($content['system_routing']))$content['system_routing'] += ['background_memory_configuration_id'=>'','scene_classifier_configuration_id'=>''];
         self::assertExactKeys($content['system_routing'], $expected['system_routing'], 'invalid_global_settings');
         foreach (SettingsCatalog::systemRoutingFields() as $field) self::validateUuidOrEmpty($content['system_routing'][$field]);
         return $content;

@@ -3257,8 +3257,26 @@ foreach([['metadata'=>['UNKNOWN_SETTING'=>true]],['metadata'=>['RECHAT_H'=>'bad'
 }
 
 $legacyTasks=\LorkhanServer\Application\SettingsCatalog::globalDefaults();unset($legacyTasks['task_availability']);
-$check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($legacyTasks)['task_availability']===['background_memory'=>true,'profile_generation'=>true],'legacy task availability preserves prior enabled behavior');
+$check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($legacyTasks)['task_availability']===['background_memory'=>true,'profile_generation'=>true,'scene_classifier'=>true],'legacy task availability preserves prior enabled behavior');
 foreach(['bad',[],['background_memory'=>'false','profile_generation'=>true]]as$invalidTasks){$taskGlobals=\LorkhanServer\Application\SettingsCatalog::globalDefaults();$taskGlobals['task_availability']=$invalidTasks;try{\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($taskGlobals);$check(false,'invalid task availability rejected');}catch(InvalidArgumentException){$check(true,'invalid task availability rejected');}}
+
+// Scene classification mirrors the reference genre priority and only romance adds a timed note.
+foreach(\LorkhanServer\Application\SceneClassificationPolicy::GENRES as$genre){
+    $check(\LorkhanServer\Application\SceneClassificationPolicy::output(['genre'=>strtoupper($genre)])===['genre'=>$genre],'scene genre '.$genre);
+    $check(\LorkhanServer\Application\SceneClassificationPolicy::status($genre)===($genre==='romance'?'intimate':'default'),'scene status '.$genre);
+}
+$check(\LorkhanServer\Application\SceneClassificationPolicy::output(['genre'=>'unrecognized'])===['genre'=>'default'],'unknown scene falls back to default');
+$check(\LorkhanServer\Application\SceneClassificationPolicy::output(['genre'=>'romance and horror'])===['genre'=>'horror'],'scene genre reference priority');
+$check(\LorkhanServer\Application\SceneClassificationPolicy::NOTE_TTL_SECONDS===60&&\LorkhanServer\Application\SceneClassificationPolicy::note('romance')!==''&&\LorkhanServer\Application\SceneClassificationPolicy::note('drama')==='','only romance emits a sixty second scene note');
+foreach([[],['genre'=>[]],['genre'=>'romance','action'=>'follow'],['genre'=>str_repeat('a',257)]]as$invalidScene){
+    try{\LorkhanServer\Application\SceneClassificationPolicy::output($invalidScene);$check(false,'invalid scene output rejected');}catch(InvalidArgumentException){$check(true,'invalid scene output rejected');}
+}
+
+$scenePromptTurn=$promptTurn;$scenePromptTurn['_scene_classification']=['genre'=>'romance','status'=>'intimate','note'=>\LorkhanServer\Application\SceneClassificationPolicy::note('romance')];
+$scenePrompt=(new PromptAssembler())->assemble($scenePromptTurn,$promptSelection);
+$check(str_contains($scenePrompt['provider_input']['_assembled_prompt'],'Overall ambient seems intimate.'),'scene note reaches the assembled prompt');
+$scenePromptTurn['_scene_classification']['note']='';
+$check(!str_contains((new PromptAssembler())->assemble($scenePromptTurn,$promptSelection)['provider_input']['_assembled_prompt'],'Overall ambient seems intimate.'),'expired scene note omitted from prompt');
 
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");

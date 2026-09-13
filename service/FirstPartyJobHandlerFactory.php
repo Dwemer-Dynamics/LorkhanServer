@@ -34,6 +34,7 @@ final class FirstPartyJobHandlerFactory
         $handlers[] = new SttProcessJobHandler(new \LorkhanServer\Infrastructure\Repository($db),$sttProvider,$mediaStore,
             new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db),$products,$providerConfig);
         return array_merge($handlers, [
+            new SceneClassifyJobHandler(new \LorkhanServer\Infrastructure\SceneClassificationRepository($db),$products,new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db),$providerConfig),
             new NpcEvolutionReportJobHandler(new \LorkhanServer\Infrastructure\NpcEvolutionReportRepository($db),$products,new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db),$providerConfig),
             new DatabaseCompactJobHandler($db),
             new DatabaseBackupJobHandler($db,$providerConfig),

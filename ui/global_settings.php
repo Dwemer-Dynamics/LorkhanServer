@@ -158,6 +158,7 @@ $sections = [
         'Global Connectors' => [
             ['memory_summary_connector', 'Summaries', '&#x1F4DD;', 'select', $memorySummary['provider_configuration_id'] ?? '', 'Summarize consolidated memories with the selected LLM. Original memories are retained.', ['values'=>$llmOptions, 'toggle'=>['memory_summary_enabled','Automatic Memory Summaries',$memorySummary['enabled'] ?? false]]],
             ['background_memory_configuration_id', 'Background & Memory Tasks', '&#x1F9E0;', 'select', $systemRouting['background_memory_configuration_id'], 'Generates NPC evolution reports from saved history. Disabled never calls a provider. Separate from automatic memory summaries.', ['values'=>$llmOptions,'toggle'=>['background_memory_enabled','Background & Memory Tasks',$globalDocument['task_availability']['background_memory']]]],
+            ['scene_classifier_configuration_id', 'Scene Classifier', '&#x1F3AD;', 'select', $systemRouting['scene_classifier_configuration_id'], 'Classifies recent dialogue after a response. Uses a named Scene Classifier connector or enabled Background Tasks when no connector is selected. Romance adds a scene note for 60 seconds.', ['values'=>array_replace($llmOptions,[''=>'Automatic fallback']),'toggle'=>['scene_classifier_enabled','Scene Classifier',$globalDocument['task_availability']['scene_classifier']]]],
             ['profile_generation_configuration_id', 'Profile Tasks', '&#x1F58B;&#xFE0F;', 'select', $systemRouting['profile_generation_configuration_id'], 'Creates requested NPC, player, and narrator profile text. Disabled never calls a provider.', ['values' => $llmOptions,'toggle'=>['profile_tasks_enabled','Profile Tasks',$globalDocument['task_availability']['profile_generation']]]],
             ['relationship_configuration_id', 'Relationship Management', '&#x1F91D;', 'select', $systemRouting['relationship_configuration_id'], 'Evaluates eligible completed conversations using Relationship Update Chance.', ['values'=>$llmOptions, 'toggle'=>['relationship_enabled','Relationship Evaluation',$relationshipSettings['enabled']]]],
         ],
@@ -274,6 +275,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
     <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/global-settings-save" id="gs_form">
         <input type="hidden" name="memory_settings_present" value="1">
         <input type="hidden" name="task_availability_present" value="1">
+        <input type="hidden" name="scene_classifier_present" value="1">
         <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
         <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
         <input type="hidden" name="change_reason" value="Management global settings">

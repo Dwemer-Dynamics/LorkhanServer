@@ -216,6 +216,7 @@ final class Router
                 if(is_array($selection['nearby_actor_profiles']??null)&&$selection['nearby_actor_profiles']!==[])$providerInput['_nearby_actor_profiles']=$selection['nearby_actor_profiles'];
                 if(is_array($selection['power_observations']??null)&&$selection['power_observations']!==[])$providerInput['_power_observations']=$selection['power_observations'];
                 if(is_array($selection['item_descriptions']??null)&&$selection['item_descriptions']!==[])$providerInput['_item_descriptions']=$selection['item_descriptions'];
+                if(is_array($selection['scene_classification']??null))$providerInput['_scene_classification']=$selection['scene_classification'];
                 $assembled = $this->promptAssembler->assemble($providerInput, $selection);
                 $providerInput['_prompt'] = $assembled['provider_input'];
                 $providerConfiguration=$this->products->providerContext($m);

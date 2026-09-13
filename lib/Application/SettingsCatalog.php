@@ -120,7 +120,7 @@ final class SettingsCatalog
     ];
 
     private const SYSTEM_ROUTING_FIELDS = [
-        'oghma_configuration_id', 'profile_generation_configuration_id', 'relationship_configuration_id', 'background_memory_configuration_id',
+        'oghma_configuration_id', 'profile_generation_configuration_id', 'relationship_configuration_id', 'background_memory_configuration_id', 'scene_classifier_configuration_id',
     ];
 
     private const ROUTING_TYPES = [
@@ -223,11 +223,12 @@ final class SettingsCatalog
                 'magic_effects_blacklist' => [],
             ],
             'relationship' => ['enabled' => false, 'update_chance_percent' => 0],
-            'task_availability' => ['background_memory'=>true, 'profile_generation'=>true],
+            'task_availability' => ['background_memory'=>true, 'profile_generation'=>true, 'scene_classifier'=>true],
             'system_routing' => [
                 'oghma_configuration_id' => '',
                 'profile_generation_configuration_id' => '',
                 'background_memory_configuration_id' => '',
+                'scene_classifier_configuration_id' => '',
                 'relationship_configuration_id' => '',
             ],
         ];

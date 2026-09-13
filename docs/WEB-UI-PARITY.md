@@ -12623,3 +12623,54 @@ labels, then enabled Medium Term Tasks. It detects one of eight genres, stores
 NPC scene_status, and adds a 60-second romance scene note. This is a missing
 runtime feature, not a Skyrim-only presentation exception. No native classifier
 implementation is claimed in this checkpoint.
+
+## Scene Classifier: settings, background job and prompt context (2026-09-12)
+
+Added the Scene Classifier connector card between Background Tasks and Profile
+Tasks using the existing Herika-derived card/toggle/select presentation. Its
+availability persists independently of the selected connector. Blank selection
+is labelled Automatic fallback: dedicated selection, reference classifier labels,
+then enabled Background Tasks are tried in that order, within one installation.
+Older saved settings and older open forms retain compatible defaults/selections.
+
+Ordinary typed/voice player dialogue queues one low-priority scene.classify job
+after the response completes. Automatic Rechat/events and narrator targets are
+excluded. Ten recent player/NPC lines are frozen, bounded to 2048 bytes per line.
+The existing provider adapter sends the eight reference genres plus default, a
+256-token response limit and a strict genre schema when the connector enables
+JSON Schema. Unknown answers become default using reference genre priority.
+No game actions or biography updates occur. Native installation/playthrough/NPC
+scoping replaces the reference global NPC-name lookup. Native availability is
+the gate; there is no dependency on a Skyrim MiniMe process.
+
+Migration 105 stores job-linked, lease-fenced results. Only succeeded jobs feed
+a later saved prompt, newest observed dialogue first. Romance produces intimate
+status and a fixed note for 60 seconds after classification; other genres produce
+default status and no note. World context off and classifier off omit the note.
+The prompt snapshot/trace records the selected classification. The source history
+uses witnessed player/NPC text; the reference journal date/location annotations
+are not reproduced by this native bounded history adapter.
+
+1174 server checks and 111 protocol files pass. Existing integration fixtures
+cover selected routing, named/background fallbacks, availability, deduplication,
+ten-line history, actual mock worker execution, uncommitted-result isolation,
+lease rejection, playthrough isolation and expiry. Prompt tests cover note
+inclusion/removal. A local HTTP mock verified the actual provider request schema
+and token cap; no paid service was invoked. Actual Global Settings saves/reloads
+pass at 1280/390, preserving selection while disabled and restoring fallback.
+Both screenshots were inspected. Evidence in Temp: scene-probe.sh,
+scene-provider-probe.py, scene-ui-probe.sh, scene-settings-review.cjs.
+Schema inventory: 178 relations/1635 columns, hash
+0a18e9dffed64667129369707d14025c61afe8104a4b379f2580bce31ef6ade3.
+No game or paid-provider acceptance is claimed. Full webpage parity remains open.
+
+Local deployment completed with rollback /var/backups/lorkhanserver-code.hnaCo2.
+Final protocol review corrected voice eligibility to the actual stt input kind;
+typed, voice, open-mic and browser-speech sources pass the focused queue probe.
+Migration 105 down/up also passes in the isolated database. The final one-file
+correction was linted, synced and the worker restarted (rollback
+/var/backups/lorkhanserver-scene-stt.lLdn8Y). All 883 runtime files match source;
+no extra/old paths remain, private files return 403 and unauthenticated sessions
+401. Deployed 1280/390 card checks pass with all writes blocked
+(scene-live-review.cjs). Existing secrets/configuration/voices are preserved.
+The GitHub server workflow remains disabled.

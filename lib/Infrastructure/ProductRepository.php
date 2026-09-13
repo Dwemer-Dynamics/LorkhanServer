@@ -692,6 +692,7 @@ final class ProductRepository
         $definitions=[
             ['memory_summary_connector','Summaries',(string)($summary['provider_configuration_id']??''),($summary['enabled']??false)===true],
             ['background_memory_configuration_id','Background & Memory Tasks',$routing['background_memory_configuration_id'],$settings['task_availability']['background_memory']],
+            ['scene_classifier_configuration_id','Scene Classifier',(string)((new SceneClassificationRepository($this->db))->route($installationId)['configuration_id']??''),$settings['task_availability']['scene_classifier']],
             ['profile_generation_configuration_id','Profile Tasks',$routing['profile_generation_configuration_id'],$settings['task_availability']['profile_generation']],
             ['oghma_configuration_id','Custom Oghma LLM',$routing['oghma_configuration_id'],$settings['oghma']['enabled']&&$settings['oghma']['extractor_enabled']],
             ['relationship_configuration_id','Relationship Management',$routing['relationship_configuration_id'],
@@ -1048,6 +1049,21 @@ final class ProductRepository
         if(!$row)throw new RuntimeException('not_found');
         $state=(int)$row['base_revision']!==(int)$row['current_revision']?'stale':(string)$row['state'];
         return ['state'=>$state,'speech_style'=>$state==='succeeded'?$row['speech_style']:null];
+    }
+
+    /** Schedule genre detection only after ordinary player dialogue has completed. */
+    public function maybeEnqueueSceneClassification(array $turn):array
+    {
+        if(!in_array($turn['payload']['input']['kind']??null,['text','stt'],true)
+            ||in_array($turn['payload']['target']['kind']??null,['narrator','player'],true)
+            ||!empty($turn['payload']['ui_source'])&&!in_array($turn['payload']['ui_source'],['text','lorkhan_text','lorkhan_voice','lorkhan_open_mic','lorkhan_browser_speech'],true))
+            return ['queued'=>false,'reason'=>'ineligible'];
+        $profile=$turn['_selected_profile_id']??$this->selectedActorProfileId($turn['installation_id'],$turn['playthrough_id'],$turn['payload']['target']);
+        if(!is_string($profile))return ['queued'=>false,'reason'=>'profile_unbound'];
+        $scenes=new SceneClassificationRepository($this->db);
+        if($scenes->route($turn['installation_id'])===null)return ['queued'=>false,'reason'=>'scene_classifier_unavailable'];
+        $history=$this->profileBackfillHistory($turn['installation_id'],$turn['playthrough_id'],$turn['payload']['target'],10);
+        return $scenes->enqueue($turn,$profile,$history['recent_events']);
     }
 
     /** Task availability is global and does not discard the selected connector. */
@@ -1441,12 +1457,12 @@ final class ProductRepository
                 $lock=$this->db->prepare("SELECT configuration_id FROM configuration_sets WHERE configuration_id=:id AND deleted_at IS NULL FOR UPDATE");
                 $lock->execute(['id'=>$id]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
                 (new Player2RoutingRepository($this->db))->assertNotActive($id);
-                $queued=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type IN ('profile.generate','profile.report','memory.summarize','relationship.evaluate','relationship.build','relationship.convert','narrative.generate') AND state IN ('queued','leased') AND payload->>'provider_configuration_id'=:id LIMIT 1");
+                $queued=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type IN ('profile.generate','profile.report','scene.classify','memory.summarize','relationship.evaluate','relationship.build','relationship.convert','narrative.generate') AND state IN ('queued','leased') AND payload->>'provider_configuration_id'=:id LIMIT 1");
                 $queued->execute(['id'=>$id]);if($queued->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $policy=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
                     WHERE c.kind='memory_policy' AND c.deleted_at IS NULL AND r.content->>'provider_configuration_id'=:id LIMIT 1");
                 $policy->execute(['id'=>$id]);if($policy->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
-                $global=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.kind='global_settings' AND c.deleted_at IS NULL AND :id IN (r.content#>>'{system_routing,oghma_configuration_id}',r.content#>>'{system_routing,profile_generation_configuration_id}',r.content#>>'{system_routing,background_memory_configuration_id}',r.content#>>'{system_routing,relationship_configuration_id}') LIMIT 1");
+                $global=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.kind='global_settings' AND c.deleted_at IS NULL AND :id IN (r.content#>>'{system_routing,oghma_configuration_id}',r.content#>>'{system_routing,profile_generation_configuration_id}',r.content#>>'{system_routing,background_memory_configuration_id}',r.content#>>'{system_routing,scene_classifier_configuration_id}',r.content#>>'{system_routing,relationship_configuration_id}') LIMIT 1");
                 $global->execute(['id'=>$id]);if($global->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id OR r.content->'routing'->>'relationship_configuration_id'=:id OR r.content->'routing'->>'diary_generation_configuration_id'=:id OR r.content->'routing'->>'player_autochat_configuration_id'=:id) LIMIT 1");
                 $profile->execute(['id'=>$id]);if($profile->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
@@ -3201,6 +3217,7 @@ SQL);
         return ['profile'=>$profile,'core_profile'=>$coreProfile,'selected_profile_id'=>$activeProfileId,'speech_style'=>$speechStyle,
             'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources'],'context'=>$contextPolicy,'prompt'=>$effective['prompt'],
                 'settings'=>array_intersect_key($effective['settings'], ['memory'=>true,'response'=>true])],
+            'scene_classification'=>$contextSections['world']?(new SceneClassificationRepository($this->db))->context($turn['installation_id'],$turn['playthrough_id'],$activeProfileId):null,
             'player_profile'=>$this->playerProfileForInstallation($turn['installation_id']),
             'narrator_profile'=>$narratorProfile,
             'narrator_event_prompts'=>$promptKeys===[]?[]:$this->narratorEventPromptTexts($turn['installation_id'],$promptKeys),

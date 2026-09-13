@@ -1167,6 +1167,57 @@ $assert(($evolvedNarrator['content']['personality']??null)==='Narrator personali
     &&($evolvedNarrator['content']['goals']??'')!==($narratorDynamicContent['goals']??''),
     'dynamic narrator evolution changed an unselected field or failed to evolve its selected field');
 
+// Scene classification is queued after a completed player turn and never changes NPC content.
+$sceneRepo=new \LorkhanServer\Infrastructure\SceneClassificationRepository($db);
+$sceneProvider=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Scene fixture connector','content'=>['driver'=>'mock','model'=>'scene-test']],$now);
+$sceneSettings=$backfillSettings;$sceneSettings['system_routing']['scene_classifier_configuration_id']=$sceneProvider['configuration_id'];
+$products->revise('global_settings',$backfillGlobal['configuration_id'],$sceneSettings,'scene route fixture',$now);
+$sceneTurn=$fixture('turn');$sceneTurn['installation_id']=$installationId;$sceneTurn['playthrough_id']=$session['playthrough_id'];
+$sceneTurn['session_id']=$sessionId;$sceneTurn['turn_id']=$newUuid(6146);$sceneTurn['payload']['target']=$backfillTarget;
+$sceneTurn['payload']['ui_source']='lorkhan_text';$sceneTurn['_selected_profile_id']=$backfillProfile['profile_id'];
+$sceneQueued=$products->maybeEnqueueSceneClassification($sceneTurn);
+$assert(($sceneQueued['queued']??false)===true,'scene classification did not queue after completed dialogue');
+$assert($products->maybeEnqueueSceneClassification($sceneTurn)['job_id']===$sceneQueued['job_id'],'scene classification retry duplicated work');
+$sceneVoice=$sceneTurn;$sceneVoice['payload']['input']['kind']='stt';
+foreach(['lorkhan_voice','lorkhan_open_mic','lorkhan_browser_speech']as$sceneSource){$sceneVoice['payload']['ui_source']=$sceneSource;$assert($products->maybeEnqueueSceneClassification($sceneVoice)['job_id']===$sceneQueued['job_id'],'spoken dialogue source was not eligible: '.$sceneSource);}
+$sceneInput=$sceneRepo->input($installationId,$backfillProfile['profile_id'],$sceneQueued['job_id']);
+$assert(count($sceneInput['dialogue'])===10&&$sceneInput['dialogue'][0]['text']==='Observed exchange 6','scene history is not the last ten chronological lines');
+$sceneJobs=new JobRepository($db);$sceneClaim=$sceneJobs->claim('scene-fixture',1,60,['scene.classify'])[0];
+$sceneCalls=0;$sceneMock=new class($sceneCalls) implements \LorkhanServer\Application\ProfileGenerationProvider {
+    public function __construct(public int &$calls){}
+    public function generate(array $profile,CancellationToken $cancellation):array{$cancellation->throwIfCancellationRequested();$this->calls++;if(($profile['generation_mode']??'')!=='scene_classification')throw new RuntimeException('wrong_scene_mode');return ['genre'=>'romance'];}
+};
+$sceneHandler=new \LorkhanServer\Application\SceneClassifyJobHandler($sceneRepo,$products,new ProviderAttemptRepository($db),[],$sceneMock);
+$scenePayload=$sceneClaim['payload']+['_job'=>['job_id'=>$sceneClaim['job_id'],'attempt'=>$sceneClaim['attempt_count'],'lease_token'=>$sceneClaim['lease_token']]];
+$sceneOff=$sceneSettings;$sceneOff['task_availability']['scene_classifier']=false;
+$products->revise('global_settings',$backfillGlobal['configuration_id'],$sceneOff,'disable scene fixture',$now);
+try{$sceneHandler->handle($scenePayload,'scene-test',static fn()=>true);$assert(false,'disabled classifier executed');}catch(RuntimeException $e){$assert($e->getMessage()==='scene_classifier_unavailable'&&$sceneCalls===0,'disabled classifier reached provider');}
+$products->revise('global_settings',$backfillGlobal['configuration_id'],$sceneSettings,'restore scene fixture',$now);
+$sceneHandler->handle($scenePayload,'scene-test',static fn()=>true);
+$assert($sceneRepo->context($installationId,$session['playthrough_id'],$backfillProfile['profile_id'])===null,'uncommitted scene result leaked');
+$sceneJobs->succeed($sceneClaim['job_id'],$sceneClaim['lease_token']);
+$sceneContext=$sceneRepo->context($installationId,$session['playthrough_id'],$backfillProfile['profile_id']);
+$assert($sceneContext['genre']==='romance'&&$sceneContext['status']==='intimate'&&$sceneContext['note']!==''&&$sceneCalls===1,'scene result or timed note missing');
+$assert($sceneRepo->context($installationId,\LorkhanServer\Infrastructure\Uuid::v4(),$backfillProfile['profile_id'])===null,'scene crossed playthrough');
+try{$sceneRepo->save($sceneClaim['job_id'],1,$sceneClaim['lease_token'],'horror');$assert(false,'expired scene lease wrote');}catch(RuntimeException $e){$assert($e->getMessage()==='lease_lost','wrong scene lease rejection');}
+$db->prepare("UPDATE scene_classifications SET classified_at=clock_timestamp()-interval '61 seconds' WHERE job_id=:job")->execute(['job'=>$sceneClaim['job_id']]);
+$assert($sceneRepo->context($installationId,$session['playthrough_id'],$backfillProfile['profile_id'])['note']==='','scene note failed to expire');
+$sceneAutomatic=$sceneTurn;$sceneAutomatic['payload']['ui_source']='lorkhan_rechat';
+$assert($products->maybeEnqueueSceneClassification($sceneAutomatic)['reason']==='ineligible','Rechat incorrectly queued scene classification');
+$sceneFallback=$sceneSettings;$sceneFallback['system_routing']['scene_classifier_configuration_id']='';$sceneFallback['system_routing']['background_memory_configuration_id']=$sceneProvider['configuration_id'];
+$products->revise('global_settings',$backfillGlobal['configuration_id'],$sceneFallback,'scene fallback fixture',$now);
+$assert($sceneRepo->route($installationId)['configuration_id']===$sceneProvider['configuration_id'],'scene background fallback missing');
+$sceneFallback['task_availability']['background_memory']=false;
+$products->revise('global_settings',$backfillGlobal['configuration_id'],$sceneFallback,'disable scene fallback fixture',$now);
+$assert($sceneRepo->route($installationId)===null,'scene used disabled background fallback');
+$namedScene=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Scene Classifier (Gemma 3N E4B)','content'=>['driver'=>'mock','model'=>'named-scene']],$now);
+$assert($sceneRepo->route($installationId)['configuration_id']===$namedScene['configuration_id'],'known classifier label fallback missing');
+$sceneFallback['task_availability']['scene_classifier']=false;
+$products->revise('global_settings',$backfillGlobal['configuration_id'],$sceneFallback,'disable named classifier',$now);
+$assert($sceneRepo->route($installationId)===null,'known label bypassed classifier availability');
+$products->deleteRevisioned('provider',$namedScene['configuration_id'],$now);
+$products->revise('global_settings',$backfillGlobal['configuration_id'],$backfillSettings,'restore pre-scene settings',$now);
+
 $creatureTemplate=$products->createRevisioned('profile',['installation_id'=>$installationId,
     'name'=>'Dagoth creature template','actor_identity'=>['kind'=>'template','record_id'=>'dagoth_creature_sentinel',
         'content_file'=>'Morrowind.esm'],'content'=>['biography'=>'Exact creature template biography.',

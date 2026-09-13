@@ -1,0 +1,1 @@
+DROP TABLE lorkhan_internal.scene_classifications;

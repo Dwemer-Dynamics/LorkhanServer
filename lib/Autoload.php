@@ -24,6 +24,7 @@ spl_autoload_register(static function (string $class): void {
         'Application\\CloudVoiceLibrary' => '/tts/CloudVoiceLibrary.php',
         'Application\\ConnectorCatalog' => '/connector/ConnectorCatalog.php',
         'Application\\LlmConnectorCsv' => '/connector/LlmConnectorCsv.php',
+        'Application\\SceneClassifyJobHandler' => '/service/SceneClassifyJobHandler.php',
         'Application\\NpcEvolutionReportJobHandler' => '/service/NpcEvolutionReportJobHandler.php',
         'Application\\TtsConnectorCsv' => '/connector/TtsConnectorCsv.php',
         'Application\\ParalinguisticSpeech' => '/tts/ParalinguisticSpeech.php',
