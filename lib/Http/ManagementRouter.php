@@ -833,7 +833,13 @@ final class ManagementRouter
         if(in_array($domain,['relationships','relationship-delete'],true))return $this->redirect($this->relationshipPageLocation($v,'saved'));
         if($domain==='narrative-generate')return$this->redirect($this->uiPath('narrative-autonomy').'?status=diary-requested');
         if($domain==='quickstart-save')return$this->redirect($this->webRoot().'/ui/quickstart.php?'.http_build_query(['installation_id'=>$scope['installation_id'],'core_profile_id'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
-        if(in_array($domain,['narrator-profile-create','narrator-profile-revise','narrator-profile-generate','narrator-profile-settings-import'],true)&&($v['embed']??'')==='1')
+        if($domain==='narrator-profile-generate'){
+            $query=['installation_id'=>$scope['installation_id'],'status'=>match($result['state']??'pending'){
+                'succeeded'=>'generation-completed','dead'=>'generation-failed',default=>'generation-queued'}];
+            if(($v['embed']??'')==='1')$query['embed']='1';
+            return$this->redirect($this->webRoot().'/ui/narrator_management.php?'.http_build_query($query));
+        }
+        if(in_array($domain,['narrator-profile-create','narrator-profile-revise','narrator-profile-settings-import'],true)&&($v['embed']??'')==='1')
             return$this->redirect($this->webRoot().'/ui/narrator_management.php?'.http_build_query([
                 'status'=>$domain==='narrator-profile-settings-import'?'imported':'saved','embed'=>'1','installation_id'=>$scope['installation_id']]));
         if(in_array($domain,['player-profile-create','player-profile-revise'],true)&&($v['embed']??'')==='1')

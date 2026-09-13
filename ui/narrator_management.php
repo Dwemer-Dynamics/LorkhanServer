@@ -88,7 +88,15 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             <p class="lorkhan-page-head-note">Configure narrator behavior and settings</p>
         </div>
 
-        <?php if (isset($_GET['status'])): ?><div class="lorkhan-status" role="status"><?php echo (is_string($_GET['status']) && $_GET['status'] === 'imported') ? 'Portable narrator settings imported as a new narrator profile revision.' : 'Narrator profile saved.'; ?></div><?php endif; ?>
+        <?php $narratorStatus=is_string($_GET['status']??null)?match($_GET['status']){
+            'saved'=>'Narrator profile saved.',
+            'imported'=>'Portable narrator settings imported as a new narrator profile revision.',
+            'generation-queued'=>'Narrator profile generation is queued. Reload this page after the worker finishes to see the generated persona.',
+            'generation-completed'=>'This generation request has completed. The latest saved narrator profile is shown below.',
+            'generation-failed'=>'This generation request failed. Check the worker diagnostics before retrying.',
+            default=>null,
+        }:null; ?>
+        <?php if($narratorStatus!==null): ?><div class="lorkhan-status" role="status"><?= lorkhan_ui_h($narratorStatus) ?></div><?php endif; ?>
 
         <?php if ($installations === []): ?>
             <section class="narrator-content-section">Connect OpenMW once before configuring narration.</section>
