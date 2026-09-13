@@ -29,6 +29,10 @@ try:
     subprocess.run(["pg_ctl", "-D", "/scratch/pg", "-o", "-h '' -k /scratch -p 5432 -c shared_buffers=16MB -c max_connections=10", "-l", "/scratch/postgres.log", "start"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run(["createdb", "-h", "/scratch", "-p", "5432", "imported"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run(["psql", "-X", "-h", "/scratch", "-p", "5432", "-d", "imported", "-v", "ON_ERROR_STOP=1", "-f", "/input.sql"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # Upgrade known historical Lorkhan schemas using the same checksum-checked runner as deployment.
+    # Uploaded SQL and all resulting data remain inside this untrusted sandbox.
+    subprocess.run(["/php-runtime", "-n", "-d", "extension=pdo.so", "-d", "extension=pdo_pgsql.so", "/upgrade.php"],
+                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     tables = query("SELECT jsonb_build_object('schema',n.nspname,'name',c.relname,'columns',(SELECT jsonb_agg(a.attname ORDER BY a.attnum) FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped))::text FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','lorkhan_internal') AND c.relkind IN ('r','p') AND NOT EXISTS(SELECT 1 FROM pg_depend d WHERE d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype='e') ORDER BY n.nspname,c.relname").splitlines()
     if len(tables) > 256:
         raise RuntimeError("import_too_many_tables")

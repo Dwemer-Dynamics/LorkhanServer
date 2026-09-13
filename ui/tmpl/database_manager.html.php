@@ -59,7 +59,7 @@
         <p role="status" data-database-maintenance data-kind="restore" data-endpoint="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/database-restore" data-state="<?= lorkhan_ui_h($sqlRestoreJob['state']??'') ?>">Latest SQL restore: <?= lorkhan_ui_h($sqlRestoreJob['state']??'none') ?>.</p>
         <details class="instruction-box" id="sql-import">
             <summary>Import an SQL backup file</summary>
-            <p>Import a plain .sql backup without its private restore archive. Database history and settings will be replaced. The schema version and installation IDs must match this server; older releases are rejected. A rollback backup is created first. Login, pairing and backup records are preserved; external media and credentials are not imported.</p>
+            <p>Import a plain .sql backup without its private restore archive. Database history and settings will be replaced. Known older Lorkhan schemas are upgraded inside an isolated database before validation. Installation IDs must match this server; foreign databases and changed migration histories are rejected. A rollback backup is created first. Login, pairing and backup records are preserved; external media and credentials are not imported.</p>
             <form method="post" enctype="multipart/form-data" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/database-import">
                 <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>">
                 <input type="hidden" name="request_id" value="<?= lorkhan_ui_h(\LorkhanServer\Infrastructure\Uuid::v4()) ?>">

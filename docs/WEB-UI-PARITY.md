@@ -145,7 +145,7 @@ Current delivery order: close visible page structure and interactions directly f
 | `provider_attempts.php` | `request_logs.php` operational presentation; no exact all-provider CHIM page | Explicit safe metadata columns, toolbar, status pills, scoped filters, full pagination and page CSV. Populated/empty source-rendered comparison and narrow keyboard scrolling checked. |
 | `jobs.php` | `request_logs.php` operational presentation; no exact durable-job CHIM page | Same shared reader, native queued/running/success/dead-letter states and retry/schedule metadata. Populated/empty comparison checked; no invented worker actions or exposed payloads. |
 | `game_debug.php` | Herika Request Logs operational components; no equivalent OpenMW command page | Generic widgets replaced with compact session controls, grouped commands and a shared status/UTC history table. Desktop/narrow populated, offline and outdated-client fixtures compared; command names/parameters preserved. Existing checks and local deployment passed; no live commands issued. |
-| `database_manager.php` | Dwemer-Dashboard `database_manager.php`, embedded by Herika Control Panel | Configuration backup create/download/restore and migration table are implemented. Confirmed, scoped VACUUM FULL ANALYZE with overlap/cooldown protection and audit outcomes is implemented and tested on an isolated database; web requests now queue durable background maintenance with a 30-minute SQL deadline and a fenced one-hour worker lease; progress, completion and failures are polled on the page. Full SQL backup creation, immutable private storage and streamed authenticated download are implemented with isolated restore proof. Automatic backups now have the reference Home-visit/10-minute cooldown, On/Off and 1-10 retention controls, background dumps and verified-replacement retention. Stored SQL restore is implemented for current-format backups, with automatic rollback capture, transactional schema/installation checks, runtime gating and preserved control state. Automatic backups also have the reference individual-delete control, protected against queued restoration and concurrent maintenance. Version-reset controls now queue confirmed, backed-up atomic source replay with lifecycle status; Database Access uses a validated deployment-owned pgAdmin URL and the reference card layout. The independent factory worker and private artifact deployment now pass restricted-owner reset and rollback-restore checks. Factory reset now has the reference destructive card, verified plan, typed confirmation, protected single-attempt queue and lifecycle status. Remaining: uploaded/legacy SQL import. These are missing features, not completed product exceptions. |
+| `database_manager.php` | Dwemer-Dashboard `database_manager.php`, embedded by Herika Control Panel | Configuration backup create/download/restore and migration table are implemented. Confirmed, scoped VACUUM FULL ANALYZE with overlap/cooldown protection and audit outcomes is implemented and tested on an isolated database; web requests now queue durable background maintenance with a 30-minute SQL deadline and a fenced one-hour worker lease; progress, completion and failures are polled on the page. Full SQL backup creation, immutable private storage and streamed authenticated download are implemented with isolated restore proof. Automatic backups now have the reference Home-visit/10-minute cooldown, On/Off and 1-10 retention controls, background dumps and verified-replacement retention. Stored SQL restore is implemented for current-format backups, with automatic rollback capture, transactional schema/installation checks, runtime gating and preserved control state. Automatic backups also have the reference individual-delete control, protected against queued restoration and concurrent maintenance. Version-reset controls now queue confirmed, backed-up atomic source replay with lifecycle status; Database Access uses a validated deployment-owned pgAdmin URL and the reference card layout. The independent factory worker and private artifact deployment now pass restricted-owner reset and rollback-restore checks. Factory reset now has the reference destructive card, verified plan, typed confirmation, protected single-attempt queue and lifecycle status. Browser upload and private server-folder import are implemented. Known historical Lorkhan schemas now upgrade inside the sandbox before current-schema validation; source 1/91/105/106 fixtures pass. Legacy full data-replacement acceptance remains untested; see dated evidence. |
 | `diagnostics.php` | Herika Request Logs operational layout + Dashboard summary tiles; native health data | Server-wide snapshot and paged audit with identifier-only scope. Populated/empty desktop and narrow source/reference style comparisons, HTTP redaction/UTC and deployed checks passed. Counts explicitly do not claim worker/provider connectivity. |
 | `backup_health.php` | Herika Request Logs operational layout + Dashboard instruction panel; native backup data | Explicit backup columns, paging, safe CSV and explained retention scope. Populated/empty desktop/narrow comparison, native confirmation keyboard checks, HTTP and local deployment passed. Backup metadata does not claim file-integrity verification. |
 | `narrative_manager.php` | Herika `diarylog.php` entry table/editor; native create/generate extension | Replaced inline forms/cards with a compact searchable paged table, content-first editor, create/generate dialogs and separate delete confirmation. Source/reference editor and table styling compared; CRUD and generation refusal covered by existing HTTP tests. No equivalent standalone manual narrative manager exists in Herika. |
@@ -12297,7 +12297,7 @@ features as exceptions. No missing item below is completed by shared CSS alone.
 - Core: Physical Diary and client Core-slot selection. Cumulative NPC memory is implemented and deployed in 4983988; see the dated evidence below.
 - Narrator: action support and remaining event/profile behavior mappings.
 - Playthroughs: future-history pruning, external import and full rollback.
-- Database Manager: current-schema SQL uploads are implemented and deployed; legacy SQL conversion remains open (see dated evidence below).
+- Database Manager: uploads and server-folder selection are deployed. Known historical Lorkhan schema upgrades are implemented and isolated-validated; legacy full data-replacement acceptance remains untested (see dated evidence below).
 
 The evolution report reference is ui/core/npc_report.php. It deduplicates
 personality history, combines backstory/personality chronologically, and asks
@@ -13176,3 +13176,27 @@ voice hashes preserved. Rollback: /var/backups/lorkhanserver-code.I1R20M. The li
 Database Manager server-folder section loads at 1280/390 without a folder error
 or overflow; browser blocked non-GET requests and no live import was submitted.
 Workflow 330702270 remains disabled_manually. Full parity remains open.
+
+
+## Known legacy Lorkhan SQL schema upgrades (2026-09-12)
+
+The SQL sandbox now mounts only the resolved PHP binary, source-controlled
+MigrationRunner and migrations read-only. After loading the untrusted dump into
+the isolated PostgreSQL instance, it runs the existing checksum/order-checked
+migration runner before exporting data for the unchanged parent-side validation.
+No deployment configuration, host database connection or secrets enter the sandbox.
+The parent still checks destination tables/columns, installation scope and data
+before creating its rollback backup and replacing rows. Foreign database conversion
+is not implied: missing/foreign schema data must still pass the existing validator.
+
+Isolated source-1, source-91 and source-105 dumps each upgrade to schema 106,
+preserve a fixture installation row, and pass SqlImportData validation against a
+fresh current-schema destination. Altered migration checksums are rejected. The
+initial PHP alternatives-path failure was fixed by binding the resolved executable,
+without mounting host PHP configuration. No live database import was submitted.
+The import description now explains automatic known-schema upgrades rather than
+claiming all older releases are rejected. Publication/deployment pending.
+
+Schema-1 with its ledger moved to public.schema_migrations also upgrades and passes
+current validation. Source-106 import passes unchanged. 1210 server checks, 111
+protocol checks, shell syntax and PHP lint pass. No live import was submitted.

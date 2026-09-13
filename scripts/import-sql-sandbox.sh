@@ -10,6 +10,8 @@ source_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 input=$(realpath -- "$1")
 [[ $(stat -c %s "$input") -le 1073741824 ]] || { echo 'Import exceeds 1 GiB.' >&2; exit 2; }
 for command in bwrap timeout python3; do command -v "$command" >/dev/null; done
+php_binary=$(readlink -f /usr/bin/php)
+[[ -x "$php_binary" ]] || { echo 'PHP runtime unavailable.' >&2; exit 2; }
 uid=$(id -u); gid=$(id -g)
 # A minimal account database supports initdb without exposing host account files.
 exec 3<<<"importer:x:$uid:$gid:SQL importer:/scratch:/bin/sh"
@@ -24,7 +26,11 @@ exec timeout --kill-after=5s 600s bwrap \
     --dir /etc --ro-bind-data 3 /etc/passwd --ro-bind-data 4 /etc/group \
     --proc /proc --dev /dev --size 1073741824 --tmpfs /scratch --symlink scratch /tmp \
     --ro-bind "$input" /input.sql \
+    --ro-bind "$php_binary" /php-runtime \
     --ro-bind "$source_root/scripts/sql-import-reader.py" /reader.py \
+    --ro-bind "$source_root/scripts/sql-import-upgrade.php" /upgrade.php \
+    --ro-bind "$source_root/lib/Infrastructure/MigrationRunner.php" /MigrationRunner.php \
+    --ro-bind "$source_root/data/migrations" /migrations \
     --setenv PATH /usr/lib/postgresql/15/bin:/usr/bin:/bin --setenv HOME /scratch \
     --setenv LANG C --setenv USER importer --setenv LOGNAME importer \
     --chdir /scratch --remount-ro / -- python3 /reader.py
