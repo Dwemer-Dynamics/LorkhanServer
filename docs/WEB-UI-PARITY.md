@@ -13006,3 +13006,14 @@ re-export retains dynamic_profile true/false and a Goals-only field selection.
 Both states are tested at both widths, with no script errors or horizontal
 overflow. This exercised the real authenticated import endpoint without provider
 or generation jobs. Existing prompt and connector selections were not changed.
+
+Narration dynamic portability published/deployed in a6fe1ee. Rollback:
+/var/backups/lorkhanserver-code.zq4AuE. All 893 runtime files match source; private,
+health and scope probes pass; configuration, credentials and voices preserved.
+Live Narrator page posts to narrator-profile-create and therefore has no saved
+profile export link. The read-only export probe could not exercise a nonexistent
+saved Narrator; no live profile was created. Actual saved-profile round-trip proof
+is the isolated 1280/390 browser fixture. Workflow remains disabled_manually.
+Reference portable narration also includes custom prompts, display name and diary
+controls; their remaining native mappings need separate closure, not assumed from
+this dynamic-profile fix.
