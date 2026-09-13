@@ -13107,3 +13107,9 @@ Actual browser Generate clicks in both modes return the queued receipt and
 preserve the existing persona. No worker/provider ran in this fixture; successful
 provider generation and later persona application are not claimed by this check.
 Existing 1200 server checks and PHP lint pass. Publication/deployment pending.
+
+Published/deployed in 587c1a8. All 893 source/runtime files match; no extra files or
+old paths. Health and protected-route probes pass. Rollback:
+/var/backups/lorkhanserver-code.OYh4U3. Configuration, credential and voice hashes
+preserved. GitHub workflow 330702270 remains disabled_manually. No game or paid
+provider was used. Full parity remains open.
