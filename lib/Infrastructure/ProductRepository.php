@@ -764,7 +764,7 @@ final class ProductRepository
         $rules=$this->db->prepare('SELECT r.rule_id,r.description,r.core_profile_id,c.label AS core_profile_label,r.priority,r.enabled,r.matchers '
             .'FROM profile_assignment_rules r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id '
             .'AND c.installation_id=r.installation_id AND c.deleted_at IS NULL WHERE r.installation_id=:installation '
-            .'ORDER BY r.priority DESC,r.created_at,r.rule_id LIMIT 100');
+            .'ORDER BY r.priority DESC,r.created_at DESC,r.rule_id DESC LIMIT 100');
         $rules->execute(['installation'=>$installationId]);$ruleRows=[];$options=array_fill_keys(self::PROFILE_RULE_MATCH_FIELDS,[]);
         foreach($rules->fetchAll()as$row){$match=$this->normalizeProfileRuleMatch($this->json($row['matchers']));
             foreach(self::PROFILE_RULE_MATCH_FIELDS as$field)foreach($match[$field]as$value)$options[$field][mb_strtolower($value,'UTF-8')]=$value;
@@ -3281,7 +3281,7 @@ SQL);
             static fn(string$value):string=>mb_strtolower($value,'UTF-8'),$actor[$field]);
         $rules=$this->db->prepare('SELECT r.core_profile_id,r.matchers FROM profile_assignment_rules r JOIN core_profiles c '
             .'ON c.core_profile_id=r.core_profile_id AND c.installation_id=r.installation_id AND c.deleted_at IS NULL '
-            .'WHERE r.installation_id=:installation AND r.enabled=true ORDER BY r.priority DESC,r.created_at,r.rule_id LIMIT 100');
+            .'WHERE r.installation_id=:installation AND r.enabled=true ORDER BY r.priority DESC,r.created_at DESC,r.rule_id DESC LIMIT 100');
         $rules->execute(['installation'=>$turn['installation_id']]);
         foreach($rules->fetchAll()as$rule){try{$match=$this->normalizeProfileRuleMatch($this->json($rule['matchers']),true);}
             catch(InvalidArgumentException){continue;}$matches=true;

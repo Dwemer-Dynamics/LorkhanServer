@@ -12272,7 +12272,7 @@ all 867 runtime files match source, private/auth/NPC probes pass, and existing
 configuration, credentials and voice contents are preserved. Workflow remains
 disabled_manually. No game launch or paid provider calls. Full parity is still open.
 
-## Remaining delivery checklist (2026-09-12, after NPC version viewer)
+## Remaining delivery checklist (2026-09-12, refreshed after report routing)
 
 The page matrix and dated evidence above remain authoritative; this checklist
 separates presentation work from runtime features instead of treating those
@@ -12280,14 +12280,15 @@ features as exceptions. No missing item below is completed by shared CSS alone.
 
 ### Page interactions and file formats
 
-- Finish LLM connector CSV import/export against the pinned 22-column reference.
-  Current implementation is under test; JSON remains a compatibility import.
-- NPC modal: review remaining controls against the actual reference, including
-  an AI evolution report. The new Profile Versions viewer does not supply it.
+- LLM connector CSV import/export and first-import selection are completed; see
+  the dated evidence below. JSON remains a compatibility import.
+- NPC evolution reports and their separate Background & Memory Tasks route are
+  completed; remaining NPC controls must be reviewed individually.
 - Core and NPC editors: finish the remaining supported override categories and
   advanced Rules matching/action metadata, retaining their reference placement.
-- Narrator: finish the broader Core settings composition and full editor review;
-  distinguish additions on the newer live Herika instance from the pinned source.
+- Narrator: whole-page layout and draft controls were reviewed in the dated
+  Narration whole-page pass. Broader Core settings composition, saved-profile
+  import/generation acceptance and newer live-only additions remain open.
 
 ### Runtime features required by those pages
 
@@ -12426,3 +12427,29 @@ All 875 runtime files match source, with no extra files or old paths; private
 file/auth/NPC probes pass. Configuration, credentials and voices were preserved.
 Deployed report interaction checks at 1280/390 pass with writes mocked. GitHub
 workflow 330702270 remains disabled_manually. Full parity remains unfinished.
+
+
+## Assignment rule priority parity (2026-09-12)
+
+Pinned Herika processor/comm.php applies matching rules in priority ASC, id ASC
+order, so the newest matching rule wins equal-priority Profile assignment. Native
+matching previously chose the oldest rule. Runtime selection and editor list order
+now use priority DESC, created_at DESC, rule_id DESC, and the help text says newer.
+Existing NPC assignments remain unchanged. UUID provides a deterministic fallback
+if creation timestamps tie; native timestamps replace the reference serial IDs.
+
+The existing integration assertion now expects the newer Core Profile. A focused
+fresh PostgreSQL fixture exercises the actual matching method and rule-list API:
+newer tie wins, list agrees, higher priority beats newer, disabled rules do not win.
+1100 unit checks and PHP lint pass. No full integration rerun is claimed.
+Scoped deploy rollback: /var/backups/lorkhanserver-rule-order.L8YcI7. All 875 runtime
+files match source; private/auth/NPC probes pass. No migrations, game commands,
+configuration changes or provider calls.
+
+Advanced Rules remains an actual gap: reference exposes PostgreSQL regex for
+Name, Race, Gender, Base/RefID and Faction, required-mod subset matching, and
+Action JSON. Reference actions merge metadata and overwrite NPC fields across
+all matching rules in ascending priority order. Native exact matching only picks
+a Core Profile; exposing an Action JSON box without implementing that ordered,
+validated profile-content application would be inert. This gap is not closed by
+the ordering fix.

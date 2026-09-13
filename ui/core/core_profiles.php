@@ -253,7 +253,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 <div class="modal-body profile-rules-body">
                     <div class="connector-help rule-help" id="profile-rules-intro">
                         <strong>Profile Rules automatically assign profiles when NPCs are first activated.</strong>
-                        <span>Choose one or more values inside a field to match any of them. Different fields must all match. Existing NPC assignments are preserved. Text matches in full without regard to capitals; higher priority wins, then the older rule.</span>
+                        <span>Choose one or more values inside a field to match any of them. Different fields must all match. Existing NPC assignments are preserved. Text matches in full without regard to capitals; higher priority wins, then the newer rule.</span>
                     </div>
                     <p class="profile-rules-status" data-profile-rules-status role="status" aria-live="polite">Loading assignment rules.</p>
 

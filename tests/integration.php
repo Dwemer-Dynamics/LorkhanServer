@@ -570,8 +570,8 @@ $tieNew=$products->saveProfileAssignmentRule(['installation_id'=>$installationId
 $tieProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
     'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
     'payload'=>['target'=>$tieTarget,'context'=>$automaticContext]],$automaticVoice,$now);
-$assert(($products->getRevisioned('profile',$tieProfileId)['core_profile_id']??null)===$tieCoreOld['core_profile_id'],
-    'equal-priority assignment rules did not preserve the older rule');
+$assert(($products->getRevisioned('profile',$tieProfileId)['core_profile_id']??null)===$tieCoreNew['core_profile_id'],
+    'equal-priority assignment rules did not apply the newer rule like Herika');
 $ruleOnlyCore=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule deletion guard',
     'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
 $ruleOnly=$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'description'=>'Rule-only Core Profile use',
