@@ -94,6 +94,10 @@ final class RechatCoordinator
         if ($roundBudget < 1 || $depth > $roundBudget) throw new DomainException('rechat_complete');
 
         $strict = (bool) ($existing['strict_targeting'] ?? $selectedBehavior['rechat_strict_targeting'] ?? false);
+        // Captured actor details belong only to the incoming exact target, not a rerouted responder.
+        if (!$this->sameIdentity($message['payload']['target'] ?? [], $selected)) {
+            unset($message['payload']['context']['targetState']);
+        }
         $message['payload']['target'] = $selected;
         $resolvedRechat = [
             'speaker' => $previousSpeaker,

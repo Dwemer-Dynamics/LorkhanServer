@@ -3095,7 +3095,16 @@ $eligibleProbe['payload']['context']['rechat']['participant_states']=[
     $participantRow($secondaryTarget,'busy'),
     $participantRow($thirdTarget,'active'),
 ];
+$eligibleProbe['payload']['context']['targetState']=['inventory'=>['items'=>[['record_id'=>'iron_dagger','count'=>1]],'total'=>1,'truncated'=>false],
+    'identity'=>['race'=>'dark elf'],'stats'=>['level'=>12]];
 $eligibleResolved=$rechatCoordinator->resolve($eligibleProbe);
+$assert(!isset($eligibleResolved['payload']['context']['targetState']),
+    'Rechat assigned the original target inventory, race or stats to a different responder');
+$sameActorProbe=$eligibleProbe;$sameActorProbe['payload']['target']=$thirdTarget;
+$sameActorResolved=$rechatCoordinator->resolve($sameActorProbe);
+$assert($sameActorResolved['payload']['target']===$thirdTarget
+    &&$sameActorResolved['payload']['context']['targetState']===$sameActorProbe['payload']['context']['targetState'],
+    'Rechat discarded fresh context for the same exact responder');
 $db->beginTransaction();
 $modeOwner=$products->effectiveSettingsForActor($installationId,$session['playthrough_id'],$speakerIdentity)['core_profile'];
 $modeContent=$modeOwner['content'];$modeContent['settings_overrides']['behavior']['rechat_mode']='group';
