@@ -12914,3 +12914,14 @@ Browser checks now also switch away/back while retaining the draft, verify anoth
 playthrough remains empty, and clear/save/reload at both desktop and narrow widths.
 Final review adds pending digest jobs to the existing connector deletion guard.
 No game, microphone, paid provider or live user-data mutation was used in checks.
+
+Published cumulative NPC memory and editor in 4983988f98bc1a1dae1e6e50d184515357ac58d0
+on origin main. Server-only deployment completed; rollback code/Apache route is
+/var/backups/lorkhanserver-code.bYp65d. All 893 runtime files match source, with no
+extra or old paths. Configuration, credentials and voices were hash-preserved.
+Health, private-file 403, unauthenticated session 401 and NPC scope 200/404 probes
+pass. Deployed NPC Info at 1280/390 shows the memory textarea without overflow or
+JavaScript errors; every non-GET request was blocked and the narrow screenshot was
+inspected. GitHub workflow 330702270 remains disabled_manually. Client untouched.
+Paid provider and in-game generation acceptance remain untested. Full webpage
+parity remains active, including the other unresolved rows and runtime counterparts.
