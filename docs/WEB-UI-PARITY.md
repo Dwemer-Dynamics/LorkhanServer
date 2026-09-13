@@ -12706,3 +12706,29 @@ All 883 runtime files match source; private/auth/NPC probes pass. Deployed
 1280/390 Transformation Detection checks pass with writes blocked, and isolated
 desktop/narrow screenshots were inspected. Existing configuration, credentials
 and voice contents were preserved. The GitHub workflow remains disabled.
+
+## Uploaded SQL import worker boundary checkpoint (2026-09-12; not deployed)
+
+The existing SqlImportData stage/replace implementation and Python/bubblewrap
+reader were not wired to an upload form or durable import handler. Added
+IsolatedSqlImport as that worker-side capture boundary: source hash/size checks,
+a worker-owned private copy, an environment without deployment credentials,
+bounded capture, lease cancellation and cleanup before exposing an untrusted
+JSON data stream to the caller's schema validator. It never executes uploaded
+SQL on the live connection. Root execution is refused.
+
+Read-only bubblewrap capability check succeeded as the actual lorkhan service
+account (via runuser, without changing its non-login shell). The runtime probe
+isolated-sql-import-probe.php captures a synthetic SQL table and validates its
+data through SqlImportData; wrong hashes, lost leases, cancellation during
+pg_sleep, invalid SQL, consumer exceptions and quarantine cleanup pass. No live
+database, game, provider, settings or credentials were changed by these probes.
+
+This is an unfinished implementation checkpoint, not an exposed import feature.
+Next: add immutable upload storage and confirmed/idempotent queueing; register a
+DatabaseImportJobHandler that validates/stages data, captures a rollback backup,
+uses existing runtime/maintenance locks and MigrationReplayState, then applies
+rows atomically; wire the reference upload/status card and verify with an isolated
+full-schema dump. Current-schema SQL and older-schema conversion must be reported
+separately. Do not execute an uploaded SQL file through the live psql connection
+or treat a sandbox-produced file as a trusted restore archive.
