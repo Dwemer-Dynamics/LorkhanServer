@@ -108,10 +108,16 @@ final class ManagementRepository
         $query->execute(['enabled'=>$enabled===null?null:($enabled?'true':'false'),'max'=>$maxCount]);
     }
 
+    /** Queue a confirmed upload using private storage and the shared maintenance lock. */
+    public function queueDatabaseImport(string $id,string $source,array $config):string
+    {
+        return (new DatabaseImportStore($config))->enqueue($this->db,$id,$source);
+    }
+
     /** Expose only the latest maintenance lifecycle, never worker payloads or database credentials. */
     public function databaseMaintenanceStatus(string $type = 'database.compact'): ?array
     {
-        if(!in_array($type,['database.compact','database.backup','database.restore','database.replay','database.factory_reset'],true))throw new \InvalidArgumentException('invalid_database_job_type');
+        if(!in_array($type,['database.compact','database.backup','database.restore','database.replay','database.factory_reset','database.import'],true))throw new \InvalidArgumentException('invalid_database_job_type');
         $query=$this->db->prepare('SELECT job_id,state,created_at,updated_at FROM durable_jobs WHERE job_type=:type ORDER BY created_at DESC,job_id DESC LIMIT 1');
         $query->execute(['type'=>$type]);$row=$query->fetch(PDO::FETCH_ASSOC);
         return $row === false ? null : $row;
@@ -139,7 +145,7 @@ final class ManagementRepository
     /** Never accept other maintenance work that a queued migration replay would invalidate. */
     private function assertNoPendingReplay():void
     {
-        if($this->db->query("SELECT 1 FROM durable_jobs WHERE job_type IN ('database.replay','database.factory_reset') AND state IN ('queued','leased') LIMIT 1")->fetchColumn()!==false)throw new RuntimeException('maintenance_busy');
+        if($this->db->query("SELECT 1 FROM durable_jobs WHERE job_type IN ('database.replay','database.factory_reset','database.import') AND state IN ('queued','leased') LIMIT 1")->fetchColumn()!==false)throw new RuntimeException('maintenance_busy');
     }
 
     /** Return only confirmation metadata from a verified private factory artifact. */
@@ -159,7 +165,7 @@ final class ManagementRepository
         try{
             $plan=$this->databaseFactoryPlan($config);
             if(!hash_equals($plan['fingerprint'],$fingerprint))throw new RuntimeException('factory_source_changed');
-            $pending=$this->db->query("SELECT job_id,job_type,payload FROM durable_jobs WHERE job_type IN ('database.compact','database.backup','database.restore','database.replay','database.factory_reset') AND state IN ('queued','leased') ORDER BY created_at LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            $pending=$this->db->query("SELECT job_id,job_type,payload FROM durable_jobs WHERE job_type IN ('database.compact','database.backup','database.restore','database.replay','database.factory_reset','database.import') AND state IN ('queued','leased') ORDER BY created_at LIMIT 1")->fetch(PDO::FETCH_ASSOC);
             if($pending){
                 $payload=json_decode($pending['payload'],true,16,JSON_THROW_ON_ERROR);
                 if($pending['job_type']==='database.factory_reset'&&($payload['fingerprint']??null)===$fingerprint)return $pending['job_id'];
@@ -190,7 +196,7 @@ final class ManagementRepository
             $plan=$this->databaseReplayPlan();
             if(!hash_equals($plan['fingerprint'],$fingerprint))throw new RuntimeException('replay_plan_changed');
             if(!in_array($version,array_column($plan['versions'],'version'),true))throw new \InvalidArgumentException('invalid_replay_version');
-            $pending=$this->db->query("SELECT job_id,job_type,payload FROM durable_jobs WHERE job_type IN ('database.compact','database.backup','database.restore','database.replay','database.factory_reset') AND state IN ('queued','leased') ORDER BY created_at LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            $pending=$this->db->query("SELECT job_id,job_type,payload FROM durable_jobs WHERE job_type IN ('database.compact','database.backup','database.restore','database.replay','database.factory_reset','database.import') AND state IN ('queued','leased') ORDER BY created_at LIMIT 1")->fetch(PDO::FETCH_ASSOC);
             if($pending){
                 $payload=json_decode($pending['payload'],true,16,JSON_THROW_ON_ERROR);
                 if($pending['job_type']==='database.replay'&&($payload['version']??null)===$version&&($payload['fingerprint']??null)===$fingerprint)return $pending['job_id'];

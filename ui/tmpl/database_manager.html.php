@@ -12,6 +12,8 @@
         'backup-deleted'=>'Automatic backup deleted, including its private restore archive.',
         'backup-restore-pending'=>'This backup is queued for restoration and cannot be deleted yet.',
         'backup-delete-failed'=>'Backup deletion did not finish. A file may already have been removed; retry to finish deleting this backup.',
+        'import-queued'=>'SQL import queued. Keep the game closed. The worker validates the isolated data and creates a rollback backup before replacing database rows.',
+        'import-conflict'=>'This confirmation was already used for another file. Refresh the page and review the file before confirming again.',
         'restore-queued'=>'SQL restore queued. Keep the game closed. The worker will first create a rollback backup, then restore in one transaction.',
         'backup-settings-saved'=>'Automatic backup settings saved. Older automatic backups are removed only after the next successful automatic backup.',
         'backup-queued'=>'Full SQL backup queued. Reload the backup list after the worker completes.',
@@ -55,6 +57,19 @@
             <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
         </form><?php endforeach; ?>
         <p role="status" data-database-maintenance data-kind="restore" data-endpoint="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/database-restore" data-state="<?= lorkhan_ui_h($sqlRestoreJob['state']??'') ?>">Latest SQL restore: <?= lorkhan_ui_h($sqlRestoreJob['state']??'none') ?>.</p>
+        <details class="instruction-box" id="sql-import">
+            <summary>Import an SQL backup file</summary>
+            <p>Import a plain .sql backup without its private restore archive. Database history and settings will be replaced. The schema version and installation IDs must match this server; older releases are rejected. A rollback backup is created first. Login, pairing and backup records are preserved; external media and credentials are not imported.</p>
+            <form method="post" enctype="multipart/form-data" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/database-import">
+                <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>">
+                <input type="hidden" name="request_id" value="<?= lorkhan_ui_h(\LorkhanServer\Infrastructure\Uuid::v4()) ?>">
+                <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+                <div class="restore-fields"><div><label for="sql-import-file">SQL backup file (up to 1 GiB)</label><input id="sql-import-file" name="sql_file" type="file" accept=".sql" required></div>
+                <div><label for="sql-import-confirm">Type Import SQL to confirm replacement</label><input id="sql-import-confirm" name="confirm" type="text" pattern="Import SQL" autocomplete="off" required></div></div>
+                <button class="button backup-restore" type="submit">Import SQL</button>
+            </form>
+            <p role="status" data-database-maintenance data-kind="import" data-endpoint="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/database-import" data-state="<?= lorkhan_ui_h($sqlImportJob['state']??'') ?>">Latest SQL import: <?= lorkhan_ui_h($sqlImportJob['state']??'none') ?>.</p>
+        </details>
         <nav class="backup-pagination" aria-label="SQL backup pages"><?php if($sqlPage>1): ?><a class="button" href="<?= lorkhan_ui_h($sqlPageUrl($sqlPage-1)) ?>">Previous</a><?php endif; ?><?php if($sqlHasNext): ?><a class="button" href="<?= lorkhan_ui_h($sqlPageUrl($sqlPage+1)) ?>">Next</a><?php endif; ?></nav>
         <a class="button" href="<?= lorkhan_ui_h($sqlPageUrl($sqlPage)) ?>">Refresh backup list</a>
     </section>

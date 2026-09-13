@@ -11,6 +11,7 @@ if($adminParts===false||!isset($adminParts['host'])||isset($adminParts['user'])|
     ||(strtolower($adminParts['scheme'])==='http'&&!in_array(strtolower($adminParts['host']),['127.0.0.1','localhost','[::1]'],true)))$databaseAdminUrl='';
 $maintenanceJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus();
 $sqlBackupJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus('database.backup');
+$sqlImportJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus('database.import');
 $sqlRestoreJob=(new \LorkhanServer\Infrastructure\ManagementRepository($database))->databaseMaintenanceStatus('database.restore');
 $replayRepository=new \LorkhanServer\Infrastructure\ManagementRepository($database);
 $replayJob=$replayRepository->databaseMaintenanceStatus('database.replay');

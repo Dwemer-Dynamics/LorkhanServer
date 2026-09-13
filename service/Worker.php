@@ -50,7 +50,7 @@ final class Worker
                 }
                 $lastWork = hrtime(true);
                 foreach ($claimed as $job) {
-                    if(in_array($job['job_type'],['database.restore','database.replay','database.factory_reset'],true)){
+                    if(in_array($job['job_type'],['database.restore','database.replay','database.factory_reset','database.import'],true)){
                         $this->jobs->leaveRuntime();$runtimeGate=false;
                     }
                     ++$stats['claimed'];
@@ -62,7 +62,7 @@ final class Worker
                         $this->jobs->succeed($job['job_id'], $job['lease_token']);
                         ++$stats['succeeded'];
                         // Reload handler/profile state in a fresh worker after replacing the database.
-                        if(in_array($job['job_type'],['database.restore','database.replay','database.factory_reset'],true))return $stats;
+                        if(in_array($job['job_type'],['database.restore','database.replay','database.factory_reset','database.import'],true))return $stats;
                     } catch (Throwable $error) {
                         $code = $error->getMessage() === 'unsupported_job_type' ? 'unsupported_job_type' : 'handler_failed';
                         $delay = min(3600, 2 ** min(10, max(0, $job['attempt_count'] - 1)));

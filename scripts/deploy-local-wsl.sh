@@ -68,6 +68,7 @@ install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/profile-portra
 find /var/lib/lorkhanserver/profile-portraits -xdev -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.webp' \) -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
 install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/backups
 install -d -o lorkhan -g www-data -m 2770 /var/lib/lorkhanserver/backups/sql
+install -d -o lorkhan -g www-data -m 2770 /var/lib/lorkhanserver/backups/imports
 find /var/lib/lorkhanserver/backups/sql -xdev -type f -name 'sql-*.sql*' -exec chown lorkhan:www-data -- {} + -exec chmod 0640 -- {} +
 find /var/lib/lorkhanserver/backups -xdev -type f -name '*.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
 install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/credentials

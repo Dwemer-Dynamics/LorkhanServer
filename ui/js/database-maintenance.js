@@ -27,6 +27,7 @@
     document.querySelectorAll('[data-database-maintenance]').forEach(status => {
     const backup = status.dataset.kind === 'backup';
     const restore = status.dataset.kind === 'restore';
+    const sqlImport = status.dataset.kind === 'import';
     const snapshot = status.dataset.kind === 'snapshot';
     const replay = status.dataset.kind === 'replay';
     const factory = status.dataset.kind === 'factory';
@@ -34,6 +35,7 @@
         succeeded:'Database maintenance completed.', dead:'Maintenance failed. Some tables may already be compacted. Check server logs before retrying.',
         cancelled:'Database maintenance cancelled.'};
     if(backup) Object.assign(labels,{queued:'SQL backup queued. Waiting for a worker.',leased:'Creating SQL backup.',succeeded:'SQL backup completed. Refresh the backup list to download.',dead:'SQL backup failed. Check storage space and server logs before retrying.'});
+    if(sqlImport) Object.assign(labels,{queued:'SQL import queued. Keep the game closed.',leased:'Validating isolated SQL data, creating a rollback backup and importing. Keep the server running.',succeeded:'SQL import completed. Refresh the backup list for the rollback backup; reconnect the game before playing.',dead:'SQL import did not complete. Replacement rolls back on failure. Check schema compatibility, storage and server logs before retrying.'});
     if(restore) Object.assign(labels,{queued:'SQL restore queued. Keep the game closed.',leased:'Creating rollback backup and restoring SQL. Keep the server running.',succeeded:'SQL restore completed. Refresh this page for the rollback backup; reconnect the game before playing.',dead:'SQL restore did not complete. Active work, storage or an incompatible snapshot can prevent restoration. Check server logs and the backup list before retrying.'});
     if(replay) Object.assign(labels,{queued:'Migration replay queued. Keep the game closed.',leased:'Creating rollback backup and replaying migrations. Keep the server running.',succeeded:'Migration replay completed. Refresh the versions and backup list; reconnect the game before playing.',dead:'Migration replay did not complete. Database changes were rolled back if replay started. Check the rollback backup and server logs before retrying.'});
     if(snapshot) Object.assign(labels,{queued:'Snapshot save queued.',leased:'Saving the current database snapshot.',succeeded:'Snapshot saved. Refresh the list to see it.',dead:'Snapshot save failed. Check storage space and server logs before retrying.'});

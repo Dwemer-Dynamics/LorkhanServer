@@ -40,12 +40,13 @@ final class SqlImportData
     }
 
     /** Inspect the entire seekable quarantine stream before a caller begins any database mutation. */
-    public function validate($stream):array
+    public function validate($stream,?callable $progress=null):array
     {
         if(!is_resource($stream)||get_resource_type($stream)!=='stream'||!stream_get_meta_data($stream)['seekable']||!rewind($stream))
             throw new RuntimeException('import_stream_invalid');
-        $hash=hash_init('sha256');$bytes=0;$rows=0;$seen=[];$sequenceStates=[];$active=null;$header=false;$complete=false;
+        $hash=hash_init('sha256');$bytes=0;$rows=0;$seen=[];$sequenceStates=[];$active=null;$header=false;$complete=false;$records=0;
         while(($line=fgets($stream,self::MAX_LINE_BYTES+1))!==false){
+            if(($records++%1024)===0&&$progress!==null)$progress();
             $bytes+=strlen($line);
             if($bytes>self::MAX_BYTES||strlen($line)>self::MAX_LINE_BYTES||!str_ends_with($line,"\n"))throw new RuntimeException('import_stream_limit');
             hash_update($hash,$line);

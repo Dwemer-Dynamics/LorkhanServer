@@ -424,7 +424,9 @@ body.database-manager-shell .database-manager-page fieldset.server-file-list { p
 .database-manager-page .server-file-option input[type="radio"]:focus-visible + .server-file-card { outline:2px solid #bc9d5a; outline-offset:3px; }
 .database-manager-page .backup-download { display:inline-block; color:#f8f9fa; font-size:13px; padding:6px 0; text-decoration:underline; }
 body.database-manager-shell .database-manager-page .backup-delete { background:#a6353f !important; color:#fff; padding:6px 10px !important; margin-left:10px; }
-.database-manager-page .restore-fields { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.database-manager-page .restore-fields { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:20px; }
+.database-manager-page .restore-fields > div { min-width:0; }
+.database-manager-page .restore-fields input[type="file"] { width:100%; max-width:100%; box-sizing:border-box; }
 .database-manager-page .instruction-box summary { cursor:pointer; font-size:16px; font-weight:600; }
 .database-manager-page .instruction-box[open] summary { margin-bottom:12px; }
 .database-manager-page .version-table { min-width:520px; font-size:13px; table-layout:fixed; }
@@ -444,7 +446,7 @@ body.database-manager-shell .database-manager-page .automatic-backup-toggle.is-e
 body.database-manager-shell .database-manager-page .automatic-backup-toggle.is-disabled { background:#6c757d !important; }
 @media(max-width:768px) {
     main.database-manager-page { padding-left:12px; padding-right:12px; }
-    .database-manager-page .tools-grid,.database-manager-page .restore-fields { grid-template-columns:1fr; }
+    .database-manager-page .tools-grid,.database-manager-page .restore-fields { grid-template-columns:minmax(0,1fr); }
     .database-manager-page .stats-grid { grid-template-columns:1fr; }
 }
 

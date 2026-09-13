@@ -1171,9 +1171,18 @@ $check(!$provider->finish($providerId, 'failed', null, 'late', 'late completion'
 
 $firstPartyMediaRoot=sys_get_temp_dir().'/lorkhan-first-party-'.bin2hex(random_bytes(6));
 $firstPartyRegistry=FirstPartyJobHandlerFactory::registry($db,new \LorkhanServer\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),$clock);
+$initialGenerator=$service->createRevisioned('provider',['installation_id'=>$installation,'name'=>'Initial generation mock',
+    'content'=>['driver'=>'mock','model'=>'initial-generation']]);
+$initialGenerationGlobal=$globalSettings;$initialGenerationGlobal['system_routing']['profile_generation_configuration_id']=$initialGenerator['configuration_id'];
+$service->revise('global_settings',$globalConfiguration['configuration_id'],$initialGenerationGlobal,'select generation fixture connector');
+$legacyGenerator=$service->createRevisioned('provider',['installation_id'=>$legacyInstallation,'name'=>'Player and narrator generation mock',
+    'content'=>['driver'=>'mock','model'=>'legacy-generation']]);
+$initialLegacyGlobal=\LorkhanServer\Application\SettingsCatalog::globalDefaults();
+$initialLegacyGlobal['system_routing']['profile_generation_configuration_id']=$legacyGenerator['configuration_id'];
+$legacyGenerationConfiguration=$service->createRevisioned('global_settings',['installation_id'=>$legacyInstallation,'name'=>'Global Settings','content'=>$initialLegacyGlobal]);
 $profileBefore=(int)$db->query("SELECT current_revision FROM profiles WHERE profile_id='{$scope['profile_id']}'")->fetchColumn();
 $profileJob=Uuid::v4();$jobs->enqueue($profileJob,'profile.generate',1,'profile.generate:test',
-    ['profile_id'=>$scope['profile_id'],'base_revision'=>$profileBefore],3);
+    ['profile_id'=>$scope['profile_id'],'base_revision'=>$profileBefore,'provider_configuration_id'=>$initialGenerator['configuration_id'],'provider_revision'=>1],3);
 $profileStats=(new Worker($jobs,$firstPartyRegistry,'profile-generate-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
 $profileAfter=$db->query("SELECT p.current_revision,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id='{$scope['profile_id']}'")->fetch();
 $check($profileStats['succeeded']===1&&(int)$profileAfter['current_revision']===$profileBefore+1&&str_contains((string)$profileAfter['content'],'Deterministic mock generation'), 'profile generation did not create a revision');
@@ -1326,11 +1335,8 @@ $generationCurrent=$products->getRevisioned('profile',$generationProfile['profil
 $check((int)$generationCurrent['current_revision']===2&&str_contains($generationCurrent['content']['notes'],'Deterministic mock generation'),
     'routed provider did not produce the profile revision');
 $service->revise('profile',$generationProfile['profile_id'],$generationCurrent['content']+['routing'=>['profile_generation_configuration_id'=>'']],'explicit runtime override');
-$runtimeGenerationJob=$products->enqueueProfileGeneration($generationProfile['profile_id']);
-$runtimeGenerationPayload=json_decode((string)$db->query("SELECT payload FROM durable_jobs WHERE job_id='{$runtimeGenerationJob['job_id']}'")->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
-$check(!array_key_exists('provider_configuration_id',$runtimeGenerationPayload),'explicit runtime override did not bypass the Core Profile generator');
-$runtimeGenerationStats=(new Worker($jobs,$firstPartyRegistry,'profile-runtime-route-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
-$check($runtimeGenerationStats['succeeded']===1,'runtime generation compatibility failed');
+try{$products->enqueueProfileGeneration($generationProfile['profile_id']);throw new RuntimeException('blank profile generator used runtime fallback');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='profile_generation_connector_unavailable','blank generation route must require a selected connector');}
 $foreignGenerator=$service->createRevisioned('provider',['installation_id'=>$legacyInstallation,'name'=>'Foreign generator',
     'content'=>['driver'=>'mock','model'=>'foreign-model']]);
 $generationCurrent=$products->getRevisioned('profile',$generationProfile['profile_id']);
@@ -1345,8 +1351,7 @@ catch(InvalidArgumentException $error){$check($error->getMessage()==='profile_ge
 $service->revise('global_settings',$globalConfiguration['configuration_id'],$generationGlobal,'restore profile generation route');
 $legacyGenerationGlobal=\LorkhanServer\Application\SettingsCatalog::globalDefaults();
 $legacyGenerationGlobal['system_routing']['profile_generation_configuration_id']=$foreignGenerator['configuration_id'];
-$service->createRevisioned('global_settings',['installation_id'=>$legacyInstallation,'name'=>'Global Settings',
-    'content'=>$legacyGenerationGlobal]);
+$service->revise('global_settings',$legacyGenerationConfiguration['configuration_id'],$legacyGenerationGlobal,'select legacy generation connector');
 foreach([[$playerProfile['profile_id'],'enqueuePlayerSpeechStyleGeneration'],[$narratorProfile['profile_id'],'enqueueNarratorProfileGeneration']]as[$routedProfileId,$enqueueMethod]){
     $routedProfile=$products->getRevisioned('profile',$routedProfileId);$routedContent=$routedProfile['content'];
     $routedContent['routing']['profile_generation_configuration_id']=$foreignGenerator['configuration_id'];

@@ -147,6 +147,9 @@ foreach ($relations as $relation) {
             'encoding' => $textual ? 'UTF8' : 'not_textual',
         ];
     }, $columnStatement->fetchAll());
+    // Dump/restore closes dropped-column slots; compare visible order, not physical attribute numbers.
+    foreach ($columns as $position => &$column) $column['ordinal'] = $position + 1;
+    unset($column);
     $constraintStatement->execute(['schema' => $schema, 'relation' => $name]);
     $indexStatement->execute(['schema' => $schema, 'relation' => $name]);
     $objectDisposition = disposition($schema, $name, $excludedPublic, $morrowindAdapted);

@@ -39,6 +39,7 @@ final class FirstPartyJobHandlerFactory
             new DatabaseCompactJobHandler($db),
             new DatabaseBackupJobHandler($db,$providerConfig),
             new DatabaseRestoreJobHandler($db,$providerConfig),
+            new DatabaseImportJobHandler($db,$providerConfig),
             new DatabaseReplayJobHandler($db,$providerConfig),
             new DatabaseFactoryResetJobHandler($db,$providerConfig),
             new RelationshipBuildJobHandler(new \LorkhanServer\Infrastructure\RelationshipBuildRepository($db),$products,

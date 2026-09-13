@@ -90,6 +90,7 @@ final class ManagementRouter
             if($session===null){if($r->method==='GET'&&$this->htmlRequest($r))return$this->openBrowserSession($r->path);throw new RuntimeException('unauthorized');}
             if($r->method==='GET'&&$path==='/api/v1/database-maintenance')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus()]);
             if($r->method==='GET'&&$path==='/api/v1/database-backup')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus('database.backup')]);
+            if($r->method==='GET'&&$path==='/api/v1/database-import')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus('database.import')]);
             if($r->method==='GET'&&$path==='/api/v1/database-restore')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus('database.restore')]);
             if($r->method==='GET'&&$path==='/api/v1/database-replay')return Response::json(200,['job'=>$this->management->databaseMaintenanceStatus('database.replay')]);
             if($r->method==='GET'&&$path==='/api/v1/database-replay-plan')return Response::json(200,$this->management->databaseReplayPlan());
@@ -505,6 +506,18 @@ final class ManagementRouter
             if(($v['confirm']??'')!=='Factory Reset')throw new InvalidArgumentException('confirmation_mismatch');
             try{$this->management->queueDatabaseFactoryReset($this->need($v,'fingerprint'),$this->providerConfig);$status='factory-queued';}
             catch(RuntimeException $error){$status=$error->getMessage()==='maintenance_busy'?'maintenance-busy':'factory-unavailable';}
+            return $this->redirect($this->webRoot().'/ui/database_manager.php?'.http_build_query(['status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
+        }
+        if($domain==='database-import'){
+            if(($v['confirm']??'')!=='Import SQL')throw new InvalidArgumentException('confirmation_mismatch');
+            $id=$this->need($v,'request_id');$this->uuid($id,'request_id');
+            $file=$r->files['sql_file']??null;
+            if(!is_array($file)||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||($file['size']??0)<1
+                ||$file['size']>\LorkhanServer\Infrastructure\SqlImportData::MAX_BYTES
+                ||strtolower(pathinfo((string)($file['name']??''),PATHINFO_EXTENSION))!=='sql'
+                ||!is_uploaded_file((string)($file['tmp_name']??'')))throw new InvalidArgumentException('invalid_import_file');
+            try{$this->management->queueDatabaseImport($id,$file['tmp_name'],$this->providerConfig);$status='import-queued';}
+            catch(RuntimeException $error){$status=match($error->getMessage()){'maintenance_busy'=>'maintenance-busy','import_confirmation_conflict'=>'import-conflict',default=>throw $error};}
             return $this->redirect($this->webRoot().'/ui/database_manager.php?'.http_build_query(['status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
         }
         if($domain==='database-restore'){

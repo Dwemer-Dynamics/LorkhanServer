@@ -12732,3 +12732,69 @@ rows atomically; wire the reference upload/status card and verify with an isolat
 full-schema dump. Current-schema SQL and older-schema conversion must be reported
 separately. Do not execute an uploaded SQL file through the live psql connection
 or treat a sandbox-produced file as a trusted restore archive.
+
+## SQL upload wiring integration checkpoint (2026-09-12; not deployed)
+
+Private upload storage, authenticated confirmed queueing, status UI and a durable
+import handler are implemented locally. The fresh-database import-job-probe.sh
+fixture executes an actual sandbox capture and row replacement, verifies a
+rollback backup, repeat-confirmation deduplication, source conflict rejection,
+incompatible-schema rejection without changed rows, and private-upload cleanup.
+The probe caught JSONB key-order assumptions; validation now checks the sorted
+key set and explicit scalar types.
+
+Import jobs now release the shared runtime gate before taking the exclusive
+replacement lock, and exit the worker after success to reload configuration.
+Imported rows and the exact leased attempt acknowledgement commit atomically.
+The outer worker accepts that same already-completed import lease; a foreign
+lease remains rejected. This closes the crash-after-commit acknowledgement gap.
+1179 server checks and 111 protocol files pass; git diff --check passes.
+
+Still pending before publication/deployment: actual multipart HTTP and rendered
+page checks, nonsuperuser database-owner integration, Apache upload limit and
+storage permissions, and the existing broader SQL integration suite. Legacy
+schema conversion remains separate unfinished scope. No live data was imported.
+
+SQL upload follow-up evidence: the full-schema restore probe also passes as an
+isolated NOSUPERUSER/NOCREATEDB/NOCREATEROLE database owner. Actual multipart
+HTTP checks pass for CSRF rejection, typed confirmation, extension rejection,
+same-request deduplication, conflicting source rejection and queued status.
+Desktop 1280 and narrow 390 screenshots were inspected. The file input initially
+forced grid overflow; minmax columns and bounded file width fix it. Deployment
+now prepares the group-shared private imports directory. No live import occurred.
+
+The broader integration vertical slice passed but first stopped at the inventory
+fingerprint gate. Regeneration against a fresh migrated database changes only
+the runtime-reference fingerprint (178 relations/1635 columns unchanged), now
+6820909e9d750bd066ffe6abbe7eb7fb148953b0159b8473d91146c8ba2e2dac.
+The rerun again passed the vertical slice but failed the inventory comparison.
+The fresh migration fingerprint alone does not explain the post-integration
+difference. Next capture both canonical inventories and compare the exact
+objects before updating any expectation. Publication/deployment remain pending.
+
+Exact inventory comparison resolved the mismatch: only public.core_profiles
+physical ordinals differed after a dropped column was compacted by dump/restore.
+Normalizing visible column positions makes both canonical inventories identical;
+all column names/types/defaults/constraints remain checked. Fresh and restored
+inventory hash is 31059b228f129f6729061081bcd528c4b794ce8da91b8e15524c6807fb9c723a.
+Actual Worker-loop import passes under the restricted owner, including the
+shared-to-exclusive runtime gate and atomic success acknowledgement. Validation
+now heartbeats with a deadline; the existing unit fixture covers cancellation.
+Apache accepts the upload-route configuration in a syntax-only include check.
+
+The complete SQL integration portion now passes: bounded capture/cancellation,
+trusted-schema staging, invalid UUID rejection, rollback on cancellation,
+control-state preservation, late-failure rollback and both inventory gates.
+The final migrations/jobs suite exposed a stale profile.generate fixture that
+expected the removed implicit runtime provider. Existing fixtures now select
+explicit mock connector revisions and assert blank-route rejection. This changes
+no production routing behavior; the complete migrations/jobs rerun is pending.
+1180 server checks and 111 protocol files pass. No live import or deployment yet.
+
+Final pre-publication checks: the full migration/durable-job suite passes after
+selecting mock Global Profile Tasks connectors in the existing fixtures. SQL
+integration and inventory gates passed in the preceding complete run; the final
+job component was rerun independently against a fresh cluster. The exposed
+current-schema upload workflow is ready for deployment; older-schema conversion
+and reference server-folder import interaction remain separate open requirements.
+No game, microphone, paid provider or live SQL import was used.

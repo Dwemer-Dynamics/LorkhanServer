@@ -3123,6 +3123,12 @@ $validateImport=static function(array $records,string $suffix='')use($importVali
 };
 [$validatedImport,$importBytes,$importOffset]=$validateImport($importRecords);
 $check($validatedImport===['sha256'=>hash('sha256',$importBytes),'byte_count'=>strlen($importBytes),'table_count'=>1,'row_count'=>1,'sequence_states'=>['public.fixture'=>['id'=>$importSequence]]]&&$importOffset===0,'SQL data validation preserves exact bytes and sequence precision and rewinds without mutation');
+$importCancelled=fopen('php://temp','w+b');fwrite($importCancelled,$importBytes);rewind($importCancelled);
+try{
+    $importValidator->validate($importCancelled,static function():void{throw new RuntimeException('lease_lost');});
+    $check(false,'SQL validation must stop when its lease is lost');
+}catch(RuntimeException $error){$check($error->getMessage()==='lease_lost','SQL validation propagates cancellation before consuming untrusted data');}
+finally{fclose($importCancelled);}
 foreach([
     [[array_replace($importHeader,['format'=>'lorkhan.import-data.v1']),$importTable,$importComplete],'import_header_invalid'],
     [[$importHeader,array_replace($importTable,['sequences'=>(object)[]]),$importComplete],'import_sequence_mismatch'],
