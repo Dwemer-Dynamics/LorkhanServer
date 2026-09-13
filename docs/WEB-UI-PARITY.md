@@ -13511,3 +13511,51 @@ PHP syntax, 1247 server checks and diff whitespace pass. Scoped deployment
 rollback is /var/backups/lorkhan-oghma-labels.FCxl08. All 897 runtime hashes match
 source, with protected routes 403 and unauthenticated session 401. No game or
 paid provider was used. The full goal remains active.
+
+
+## Loaded-save future-history implementation boundary (2026-09-12)
+
+Current source confirms this is missing behavior, not a Playthrough Manager
+formatting discrepancy. The pinned Herika processor/comm.php init branch first
+attempts a Dragon Break snapshot, then removes future eventlog/speech/diary/books
+rows and memory summaries. Event-like records use >= incoming game time; memory
+uses >. Its excluded quest/background tables must not be imported into Lorkhan.
+
+Lorkhan Router::createSession currently supplies only DragonBreakSnapshot::capture
+as the beforeReplace callback. Repository::createSession validates and fences the
+installation/generation, invokes that callback, cancels outstanding turns and
+replaces the session. No future-history invalidation occurs there. The three-day
+threshold belongs only to automatic backup creation, not to whether a shorter
+rollback must stop exposing future history.
+
+The next implementation must keep immutable source events and introduce a scoped
+active-timeline invalidation, inside the accepted-session transaction after the
+backup attempt and before new session work. Required coverage:
+
+- Determine a validated TES3 calendar boundary, scoped to installation and
+  playthrough; do not substitute wall-clock timestamps or Skyrim gamets.
+- Suppress affected eventlog_metadata projections using the existing suppression
+  fields while preserving source_events and diagnostic/audit evidence.
+- Invalidate affected memory_records, including consolidated records whose
+  provenance source_event_ids contains invalidated events. Memory model summaries
+  and embeddings must not survive through a stale parent record.
+- Re-evaluate cumulative npc_memory_digests through their source_revisions chain;
+  current sourcesValid already rejects deleted/revised source memory, but the
+  correct prior valid digest/cursor must be handled deliberately.
+- Invalidate generated narrative_records using their source_turn_ids provenance;
+  existing diary projection triggers remove soft-deleted narratives from diarylog.
+  Do not delete undated manual entries by guessing when they happened in-game.
+- Handle book/speech projections and queued/in-flight derived work. Session
+  cancellation alone is not a fence for independent narrative.generate and
+  memory jobs; frozen provider input can otherwise recreate invalid future data.
+- Verify events, AI speech, Adventure Log, Diaries, Books and effective NPC prompt
+  history together. Preserve unrelated playthroughs/installations and all private
+  configuration. Loading/retrying an accepted generation must be idempotent.
+
+Use the existing isolated session/Dragon Break integration fixture for older,
+same-time and newer loads, a rollback shorter than three days, unknown calendar,
+stale/repeated session requests, derived-memory ancestry, queued job completion,
+and transaction failure. No live save, game launch, provider call or production
+history mutation is needed for this work. A page-only filter is insufficient.
+This section records a source-backed implementation boundary, not completion;
+no runtime behavior was changed or redeployed for this audit.
