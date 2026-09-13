@@ -2646,6 +2646,13 @@ $check($combatResolved['settings']['behavior']['combat_bark_period_seconds']===6
     &&EffectiveSettingsResolver::controlsProjection($combatResolved)['settings']['behavior']['combat_bark_period_seconds']===600
     &&$combatResolved['settings']['behavior']['combat_barks']===false,
     'Core combat cooldown reaches native controls without enabling global combat barks');
+$npcCombatResolved=(new EffectiveSettingsResolver())->resolve([],$combatCore,
+    ['settings_overrides'=>['behavior'=>['combat_bark_period_seconds'=>15]]]);
+$check($npcCombatResolved['settings']['behavior']['combat_bark_period_seconds']===15
+    &&$npcCombatResolved['sources']['settings.behavior.combat_bark_period_seconds']==='npc'
+    &&EffectiveSettingsResolver::controlsProjection($npcCombatResolved)['settings']['behavior']['combat_bark_period_seconds']===15
+    &&$npcCombatResolved['settings']['behavior']['combat_barks']===false,
+    'NPC combat cooldown overrides Core and reaches native controls without enabling combat barks');
 $combatPreset=\LorkhanServer\Application\CoreProfilePreset::capture($combatCore);
 $check(\LorkhanServer\Application\CoreProfilePreset::apply($combatPreset,$corePresetSource)['settings_overrides']['behavior']['combat_bark_period_seconds']===600,
     'combat cooldown survives named presets');

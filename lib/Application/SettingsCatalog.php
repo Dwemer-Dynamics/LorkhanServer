@@ -318,7 +318,7 @@ final class SettingsCatalog
             'bored_event' => ['chance_percent'],
             'quest_comments' => ['enabled','chance_percent'],
             'behavior' => ['rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_allow_actions', 'rechat_mode',
-                'rechat_strict_targeting', 'open_rechat', 'end_conversation_cooldown_seconds'],
+                'rechat_strict_targeting', 'open_rechat', 'end_conversation_cooldown_seconds', 'combat_bark_period_seconds'],
             'memory' => ['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled', 'short_term_max_summaries'],
             'response' => ['max_words', 'core_lang', 'lang_llm_xtts'],
             'diary' => ['prompt', 'automatic_interval_seconds', 'context_turn_limit'],

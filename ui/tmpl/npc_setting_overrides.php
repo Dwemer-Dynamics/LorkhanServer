@@ -25,6 +25,7 @@ $overrideLabels = [
     'behavior.rechat_mode'=>'Rechat Mode', 'relationship.enabled'=>'Relationship System Enabled',
     'behavior.rechat_strict_targeting'=>'Strict Rechat Targeting','behavior.open_rechat'=>'Open Rechat',
     'behavior.end_conversation_cooldown_seconds'=>'End Conversation Cooldown',
+    'behavior.combat_bark_period_seconds'=>'Combat Bark Cooldown',
     'relationship.update_chance_percent'=>'Relationship Update Chance',
     'context.prompt_timestamp'=>'Prompt Timestamp', 'context.ground_items_descriptions_only'=>'Ground Items Descriptions Only',
     'context.inventory_items_descriptions_only'=>'Inventory Items Descriptions Only', 'context.power_awareness_enabled'=>'Power Awareness Enabled',
@@ -35,6 +36,7 @@ $overrideLabels = [
     'oghma.enabled'=>'Enable Oghma', 'oghma.result_limit'=>'Oghma Result Limit', 'oghma.racial_context_enabled'=>'Force Racial Oghma',
 ];
 $help=[
+    'behavior.combat_bark_period_seconds'=>'Cooldown in seconds between combat barks (5–600). Does not enable combat barks. The active actor’s effective setting is sent to the game controls.',
     'profile_management.autofill_custom_profiles'=>'Automatically fill this NPC’s empty, unlocked profile after enough witnessed dialogue. Dynamic Profile updates remain separate.',
     'profile_management.autofill_custom_profiles_trigger'=>'Witnessed dialogue records required before automatic profile backfill (10–100).',
             'behavior.rechat_strict_targeting'=>'Require this responder to address the previous speaker directly. Captured when the chain starts.',
@@ -97,7 +99,7 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
         if(in_array($path,['context.prompt_timestamp','context.location_blacklist','context.item_blacklist',
             'context.magic_effects_blacklist','context.event_types','relationship.update_chance_percent'],true))
             $overrideCatalog[$path]['category']='Prompt';
-        if(in_array($path,['behavior.rechat_strict_targeting','behavior.open_rechat','behavior.end_conversation_cooldown_seconds'],true))
+        if(in_array($path,['behavior.rechat_strict_targeting','behavior.open_rechat','behavior.end_conversation_cooldown_seconds','behavior.combat_bark_period_seconds'],true))
             $overrideCatalog[$path]['category']='Misc';
         if($path==='context.short_term_in_compact_chat')$overrideCatalog[$path]['category']='Memory';
         if($section==='profile_management')$overrideCatalog[$path]['category']='Misc';

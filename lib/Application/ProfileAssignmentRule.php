@@ -21,6 +21,7 @@ final class ProfileAssignmentRule
         'ENFORCE_STRICT_RECHAT_RESPONSE'=>['behavior','rechat_strict_targeting','boolean'],
         'OPEN_RECHAT'=>['behavior','open_rechat','boolean'],
         'END_CONVERSATION_COOLDOWN'=>['behavior','end_conversation_cooldown_seconds','integer'],
+        'COMBAT_BARK_COOLDOWN'=>['behavior','combat_bark_period_seconds','integer'],
         'CONTEXT_HISTORY'=>['memory','recent_turn_limit','integer'],
         'CONTEXT_HISTORY_DIARY'=>['diary','context_turn_limit','integer'],
         'CONTEXT_HISTORY_DYNAMIC_PROFILE'=>['profile_evolution','history_limit','integer'],

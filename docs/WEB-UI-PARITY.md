@@ -13052,3 +13052,20 @@ credentials and voices were hash-preserved. Workflow disabled_manually. Live has
 no saved Narrator profile; saved-profile import/export proof remains the isolated
 browser fixture, not a fabricated live test. Full Narrator action/Core behavior
 and the remaining whole-project parity requirements stay open.
+
+
+## NPC combat cooldown override closure (2026-09-12)
+
+Pinned Herika npc_master.class.php loads COMBAT_BARK_COOLDOWN as an NPC override.
+Lorkhan previously supported this only through Core Profiles. The NPC Info
+Setting Overrides picker now exposes Combat Bark Cooldown in Misc; Save, reload,
+Edit and Remove retain the existing revisioned save and inheritance behavior.
+Profile Rules also translate COMBAT_BARK_COOLDOWN into this same typed leaf.
+The resolver projects the NPC value to controls without enabling combat barks.
+The existing 5–600 range preserves Lorkhan's accepted legacy five-second values.
+
+Existing unit coverage checks NPC precedence and controls projection. Actual
+isolated browser add/save/reload/edit/remove passes at 1280 and 390 pixels, with
+no page errors or horizontal overflow; the narrow screenshot was inspected.
+No game was launched or controlled; actual in-game bark timing remains untested.
+This closes this override only, not the whole-project parity goal.
