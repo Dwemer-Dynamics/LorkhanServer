@@ -267,6 +267,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <div class="profile-rules-title-row">
                                 <h3 class="profile-rules-form-title" data-profile-rules-form-title>New Rule</h3>
                                 <span class="profile-rules-pill" data-profile-rules-form-state></span>
+                                <span class="profile-rules-pill profile-rules-pill-advanced" data-profile-rules-form-advanced hidden>Advanced</span>
                             </div>
                             <div class="profile-rules-editor-actions">
                                 <button class="btn-save" type="submit" form="profile-rules-form" data-profile-rules-save hidden>✓ Save</button>
@@ -323,18 +324,19 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <details class="profile-rules-priority-options" data-profile-rules-advanced>
                             <summary>⚙ Advanced Rules</summary>
                             <p class="hint">Raw PostgreSQL regex and action fields are for advanced users. Blank regex fields match every NPC. Higher priority rules override lower priority rules. Opening this panel converts your exact selections; closing it does not discard advanced edits.</p>
-                            <div class="profile-rules-match-grid">
+                            <div class="profile-rules-advanced-grid">
                             <?php foreach (['names'=>'Name Regex','races'=>'Race Regex','genders'=>'Gender Regex','record_ids'=>'Base / Record ID Regex','factions'=>'Faction Regex','classes'=>'Class Regex'] as $regexKey=>$regexLabel): ?>
                                 <div class="profile-rules-field"><label for="rule-regex-<?= $regexKey ?>"><?= $regexLabel ?></label><input id="rule-regex-<?= $regexKey ?>" type="text" maxlength="1024" spellcheck="false" data-profile-rules-regex="<?= $regexKey ?>"></div>
                             <?php endforeach; ?>
                             <div class="profile-rules-field"><label for="rule-required-mods">Required Mods</label><input id="rule-required-mods" type="text" data-profile-rules-mods><p class="hint">Comma-separated content files. Every listed file must be observed for the actor; currently OpenMW supplies its source file.</p></div>
-                            <div class="profile-rules-field"><label for="rule-action-json">Action JSON</label><textarea id="rule-action-json" rows="5" maxlength="24576" spellcheck="false" data-profile-rules-action>{}</textarea><p class="hint">Sets biography fields (core, biography, personality, appearance, relationships, occupation, skills, speech_style, goals, oghma_knowledge_tags) and merges typed settings_overrides. Identity and connector IDs cannot be changed here. Herika metadata keys listed below are translated to native settings overrides when saved.</p><details><summary>Supported metadata keys</summary><code style="white-space:normal;overflow-wrap:anywhere"><?= lorkhan_ui_h(implode(', ', array_keys(\LorkhanServer\Application\ProfileAssignmentRule::METADATA_FIELDS))) ?></code></details></div>
-                            </div>
                             <div class="profile-rules-field">
                                 <label for="profile-rules-priority">Priority</label>
                                 <input id="profile-rules-priority" type="number" min="-100000" max="100000" step="1" inputmode="numeric" aria-describedby="profile-rules-priority-hint" data-profile-rules-priority>
-                                <p class="hint" id="profile-rules-priority-hint">A whole number. Higher numbers are checked first.</p>
+                                <p class="sr-only" id="profile-rules-priority-hint">A whole number. Higher numbers are checked first.</p>
                             </div>
+                            <div class="profile-rules-field"><label for="rule-action-json">Action JSON</label><textarea id="rule-action-json" rows="2" maxlength="24576" spellcheck="false" data-profile-rules-action>{}</textarea><p class="hint">Sets biography fields (core, biography, personality, appearance, relationships, occupation, skills, speech_style, goals, oghma_knowledge_tags) and merges typed settings_overrides. Identity and connector IDs cannot be changed here. Herika metadata keys listed below are translated to native settings overrides when saved.</p><details><summary>Supported metadata keys</summary><code style="white-space:normal;overflow-wrap:anywhere"><?= lorkhan_ui_h(implode(', ', array_keys(\LorkhanServer\Application\ProfileAssignmentRule::METADATA_FIELDS))) ?></code></details></div>
+                            </div>
+
                         </details>
 
                         <div class="profile-rules-confirm" role="group" aria-label="Confirm deleting this rule" data-profile-rules-confirm hidden>

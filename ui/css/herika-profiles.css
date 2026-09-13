@@ -2122,3 +2122,30 @@ body.profile-rules-open {
 #core-import-dialog .core-import-help li { margin:2px 0; }
 #core-import-file::file-selector-button { font:400 14px/21px "Futura CondensedLight",Arial,sans-serif; margin:0 10px 0 0; padding:8px 12px; color:#fff; background:#6c757d; border:0; border-radius:4px; cursor:pointer; }
 #core-import-dialog .core-import-actions [data-core-import-close] { font-weight:500; line-height:1.2; background:#3b3b3b !important; border-color:#565656 !important; }
+
+/* Herika Advanced Rules label/value rows; gold replaces its orange badge accent. */
+.profiles-page .profile-rules-advanced-grid {
+    display:grid; grid-template-columns:180px minmax(0, 1fr); gap:8px 12px; align-items:start;
+}
+.profiles-page .profile-rules-advanced-grid > .profile-rules-field { display:contents; }
+.profiles-page .profile-rules-advanced-grid label { grid-column:1; padding-top:9px; margin:0; color:#c9d0da; text-transform:none; letter-spacing:normal; font-family:'Futura CondensedLight', Arial, sans-serif; }
+.profiles-page .profile-rules-advanced-grid input,
+.profiles-page .profile-rules-advanced-grid textarea,
+.profiles-page .profile-rules-advanced-grid .hint,
+.profiles-page .profile-rules-advanced-grid details { grid-column:2; min-width:0; }
+.profiles-page .profile-rules-advanced-grid textarea { font-family:monospace; min-height:60px; }
+.profiles-page .profile-rules-pill-advanced { color:#bc9d5a; border-color:#78643b; background:#30291b; }
+@media(max-width:850px) {
+    .profiles-page .profile-rules-advanced-grid { grid-template-columns:minmax(0, 1fr); }
+    .profiles-page .profile-rules-advanced-grid > .profile-rules-field > * { grid-column:1; }
+    .profiles-page .profile-rules-advanced-grid label { padding-top:2px; }
+}
+
+.profiles-page [data-profile-rules-advanced][open] {
+    margin-top:12px; padding:14px; border:1px solid #51452e; border-radius:8px; background:#201d19;
+}
+.profiles-page .profile-rules-advanced-grid > .profile-rules-field > .sr-only { position:absolute; }
+
+.profiles-page .profile-rules-advanced-grid input[type="text"],
+.profiles-page .profile-rules-advanced-grid input[type="number"] { font-size:.84rem; padding:7px 10px; min-height:36px; }
+.profiles-page .profile-rules-advanced-grid textarea { font-size:15px; padding:9px 10px; }

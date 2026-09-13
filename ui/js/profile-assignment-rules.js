@@ -159,6 +159,12 @@
             const titleRow = document.createElement('div');
             titleRow.className = 'profile-rules-title-row';
             titleRow.append(title, state);
+            if (rule.match?._advanced) {
+                const advanced = document.createElement('span');
+                advanced.className = 'profile-rules-pill profile-rules-pill-advanced';
+                advanced.textContent = 'Advanced';
+                titleRow.append(advanced);
+            }
             head.append(titleRow);
 
             const summary = document.createElement('div');
@@ -332,7 +338,7 @@
         reloadButton.disabled = loading;
         saveButton.hidden = inList;
         saveButton.disabled = busy;
-        saveButton.textContent = busy ? 'Saving' : 'Save rule';
+        saveButton.textContent = busy ? 'Saving' : '✓ Save';
         deleteButton.hidden = inList || editingId === null;
         deleteButton.disabled = busy || !confirmBox.hidden;
         cancelButton.hidden = inList;
@@ -361,6 +367,7 @@
         actionInput.value = JSON.stringify(rule?.match?._advanced?.action && !Array.isArray(rule.match._advanced.action) ? rule.match._advanced.action : {}, null, 2);
         modsInput.value = listOf(draft.match.content_files).join(', ');
         advancedPanel.open = advancedActive;
+        form.querySelector('[data-profile-rules-form-advanced]').hidden = !advancedActive;
         simplePanel.hidden = advancedActive;
         formTitle.textContent = editingId === null ? 'New Rule' : (draft.description || 'Untitled Rule');
         const stateBadge = form.querySelector('[data-profile-rules-form-state]');
@@ -381,7 +388,7 @@
         syncControls();
         announce(editingId === null
             ? 'Describe the new rule, choose its Core Profile, then fill at least one match field.'
-            : 'Editing ' + (draft.description || 'this rule') + '. Nothing is saved until you press Save rule.');
+            : 'Editing ' + (draft.description || 'this rule') + '. Nothing is saved until you press Save.');
         descriptionInput.focus();
     }
 
@@ -652,6 +659,7 @@
         });
         modsInput.value = listOf(draft.match.content_files).join(', ');
         advancedActive = true;
+        form.querySelector('[data-profile-rules-form-advanced]').hidden = false;
         simplePanel.hidden = true;
     });
     newButton.addEventListener('click', () => openForm(null));

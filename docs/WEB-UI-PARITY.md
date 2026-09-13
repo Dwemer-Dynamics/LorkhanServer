@@ -12295,11 +12295,15 @@ features as exceptions. No missing item below is completed by shared CSS alone.
   the dated evidence below. JSON remains a compatibility import.
 - NPC evolution reports and their separate Background & Memory Tasks route are
   completed; remaining NPC controls must be reviewed individually.
-- Core and NPC editors: finish the remaining supported override categories and
-  advanced Rules matching/action metadata, retaining their reference placement.
-- Narrator: whole-page layout and draft controls were reviewed in the dated
-  Narration whole-page pass. Broader Core settings composition, saved-profile
-  import/generation acceptance and newer live-only additions remain open.
+- Core and NPC editors: finish the remaining supported override-category mappings.
+  Advanced Rules presentation and create/save/reopen/validation interactions are
+  now verified at 1280/390; see the Advanced Rules closure below. This does not
+  establish runtime consumption of every supported metadata field.
+- Narrator: all 42 current editable controls persist in all four inline modes.
+  Portable import/export and mock generation persistence/queued receipts are
+  verified in the later dated evidence. Broader Core runtime semantics and
+  remaining event/action mappings stay open. Live-provider acceptance is untested;
+  newer live-only additions are outside the pinned reference comparison.
 
 ### Runtime features required by those pages
 
@@ -12307,7 +12311,10 @@ features as exceptions. No missing item below is completed by shared CSS alone.
 - NPC: continuous inventory updates and exact-profile Visit/Teleport/Return.
 - Core: Physical Diary and client Core-slot selection. Cumulative NPC memory is implemented and deployed in 4983988; see the dated evidence below.
 - Narrator: action support and remaining event/profile behavior mappings.
-- Playthroughs: future-history pruning, external import and full rollback.
+- Playthroughs: future-history pruning remains open. Named switching, previous-
+  generation preservation, rollback and external/legacy import have isolated
+  transaction evidence in the later dated checkpoints; do not reopen them as
+  missing implementations.
 - Database Manager: uploads and server-folder selection are deployed. Known historical Lorkhan schema upgrades and a complete deployed import/rejection transaction are isolated-validated (see dated evidence below).
 
 The evolution report reference is ui/core/npc_report.php. It deduplicates
@@ -13444,3 +13451,32 @@ Final checks: 1210 server checks; 111 protocol files; git diff --check; desktop 
 narrow NPC generation click/receipt checks. UI/runtime code was deployed in the
 two-file receipt deployment noted above; remaining modifications are tests/docs.
 This closes the broad HTTP test blocker, not the full visual-parity goal.
+
+
+## Advanced Rules presentation and interaction closure (2026-09-12)
+
+The advanced editor now uses the pinned Herika label/value grid: 180px labels on
+desktop and one column below 850px. Priority precedes Action JSON; the JSON editor
+uses two rows. Labels, input sizing, warm panel and Advanced badges now match the
+reference presentation with Lorkhan gold. The save action retains the reference
+checkmark label. TES3 Class Regex, Record ID wording and observed-content caveat
+remain; identity and connector restrictions are unchanged.
+
+The actual disposable-database browser flow passes at 1280/390: create, escaped
+exact-to-regex conversion, save/reopen, action-only rules, typed metadata, invalid
+regex/JSON draft retention and successful retry. Computed labels are Futura 14px
+with normal case; text inputs are 13.44px with 7px/10px padding, matching the
+reference cascade. Screenshots were inspected at both widths. Evidence:
+Temp advanced-rules-layout-probe.sh and advanced-rules-layout-review.cjs.
+PHP/JS syntax, 1210 server checks, 111 protocol files and diff whitespace pass.
+The complete management HTTP suite passed at the preceding 680b839 checkpoint;
+this UI change was verified with the focused actual-form browser flow.
+
+The goal remains active. This closes the advanced editor presentation and named
+interactions, not the remaining Core/NPC metadata-consumer audit or missing
+OpenMW functionality.
+
+Scoped deployment verified all 897 runtime files against source with no extras or
+legacy paths; protected routes remain 403 and unauthenticated sessions 401.
+Rollback: /var/backups/lorkhan-advanced-rules.BrKudx. GitHub server workflow remains
+disabled_manually. No game or paid provider was used.
