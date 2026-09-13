@@ -1535,9 +1535,11 @@ final class ManagementRouter
         }
         if(!is_array($identity)||array_is_list($identity))throw new RuntimeException('not_found');
         if(($identity['kind']??null)!==$kind)throw new RuntimeException('not_found');
-        $settings=$this->portableSpecialProfileSettings(is_array($row['content']??null)?$row['content']:[],$kind);
+        $settings=$this->portableSpecialProfileSettings(is_array($row['content']??null)?$row['content']:[],$kind,(string)$row['name']);
         $schema=$kind==='player'?'lorkhan.player-profile-settings.v2':'lorkhan.narrator-profile-settings.v2';
         $document=['schema'=>$schema,'exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),'settings'=>$settings];
+        if($kind==='narrator')$document['prompts']=array_replace(array_fill_keys(array_keys(\LorkhanServer\Application\NarratorEventPrompts::definitions()),''),
+            $this->repository->narratorEventPromptTexts((string)$row['installation_id']));
         if($this->containsSecretKey($document))throw new RuntimeException($kind.'_profile_settings_export_rejected');
         return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
             ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="lorkhan-'.$kind.'-settings.json"',
@@ -1547,13 +1549,15 @@ final class ManagementRouter
     /** Merge one strict portable preset into the selected installation singleton as a new revision. */
     private function importSpecialProfileSettings(array $values,array $scope,string $kind):array
     {
+        return $this->repository->transaction(function()use($values,$scope,$kind):array{
         $document=$this->jsonField($values,'preset_json');$keys=array_keys($document);sort($keys);
         $error='invalid_'.$kind.'_profile_settings_preset';
         $schema=$document['schema']??null;
         $validSchema=$kind==='player'
             ?in_array($schema,['lorkhan.player-profile-settings.v1','lorkhan.player-profile-settings.v2'],true)
             :in_array($schema,['lorkhan.narrator-profile-settings.v1','lorkhan.narrator-profile-settings.v2'],true);
-        if($keys!==['exported_at','schema','settings']
+        $expectedKeys=isset($document['prompts'])&&$kind==='narrator'?['exported_at','prompts','schema','settings']:['exported_at','schema','settings'];
+        if($keys!==$expectedKeys
             ||!$validSchema
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['settings']??null)||$this->containsSecretKey($document))
@@ -1561,29 +1565,41 @@ final class ManagementRouter
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
         $profile=$kind==='player'?$this->repository->playerProfileForInstallation($installation):$this->repository->narratorProfileForInstallation($installation);
         if($profile===null)throw new InvalidArgumentException($kind.'_profile_missing');
+        $profile=$this->repository->getRevisioned('profile',(string)$profile['profile_id']);
         $content=is_array($profile['content']??null)?$profile['content']:[];
         if($kind==='narrator'){
             // Validate supplied fields against the complete shape, but never apply absent defaults.
             $settings=$this->validatePortableSpecialProfileSettings(
-                array_replace($this->portableSpecialProfileSettings($content,$kind),$document['settings']),$kind,$error,true);
+                array_replace($this->portableSpecialProfileSettings($content,$kind,(string)$profile['name']),$document['settings']),$kind,$error,true);
             $settings=array_intersect_key($settings,$document['settings']);
         }else{
             $settings=$this->validatePortableSpecialProfileSettings($document['settings'],$kind,$error,
                 $schema==='lorkhan.player-profile-settings.v2');
         }
         foreach($settings as$field=>$value){
-            if($field==='latest_diary_context_enabled'){
+            if($field==='roleplay_name')continue;
+            if(in_array($field,['diary_enabled','auto_diary_enabled'],true)){
+                $content['diary'][$field==='diary_enabled'?'enabled':'automatic_enabled']=$value;
+            }elseif($field==='latest_diary_context_enabled'){
                 if($value===null)unset($content['diary']['latest_entry_in_context']);
                 else $content['diary']['latest_entry_in_context']=$value;
             }elseif($field==='voice'){
                 if($value['id']==='')unset($content['voice']);else$content['voice']=$value;
             }elseif(is_string($value)&&$value==='')unset($content[$field]);else$content[$field]=$value;
         }
+        if(array_key_exists('prompts',$document)){
+            if(!is_array($document['prompts']))throw new InvalidArgumentException($error);
+            $this->repository->importNarratorEventPrompts($installation,$document['prompts']);
+        }
+        if($kind==='narrator')return $this->service->reviseNarrator($installation,(string)$profile['profile_id'],
+            $settings['roleplay_name']??(string)$profile['name'],$content,'imported portable narrator settings',
+            (string)($profile['core_profile_id']??''),(int)$profile['current_revision']);
         return$this->service->revise('profile',(string)$profile['profile_id'],$content,'imported portable '.$kind.' settings');
+        });
     }
 
     /** Build a complete portable field map so empty values can be cleared during a round trip. */
-    private function portableSpecialProfileSettings(array $content,string $kind):array
+    private function portableSpecialProfileSettings(array $content,string $kind,?string $displayName=null):array
     {
         if($kind==='player'){
             $settings=[];foreach(['appearance','biography','personality','speech_style','goals','notes']as$field)$settings[$field]=$content[$field]??'';
@@ -1603,6 +1619,9 @@ final class ManagementRouter
             foreach(['prompt_head','core','biography','personality','speech_style','goals','notes']as$field)$settings[$field]=$content[$field]??'';
             $settings['oghma_knowledge_tags']=$content['oghma_knowledge_tags']??'';
             $settings['latest_diary_context_enabled']=$content['diary']['latest_entry_in_context']??null;
+            if($displayName!==null)$settings['roleplay_name']=$displayName;
+            $settings['diary_enabled']=($content['diary']['enabled']??false)===true;
+            $settings['auto_diary_enabled']=($content['diary']['automatic_enabled']??false)===true;
             $settings['dynamic_profile']=($content['dynamic_profile']??false)===true;
             $settings['dynamic_profile_fields']=$content['dynamic_profile_fields']??['personality','speech_style','goals'];
             $settings['only_diary_access']=($content['only_diary_access']??false)===true;
@@ -1622,6 +1641,16 @@ final class ManagementRouter
         $expected=$textFields;
         if($kind==='player'&&$includeV2Fields)$expected[]='biography_known_by_all';
         $narratorV2=$kind==='narrator'&&$includeV2Fields;
+        if($narratorV2){
+            if(array_key_exists('roleplay_name',$settings)){
+                $name=$settings['roleplay_name'];
+                if(!is_string($name)||trim($name)===''||strlen($name)>256||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException($error);
+                $settings['roleplay_name']=trim($name);$expected[]='roleplay_name';
+            }
+            foreach(['diary_enabled','auto_diary_enabled']as$field)if(array_key_exists($field,$settings)){
+                if(!is_bool($settings[$field]))throw new InvalidArgumentException($error);$expected[]=$field;
+            }
+        }
         if($narratorV2&&array_key_exists('dynamic_profile',$settings)){
             if(!is_bool($settings['dynamic_profile']))throw new InvalidArgumentException($error);$expected[]='dynamic_profile';
         }

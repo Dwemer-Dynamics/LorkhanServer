@@ -54,7 +54,7 @@
         {kind:'player', name:'Player settings', schemas:['lorkhan.player-profile-settings.v1','lorkhan.player-profile-settings.v2'],
             form:'#player-profile-form', confirmation:'This replaces the player appearance, biography, biography visibility, personality, speech style, goals and notes. Identity, voices, connectors, autochat, diary controls and game state stay unchanged.'},
         {kind:'narrator', name:'Narration settings', schemas:['lorkhan.narrator-profile-settings.v1','lorkhan.narrator-profile-settings.v2'],
-            form:'main.narrator-page form[data-track-dirty]', confirmation:'Only fields present in this file will change. Absent settings, the Narrator name, identity and connector selections will be kept.'},
+            form:'main.narrator-page form[data-track-dirty]', confirmation:'Only fields present in this file will change. Absent settings, internal identity and connector selections will be kept. A display name or diary controls included in the file will be applied.'},
         {kind:'global', name:'Global Settings', schemas:['lorkhan.global-settings-preset.v1','lorkhan.global-settings-preset.v2','lorkhan.global-settings-preset.v3'],
             form:'#gs_form', confirmation:'This saves a new Global Settings revision and replaces the settings in the imported document. Included memory scheduling and connector selections also apply. Core Profiles and NPC overrides are not imported.'}
     ].forEach(options => {

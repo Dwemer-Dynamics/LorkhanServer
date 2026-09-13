@@ -2212,6 +2212,28 @@ foreach([['dynamic_profile'=>'true'],['dynamic_profile_fields'=>['voice']],['dyn
     try{$importNarrator->invoke($previewManager,['preset_json'=>json_encode($narratorDocument)],['installation_id'=>$installationId],'narrator');$assert(false,'invalid Narration evolution preset accepted');}
     catch(InvalidArgumentException){$assert(true,'invalid Narration evolution preset rejected');}
 }
+$beforePortableName=$products->getRevisioned('profile',$narratorProfile['profile_id']);
+$narratorDocument['settings']=['roleplay_name'=>'Portable Storyteller','diary_enabled'=>true,'auto_diary_enabled'=>false];
+$importNarrator->invoke($previewManager,['preset_json'=>json_encode($narratorDocument)],['installation_id'=>$installationId],'narrator');
+$afterPortableName=$products->getRevisioned('profile',$narratorProfile['profile_id']);
+$assert($afterPortableName['name']==='Portable Storyteller'&&$afterPortableName['content']['diary']['enabled']===true
+    &&$afterPortableName['content']['diary']['automatic_enabled']===false,'Narration import lost display name or diary controls');
+foreach(['beforePortableName','afterPortableName']as$record)if(is_string(${$record}['actor_identity']))${$record}['actor_identity']=json_decode(${$record}['actor_identity'],true,32,JSON_THROW_ON_ERROR);
+$assert($afterPortableName['profile_id']===$beforePortableName['profile_id']&&$afterPortableName['core_profile_id']===$beforePortableName['core_profile_id']
+    &&array_diff_key($afterPortableName['actor_identity'],['display_name'=>true])===array_diff_key($beforePortableName['actor_identity'],['display_name'=>true]),
+    'Narration display name import changed internal identity or Core assignment');
+$portableNamed=$portableNarrator->invoke($previewManager,$afterPortableName['content'],'narrator',$afterPortableName['name']);
+$assert($portableNamed['roleplay_name']==='Portable Storyteller'&&$portableNamed['diary_enabled']===true&&$portableNamed['auto_diary_enabled']===false,'Narration re-export lost portable name or diary state');
+$narratorDocument['settings']=['dynamic_profile'=>false];
+$narratorDocument['prompts']=['narrator_welcome_prompt'=>'Welcome custom narration.'];
+$importNarrator->invoke($previewManager,['preset_json'=>json_encode($narratorDocument)],['installation_id'=>$installationId],'narrator');
+$assert($products->narratorEventPromptTexts($installationId)['narrator_welcome_prompt']==='Welcome custom narration.','Narration prompt import did not persist');
+$exportNarrator=new ReflectionMethod($previewManager,'exportSpecialProfileSettings');
+$exportedNarrator=json_decode($exportNarrator->invoke($previewManager,$narratorProfile['profile_id'],'narrator')->body,true,32,JSON_THROW_ON_ERROR);
+$assert($exportedNarrator['prompts']['narrator_welcome_prompt']==='Welcome custom narration.','Narration export omitted custom prompt');
+$narratorDocument['prompts']=['narrator_welcome_prompt'=>''];
+$importNarrator->invoke($previewManager,['preset_json'=>json_encode($narratorDocument)],['installation_id'=>$installationId],'narrator');
+$assert(!isset($products->narratorEventPromptTexts($installationId)['narrator_welcome_prompt']),'empty Narration import did not restore default prompt');
 $db->exec('ROLLBACK TO SAVEPOINT narrator_portability_probe');
 $db->exec('SAVEPOINT digest_witness_probe');
 $db->prepare('UPDATE profiles SET actor_identity=CAST(:identity AS jsonb) WHERE profile_id=:profile')->execute(['identity'=>json_encode($memoryProbe['payload']['target'],JSON_THROW_ON_ERROR),'profile'=>$actorProfile['profile_id']]);

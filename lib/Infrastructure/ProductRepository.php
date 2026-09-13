@@ -4023,6 +4023,23 @@ SQL);
         return $result;
     }
 
+    /** Import only named narration prompts; the caller can join this to the profile transaction. */
+    public function importNarratorEventPrompts(string $installationId,array $prompts):void
+    {
+        $known=\LorkhanServer\Application\NarratorEventPrompts::definitions();
+        if(($prompts!==[]&&array_is_list($prompts))||array_diff_key($prompts,$known)!==[])throw new InvalidArgumentException('invalid_narrator_prompt');
+        foreach($prompts as$text)if(!is_string($text)||strlen($text)>32768||!mb_check_encoding($text,'UTF-8'))throw new InvalidArgumentException('invalid_narrator_prompt');
+        ksort($prompts);
+        $this->transaction(function()use($installationId,$prompts):void{
+            foreach($prompts as$key=>$text){
+                $this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))')->execute(['key'=>'narrator-prompt:'.$installationId.':'.$key]);
+                $q=$this->db->prepare('SELECT source_revision FROM prompts WHERE installation_id=:installation AND prompt_key=:key');
+                $q->execute(['installation'=>$installationId,'key'=>$key]);
+                $this->saveNarratorEventPrompt($installationId,$key,$text,(int)($q->fetchColumn()?:0));
+            }
+        });
+    }
+
     /** Serialize first saves as well as revisions, preserving other prompt document fields. */
     public function saveNarratorEventPrompt(string $installationId, string $key, string $custom, int $expectedRevision): array
     {

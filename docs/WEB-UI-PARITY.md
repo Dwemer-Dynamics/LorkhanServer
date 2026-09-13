@@ -13017,3 +13017,30 @@ is the isolated 1280/390 browser fixture. Workflow remains disabled_manually.
 Reference portable narration also includes custom prompts, display name and diary
 controls; their remaining native mappings need separate closure, not assumed from
 this dynamic-profile fix.
+
+## Narration display-name and diary portability (2026-09-12; local only)
+
+Added reference roleplay_name, diary_enabled and auto_diary_enabled to Narration
+exports and optional imports. Display name uses the existing revision-aware
+Narrator save path; internal actor identity, profile ID and selected Core remain
+unchanged. Imports hydrate the full revision record after finding the installation
+singleton, rather than relying on its reduced lookup projection. Older partial
+imports still preserve omitted fields. Import confirmation now accurately warns
+that names and diary fields present in a file will be applied.
+The isolated integration probe verifies saved name/diary values, unchanged identity
+and Core assignment, and re-export. Custom narration prompt portability, browser
+round-trip acceptance and deployment of this follow-up remain pending.
+
+## Narration custom-prompt portability (2026-09-12; local only)
+
+Narration exports now include the ten known custom-prompt keys; empty values mean
+use the built-in default. Imports validate known keys, UTF-8 and existing per-prompt
+bounds, preserve omitted prompts and use the existing prompt revision writer.
+Profile and prompt imports share a transaction. Prompt locks are acquired in
+sorted order; no connectors, internal actor identifiers or generated jobs are
+imported. Isolated integration checks persist/export a custom welcome and restore
+its default with an empty value.
+The actual browser export/file-picker import/reload/re-export passes at 1280/390
+for dynamic On/Off, Goals-only fields, display name, diary enabled/disabled and
+custom/default welcome text. No page errors or overflow; no providers were called.
+Publication and deployment of the combined name/diary/prompt follow-up are pending.
