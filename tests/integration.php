@@ -594,6 +594,13 @@ $advancedProfile=$products->getRevisioned('profile',$advancedProfileId);
 $advancedEffective=$products->effectiveSettingsForProfile($installationId,$advancedProfileId);
 $assert($advancedEffective['settings']['response']['max_words']===173&&$advancedEffective['settings']['behavior']['rechat_probability_percent']===0&&$advancedEffective['settings']['behavior']['rechat_allow_actions']===false,'rule metadata did not reach effective NPC settings');
 $assert($advancedProfile['core_profile_id']===$tieCoreNew['core_profile_id']&&$advancedProfile['content']['appearance']==='Rule appearance'&&$advancedProfile['content']['personality']==='High priority'&&$advancedProfile['content']['biography']==='Rule biography'&&$advancedProfile['content']['settings_overrides']['prompt']['prompt_head']==='Rule prompt','advanced regex/actions did not reach the created NPC');
+$db->beginTransaction();
+$automaticTaskGlobal=$products->globalSettingsForInstallation($installationId);$automaticTaskContent=$automaticTaskGlobal['content']??\LorkhanServer\Application\SettingsCatalog::globalDefaults();$automaticTaskContent['task_availability']['profile_generation']=false;
+if($automaticTaskGlobal)$products->revise('global_settings',$automaticTaskGlobal['configuration_id'],$automaticTaskContent,'test',$now);
+else $products->createRevisioned('global_settings',['installation_id'=>$installationId,'name'=>'Task availability','content'=>$automaticTaskContent],$now);
+$assert($products->maybeEnqueueAutomaticProfileBackfill($advancedProfileId,$session['playthrough_id'])['reason']==='profile_tasks_disabled','disabled automatic backfill was not skipped');
+$assert($products->maybeEnqueueDynamicProfileEvolution($advancedProfileId,$session['playthrough_id'],$sessionId)['reason']==='profile_tasks_disabled','disabled profile evolution was not skipped');
+$db->rollBack();
 $advancedManual=$advancedProfile['content'];$advancedManual['personality']='Manual edit';$products->revise('profile',$advancedProfileId,$advancedManual,'test',$now);
 $products->ensureMorrowindActorProfile($advancedTurn,$automaticVoice,$now);
 $assert($products->getRevisioned('profile',$advancedProfileId)['content']['personality']==='Manual edit','rules overwrote an existing NPC');
@@ -3803,6 +3810,21 @@ $reportJobs=new \LorkhanServer\Infrastructure\JobRepository($db);$claimed=$repor
 $assert($claimed['job_id']===$reportQueued['job_id']&&$claimed['max_attempts']===1,'report claim/attempt bounds');
 $assert($claimed['payload']['provider_configuration_id']===$backgroundProvider['configuration_id'],'report used Summaries instead of Background Tasks');
 $reportHandler=new \LorkhanServer\Application\NpcEvolutionReportJobHandler($reports,$reportProducts,new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db));
+// Availability switches retain selected routes and stop both enqueue and already queued provider work.
+$taskNpc=$reportProducts->createRevisioned('profile',['installation_id'=>$reportInstallation,'name'=>'Task availability NPC','actor_identity'=>['kind'=>'actor'],'content'=>[]],$reportNow);
+$taskJob=$reportProducts->enqueueProfileGeneration($taskNpc['profile_id']);
+$taskOff=$reportGlobals;$taskOff['task_availability']=['background_memory'=>false,'profile_generation'=>false];
+$reportProducts->revise('global_settings',$reportGlobal['configuration_id'],$taskOff,'test',$reportNow);
+$assert($reportProducts->globalSettingsForInstallation($reportInstallation)['content']['system_routing']['background_memory_configuration_id']===$backgroundProvider['configuration_id'],'availability switch cleared connector');
+try{$reports->enqueue($reportInstallation,$reportNpcId,\LorkhanServer\Infrastructure\Uuid::v4());$assert(false,'disabled background tasks queued report');}catch(InvalidArgumentException $e){$assert($e->getMessage()==='report_connector_disabled','wrong report availability error');}
+try{$reportHandler->handle($claimed['payload']+['_job'=>['job_id'=>$claimed['job_id'],'attempt'=>$claimed['attempt_count'],'lease_token'=>$claimed['lease_token']]],$claimed['idempotency_key'],static fn()=>true);$assert(false,'disabled report job executed');}catch(RuntimeException $e){$assert($e->getMessage()==='report_connector_disabled','wrong queued report availability error');}
+try{$reportProducts->enqueueProfileGeneration($taskNpc['profile_id']);$assert(false,'disabled profile tasks queued');}catch(InvalidArgumentException $e){$assert($e->getMessage()==='profile_tasks_disabled','wrong profile availability error');}
+$taskHandler=new \LorkhanServer\Application\ProfileGenerateJobHandler($reportProducts,null);
+try{$taskHandler->handle(['profile_id'=>$taskNpc['profile_id'],'base_revision'=>1,'_job'=>['job_id'=>$taskJob['job_id'],'attempt'=>1]],'test',static fn()=>true);$assert(false,'disabled profile job executed');}catch(RuntimeException $e){$assert($e->getMessage()==='profile_tasks_disabled','wrong queued profile availability error');}
+$taskPlan=$reportProducts->globalConnectorTestPlan($reportInstallation);
+foreach($taskPlan['groups'][0]['slots']as$taskSlot)if(in_array($taskSlot['field'],['background_memory_configuration_id','profile_generation_configuration_id'],true))$assert($taskSlot['status']==='skipped'&&$taskSlot['message']==='Task disabled in saved settings','disabled task connector test was scheduled');
+$reportProducts->revise('global_settings',$reportGlobal['configuration_id'],$reportGlobals,'test',$reportNow);
+
 // A queued report still protects its connector after the global selector is cleared.
 $reportDisabled=$reportGlobals;$reportDisabled['system_routing']['background_memory_configuration_id']='';
 $reportProducts->revise('global_settings',$reportGlobal['configuration_id'],$reportDisabled,'test',$reportNow);

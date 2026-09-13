@@ -691,8 +691,8 @@ final class ProductRepository
         $routing=$settings['system_routing'];
         $definitions=[
             ['memory_summary_connector','Summaries',(string)($summary['provider_configuration_id']??''),($summary['enabled']??false)===true],
-            ['background_memory_configuration_id','Background & Memory Tasks',$routing['background_memory_configuration_id'],true],
-            ['profile_generation_configuration_id','Profile Tasks',$routing['profile_generation_configuration_id'],true],
+            ['background_memory_configuration_id','Background & Memory Tasks',$routing['background_memory_configuration_id'],$settings['task_availability']['background_memory']],
+            ['profile_generation_configuration_id','Profile Tasks',$routing['profile_generation_configuration_id'],$settings['task_availability']['profile_generation']],
             ['oghma_configuration_id','Custom Oghma LLM',$routing['oghma_configuration_id'],$settings['oghma']['enabled']&&$settings['oghma']['extractor_enabled']],
             ['relationship_configuration_id','Relationship Management',$routing['relationship_configuration_id'],
                 $settings['relationship']['enabled']&&$settings['relationship']['update_chance_percent']>0],
@@ -895,6 +895,7 @@ final class ProductRepository
                 .'WHERE p.profile_id=:profile AND p.deleted_at IS NULL FOR UPDATE OF p');
             $select->execute(['profile'=>$profileId,'playthrough'=>$playthroughId]);$row=$select->fetch();
             if(!$row)throw new RuntimeException('not_found');
+            if(!$this->profileTasksEnabled((string)$row['installation_id']))return['queued'=>false,'reason'=>'profile_tasks_disabled','observed'=>0,'required'=>0];
             $effective=$this->effectiveSettingsForProfile((string)$row['installation_id'],$profileId);
             $policy=$effective['settings']['profile_management'];$trigger=(int)$policy['autofill_custom_profiles_trigger'];
             if(!$policy['autofill_custom_profiles'])return['queued'=>false,'reason'=>'disabled','observed'=>0,'required'=>$trigger];
@@ -933,6 +934,7 @@ final class ProductRepository
                 .'WHERE p.profile_id=:profile AND p.deleted_at IS NULL FOR UPDATE OF p');
             $select->execute(['profile'=>$profileId,'playthrough'=>$playthroughId,'session'=>$sessionId]);$row=$select->fetch();
             if(!$row)throw new RuntimeException('not_found');
+            if(!$this->profileTasksEnabled((string)$row['installation_id']))return['queued'=>false,'reason'=>'profile_tasks_disabled','observed'=>0,'required'=>0];
             $sessionStarted=strtotime((string)$row['session_created_at']);
             if($sessionStarted===false||time()-$sessionStarted<1200)return['queued'=>false,'reason'=>'interval','observed'=>0];
             $content=$this->json($row['content']);$management=is_array($content['management']??null)?$content['management']:[];
@@ -1046,9 +1048,16 @@ final class ProductRepository
         return ['state'=>$state,'speech_style'=>$state==='succeeded'?$row['speech_style']:null];
     }
 
+    /** Task availability is global and does not discard the selected connector. */
+    public function profileTasksEnabled(string $installationId):bool
+    {
+        return ($this->globalSettingsForInstallation($installationId)['content']['task_availability']['profile_generation']??true)===true;
+    }
+
     /** Freeze the inherited generation route as IDs only; no endpoint or key material enters a job payload. */
     private function profileGenerationPayload(string $installationId,string $profileId,int $revision,?string $mode=null):array
     {
+        if(!$this->profileTasksEnabled($installationId))throw new InvalidArgumentException('profile_tasks_disabled');
         $payload=['profile_id'=>$profileId,'base_revision'=>$revision];if($mode!==null)$payload['mode']=$mode;
         $routing=$this->effectiveSettingsForProfile($installationId,$profileId)['routing'];
         $configurationId=(string)($routing['profile_generation_configuration_id']??'');

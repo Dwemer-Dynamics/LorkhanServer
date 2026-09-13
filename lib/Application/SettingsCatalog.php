@@ -223,6 +223,7 @@ final class SettingsCatalog
                 'magic_effects_blacklist' => [],
             ],
             'relationship' => ['enabled' => false, 'update_chance_percent' => 0],
+            'task_availability' => ['background_memory'=>true, 'profile_generation'=>true],
             'system_routing' => [
                 'oghma_configuration_id' => '',
                 'profile_generation_configuration_id' => '',

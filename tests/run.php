@@ -3256,6 +3256,10 @@ foreach([['metadata'=>['UNKNOWN_SETTING'=>true]],['metadata'=>['RECHAT_H'=>'bad'
     try{\LorkhanServer\Application\ProfileAssignmentRule::normalize(['action'=>$badAction]);$check(false,'invalid rule metadata rejected');}catch(InvalidArgumentException){$check(true,'invalid rule metadata rejected');}
 }
 
+$legacyTasks=\LorkhanServer\Application\SettingsCatalog::globalDefaults();unset($legacyTasks['task_availability']);
+$check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($legacyTasks)['task_availability']===['background_memory'=>true,'profile_generation'=>true],'legacy task availability preserves prior enabled behavior');
+foreach(['bad',[],['background_memory'=>'false','profile_generation'=>true]]as$invalidTasks){$taskGlobals=\LorkhanServer\Application\SettingsCatalog::globalDefaults();$taskGlobals['task_availability']=$invalidTasks;try{\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($taskGlobals);$check(false,'invalid task availability rejected');}catch(InvalidArgumentException){$check(true,'invalid task availability rejected');}}
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

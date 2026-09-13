@@ -12554,3 +12554,40 @@ pass at 1280/390 with writes mocked. GET-only deployed help checks pass at both
 widths and the narrow screenshot was inspected (rule-metadata-live-review.cjs).
 No live rules, settings, game or paid-provider requests changed. Workflow remains
 disabled_manually. Full parity and the remaining metadata/mod-provenance work stay open.
+
+## Global task availability switches (2026-09-12)
+
+Background & Memory Tasks and Profile Tasks now have paired availability switches
+in their connector cards, matching the existing Summaries/Relationship control
+pattern. Switching off retains the selected connector UUID. The new global-only
+task_availability flags normalize older saved documents to enabled, preserving
+previous behavior, and are included in normal global save/export/preset documents.
+Old form submissions without the new presence marker retain saved availability.
+
+Background report enqueue and execution check availability. Profile generation
+checks both enqueue and worker execution; automatic backfill and evolution return
+an explicit skipped result when Profile Tasks is off. Connector test plans skip
+these disabled tasks without scheduling provider calls. Disabled selections still
+participate in connector usage/deletion protection. Turning off an availability
+switch does not erase connector configuration or NPC data.
+
+1149 server checks and 111 protocol files pass. Focused migrated-DB report checks
+cover disabled enqueue/execution, preserved selection and skipped test plans.
+The existing integration prefix separately verifies clean automatic backfill and
+evolution skips. Actual settings-form submissions at 1280/390 turn both tasks off,
+reload with connectors retained, then restore availability. Narrow rendering was
+inspected. Evidence: task-availability-probe.txt, automatic-task-availability.txt
+and background-route-review.cjs in local Temp. No game or paid-provider calls.
+
+Remaining routing behavior: legacy Profile Tasks without an explicit connector
+still inherit the runtime provider when enabled. This pre-existing fallback is
+not changed by these switches; strict empty-route parity remains open. Remaining
+Context capture switches (magic events, reanimation, transformations and pickup
+value threshold) and the Scene Classifier are also still unimplemented, not hidden
+behind decorative controls.
+
+Local deploy completed with rollback /var/backups/lorkhanserver-code.CM0ylH.
+All 878 runtime files match source; private/auth/NPC probes pass. Deployed paired
+switches preserve connector drafts at 1280/390 with no writes
+(task-availability-live-review.cjs). Configuration, credentials and voice contents
+were preserved, and GitHub workflow remains disabled_manually.

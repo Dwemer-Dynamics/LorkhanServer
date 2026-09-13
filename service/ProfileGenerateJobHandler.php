@@ -37,6 +37,7 @@ final class ProfileGenerateJobHandler implements JobHandler
         if(!is_array($job)||!is_string($job['job_id']??null)||!is_int($job['attempt']??null))throw new \InvalidArgumentException('invalid_job_fence');
         if(!$heartbeat())throw new RuntimeException('lease_lost');
         $profile=$this->repository->getRevisioned('profile',$profileId);if((int)$profile['current_revision']!==$baseRevision)return;
+        if(!$this->repository->profileTasksEnabled((string)$profile['installation_id']))throw new RuntimeException('profile_tasks_disabled');
         $currentContent=is_array($profile['content']??null)?$profile['content']:[];
         $management=is_array($currentContent['management']??null)?$currentContent['management']:[];
         if(($management['locked']??false)===true)return;

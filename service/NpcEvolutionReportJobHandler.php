@@ -27,7 +27,9 @@ final class NpcEvolutionReportJobHandler implements JobHandler
         if(!is_int($payload['provider_revision']??null)||$payload['provider_revision']<1||!is_array($job)
             ||!is_string($job['job_id']??null)||!Uuid::isValid($job['job_id'])||!is_int($job['attempt']??null)||!is_string($job['lease_token']??null))throw new InvalidArgumentException('invalid_report_job');
         if(!$heartbeat())throw new OperationCancelled('lease_lost');
-        $route=(string)($this->products->globalSettingsForInstallation($payload['installation_id'])['content']['system_routing']['background_memory_configuration_id']??'');
+        $globals=$this->products->globalSettingsForInstallation($payload['installation_id'])['content']??[];
+        if(($globals['task_availability']['background_memory']??true)!==true)throw new RuntimeException('report_connector_disabled');
+        $route=(string)($globals['system_routing']['background_memory_configuration_id']??'');
         if($route==='')throw new RuntimeException('report_connector_disabled');
         $input=$this->reports->input($payload['installation_id'],$payload['profile_id'],$job['job_id']);
         $slot=$this->products->providerRevisionForInstallation($payload['installation_id'],$payload['provider_configuration_id'],$payload['provider_revision']);

@@ -301,9 +301,13 @@ final class EffectiveSettingsResolver
             if(is_array($content['client']['narrator']??null)&&!array_is_list($content['client']['narrator']))
                 $content['client']['narrator'] += $expected['client']['narrator'];
         }
+        $content += ['task_availability'=>$expected['task_availability']];
         self::assertExactKeys($content, $expected, 'invalid_global_settings');
         if (($content['schema'] ?? null) !== SettingsCatalog::GLOBAL_SCHEMA) throw new InvalidArgumentException('invalid_global_settings');
         self::validateSettingsShape($content['client'], SettingsCatalog::clientDefaults(), false);
+        if(!is_array($content['task_availability'])||array_is_list($content['task_availability']))throw new InvalidArgumentException('invalid_global_settings');
+        self::assertExactKeys($content['task_availability'],$expected['task_availability'],'invalid_global_settings');
+        foreach($content['task_availability']as$enabled)if(!is_bool($enabled))throw new InvalidArgumentException('invalid_global_settings');
         self::assertExactKeys($content['prompt'], $expected['prompt'], 'invalid_global_settings');
         foreach (['prompt_head'=>8192, 'emote_moods'=>4096] as $field=>$limit) {
             if (!is_string($content['prompt'][$field]) || strlen($content['prompt'][$field])>$limit

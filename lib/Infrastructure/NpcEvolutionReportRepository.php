@@ -45,7 +45,9 @@ final class NpcEvolutionReportRepository
             $existing=$this->db->prepare("SELECT j.job_id,j.state FROM durable_jobs j JOIN npc_evolution_reports r ON r.job_id=j.job_id WHERE j.job_type='profile.report' AND j.idempotency_key=:key AND r.installation_id=:installation AND r.profile_id=:profile");
             $existing->execute(['key'=>$key,'installation'=>$installation,'profile'=>$profile]);
             if($row=$existing->fetch()){$this->db->commit();return $row;}
-            $products=new ProductRepository($this->db);$route=(string)($products->globalSettingsForInstallation($installation)['content']['system_routing']['background_memory_configuration_id']??'');
+            $products=new ProductRepository($this->db);$globals=$products->globalSettingsForInstallation($installation)['content']??[];
+            if(($globals['task_availability']['background_memory']??true)!==true)throw new InvalidArgumentException('report_connector_disabled');
+            $route=(string)($globals['system_routing']['background_memory_configuration_id']??'');
             if($route==='')throw new InvalidArgumentException('report_connector_disabled');
             $provider=$products->getRevisioned('provider',$route);
             if($provider['installation_id']!==$installation)throw new InvalidArgumentException('report_connector_unavailable');

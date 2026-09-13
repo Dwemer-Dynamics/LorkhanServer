@@ -2580,6 +2580,8 @@ final class ManagementRouter
         }
         $content['relationship']=['enabled'=>isset($values['relationship_enabled']),
             'update_chance_percent'=>$integer($values,'relationship_update_chance_percent',0)];
+        if(isset($values['task_availability_present']))$content['task_availability']=['background_memory'=>isset($values['background_memory_enabled']),'profile_generation'=>isset($values['profile_tasks_enabled'])];
+        elseif(is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id']))$content['task_availability']=$this->repository->globalSettingsForInstallation($values['installation_id'])['content']['task_availability']??SettingsCatalog::globalDefaults()['task_availability'];
         foreach(SettingsCatalog::systemRoutingFields()as$field){$value=trim((string)($values[$field]??''));
             if($value!=='')$this->uuid($value,$field);$content['system_routing'][$field]=$value;}
         return EffectiveSettingsResolver::validateGlobalSettings($content);
