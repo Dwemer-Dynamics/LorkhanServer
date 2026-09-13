@@ -13069,3 +13069,21 @@ isolated browser add/save/reload/edit/remove passes at 1280 and 390 pixels, with
 no page errors or horizontal overflow; the narrow screenshot was inspected.
 No game was launched or controlled; actual in-game bark timing remains untested.
 This closes this override only, not the whole-project parity goal.
+
+Published and deployed as 23b7682. Existing unit checks: 1200 passed; all 111
+protocol files match. Runtime verification: 893 exact source matches, no extra
+files or old paths, private routes 403, unauthenticated session 401, NPC 200/404.
+Rollback: /var/backups/lorkhanserver-code.9hgviE. Configuration, credentials and
+voice hashes preserved. GitHub workflow 330702270 remains disabled_manually.
+
+### Physical Diary next implementation boundary
+
+Read-only tracing of the pinned reference confirms physical_npc_diaries.php
+selects the latest five entries, formats a bounded book, updates book tracking,
+and queues rolecommand spawnBook after diary generation in dynamic_update_util.
+The current LORKHAN client global.lua only creates existing item records for
+player.inventory.add; no createRecord/book-materialization Lua path was found.
+A web download cannot satisfy this feature. The next implementation needs typed,
+negotiated book creation/update, exact NPC and playthrough identity, terminal
+client receipts and duplicate protection before exposing the Core control.
+No client source was modified by this checkpoint.
