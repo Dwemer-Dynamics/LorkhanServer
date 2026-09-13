@@ -1571,11 +1571,62 @@ final class ProductRepository
         return$this->effectiveSettingsForProfile($installationId,is_string($profileId)?$profileId:null);
     }
 
+    /** Fill only missing NPC inventory from accepted observations in this exact active session. */
+    public function enrichTurnInventory(array $turn):array
+    {
+        $target=$turn['payload']['target']??[];$state=$turn['payload']['context']['targetState']??[];
+        if(!is_array($target)||!is_array($state)||array_key_exists('inventory',$state))return $turn;
+        $observation=$this->latestInventoryObservation($turn,$target);
+        if($observation!==null){
+            $turn['payload']['context']['targetState']['inventory']=$observation['inventory'];
+            $turn['_inventory_observation']=array_intersect_key($observation,['source_event_id'=>true,'received_at'=>true]);
+        }
+        return $turn;
+    }
+
+    /** Undated inventory cannot cross a save/session replacement; receipt order owns freshness. */
+    private function latestInventoryObservation(array $scope,array $identity):?array
+    {
+        $kind=strtolower((string)($identity['kind']??''));if($kind==='actor')$kind='npc';
+        if(!in_array($kind,['npc','creature'],true))return null;
+        $statement=$this->db->prepare(<<<SQL
+SELECT e.payload#>'{payload,items}' AS items,e.received_at,e.source_event_id
+FROM source_events e JOIN sessions s ON s.session_id=e.session_id
+WHERE e.installation_id=:installation AND s.installation_id=e.installation_id
+  AND s.session_id=:session AND s.playthrough_id=:playthrough AND s.state='active'
+  AND s.generation=:generation AND e.generation=s.generation AND e.event_kind='gamedata.inventory'
+  AND CASE lower(e.payload#>>'{payload,owner,kind}') WHEN 'actor' THEN 'npc' ELSE lower(e.payload#>>'{payload,owner,kind}') END=:kind
+  AND lower(e.payload#>>'{payload,owner,record_id}')=lower(:record)
+  AND lower(e.payload#>>'{payload,owner,content_file}')=lower(:content)
+  AND e.payload#>'{payload,owner,refnum}' IS NOT DISTINCT FROM CAST(:refnum AS jsonb)
+  AND jsonb_typeof(e.payload#>'{payload,items}')='array'
+  AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=e.source_event_id)
+ORDER BY e.received_at DESC,e.source_event_id DESC LIMIT 1
+SQL);
+        $statement->execute(['installation'=>$scope['installation_id'],'session'=>$scope['session_id'],
+            'playthrough'=>$scope['playthrough_id'],'generation'=>$scope['generation'],'kind'=>$kind,
+            'record'=>$identity['record_id']??'','content'=>$identity['content_file']??'',
+            'refnum'=>isset($identity['refnum'])?$this->encode($identity['refnum']):null]);
+        $row=$statement->fetch();if(!$row)return null;$items=$this->json($row['items']);$safe=[];$invalid=false;
+        foreach(array_slice($items,0,512)as$item){
+            if(!is_array($item)||!is_string($item['record_id']??null)
+                ||!is_string($item['name']??null)||!is_int($item['count']??null)||$item['count']<1
+                ||(isset($item['content_file'])&&!is_string($item['content_file']))){$invalid=true;continue;}
+            $entry=['record_id'=>$item['record_id'],'display_name'=>$item['name'],'count'=>$item['count']];
+            if(is_string($item['content_file']??null))$entry['content_file']=$item['content_file'];
+            // Stack condition/equipment can differ, but the Info/prompt inventory lists unique records.
+            $key=$this->encode([strtolower($entry['record_id']),strtolower($entry['content_file']??'')]);
+            if(isset($safe[$key]))$safe[$key]['count']+=$entry['count'];else $safe[$key]=$entry;
+        }
+        return ['source_event_id'=>$row['source_event_id'],'received_at'=>$row['received_at'],'inventory'=>['items'=>array_values($safe),'total'=>count($safe),
+            'truncated'=>count($items)>=512||$invalid]];
+    }
+
     /** Read the latest exact-actor observation; never substitute player inventory or raw context. */
     public function npcObservedState(string $installationId, string $profileId): array
     {
         $statement=$this->db->prepare(<<<SQL
-SELECT t.context->'targetState' AS state,t.accepted_at,pt.name AS playthrough_name
+SELECT t.context->'targetState' AS state,t.accepted_at,s.playthrough_id,pt.name AS playthrough_name
 FROM profiles p JOIN sessions s ON s.installation_id=p.installation_id
 JOIN active_turns t ON t.session_id=s.session_id
 JOIN playthroughs pt ON pt.playthrough_id=s.playthrough_id AND pt.installation_id=s.installation_id
@@ -1589,8 +1640,22 @@ WHERE p.installation_id=:installation AND p.profile_id=:profile AND p.deleted_at
 ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT 1
 SQL);
         $statement->execute(['installation'=>$installationId,'profile'=>$profileId]);$row=$statement->fetch();
-        if(!$row)return [];
-        $state=$this->json($row['state']);$safe=[];
+        $active=$this->db->prepare("SELECT p.actor_identity,s.session_id,s.generation,s.playthrough_id,pt.name AS playthrough_name "
+            ."FROM profiles p JOIN sessions s ON s.installation_id=p.installation_id AND s.state='active' "
+            ."JOIN playthroughs pt ON pt.playthrough_id=s.playthrough_id AND pt.installation_id=s.installation_id "
+            ."WHERE p.installation_id=:installation AND p.profile_id=:profile AND p.deleted_at IS NULL");
+        $active->execute(['installation'=>$installationId,'profile'=>$profileId]);$activeSession=$active->fetch();
+        $inventory=$activeSession?$this->latestInventoryObservation($activeSession+['installation_id'=>$installationId],$this->json($activeSession['actor_identity'])):null;
+        if(!$row&&$inventory===null)return [];
+        // Do not attach fresh inventory to another playthrough's historical actor stats.
+        if($inventory!==null&&$row&&$row['playthrough_id']!==$activeSession['playthrough_id'])$row=false;
+        $state=$row?$this->json($row['state']):[];$safe=[];$inventorySource=[];
+        if($inventory!==null&&(!$row||new \DateTimeImmutable($inventory['received_at'])>new \DateTimeImmutable($row['accepted_at']))){
+            $state['inventory']=$inventory['inventory'];
+            $inventorySource=['inventory_source_event_id'=>$inventory['source_event_id'],'inventory_observed_at'=>$inventory['received_at']];
+            if(!$row)$row=['accepted_at'=>$inventory['received_at'],'playthrough_name'=>$activeSession['playthrough_name']];
+        }
+
         $number=static fn(mixed $value):bool=>(is_int($value)||is_float($value))&&is_finite((float)$value);
         foreach(['skills'=>['block','armorer','mediumarmor','heavyarmor','bluntweapon','longblade','axe','spear','athletics','enchant',
             'destruction','alteration','illusion','conjuration','mysticism','restoration','alchemy','unarmored','security','sneak','acrobatics',
@@ -1622,7 +1687,7 @@ SQL);
                 'truncated'=>($state['inventory']['truncated']??false)===true||$total>count($safe['inventory'])];
             usort($safe['inventory'],static fn(array $a,array $b):int=>strcmp($a['display_name']??$a['record_id']??'', $b['display_name']??$b['record_id']??''));
         }
-        return ['observed_at'=>$row['accepted_at'],'playthrough_name'=>$row['playthrough_name'],'state'=>$safe];
+        return ['observed_at'=>$row['accepted_at'],'playthrough_name'=>$row['playthrough_name'],'state'=>$safe]+$inventorySource;
     }
 
     /** Resolve a profile's assigned Core Profile while retaining source revisions for prompt traces. */

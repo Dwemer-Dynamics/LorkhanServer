@@ -38,6 +38,7 @@ $skillLabels=['mediumarmor'=>'Medium Armor','heavyarmor'=>'Heavy Armor','bluntwe
 <?php endforeach; ?></div><?php endif; ?>
 </div></details></div>
 <div class="form-item span-2 npc-observed-state"><details><summary>Inventory</summary><div class="npc-observed-body">
+<?php if(isset($observation['inventory_observed_at'])): ?><small class="hint">Inventory last received: <?= lorkhan_ui_h($observation['inventory_observed_at']) ?>. Updated independently from the target stats above.</small><?php endif; ?>
 <?php if(!array_key_exists('inventory',$state)): ?><p>No NPC inventory was recorded in this observation. Player inventory is not shown here.</p>
 <?php elseif($state['inventory']===[]): ?><p><?= ($state['inventory_observation']['truncated']??false)?'Inventory rows were omitted from this bounded observation.':'No inventory items found in metadata.' ?></p>
 <?php else: ?><div class="npc-observed-table npc-inventory-table"><table><thead><tr><th>Item</th><th>Count</th></tr></thead><tbody>

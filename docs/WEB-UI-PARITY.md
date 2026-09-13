@@ -13761,3 +13761,41 @@ save state (340px modal, within viewport, no console errors). The native restore
 confirmation remains a browser-tool limitation, separately covered by JavaScript
 probes. acc874a is deployed with all 900 runtime hashes matching; rollback is
 /var/backups/lorkhan-snapshot-ui.kxWGrv. Workflow 330702270 stays disabled_manually.
+
+
+## Independent NPC inventory observations (2026-09-13)
+
+The older schema defined inventory messages, but both native and server admission
+omitted them. The typed bridge now exposes submitInventory, with strict physical
+actor ownership, bounded512 item rows, native session metadata and existing
+transport cancellation. Paired item schemas allow absent condition and canonical
+content_file. Clothing/non-degrading items and unknown record provenance are not
+fabricated; object/reference content files are not treated as winning record files.
+Native and PHP validation retain known-field, type, size and range checks.
+
+One active managed NPC/creature is sampled every two seconds, round robin across
+at most32 owners. Changed observations submit independently of any model work;
+unchanged state refreshes after five minutes to recover from transport drops.
+Unavailable/oversized snapshots do not publish partial false emptiness. Session
+and generation changes reset the bounded cache. At the32-actor bound, one complete
+sampling cycle can take64 seconds. This is polling, not an inventory-change hook.
+
+The server reads immutable inventory observations only in the exact active session,
+generation, installation, playthrough and actor reference. It ignores invalidated
+sources and orders by receipt, not client timestamps. Missing turn inventory can
+use this fallback; explicit current inventory, including empty, takes precedence.
+Rechat's selected actor can therefore use its own independently observed inventory.
+NPC Info updates only inventory when newer, retains its separate observation time,
+and never mixes stats from another playthrough. Duplicate stacks aggregate before
+display; conservative bounds remain explicit. This uses existing storage/indexes;
+large-session query performance has not been benchmarked.
+
+Validation:1255 server checks,77 Lua tests,111 byte-identical protocol files,
+Windows Release native and Beast tests plus the engine build, and10 patch tests
+pass. Full isolated integration covers typed inventory ingress/replay, invalid
+condition refusal, no dialogue-turn side effects, empty/current precedence,
+identity/scope/case handling, session replacement, invalidated sources, stacked
+items, inventory-only Info and mixed-playthrough rejection. SQL backup/import/
+restore and migration/job checks pass. The generated reader map was refreshed;
+schema107 still has182 relations and1680 columns, with no new migration.
+No game or paid provider was invoked. In-game capture remains unverified.

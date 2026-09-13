@@ -700,6 +700,17 @@ $creatureActorProfile['payload']['race']='Creature';$creatureActorProfile['paylo
 $creatureActorProfile['payload']['gender']='none';$creatureActorProfile['payload']['disposition']=0;
 $validator->validate($creatureActorProfile,'lorkhan.gamedata.v1');
 $check(true,'auto-activated creature profile snapshot validates');
+$inventoryData=$actorProfileGameData;$inventoryData['type']='inventory';
+$inventoryItem=['record_id'=>'common_robe','name'=>'Common Robe','count'=>1,'value'=>2,'equipped'=>true];
+$inventoryData['payload']=['owner'=>$actorProfileGameData['payload']['actor'],'items'=>[$inventoryItem]];
+$validator->validate($inventoryData,'lorkhan.gamedata.v1');$check(true,'inventory permits unknown origin and absent durability');
+$inventoryData['payload']['items']=[ $inventoryItem+['content_file'=>'Morrowind.esm','condition'=>0.5] ];
+$validator->validate($inventoryData,'lorkhan.gamedata.v1');$check(true,'inventory still accepts observed origin and normalized durability');
+foreach([['condition'=>-0.1],['condition'=>1.1],['condition'=>'unknown'],['content_file'=>''],['value'=>-1],['extra'=>'field']]as$invalidInventory){
+    $badInventory=$inventoryData;$badInventory['payload']['items']=[array_replace($inventoryItem,$invalidInventory)];
+    try{$validator->validate($badInventory,'lorkhan.gamedata.v1');$check(false,'invalid inventory observation rejected');}
+    catch(ValidationException $exception){$check($exception->getMessage()==='invalid_schema','invalid inventory observation rejected');}
+}
 $journalData=$actorProfileGameData;$journalData['type']='journal';
 $journalEntry=['journal_id'=>'test_quest','title'=>'Test quest','stage'=>10,'status'=>'active','text'=>'An observed journal entry.'];
 $journalData['payload']=['entries'=>[$journalEntry]];

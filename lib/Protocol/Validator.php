@@ -152,7 +152,7 @@ final class Validator
             'runtime_generation','observed_at','game','type','payload']);
         $type=$message['type']??null;
         if(($message['schema']??null)!=='lorkhan.gamedata.v1'||($message['game']??null)!=='tes3'
-            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue','rpg_event','bored_event','quest_event','journal'],true)
+            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue','rpg_event','bored_event','quest_event','journal','inventory'],true)
             ||!is_int($message['generation'])||$message['generation']<1
             ||$message['generation']>9_007_199_254_740_991||!is_int($message['runtime_generation'])
             ||$message['runtime_generation']<1||$message['runtime_generation']>9_007_199_254_740_991)
@@ -161,6 +161,30 @@ final class Validator
         $this->timestamp($message['observed_at']??null);
         $payload=$message['payload']??null;
         if(!is_array($payload)||array_is_list($payload))throw new ValidationException('invalid_schema');
+        if($type==='inventory'){
+            $this->keys($payload,['owner','items']);$this->identity($payload['owner']??null);
+            if(!in_array($payload['owner']['kind']??null,['npc','creature','player'],true))throw new ValidationException('invalid_schema');
+            if(!is_array($payload['items']??null)||!array_is_list($payload['items'])||count($payload['items'])>512)
+                throw new ValidationException('invalid_schema');
+            foreach($payload['items']as$item){
+                if(!is_array($item))throw new ValidationException('invalid_schema');
+                $fields=['record_id','name','count','value','equipped'];
+                foreach(['condition','content_file']as$optional)if(array_key_exists($optional,$item))$fields[]=$optional;
+                $this->keys($item,$fields);
+                foreach(['record_id','name','content_file']as$field){
+                    if($field==='content_file'&&!array_key_exists($field,$item))continue;
+                    if(!is_string($item[$field]??null)||$item[$field]===''||!mb_check_encoding($item[$field],'UTF-8')
+                        ||mb_strlen($item[$field],'UTF-8')>256)throw new ValidationException('invalid_schema');
+                }
+                if(!is_int($item['count']??null)||$item['count']<1||$item['count']>2147483647
+                    ||!is_int($item['value']??null)||$item['value']<0||$item['value']>2147483647
+                    ||!is_bool($item['equipped']??null))throw new ValidationException('invalid_schema');
+                if(array_key_exists('condition',$item)&&((!is_int($item['condition'])&&!is_float($item['condition']))
+                    ||!is_finite((float)$item['condition'])||$item['condition']<0||$item['condition']>1))
+                    throw new ValidationException('invalid_schema');
+            }
+            return;
+        }
         if($type==='journal'){
             $this->keys($payload,['entries']);
             if(!is_array($payload['entries']??null)||!array_is_list($payload['entries'])||count($payload['entries'])>128)

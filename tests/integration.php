@@ -980,6 +980,20 @@ $autoProfileCount->execute(['installation'=>$installationId,'record'=>$autoTarge
 $assert($duplicateAutoStatus===202&&(int)$autoProfileCount->fetchColumn()===1,
     'replayed auto-activation created a duplicate NPC profile');
 
+// Independent inventory admission is typed and idempotent, without creating model work.
+$inventoryIngress=$autoProfileData;$inventoryIngress['type']='inventory';
+$inventoryIngress['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+$inventoryIngress['payload']=['owner'=>$autoTarget,'items'=>[['record_id'=>'common_robe','name'=>'Common Robe','count'=>1,'value'=>2,'equipped'=>true]]];
+$turnsBeforeInventory=(int)$db->query('SELECT count(*) FROM turns')->fetchColumn();
+[$inventoryStatus,$inventoryReceipt]=$call($router,'POST',$base.'/gamedata',$headers($inventoryIngress['request_id']),[],$inventoryIngress);
+[$inventoryReplayStatus,$inventoryReplay]=$call($router,'POST',$base.'/gamedata',$headers($inventoryIngress['request_id']),[],$inventoryIngress);
+$assert($inventoryStatus===202&&$inventoryReceipt['type']==='inventory'&&$inventoryReplayStatus===202&&$inventoryReplay==$inventoryReceipt
+    &&(int)$db->query('SELECT count(*) FROM turns')->fetchColumn()===$turnsBeforeInventory,'typed inventory ingress/replay failed or created a dialogue turn');
+$badInventoryIngress=$inventoryIngress;$badInventoryIngress['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+$badInventoryIngress['payload']['items'][0]['condition']=1.5;
+[$badInventoryStatus]=$call($router,'POST',$base.'/gamedata',$headers($badInventoryIngress['request_id']),[],$badInventoryIngress);
+$assert($badInventoryStatus===422,'inventory ingress accepted an invalid normalized condition');
+
 // Opposing global/Core policies prove the responder owns the single RPG decision, including legacy fallback.
 $db->beginTransaction();
 try {
@@ -3854,7 +3868,7 @@ $db->rollBack();
 // NPC Info observations are exact-actor and installation-scoped, with a narrow public projection.
 $db->beginTransaction();
 try {
-    $observedTurn=$db->query("SELECT t.turn_id,t.target,s.installation_id FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE t.target->>'kind'='npc' AND t.target->>'content_file' IS NOT NULL ORDER BY t.accepted_at LIMIT 1")->fetch();
+    $observedTurn=$db->query("SELECT t.turn_id,t.target,s.installation_id,s.session_id,s.playthrough_id,s.generation FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE t.target->>'kind'='npc' AND t.target->>'content_file' IS NOT NULL ORDER BY t.accepted_at LIMIT 1")->fetch();
     $assert(is_array($observedTurn),'NPC observation fixture needs an accepted NPC turn');
     $identity=json_decode($observedTurn['target'],true,32,JSON_THROW_ON_ERROR);
     $observedProfile=$products->createRevisioned('profile',['installation_id'=>$observedTurn['installation_id'],'name'=>'Info observation regression',
@@ -3887,6 +3901,89 @@ try {
         'NPC observation crossed an exact reference boundary');
     $assert($products->npcObservedState('99999999-0000-4000-8000-000000000001',$observedProfile['profile_id'])===[],
         'NPC observation crossed installation ownership');
+    // Standalone inventory updates feed this same exact-NPC view and only fill missing turn context.
+    $db->prepare("UPDATE sessions SET state='replaced' WHERE installation_id=:installation AND state='active'")
+        ->execute(['installation'=>$observedTurn['installation_id']]);
+    $db->prepare("UPDATE sessions SET state='active',ended_at=NULL WHERE session_id=:session")
+        ->execute(['session'=>$observedTurn['session_id']]);
+    $inventoryScope=array_intersect_key($observedTurn,array_flip(['installation_id','session_id','playthrough_id','generation']));
+    $inventoryScope['generation']=(int)$inventoryScope['generation'];
+    $inventoryMessage=$inventoryScope+['schema'=>'lorkhan.gamedata.v1','game'=>'tes3','runtime_generation'=>1,
+        'request_id'=>\LorkhanServer\Infrastructure\Uuid::v4(),'observed_at'=>'2099-01-01T00:00:01Z','type'=>'inventory',
+        'payload'=>['owner'=>$identity,'items'=>[['record_id'=>'inventory_live','name'=>'Inventory <safe>','count'=>2,
+            'value'=>10,'equipped'=>false]]]];
+    $otherStack=$inventoryMessage['payload']['items'][0];$otherStack['record_id']='INVENTORY_LIVE';
+    $otherStack['count']=3;$otherStack['equipped']=true;$otherStack['condition']=0.5;
+    $inventoryMessage['payload']['items'][]=$otherStack;
+    $repo->acceptGameData($inventoryMessage);
+    $db->prepare("UPDATE source_events SET received_at='2099-01-01T00:00:02Z' WHERE source_event_id=:id")
+        ->execute(['id'=>$inventoryMessage['request_id']]);
+    $liveInventory=$products->npcObservedState($observedTurn['installation_id'],$observedProfile['profile_id']);
+    $assert($liveInventory['state']['inventory']=== [['record_id'=>'inventory_live','display_name'=>'Inventory <safe>','count'=>5]]
+        &&$liveInventory['state']['inventory_observation']===['total'=>1,'truncated'=>false]
+        &&$liveInventory['state']['stats']===$inventoryObservation['state']['stats']
+        &&$liveInventory['inventory_source_event_id']===$inventoryMessage['request_id'],
+        'standalone inventory did not replace only older inventory with safe item names and receipt provenance');
+    $inventoryTurn=$inventoryScope+['payload'=>['target'=>$identity,'context'=>['targetState'=>['stats'=>['level'=>5]]]]];
+    $enriched=$products->enrichTurnInventory($inventoryTurn);
+    $assert($enriched['payload']['context']['targetState']['inventory']['items'][0]['record_id']==='inventory_live'
+        &&$enriched['_inventory_observation']['source_event_id']===$inventoryMessage['request_id'],
+        'missing inventory did not receive exact-session fallback');
+    $caseTurn=$inventoryTurn;$caseTurn['payload']['target']['kind']='actor';
+    foreach(['record_id','content_file']as$field)$caseTurn['payload']['target'][$field]=strtoupper($identity[$field]);
+    $assert($products->enrichTurnInventory($caseTurn)['payload']['context']['targetState']['inventory']===$enriched['payload']['context']['targetState']['inventory'],
+        'case-only identity spelling or the legacy actor alias hid exact-NPC inventory');
+    foreach([[],['items'=>[]],['items'=>[['record_id'=>'current_inventory']]]]as$currentInventory){
+        $currentTurn=$inventoryTurn;$currentTurn['payload']['context']['targetState']['inventory']=$currentInventory;
+        $assert($products->enrichTurnInventory($currentTurn)===$currentTurn,'current-turn inventory, including explicit empty, lost precedence');
+    }
+    foreach(['session_id','playthrough_id','installation_id','generation']as$scopeField){
+        $wrongScope=$inventoryTurn;$wrongScope[$scopeField]=$scopeField==='generation'?$inventoryScope['generation']+1:\LorkhanServer\Infrastructure\Uuid::v4();
+        $assert($products->enrichTurnInventory($wrongScope)===$wrongScope,'inventory fallback crossed '.$scopeField);
+    }
+    foreach([$otherIdentity,array_replace($identity,['kind'=>'player'])]as$wrongOwner){
+        $wrongTurn=$inventoryTurn;$wrongTurn['payload']['target']=$wrongOwner;
+        $assert($products->enrichTurnInventory($wrongTurn)===$wrongTurn,'inventory fallback crossed exact owner identity');
+    }
+    $db->prepare('INSERT INTO timeline_invalidated_sources(source_event_id,loaded_save_id,cutoff_minute) VALUES(:source,:load,0)')
+        ->execute(['source'=>$inventoryMessage['request_id'],'load'=>$inventoryMessage['request_id']]);
+    $assert($products->enrichTurnInventory($inventoryTurn)===$inventoryTurn,'invalidated inventory source returned to active context');
+    $db->prepare('DELETE FROM timeline_invalidated_sources WHERE source_event_id=:source')->execute(['source'=>$inventoryMessage['request_id']]);
+    $db->prepare("UPDATE sessions SET state='replaced' WHERE session_id=:session")->execute(['session'=>$observedTurn['session_id']]);
+    $assert($products->enrichTurnInventory($inventoryTurn)===$inventoryTurn,'inventory from a replaced save/session remained available');
+    $db->prepare("UPDATE sessions SET state='active' WHERE session_id=:session")->execute(['session'=>$observedTurn['session_id']]);
+    $emptyInventory=$inventoryMessage;$emptyInventory['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();$emptyInventory['payload']['items']=[];
+    $repo->acceptGameData($emptyInventory);
+    $db->prepare("UPDATE source_events SET received_at='2099-01-01T00:00:03Z' WHERE source_event_id=:id")
+        ->execute(['id'=>$emptyInventory['request_id']]);
+    $emptyObserved=$products->npcObservedState($observedTurn['installation_id'],$observedProfile['profile_id']);
+    $assert($emptyObserved['state']['inventory']===[]&&$emptyObserved['state']['inventory_observation']===['total'=>0,'truncated'=>false]
+        &&$products->enrichTurnInventory($inventoryTurn)['payload']['context']['targetState']['inventory']['items']===[],
+        'new observed empty inventory resurrected older items');
+    $onlyInventory=$inventoryMessage;$onlyInventory['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();$onlyInventory['payload']['owner']=$otherIdentity;
+    $onlyInventory['payload']['items']=[];
+    for($index=0;$index<512;$index++)$onlyInventory['payload']['items'][]=array_replace($inventoryMessage['payload']['items'][0],['record_id'=>'bounded_item_'.$index]);
+    $repo->acceptGameData($onlyInventory);
+    $onlyObserved=$products->npcObservedState($observedTurn['installation_id'],$otherReference['profile_id']);
+    $assert(count($onlyObserved['state']['inventory'])===128&&$onlyObserved['state']['inventory_observation']===['total'=>512,'truncated'=>true]
+        &&!isset($onlyObserved['state']['stats']),'inventory-only NPC Info was missing, unbounded, or claimed a complete capped snapshot');
+    $sessionProfile=$db->query("SELECT profile_id FROM sessions WHERE session_id='{$observedTurn['session_id']}'")->fetchColumn();
+    $nextPlaythrough=$products->createRevisioned('playthrough',['installation_id'=>$observedTurn['installation_id'],
+        'profile_id'=>$sessionProfile,'name'=>'Inventory new playthrough','content'=>[]],$now);
+    $nextSession=\LorkhanServer\Infrastructure\Uuid::v4();
+    $nextGeneration=(int)$db->query("SELECT max(generation)+1 FROM sessions WHERE installation_id='{$observedTurn['installation_id']}'")->fetchColumn();
+    $db->prepare("UPDATE sessions SET state='replaced' WHERE session_id=:session")->execute(['session'=>$observedTurn['session_id']]);
+    $db->prepare("INSERT INTO sessions SELECT (jsonb_populate_record(NULL::sessions,to_jsonb(s)||jsonb_build_object('session_id',CAST(:next AS text),'generation',CAST(:generation AS bigint),'playthrough_id',CAST(:playthrough AS text),'state','active'))).* FROM sessions s WHERE session_id=:previous")
+        ->execute(['next'=>$nextSession,'generation'=>$nextGeneration,'playthrough'=>$nextPlaythrough['playthrough_id'],'previous'=>$observedTurn['session_id']]);
+    $nextInventory=$inventoryMessage;$nextInventory['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+    $nextInventory['session_id']=$nextSession;$nextInventory['generation']=$nextGeneration;$nextInventory['playthrough_id']=$nextPlaythrough['playthrough_id'];
+    $repo->acceptGameData($nextInventory);
+    $nextObserved=$products->npcObservedState($observedTurn['installation_id'],$observedProfile['profile_id']);
+    $assert($nextObserved['playthrough_name']==='Inventory new playthrough'&&!isset($nextObserved['state']['stats'])
+        &&$nextObserved['inventory_source_event_id']===$nextInventory['request_id']
+        &&$nextObserved['observed_at']===$nextObserved['inventory_observed_at'],
+        'fresh inventory was combined with another playthrough stats or mislabelled observation time');
+
 } finally { $db->rollBack(); }
 
 $db->beginTransaction();

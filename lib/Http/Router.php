@@ -165,6 +165,7 @@ final class Router
                 if ($this->rechatCoordinator === null) throw new DomainException('rechat_unavailable');
                 $m = $this->rechatCoordinator->resolve($m);
             }
+            if($this->products!==null)$m=$this->products->enrichTurnInventory($m);
             if (($m['payload']['ui_source']??null)==='lorkhan_action_followup') {
                 $results=$m['payload']['recent_action_results']??[];
                 $continuation=count($results)===1?$this->repository->actionContinuation((string)$results[0]['action_id'],
