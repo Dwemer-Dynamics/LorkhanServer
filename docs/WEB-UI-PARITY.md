@@ -13631,3 +13631,14 @@ Visit/Teleport/Return, physical diary books, client Core-slot selection, Narrato
 action/event mappings and save-time NPC profile/relationship pullback. Supported
 override consumers and remaining editor interactions still need their recorded
 acceptance. No game or paid provider was used.
+
+
+Deployment of 94f53f4 completed using the maintained server-only WSL deploy.
+Migration 107 and the refreshed private factory artifact are installed. All 900
+runtime files match source, with no extras or legacy paths. Private files return
+403 on all three checked Apache ports; unauthenticated sessions return 401;
+Windows port 7514 health returns 200; scoped NPC probes return 200/404. The SysV
+worker is running the deployed runner. Configuration, credential and voice file
+hashes are unchanged. Rollback: /var/backups/lorkhanserver-code.4JKdYZ.
+GitHub main matches the implementation commit and workflow 330702270 remains
+disabled_manually. No client was changed or game launched.
