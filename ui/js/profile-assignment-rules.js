@@ -102,6 +102,7 @@
     });
 
     const profileLabel = (coreProfileId) => {
+        if (!text(coreProfileId)) return 'No Core Profile change';
         const profiles = data && Array.isArray(data.core_profiles) ? data.core_profiles : [];
         const match = profiles.find((profile) => text(profile.core_profile_id) === text(coreProfileId));
         return match ? (text(match.label) || 'Untitled Core Profile') : 'Missing Core Profile';
@@ -204,7 +205,7 @@
         profileSelect.textContent = '';
         const placeholder = document.createElement('option');
         placeholder.value = '';
-        placeholder.textContent = 'Choose a Core Profile';
+        placeholder.textContent = 'No Core Profile change';
         profileSelect.append(placeholder);
         const profiles = data && Array.isArray(data.core_profiles) ? data.core_profiles : [];
         profiles.forEach((profile) => {
@@ -303,7 +304,6 @@
 
     const syncControls = () => {
         const inList = view === 'list';
-        const noProfiles = !(data && Array.isArray(data.core_profiles) && data.core_profiles.length > 0);
         listView.hidden = false;
         formAnchor.after(form);
         listHost.querySelector('[data-new-rule-card]')?.remove();
@@ -327,7 +327,7 @@
         }
         form.hidden = inList;
         newButton.hidden = !inList || loadFailed;
-        newButton.disabled = loading || noProfiles;
+        newButton.disabled = loading;
         reloadButton.hidden = !inList;
         reloadButton.disabled = loading;
         saveButton.hidden = inList;
@@ -412,8 +412,8 @@
         if (current.description === '') {
             return { field: descriptionInput, message: 'Add a short description so this rule can be recognised in the list.' };
         }
-        if (current.core_profile_id === '') {
-            return { field: profileSelect, message: 'Choose the Core Profile this rule assigns.' };
+        if (current.core_profile_id === '' && !advancedActive) {
+            return { field: profileSelect, message: 'Choose a Core Profile, or use Advanced Rules to set Action JSON without changing the profile.' };
         }
         if (!Number.isSafeInteger(current.priority) || current.priority < -100000 || current.priority > 100000) {
             return { field: priorityInput, message: 'Priority must be a whole number from -100000 to 100000.' };
@@ -450,6 +450,7 @@
             try {
                 const action = JSON.parse(actionInput.value || '{}');
                 if (!action || typeof action !== 'object' || Array.isArray(action)) throw new Error('object required');
+                if (current.core_profile_id === '' && Object.keys(action).length === 0) { showError('Choose a Core Profile or add at least one Action JSON field.'); actionInput.focus(); return; }
                 advanced = {regex: Object.fromEntries(regexInputs.filter(input => input.value.trim() !== '').map(input => [input.dataset.profileRulesRegex, input.value])), action};
             } catch (_error) { showError('Action JSON must be a JSON object. Your draft has been kept.'); advancedPanel.open = true; actionInput.focus(); return; }
         }

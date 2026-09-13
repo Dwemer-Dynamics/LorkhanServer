@@ -579,16 +579,32 @@ $advancedInput=['installation_id'=>$installationId,'description'=>'Advanced low'
 $advancedLow=$products->saveProfileAssignmentRule($advancedInput,$now);
 $advancedInput['description']='Advanced high';$advancedInput['priority']=70;$advancedInput['core_profile_id']=$tieCoreNew['core_profile_id'];$advancedInput['advanced']['action']=['personality'=>'High priority'];
 $advancedHigh=$products->saveProfileAssignmentRule($advancedInput,$now);
+$actionOnlyInput=$advancedInput;$actionOnlyInput['description']='Action only';$actionOnlyInput['priority']=80;$actionOnlyInput['core_profile_id']='';$actionOnlyInput['advanced']['action']=['appearance'=>'Rule appearance'];
+$actionOnly=$products->saveProfileAssignmentRule($actionOnlyInput,$now);
+$listedActionOnly=array_values(array_filter($products->profileAssignmentRulesPlan($installationId)['rules'],static fn(array $row):bool=>$row['rule_id']===$actionOnly['rule_id']))[0];
+$assert($listedActionOnly['core_profile_id']==='','action-only rule missing from editor list');
+$db->beginTransaction();$db->exec('SAVEPOINT action_rule_down');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/104_action_only_profile_rules.down.sql'));$assert(false,'action-only rule downgrade discarded state');}
+catch(PDOException $error){$db->exec('ROLLBACK TO SAVEPOINT action_rule_down');$assert(str_contains($error->getMessage(),'Assign or remove action-only'),'wrong action-only downgrade guard');}
+$db->rollBack();
+
 $advancedTurn=['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],'payload'=>['target'=>$advancedTarget,'context'=>$automaticContext]];
 $advancedProfileId=$products->ensureMorrowindActorProfile($advancedTurn,$automaticVoice,$now);
 $advancedProfile=$products->getRevisioned('profile',$advancedProfileId);
-$assert($advancedProfile['core_profile_id']===$tieCoreNew['core_profile_id']&&$advancedProfile['content']['personality']==='High priority'&&$advancedProfile['content']['biography']==='Rule biography'&&$advancedProfile['content']['settings_overrides']['prompt']['prompt_head']==='Rule prompt','advanced regex/actions did not reach the created NPC');
+$assert($advancedProfile['core_profile_id']===$tieCoreNew['core_profile_id']&&$advancedProfile['content']['appearance']==='Rule appearance'&&$advancedProfile['content']['personality']==='High priority'&&$advancedProfile['content']['biography']==='Rule biography'&&$advancedProfile['content']['settings_overrides']['prompt']['prompt_head']==='Rule prompt','advanced regex/actions did not reach the created NPC');
 $advancedManual=$advancedProfile['content'];$advancedManual['personality']='Manual edit';$products->revise('profile',$advancedProfileId,$advancedManual,'test',$now);
 $products->ensureMorrowindActorProfile($advancedTurn,$automaticVoice,$now);
 $assert($products->getRevisioned('profile',$advancedProfileId)['content']['personality']==='Manual edit','rules overwrote an existing NPC');
 $advancedInput['advanced']['regex']['names']='[';
 try{$products->saveProfileAssignmentRule($advancedInput,$now);$assert(false,'invalid PostgreSQL regex saved');}catch(InvalidArgumentException $error){$assert($error->getMessage()==='invalid_or_expensive_rule_regex','invalid regex was not rejected explicitly');}
 $assert((int)$db->query('SELECT 1')->fetchColumn()===1,'regex validation poisoned the database transaction');
+$defaultActionTarget=$advancedTarget;$defaultActionTarget['record_id']='default_action_actor';$defaultActionTarget['display_name']='Action only NPC';$defaultActionTarget['refnum']['index']+=1;
+$actionOnlyInput['rule_id']=$actionOnly['rule_id'];$actionOnlyInput['advanced']['regex']=['names'=>'^Action only NPC$'];$products->saveProfileAssignmentRule($actionOnlyInput,$now);
+$defaultActionTurn=$advancedTurn;$defaultActionTurn['payload']['target']=$defaultActionTarget;$defaultActionTurn['payload']['context']=[];
+$defaultActionId=$products->ensureMorrowindActorProfile($defaultActionTurn,$automaticVoice,$now);
+$defaultActionProfile=$products->getRevisioned('profile',$defaultActionId);
+$assert($defaultActionProfile['core_profile_id']===$products->defaultCoreProfileForInstallation($installationId,$now,true)['core_profile_id']&&$defaultActionProfile['content']['appearance']==='Rule appearance','action-only rule did not preserve the default Core Profile');
+$products->deleteProfileAssignmentRule($installationId,$actionOnly['rule_id']);
 $products->deleteProfileAssignmentRule($installationId,$advancedLow['rule_id']);$products->deleteProfileAssignmentRule($installationId,$advancedHigh['rule_id']);
 
 $ruleOnlyCore=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule deletion guard',

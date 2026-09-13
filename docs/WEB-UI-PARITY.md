@@ -12495,3 +12495,30 @@ and actions still require a selected Core Profile. Required Mods uses all-of
 matching but OpenMW currently supplies only the actor's observed source file, not
 its complete override provenance. Those gaps remain open; the new editor does
 not claim support for arbitrary foreign Action JSON or unseen mod provenance.
+
+## Rules without a Core Profile change (2026-09-12)
+
+Closed the optional-profile gap from the previous checkpoint. Advanced Rules may
+now select No Core Profile change and provide Action JSON. All matching field
+updates still run, while lower-priority profile assignments or the installation
+default remain in place. Empty rules with neither actions nor a profile assignment
+are rejected. Rule lists keep these rows visible and label their intent; creating
+an action rule no longer requires existing Core Profile choices in the browser.
+
+Migration 104 makes only the rule's Core Profile reference nullable. Its composite
+foreign key still scopes every actual profile reference to the installation.
+Rollback refuses to remove support while any action-only rows exist.
+The existing integration prefix passes actual NPC creation for both inherited-rule
+and default-profile cases, editor-list round trip and the populated rollback guard.
+Desktop/narrow actual form saves change a rule to No Core Profile change and reopen
+with the saved blank selection and action. 1107 server checks and 111 protocol
+files pass. Schema inventory remains 177 relations/1626 columns, with updated hash
+cea06cc4bab2cddb627d17e38e16944251f49481fee51509d0fa1cc9f5fa6f0e.
+Evidence: action-only-rules-probe.txt and advanced-rules-review.cjs in local Temp.
+The remaining foreign metadata and complete actor mod-provenance gaps are unchanged.
+
+Local deploy completed: rollback /var/backups/lorkhanserver-code.rbv2Ji.
+All 878 runtime files match source; live information_schema confirms the nullable
+Core Profile reference. Private/auth/NPC probes and deployed Rules interactions at
+1280/390 pass. Configuration, credentials and voice contents are preserved; GitHub
+workflow remains disabled_manually. No live rules were created or changed.

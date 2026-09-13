@@ -763,8 +763,8 @@ final class ProductRepository
             'core_profile_id'=>(string)$row['core_profile_id'],'label'=>(string)$row['label'],
             'default_npc'=>filter_var($row['default_npc'],FILTER_VALIDATE_BOOL)],$cores->fetchAll());
         $rules=$this->db->prepare('SELECT r.rule_id,r.description,r.core_profile_id,c.label AS core_profile_label,r.priority,r.enabled,r.matchers '
-            .'FROM profile_assignment_rules r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id '
-            .'AND c.installation_id=r.installation_id AND c.deleted_at IS NULL WHERE r.installation_id=:installation '
+            .'FROM profile_assignment_rules r LEFT JOIN core_profiles c ON c.core_profile_id=r.core_profile_id '
+            .'AND c.installation_id=r.installation_id AND c.deleted_at IS NULL WHERE r.installation_id=:installation AND (r.core_profile_id IS NULL OR c.core_profile_id IS NOT NULL) '
             .'ORDER BY r.priority DESC,r.created_at DESC,r.rule_id DESC LIMIT 100');
         $rules->execute(['installation'=>$installationId]);$ruleRows=[];$options=array_fill_keys(self::PROFILE_RULE_MATCH_FIELDS,[]);
         foreach($rules->fetchAll()as$row){$match=$this->normalizeProfileRuleMatch($this->json($row['matchers']));
@@ -799,29 +799,30 @@ final class ProductRepository
         $description=trim((string)($input['description']??''));$priority=filter_var($input['priority']??null,FILTER_VALIDATE_INT);
         $ruleId=$input['rule_id']??null;$ruleId=is_string($ruleId)&&trim($ruleId)!==''?trim($ruleId):null;
         if(!Uuid::isValid($installation))throw new InvalidArgumentException('invalid_installation_id');
-        if(!Uuid::isValid($core))throw new InvalidArgumentException('invalid_core_profile_id');
+        if($core!==''&&!Uuid::isValid($core))throw new InvalidArgumentException('invalid_core_profile_id');
         if($ruleId!==null&&!Uuid::isValid($ruleId))throw new InvalidArgumentException('invalid_rule_id');
         if($description===''||strlen($description)>200||preg_match('/[\x00-\x1F\x7F]/',$description)===1)throw new InvalidArgumentException('invalid_rule_description');
         if($priority===false||$priority< -100000||$priority>100000)throw new InvalidArgumentException('invalid_rule_priority');
         $matchInput=$input['match']??null;
         if(isset($input['advanced'])){if(!is_array($matchInput))throw new InvalidArgumentException('invalid_rule_match');$matchInput['_advanced']=$input['advanced'];}
-        $match=$this->normalizeProfileRuleMatch($matchInput,true);$enabled=($input['enabled']??false)===true;
+        $match=$this->normalizeProfileRuleMatch($matchInput,true);
+        if($core===''&&empty($match['_advanced']['action']))throw new InvalidArgumentException('rule_action_or_profile_required');$enabled=($input['enabled']??false)===true;
         return$this->transaction(function()use($installation,$core,$description,$priority,$ruleId,$match,$enabled,$now):array{
             $this->profileRuleRegexRows([['rule_id'=>'validation','matchers'=>$match]],[],true);
-            $target=$this->db->prepare('SELECT 1 FROM core_profiles WHERE core_profile_id=:core AND installation_id=:installation AND deleted_at IS NULL FOR SHARE');
-            $target->execute(['core'=>$core,'installation'=>$installation]);if(!$target->fetchColumn())throw new InvalidArgumentException('core_profile_scope_mismatch');
+            if($core!==''){$target=$this->db->prepare('SELECT 1 FROM core_profiles WHERE core_profile_id=:core AND installation_id=:installation AND deleted_at IS NULL FOR SHARE');
+            $target->execute(['core'=>$core,'installation'=>$installation]);if(!$target->fetchColumn())throw new InvalidArgumentException('core_profile_scope_mismatch');}
             $id=$ruleId??Uuid::v4();
             if($ruleId===null){$count=$this->db->prepare('SELECT count(*) FROM profile_assignment_rules WHERE installation_id=:installation');
                 $count->execute(['installation'=>$installation]);if((int)$count->fetchColumn()>=100)throw new InvalidArgumentException('profile_assignment_rule_limit');
                 $this->db->prepare('INSERT INTO profile_assignment_rules '
                     .'(rule_id,installation_id,core_profile_id,description,priority,enabled,matchers,updated_at) '
                     .'VALUES(:id,:installation,:core,:description,:priority,:enabled,CAST(:matchers AS jsonb),:now)')
-                    ->execute(['id'=>$id,'installation'=>$installation,'core'=>$core,'description'=>$description,'priority'=>$priority,
+                    ->execute(['id'=>$id,'installation'=>$installation,'core'=>$core===''?null:$core,'description'=>$description,'priority'=>$priority,
                         'enabled'=>$enabled?'true':'false','matchers'=>$this->encode($match),'now'=>$now]);
             }else{$update=$this->db->prepare('UPDATE profile_assignment_rules SET core_profile_id=:core,description=:description,'
                     .'priority=:priority,enabled=:enabled,matchers=CAST(:matchers AS jsonb),updated_at=:now '
                     .'WHERE rule_id=:id AND installation_id=:installation');
-                $update->execute(['id'=>$id,'installation'=>$installation,'core'=>$core,'description'=>$description,'priority'=>$priority,
+                $update->execute(['id'=>$id,'installation'=>$installation,'core'=>$core===''?null:$core,'description'=>$description,'priority'=>$priority,
                     'enabled'=>$enabled?'true':'false','matchers'=>$this->encode($match),'now'=>$now]);
                 if($update->rowCount()!==1)throw new RuntimeException('not_found');}
             return['rule_id'=>$id,'saved'=>true];
@@ -3285,9 +3286,9 @@ SQL);
         $actor=$this->profileRuleActorValues($target,$context);$normalized=[];
         foreach(self::PROFILE_RULE_MATCH_FIELDS as$field)$normalized[$field]=array_map(
             static fn(string$value):string=>mb_strtolower($value,'UTF-8'),$actor[$field]);
-        $rules=$this->db->prepare('SELECT r.rule_id,r.core_profile_id,r.matchers FROM profile_assignment_rules r JOIN core_profiles c '
+        $rules=$this->db->prepare('SELECT r.rule_id,r.core_profile_id,r.matchers FROM profile_assignment_rules r LEFT JOIN core_profiles c '
             .'ON c.core_profile_id=r.core_profile_id AND c.installation_id=r.installation_id AND c.deleted_at IS NULL '
-            .'WHERE r.installation_id=:installation AND r.enabled=true ORDER BY r.priority ASC,r.created_at ASC,r.rule_id ASC LIMIT 100');
+            .'WHERE r.installation_id=:installation AND r.enabled=true AND (r.core_profile_id IS NULL OR c.core_profile_id IS NOT NULL) ORDER BY r.priority ASC,r.created_at ASC,r.rule_id ASC LIMIT 100');
         $rules->execute(['installation'=>$turn['installation_id']]);
         $rows=$rules->fetchAll();
         foreach($rows as&$row)$row['matchers']=$this->json($row['matchers']);unset($row);
@@ -3300,7 +3301,7 @@ SQL);
             foreach(self::PROFILE_RULE_MATCH_FIELDS as$field){if($match[$field]===[])continue;
                 $wanted=array_map(static fn(string$value):string=>mb_strtolower($value,'UTF-8'),$match[$field]);
                 if(($field==='content_files'&&isset($match['_advanced']))?array_diff($wanted,$normalized[$field])!==[]:array_intersect($wanted,$normalized[$field])===[]){$matches=false;break;}}
-            if($matches){$result['core_profile_id']=(string)$rule['core_profile_id'];
+            if($matches){if($rule['core_profile_id']!==null)$result['core_profile_id']=(string)$rule['core_profile_id'];
                 if(!empty($match['_advanced']['action']))$result['actions'][]=$match['_advanced']['action'];}
         }
         return $result;
