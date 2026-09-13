@@ -385,11 +385,22 @@ final class ManagementRouter
                 ['text'=>$body['text'],'language'=>$body['language']],$body['request_id']);
             return Response::json(202,['command'=>$command]);
         }
+        if($path==='/api/v1/npc-manager'){
+            if($r->method==='GET')return Response::json(200,$this->repository->npcManagerStatus($this->queryUuid($r,'profile_id')));
+            if($r->method==='POST'){
+                $body=$this->json($r);$keys=array_keys($body);sort($keys);
+                if($keys!==['operation','profile_id']||!is_string($body['profile_id'])||!is_string($body['operation']))
+                    throw new InvalidArgumentException('invalid_npc_manager_request');
+                $this->uuid($body['profile_id'],'profile_id');
+                return Response::json(202,['command'=>$this->repository->queueNpcManagerCommand($body['profile_id'],$body['operation'])]);
+            }
+        }
         if($path==='/api/v1/debug-commands'){
             if($r->method==='GET')return Response::json(200,['items'=>$this->repository->debugCommands($this->queryUuid($r,'session_id'))]);
             if($r->method==='POST'){$body=$this->json($r);$session=(string)($body['session_id']??'');$this->uuid($session,'session_id');
                 $name=$body['name']??null;$parameters=$body['parameters']??null;
                 if(!is_string($name)||!is_array($parameters)||($parameters!==[]&&array_is_list($parameters)))throw new InvalidArgumentException('invalid_debug_command');
+                if(str_starts_with($name,'npc.'))throw new InvalidArgumentException('npc_manager_profile_required');
                 return Response::json(201,['command'=>$this->repository->queueDebugCommand($session,$name,$parameters)]);}
         }
         if($r->method==='GET'&&$path==='/api/v1/context-filter-candidates')return Response::json(200,$this->repository->contextFilterCandidates($this->queryUuid($r,'installation_id'),(string)($r->query['kind']??'')));

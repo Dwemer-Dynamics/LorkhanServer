@@ -426,7 +426,7 @@ final class Validator
         if(!is_array($observed)||($observed!==[]&&array_is_list($observed))||count($observed)>8)
             throw new ValidationException('invalid_schema');
         $boolean=['ai_enabled','collision_enabled','god_mode','mwscript_enabled','shader_hot_reload_enabled',
-            'shaders_reload_requested'];
+            'shaders_reload_requested','actor_available','return_available'];
         $integer=['count'=>[0,1_000_000_000],'level'=>[1,1_000],'bounty'=>[0,1_000_000_000]];
         $number=['base'=>[0,1_000_000],'current'=>[0,1_000_000],'health'=>[0,1_000_000],
             'magicka'=>[0,1_000_000],'fatigue'=>[0,1_000_000],'scale'=>[0.01,100],
@@ -434,7 +434,7 @@ final class Validator
             'x'=>[-100_000_000,100_000_000],'y'=>[-100_000_000,100_000_000],
             'z'=>[-100_000_000,100_000_000]];
         $string=['error'=>256,'record_id'=>256,'operation'=>64,'stat'=>16,'attribute'=>32,'skill'=>32,
-            'cell'=>300,'region_id'=>128,'weather'=>32,'target'=>256,'render_mode_toggled'=>32];
+            'cell'=>300,'return_cell'=>300,'region_id'=>128,'weather'=>32,'target'=>256,'render_mode_toggled'=>32];
         foreach($observed as$key=>$value){
             if(in_array($key,$boolean,true)){if(!is_bool($value))throw new ValidationException('invalid_schema');continue;}
             if(isset($integer[$key])){[$minimum,$maximum]=$integer[$key];

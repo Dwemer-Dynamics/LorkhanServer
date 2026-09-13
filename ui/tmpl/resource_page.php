@@ -745,10 +745,11 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     if(!$creating&&$effectiveSettings!==[]){echo'<div class="span-2">';lorkhan_ui_effective_settings_summary($effectiveSettings,'Effective NPC settings and sources');echo'</div>';}
     $field('notes','Notes','textarea',(string)($content['notes']??''),[],'span-2');if(!$creating)$field('change_reason','Change Reason','text','management edit',[],'span-2');echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="actions" hidden>';
-    echo'<p class="npc-editor-action-note">Visit and Teleport require profile-targeted movement support in the OpenMW client. They are not available yet.</p><div class="npc-editor-action-list">';
-    foreach(['Visit'=>"Move the player to this NPC’s current position.",'Teleport'=>"Move this NPC to the player’s current position and save their previous location."]as$label=>$description)
-        echo'<article class="npc-editor-action-card"><div><h3>'.lorkhan_ui_h($label).'</h3><p>'.lorkhan_ui_h($description).'</p></div><button type="button" class="btn-base" disabled title="Profile-targeted movement is not supported by the current OpenMW client.">'.lorkhan_ui_h($label).'</button></article>';
-    echo'</div></section>';
+    echo'<div class="span-2" data-npc-actions data-profile-id="'.lorkhan_ui_h($creating?'':$profileId).'" data-endpoint="'.lorkhan_ui_h($managementBasePath.'/api/v1/npc-manager').'" data-csrf="'.lorkhan_ui_h($csrf).'">';
+    echo'<p class="npc-editor-action-note">The game must be running and unpaused to use these actions.</p><div class="npc-editor-action-list">';
+    echo'<article class="npc-editor-action-card"><div><h3>Visit</h3><p>Move the player to this NPC’s current position.</p></div><button type="button" class="btn-cancel" data-npc-action="visit" disabled>Visit</button></article>';
+    echo'<article class="npc-editor-action-card"><div><h3 data-npc-move-title>Teleport</h3><p data-npc-move-description>Move this NPC to the player’s current position and save their previous location.</p></div><button type="button" class="btn-cancel" data-npc-action="teleport" disabled>Teleport</button></article>';
+    echo'</div><p class="npc-editor-action-status" data-npc-action-status role="status" aria-live="polite"></p><button type="button" class="btn-cancel" data-npc-action-refresh>Refresh status</button></div></section>';
     lorkhan_ui_npc_history_panel($profileId,$creating,is_array($playthroughOptions[$installationId]??null)?$playthroughOptions[$installationId]:[],$managementBasePath,$csrf);
     echo'</div><form id="'.lorkhan_ui_h($formId).'" method="post" data-track-dirty action="'.lorkhan_ui_h($managementBasePath.'/forms/'.($creating?'profile-create':'profile-revise')).'">';
     if(!$creating)echo'<input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'">';

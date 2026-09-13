@@ -203,6 +203,8 @@ body.view-characters .npc-editor-meta > input {
 .npc-editor-panel.form-grid[data-npc-editor-panel="actions"] { grid-template-columns: minmax(0, 1fr); }
 .npc-editor-action-note { margin: 0; color: #aaa; font-size: .86rem; }
 .npc-editor-action-list { display: grid; gap: 10px; }
+.npc-editor-action-status { min-height: 1.2rem; margin: 10px 0; color: #aaa; font-size: .82rem; }
+.npc-editor-action-status.is-error { color: #ef8f96; }
 .npc-editor-action-card {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

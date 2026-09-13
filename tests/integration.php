@@ -312,6 +312,7 @@ $assert($status === 429 && $rateError['retry_after_ms'] === 1000, 'rate retry_af
 
 $session = $fixture('session-init');
 $session['runtime']['capabilities'][]='debug.commands.v1';
+$session['runtime']['capabilities'][]='debug.npc_manager.v1';
 $session['runtime']['capabilities'][]='speech.browser.v1';
 $session['runtime']['capabilities'][]='action.conversation.end';
 [$status] = $call($router, 'POST', $base . '/sessions', $jsonAuth, [], $session);
@@ -320,7 +321,7 @@ $assert($status === 422, 'missing session idempotency key accepted');
 $assert($status === 422, 'incoherent session idempotency key accepted');
 [$status, $accepted] = $call($router, 'POST', $base . '/sessions', $headers($session['message_id']), [], $session);
 $assert($status === 201 && $accepted['generation'] === 7
-    && $accepted['capabilities'] === ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
+    && $accepted['capabilities'] === ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'debug.npc_manager.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
         'action.ai.stop', 'action.conversation.end', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
         'action.inventory.inspect']
@@ -4135,6 +4136,44 @@ try {
     $assert(is_string($browserSession),'Browser speech needs a session fixture');
     $db->prepare("UPDATE sessions SET capabilities=array_remove(array_append(capabilities,'debug.commands.v1'),'speech.browser.v1') WHERE session_id=:id")
         ->execute(['id'=>$browserSession]);
+    $managerSession=$db->query("SELECT * FROM sessions WHERE session_id=".$db->quote($browserSession))->fetch();
+    $managerIdentity=json_decode($db->query("SELECT target FROM turns WHERE target->>'kind'='npc' AND target->>'content_file' IS NOT NULL ORDER BY accepted_at LIMIT 1")->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
+    $managerProfile=$products->createRevisioned('profile',['installation_id'=>$managerSession['installation_id'],'name'=>'NPC manager regression','actor_identity'=>$managerIdentity,'content'=>[]],$now);
+    $managerId=$managerProfile['profile_id'];
+    $assert($products->npcManagerStatus($managerId)['reason_code']==='npc_manager_profile_not_bound','NPC manager guessed an unbound profile target');
+    $products->bindActorProfile($managerSession,$managerIdentity,$managerId,$now);
+    $db->prepare("UPDATE sessions SET capabilities=array_remove(capabilities,'debug.npc_manager.v1') WHERE session_id=:id")->execute(['id'=>$browserSession]);
+    try{$products->queueNpcManagerCommand($managerId,'visit');$assert(false,'old client accepted NPC manager');}
+    catch(InvalidArgumentException $error){$assert($error->getMessage()==='npc_manager_unsupported','unexpected NPC manager capability error');}
+    $db->prepare("UPDATE sessions SET capabilities=array_append(capabilities,'debug.npc_manager.v1') WHERE session_id=:id")->execute(['id'=>$browserSession]);
+    $assert($products->npcManagerStatus($managerId)['observed']===null,'NPC manager invented saved Return state');
+    foreach(['status','visit','teleport','return']as$operation){
+        $managerCommand=$products->queueNpcManagerCommand($managerId,$operation);
+        $assert($managerCommand['state']==='queued'&&$managerCommand['name']==='npc.'.$operation&&$managerCommand['parameters']===['actor'=>$managerIdentity],
+            'NPC manager changed exact actor or claimed queued success');
+        if($operation!=='status'){
+            try{$products->queueNpcManagerCommand($managerId,'visit');$assert(false,'NPC manager queued concurrent actor movements');}
+            catch(InvalidArgumentException $error){$assert($error->getMessage()==='npc_manager_command_pending','unexpected duplicate actor command error');}
+        }
+        if($operation!=='return')$db->prepare("UPDATE debug_commands SET state='expired',completed_at=clock_timestamp(),reason_code='fixture_expired' WHERE command_id=:id")
+            ->execute(['id'=>$managerCommand['command_id']]);
+    }
+    try{$products->queueDebugCommand($browserSession,'npc.visit',['actor'=>$managerIdentity,'target'=>'selected']);$assert(false,'NPC manager accepted target override');}
+    catch(InvalidArgumentException $error){$assert($error->getMessage()==='invalid_debug_parameters','unexpected NPC manager actor validation error');}
+    $db->prepare("UPDATE debug_commands SET state='expired',completed_at=clock_timestamp(),reason_code='fixture_expired' WHERE session_id=:session AND state IN ('queued','delivered') AND command_id<>:command")
+        ->execute(['session'=>$browserSession,'command'=>$managerCommand['command_id']]);
+    $claimed=$repo->claimDebugCommand(['session_id'=>$browserSession,'generation'=>(int)$managerSession['generation']]);
+    $assert($claimed['command_id']===$managerCommand['command_id'],'NPC manager command did not reach existing typed queue');
+    $managerReceipt=['session_id'=>$browserSession,'generation'=>(int)$managerSession['generation'],'command_id'=>$managerCommand['command_id'],
+        'message_id'=>\LorkhanServer\Infrastructure\Uuid::v4(),'status'=>'succeeded','reason_code'=>'completed','completed_at'=>gmdate('Y-m-d\TH:i:s\Z'),
+        'observed'=>['actor_available'=>true,'return_available'=>false,'record_id'=>$managerIdentity['record_id'],'cell'=>'Balmora']];
+    $repo->completeDebugCommand($managerReceipt);
+    $managerStatus=$products->npcManagerStatus($managerId);
+    $assert($managerStatus['observed']==$managerReceipt['observed']&&$managerStatus['items'][0]['state']==='succeeded',
+        'NPC manager lost terminal save-backed Return receipt');
+    $db->prepare("UPDATE sessions SET state='replaced' WHERE session_id=:session")->execute(['session'=>$browserSession]);
+    $assert($products->npcManagerStatus($managerId)['reason_code']==='npc_manager_no_active_session','NPC manager reused a replaced session');
+    $db->prepare("UPDATE sessions SET state='active' WHERE session_id=:session")->execute(['session'=>$browserSession]);
     $speechParameters=['text'=>'Where is Caius? *curious* / ordinary text','language'=>'en-US'];
     try{$products->queueDebugCommand($browserSession,'player.dialogue.submit',$speechParameters);$assert(false,'old client accepted browser speech');}
     catch(InvalidArgumentException $error){$assert($error->getMessage()==='browser_speech_unsupported','unexpected browser speech capability error');}

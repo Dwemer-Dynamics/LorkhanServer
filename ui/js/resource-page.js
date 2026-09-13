@@ -513,6 +513,103 @@
         controller.open();
     };
 
+    const actionControllers = new WeakMap();
+    /** Keep profile movement scoped to server-resolved identity and confirmed client receipts. */
+    const openActionsPanel = (modal) => {
+        const view = modal?.querySelector('[data-npc-actions]');
+        if (!view || modal.hidden || view.closest('[data-npc-editor-panel]').hidden) return;
+        if (actionControllers.has(view)) { actionControllers.get(view).open(); return; }
+        const status = view.querySelector('[data-npc-action-status]');
+        const buttons = [...view.querySelectorAll('[data-npc-action]')];
+        const refresh = view.querySelector('[data-npc-action-refresh]');
+        const move = buttons.find(button => button.dataset.npcAction === 'teleport');
+        let busy = false, timer = null, commandId = null, scope = null, ready = false;
+        const visible = () => !modal.hidden && !view.closest('[data-npc-editor-panel]').hidden;
+        const notice = (text, error = false) => { status.textContent = text; status.classList.toggle('is-error', error); };
+        const render = () => {
+            const observed = scope?.observed;
+            const returning = observed?.return_available === true;
+            move.dataset.npcAction = returning ? 'return' : 'teleport';
+            move.textContent = returning ? 'Return NPC' : 'Teleport';
+            view.querySelector('[data-npc-move-title]').textContent = move.textContent;
+            view.querySelector('[data-npc-move-description]').textContent = returning
+                ? `Return this NPC to their saved location${observed.return_cell ? ': ' + observed.return_cell : ''}.`
+                : 'Move this NPC to the player’s current position and save their previous location.';
+            buttons.forEach(button => { button.disabled = busy || !ready || scope?.supported !== true || observed?.actor_available !== true; });
+            refresh.disabled = busy || !view.dataset.profileId;
+            view.setAttribute('aria-busy', busy ? 'true' : 'false');
+        };
+        const request = async (operation) => {
+            const url = new URL(view.dataset.endpoint, window.location.origin);
+            url.searchParams.set('profile_id', view.dataset.profileId);
+            const abort = new AbortController();
+            const timeout = window.setTimeout(() => abort.abort(), 10000);
+            try {
+                return await historyRequest(url, operation ? {
+                    method: 'POST', signal: abort.signal,
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': view.dataset.csrf },
+                    body: JSON.stringify({ profile_id: view.dataset.profileId, operation }),
+                } : { signal: abort.signal });
+            } finally { window.clearTimeout(timeout); }
+        };
+        const poll = async () => {
+            timer = null;
+            if (!visible()) { busy = false; ready = false; render(); return; }
+            try {
+                scope = await request();
+                if (!scope.supported) throw new Error(scope.reason_code || 'npc_manager_unavailable');
+                const item = scope.items.find(item => item.command_id === commandId);
+                if (!item) throw new Error('session_changed');
+                if (['queued', 'delivered'].includes(item.state)) {
+                    notice(item.state === 'queued' ? 'Queued. Waiting for the game…' : 'Waiting for the game to confirm…');
+                    timer = window.setTimeout(poll, 1000);
+                } else {
+                    busy = false;
+                    ready = !!item.observed && typeof item.observed.return_available === 'boolean';
+                    // Never enable movement using an older receipt after an expired or missing result.
+                    scope.observed = ready ? item.observed : null;
+                    const success = item.state === 'succeeded';
+                    notice(success ? (item.name === 'npc.status' ? 'NPC status confirmed.' : 'Action completed in game.')
+                        : `Action ${item.state}: ${item.reason_code || 'No confirmed result'}.${ready ? '' : ' Refresh status before retrying.'}`, !success);
+                    if (success && item.observed?.actor_available !== true) notice('This exact NPC is not currently available in the game.', true);
+                }
+            } catch (_error) {
+                busy = false; ready = false;
+                notice('Status unavailable or the game session changed. Refresh status to reconnect. An accepted action may still complete.', true);
+            }
+            render();
+        };
+        const run = async (operation) => {
+            if (busy) return;
+            if (!view.dataset.profileId) { notice('Save this NPC profile before using actions.'); render(); return; }
+            busy = true; ready = false; window.clearTimeout(timer); render();
+            notice(operation === 'status' ? 'Checking game status…' : 'Sending action to the game…');
+            try {
+                scope = await request();
+                if (!scope.supported) {
+                    const reasons = {
+                        npc_manager_unsupported: 'The connected client does not support NPC actions. Restart with the latest Lorkhan build.',
+                        npc_manager_exact_actor_required: 'This profile has no complete observed NPC identity. Meet the NPC in this playthrough first.',
+                    };
+                    notice(reasons[scope.reason_code] || 'No matching active game session and NPC binding. Load this NPC’s playthrough first.', true);
+                    busy = false; render(); return;
+                }
+                const pending = scope.items.find(item => ['queued', 'delivered'].includes(item.state));
+                if (pending) commandId = pending.command_id;
+                else commandId = (await request(operation)).command.command_id;
+                await poll();
+            } catch (_error) {
+                busy = false; ready = false;
+                notice('The request could not be confirmed. Refresh status before retrying; an accepted action may still complete.', true);
+                render();
+            }
+        };
+        buttons.forEach(button => button.addEventListener('click', () => { if (!button.disabled) run(button.dataset.npcAction); }));
+        refresh.addEventListener('click', () => run('status'));
+        actionControllers.set(view, { open: () => { if (!busy) run('status'); } });
+        run('status');
+    };
+
     let activeModal = null;
     let lastTrigger = null;
     const closeModal = (modal) => {
@@ -531,6 +628,7 @@
         modal.hidden = false;
         document.body.classList.add('npc-modal-open');
         activeModal = modal;
+        openActionsPanel(modal);
         const close = modal.querySelector('[data-npc-modal-close]');
         if (close) close.focus();
         modal.querySelector('[data-npc-core-switch]')?.dispatchEvent(new Event('npc-switch-open'));
@@ -670,8 +768,9 @@
             });
             panels.forEach((panel) => { panel.hidden = panel.getAttribute('data-npc-editor-panel') !== name; });
             if (name === 'history') openHistoryPanel(modal);
-            // History is read on demand, so it never becomes the remembered default tab.
-            else try { window.localStorage.setItem('lorkhan-npc-editor-tab', name); } catch (_error) {}
+            if (name === 'actions') openActionsPanel(modal);
+            // On-demand game/history reads never become the remembered default tab.
+            if (!['history', 'actions'].includes(name)) try { window.localStorage.setItem('lorkhan-npc-editor-tab', name); } catch (_error) {}
         };
         tabActivators.set(tablist, activate);
         buttons.forEach((button) => button.addEventListener('click', () => activate(button.getAttribute('data-npc-editor-tab') || 'general')));
@@ -684,7 +783,7 @@
         });
         let initial = 'general';
         try { initial = window.localStorage.getItem('lorkhan-npc-editor-tab') || initial; } catch (_error) {}
-        if (initial === 'history' || !buttons.some((button) => button.getAttribute('data-npc-editor-tab') === initial)) initial = 'general';
+        if (['history', 'actions'].includes(initial) || !buttons.some((button) => button.getAttribute('data-npc-editor-tab') === initial)) initial = 'general';
         activate(initial);
     });
 

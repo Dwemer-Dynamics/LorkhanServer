@@ -684,6 +684,16 @@ foreach ([
     $validator->validate($document['instance'], $schema);
     $check(true, $fixture . ' validates');
 }
+$npcReceipt=json_decode((string)file_get_contents($fixtureRoot.'/debug-command-result.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+$npcReceipt['observed']=['target'=>'fargoth','actor_available'=>true,'return_available'=>true,'return_cell'=>'Balmora',
+    'cell'=>'Seyda Neen','x'=>1,'y'=>2,'z'=>3];
+$validator->validate($npcReceipt,'lorkhan.debug-command-result.v1');
+$check(true,'NPC manager bounded terminal pose receipt validates');
+foreach (['actor_available'=>'true','return_available'=>1,'return_cell'=>str_repeat('x',301)] as $key=>$value) {
+    $invalid=$npcReceipt;$invalid['observed'][$key]=$value;
+    try {$validator->validate($invalid,'lorkhan.debug-command-result.v1');$check(false,'NPC receipt rejects '.$key);}
+    catch (ValidationException $error) {$check($error->getMessage()==='invalid_schema','NPC receipt rejects '.$key);}
+}
 foreach (['session-loaded-save-leap-day','session-loaded-save-hour'] as $fixture) {
     $document=json_decode((string)file_get_contents(dirname($fixtureRoot).'/invalid/'.$fixture.'.json'),true,64,JSON_THROW_ON_ERROR);
     try {$validator->validate($document['instance'],'lorkhan.session.init.v1');$check(false,$fixture.' rejected');}

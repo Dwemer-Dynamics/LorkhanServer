@@ -3997,6 +3997,104 @@ SQL);
         return$rows;
     }
 
+    /** Keep operator actor parameters within the closed common identity contract. */
+    private function npcManagerActor(array $identity):array
+    {
+        $fields=['kind','record_id','content_file','refnum','cell','display_name'];
+        $actor=array_intersect_key($identity,array_flip($fields));
+        $actor['kind']=($actor['kind']??null)==='actor'?'npc':($actor['kind']??null);
+        if(count($actor)!==6||!in_array($actor['kind'],['npc','creature'],true))throw new InvalidArgumentException('invalid_debug_parameters');
+        foreach(['record_id','content_file','display_name']as$field){
+            if(!is_string($actor[$field])||$actor[$field]===''||strlen($actor[$field])>256
+                ||!mb_check_encoding($actor[$field],'UTF-8')||preg_match('/[\x00-\x1f\x7f]/',$actor[$field]))
+                throw new InvalidArgumentException('invalid_debug_parameters');
+        }
+        $ref=$actor['refnum'];
+        if(!is_array($ref)||count($ref)!==2||!is_int($ref['index']??null)||!is_int($ref['content_file']??null)
+            ||$ref['index']<0||$ref['index']>4294967295||$ref['content_file']<0||$ref['content_file']>2147483647)
+            throw new InvalidArgumentException('invalid_debug_parameters');
+        $cell=$actor['cell'];
+        if(!is_array($cell))throw new InvalidArgumentException('invalid_debug_parameters');
+        if(($cell['kind']??null)==='interior'){
+            if(count($cell)!==2||!is_string($cell['name']??null)||$cell['name']===''||strlen($cell['name'])>256
+                ||!mb_check_encoding($cell['name'],'UTF-8')||preg_match('/[\x00-\x1f\x7f]/',$cell['name']))
+                throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif(($cell['kind']??null)==='exterior'){
+            if(count($cell)!==3||!is_int($cell['grid_x']??null)||!is_int($cell['grid_y']??null)
+                ||abs($cell['grid_x'])>2147483647||abs($cell['grid_y'])>2147483647)
+                throw new InvalidArgumentException('invalid_debug_parameters');
+        }else throw new InvalidArgumentException('invalid_debug_parameters');
+        return$actor;
+    }
+
+    /** Resolve only the edited profile's own actor in the currently loaded playthrough. */
+    private function npcManagerScope(string $profileId,bool $lock=false):array
+    {
+        $query=$this->db->prepare('SELECT installation_id,actor_identity FROM profiles WHERE profile_id=:profile AND deleted_at IS NULL');
+        $query->execute(['profile'=>$profileId]);$profile=$query->fetch();
+        if(!$profile)throw new \OutOfBoundsException('not_found');
+        $scope=['profile_id'=>$profileId,'supported'=>false,'reason_code'=>null,'session_id'=>null,'generation'=>null,'actor'=>null];
+        $identity=$this->json($profile['actor_identity']);
+        if(!in_array($identity['kind']??null,['npc','creature','actor'],true)||!is_array($identity['refnum']??null)
+            ||!is_string($identity['record_id']??null)||!is_string($identity['content_file']??null)){
+            $scope['reason_code']='npc_manager_exact_actor_required';return$scope;
+        }
+        $query=$this->db->prepare("SELECT session_id,playthrough_id,generation,capabilities FROM sessions WHERE installation_id=:installation AND state='active' ORDER BY created_at DESC LIMIT 2".($lock?' FOR UPDATE':''));
+        $query->execute(['installation'=>$profile['installation_id']]);$sessions=$query->fetchAll();
+        if(count($sessions)!==1){$scope['reason_code']=count($sessions)===0?'npc_manager_no_active_session':'npc_manager_ambiguous_session';return$scope;}
+        if($lock){
+            $query=$this->db->prepare('SELECT actor_identity FROM profiles WHERE profile_id=:profile AND deleted_at IS NULL FOR SHARE');
+            $query->execute(['profile'=>$profileId]);$locked=$query->fetchColumn();
+            if($locked===false||$this->json($locked)!=$identity)throw new InvalidArgumentException('npc_manager_profile_changed');
+        }
+        $session=$sessions[0];$scope['session_id']=$session['session_id'];$scope['generation']=(int)$session['generation'];
+        $binding=$this->db->prepare('SELECT 1 FROM actor_profile_bindings WHERE installation_id=:installation AND playthrough_id=:playthrough AND profile_id=:profile AND actor_key=:key'.($lock?' FOR SHARE':''));
+        $binding->execute(['installation'=>$profile['installation_id'],'playthrough'=>$session['playthrough_id'],'profile'=>$profileId,'key'=>$this->actorKey($identity)]);
+        if(!$binding->fetchColumn()){$scope['reason_code']='npc_manager_profile_not_bound';return$scope;}
+        {
+            $observed=$this->db->prepare("SELECT target FROM active_turns WHERE session_id=:session AND generation=:generation AND target->>'record_id'=:record AND target->>'content_file'=:content AND target->'refnum'=CAST(:refnum AS jsonb) AND target->>'kind'=:kind ORDER BY accepted_at DESC,turn_id DESC LIMIT 1");
+            $observed->execute(['session'=>$session['session_id'],'generation'=>$session['generation'],'kind'=>$identity['kind']==='actor'?'npc':$identity['kind'],'record'=>$identity['record_id'],'content'=>$identity['content_file'],'refnum'=>$this->encode($identity['refnum'])]);
+            $target=$observed->fetchColumn();$target=$target===false?[]:$this->json($target);
+            foreach(['cell','display_name']as$field)if(isset($target[$field]))$identity[$field]=$target[$field];
+        }
+        try{$scope['actor']=$this->npcManagerActor($identity);}catch(InvalidArgumentException){$scope['reason_code']='npc_manager_exact_actor_required';return$scope;}
+        $capabilities=$this->parsePgArray((string)$session['capabilities']);
+        if(!in_array('debug.commands.v1',$capabilities,true)||!in_array('debug.npc_manager.v1',$capabilities,true)){
+            $scope['reason_code']='npc_manager_unsupported';return$scope;
+        }
+        $scope['supported']=true;return$scope;
+    }
+
+    /** Operator status is unknown until a terminal client receipt reports save-backed state. */
+    public function npcManagerStatus(string $profileId):array
+    {
+        $scope=$this->npcManagerScope($profileId);$scope+=['items'=>[],'observed'=>null,'observed_at'=>null];
+        if(!$scope['supported'])return$scope;
+        $this->db->prepare("UPDATE debug_commands SET state='expired',completed_at=clock_timestamp(),reason_code='command_expired' WHERE session_id=:session AND generation=:generation AND state IN ('queued','delivered') AND expires_at<=clock_timestamp()")
+            ->execute(['session'=>$scope['session_id'],'generation'=>$scope['generation']]);
+        $query=$this->db->prepare("SELECT command_id,command_name AS name,state,reason_code,observed,created_at,completed_at,expires_at FROM debug_commands WHERE session_id=:session AND generation=:generation AND command_name IN ('npc.status','npc.visit','npc.teleport','npc.return') AND parameters->'actor' @> CAST(:actor AS jsonb) ORDER BY created_at DESC,command_id DESC LIMIT 20");
+        $query->execute(['session'=>$scope['session_id'],'generation'=>$scope['generation'],'actor'=>$this->encode(array_intersect_key($scope['actor'],array_flip(['kind','record_id','content_file','refnum'])))]);
+        foreach($query->fetchAll()as$row){
+            $row['observed']=$row['observed']===null?null:$this->json($row['observed']);$scope['items'][]=$row;
+            if(in_array($row['state'],['succeeded','failed','rejected'],true)&&is_bool($row['observed']['return_available']??null)
+                &&($scope['observed_at']===null||new \DateTimeImmutable($row['completed_at'])>new \DateTimeImmutable($scope['observed_at']))){
+                $scope['observed']=$row['observed'];$scope['observed_at']=$row['completed_at'];
+            }
+        }
+        return$scope;
+    }
+
+    /** Browser callers choose a profile and a closed operation, never an actor or live target. */
+    public function queueNpcManagerCommand(string $profileId,string $operation):array
+    {
+        if(!in_array($operation,['status','visit','teleport','return'],true))throw new InvalidArgumentException('invalid_npc_manager_operation');
+        return$this->transaction(function()use($profileId,$operation):array{
+            $scope=$this->npcManagerScope($profileId,true);
+            if(!$scope['supported'])throw new InvalidArgumentException($scope['reason_code']);
+            return$this->queueDebugCommand($scope['session_id'],'npc.'.$operation,['actor'=>$scope['actor']]);
+        });
+    }
+
     /** Return the bounded recent operator debug-command audit for one active session. */
     public function debugCommands(string $sessionId):array
     {
@@ -4033,6 +4131,9 @@ SQL);
                 ||preg_match('/[\x00-\x1f\x7f]/',$parameters['text'])||!is_string($parameters['language']??null)
                 ||strlen($parameters['language'])>16||preg_match('/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/D',$parameters['language'])!==1)
                 throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif(in_array($name,['npc.status','npc.visit','npc.teleport','npc.return'],true)){
+            if(!$hasKeys($parameters,['actor'])||!is_array($parameters['actor'])
+                ||$this->npcManagerActor($parameters['actor'])!==$parameters['actor'])throw new InvalidArgumentException('invalid_debug_parameters');
         }elseif(in_array($name,$empty,true)){if($parameters!==[])throw new InvalidArgumentException('invalid_debug_parameters');}
         elseif(in_array($name,$enabled,true)){if(!$hasKeys($parameters,['enabled'])||!is_bool($parameters['enabled']))throw new InvalidArgumentException('invalid_debug_parameters');}
         elseif($name==='render_mode.toggle'){
@@ -4077,6 +4178,7 @@ SQL);
             $session->execute(['session'=>$sessionId]);$row=$session->fetch();if(!$row)throw new InvalidArgumentException('invalid_session_id');
             $capabilities=$this->parsePgArray((string)$row['capabilities']);
             if(!in_array('debug.commands.v1',$capabilities,true))throw new InvalidArgumentException('debug_commands_unsupported');
+            if(str_starts_with($name,'npc.')&&!in_array('debug.npc_manager.v1',$capabilities,true))throw new InvalidArgumentException('npc_manager_unsupported');
             if($name==='player.dialogue.submit'&&!in_array('speech.browser.v1',$capabilities,true))
                 throw new InvalidArgumentException('browser_speech_unsupported');
             if($commandId!==null){
@@ -4091,6 +4193,11 @@ SQL);
             $this->db->prepare("UPDATE debug_commands SET state='expired',completed_at=clock_timestamp(),reason_code='command_expired' "
                 ."WHERE session_id=:session AND state IN ('queued','delivered') AND expires_at<=clock_timestamp()")
                 ->execute(['session'=>$sessionId]);
+            if(in_array($name,['npc.visit','npc.teleport','npc.return'],true)){
+                $pendingActor=$this->db->prepare("SELECT 1 FROM debug_commands WHERE session_id=:session AND state IN ('queued','delivered') AND command_name IN ('npc.visit','npc.teleport','npc.return') AND parameters->'actor' @> CAST(:actor AS jsonb) LIMIT 1");
+                $pendingActor->execute(['session'=>$sessionId,'actor'=>$this->encode(array_intersect_key($parameters['actor'],array_flip(['kind','record_id','content_file','refnum'])))]);
+                if($pendingActor->fetchColumn())throw new InvalidArgumentException('npc_manager_command_pending');
+            }
             $pending=$this->db->prepare("SELECT count(*) FROM debug_commands WHERE session_id=:session AND state IN ('queued','delivered')");
             $pending->execute(['session'=>$sessionId]);if((int)$pending->fetchColumn()>=16)throw new InvalidArgumentException('debug_command_queue_full');
             $id=$commandId??Uuid::v4();$insert=$this->db->prepare('INSERT INTO debug_commands '
