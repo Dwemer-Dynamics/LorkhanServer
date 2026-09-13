@@ -1207,6 +1207,8 @@ initial_worker=subprocess.run(initial_args,capture_output=True,text=True,timeout
 assert initial_worker.returncode==0 and json.loads(initial_worker.stdout)['succeeded']==1,(initial_worker.stdout,initial_worker.stderr)
 initial_page,initial_html=parse(request('/LorkhanServer/ui/playthrough_manager.php'))
 assert 'Protected default' in initial_html and 'Auto-captured initial database snapshot' in initial_html
+assert 'Already Active' in initial_html and 'SOURCE OF PUBLIC' in initial_html
+assert subprocess.run([*pg_test,'SELECT backup_id FROM lorkhan_internal.database_snapshot_source WHERE singleton'],capture_output=True,text=True,check=True).stdout.strip()==initial_job['job_id']
 assert not any(f['fields'].get('backup_id')==initial_job['job_id'] and f['fields'].get('operation')=='delete' for f in initial_page.forms)
 initial_sql=request('/LorkhanServer/manage/exports/database/'+initial_job['job_id']+'.sql').read()
 protected=request('/LorkhanServer/manage/forms/playthrough-snapshot','POST',{'_csrf':csrf,'operation':'delete','backup_id':initial_job['job_id'],'confirm':'Delete'})
@@ -3621,6 +3623,7 @@ restore_backup_path=str(pathlib.Path(subprocess.run([*pg_test,'SHOW data_directo
 restore_code=r"require $argv[1].'/lib/Autoload.php'; $config=['database_dsn'=>'pgsql:host=127.0.0.1;port='.$argv[2].';dbname=lorkhan_management_http','database_user'=>'restore_runtime']; $db=LorkhanServer\Infrastructure\Connection::open($config,false); $config['backup_storage_path']=$argv[3]; $worker=new LorkhanServer\Application\Worker(new LorkhanServer\Infrastructure\JobRepository($db),new LorkhanServer\Application\JobHandlerRegistry([new LorkhanServer\Application\DatabaseRestoreJobHandler($db,$config)]),'restore-http',30,1,1,1,60,['database.restore']); echo json_encode($worker->run());"
 pairing_sql="SELECT md5(COALESCE(string_agg(row_to_json(t)::text,',' ORDER BY pairing_token_id),'')) FROM lorkhan_internal.pairing_tokens t"
 pairing_before=subprocess.run([*pg_test,pairing_sql],capture_output=True,text=True,check=True).stdout
+prior_snapshot_name=subprocess.run([*pg_test,"SELECT b.scope#>>'{snapshot,name}' FROM lorkhan_internal.database_snapshot_source s JOIN lorkhan_internal.backup_records b ON b.backup_id=s.backup_id WHERE s.singleton"],capture_output=True,text=True,check=True).stdout.strip()
 restore_result=subprocess.run(['php','-r',restore_code,str(repository_root),sys.argv[3],restore_backup_path],capture_output=True,text=True,timeout=60)
 assert restore_result.returncode==0 and json.loads(restore_result.stdout)['succeeded']==1,(restore_result.stdout,restore_result.stderr)
 # Same authenticated session still reads status; metadata and the automatic rollback backup survived.
@@ -3646,7 +3649,8 @@ rollback_id=subprocess.run([*pg_test,"SELECT backup_id FROM lorkhan_internal.bac
 assert request('/LorkhanServer/manage/exports/database/'+rollback_id+'.sql').status==200
 rollback_calendar=json.loads(subprocess.run([*pg_test,"SELECT scope#>'{game_metadata,calendar}' FROM lorkhan_internal.backup_records WHERE backup_id='"+rollback_id+"'"],check=True,capture_output=True,text=True).stdout)
 assert rollback_calendar['day']==19 and rollback_calendar['minute']-snapshot_metadata['calendar']['minute']==3*1440,rollback_calendar
-assert subprocess.run([*pg_test,"SELECT scope#>>'{snapshot,name}' FROM lorkhan_internal.backup_records WHERE backup_id='"+rollback_id+"'"],capture_output=True,text=True,check=True).stdout.startswith('Before copy')
+rollback_name=subprocess.run([*pg_test,"SELECT scope#>>'{snapshot,name}' FROM lorkhan_internal.backup_records WHERE backup_id='"+rollback_id+"'"],capture_output=True,text=True,check=True).stdout.strip()
+assert rollback_name==prior_snapshot_name if prior_snapshot_name else rollback_name.startswith('Before copy')
 assert request('/LorkhanServer/manage/exports/database/'+restore_target+'.sql').status==200
 # Named switching autosaves the source generation, preserving edits across A -> B -> A.
 source_name=subprocess.run([*pg_test,"SELECT scope#>>'{snapshot,name}' FROM lorkhan_internal.backup_records WHERE backup_id='"+restore_target+"'"],capture_output=True,text=True,check=True).stdout.strip()

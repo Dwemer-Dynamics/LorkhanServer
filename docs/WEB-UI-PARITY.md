@@ -96,8 +96,7 @@ do not use an exception to excuse a generic substitute layout.
   production records and speech providers were not used as test data.
 - Global Settings includes Prompt Head / Emote Moods with saved global defaults,
   NPC overrides, portable export/import and a persistent named-preset toolbar.
-  The Local LLM built-in now applies to all Core profiles; remaining connector
-  availability and Player2 behavior are still pending, not accepted product exceptions. The Global Connector test dialog is implemented.
+  The Local LLM built-in now applies to all Core profiles. Player2 routing and whole-page Quickstart save flows are verified in the dated closure; the pinned form has no service-availability gate to port. The Global Connector test dialog is implemented. Live-provider acceptance remains separate.
 
 ## Complete page matrix
 
@@ -139,7 +138,7 @@ Current delivery order: close visible page structure and interactions directly f
 | `cache_browser.php` | Same path, audio portion | Compact file-list panel, typography and inline players aligned; populated/empty, expired/unavailable, keyboard, narrow and live hub states checked. Private authenticated media replaces public paths; excluded Soulgaze image panel stays absent. |
 | `relationship_logs.php` | Same path | Evaluation-first header/filter/table/context/cleanup compared populated and empty; request/proposal and committed per-target/type-change evidence implemented and checked. Historical missing data stays explicit. Final native-tool placement and live Control Panel tab-state review completed below; tools remain in a secondary collapsed disclosure |
 | `oghma_audit.php` | Same path | Header, filters/pager, nine metadata pills and five trace sections compared populated/empty at 1280px and narrow 390px; native retrieval evidence retained in secondary details; see Oghma Audit checkpoint |
-| `playthrough_manager.php` | Same path | Full named database snapshots support save, copy, download, delete, automatic rollback and live-source provenance. Active Database and paired Save/Stored panels use the reference structure; legacy profile-only tools are separately collapsed. Snapshot player/count/calendar metadata, time ordering, ahead/behind labels and the interactive timeline are implemented. First visit now queues a protected default snapshot; repeat visits reuse pending work and deletion is refused server-side. Restricted-role lifecycle and populated/empty desktop/narrow checks passed. Automatic Dragon Break capture now runs at the loaded-save boundary before session replacement, with a three-day threshold and isolated archive inspection. Named switching now refreshes the previous named generation atomically, preserving edits across A/B/A/B; same-source selection does not rewind live data. External/legacy SQL import is implemented in Database Manager, matching its pinned placement. Remaining: future-history pruning and final page interaction audit. Profile-scoped JSON exports are not substitutes for full database snapshots. |
+| `playthrough_manager.php` | Same path | Full named database snapshots support save, copy, download, delete, automatic rollback and live-source provenance. Active Database and paired Save/Stored panels use the reference structure; legacy profile-only tools are separately collapsed. Snapshot player/count/calendar metadata, time ordering, ahead/behind labels and the interactive timeline are implemented. First visit queues a protected default snapshot and marks it active after successful capture; repeat visits reuse pending work and deletion is refused server-side. Restricted-role lifecycle and populated/empty desktop/narrow checks passed. Automatic Dragon Break capture now runs at the loaded-save boundary before session replacement, with a three-day threshold and isolated archive inspection. Named switching now refreshes the previous named generation atomically, preserving edits across A/B/A/B; same-source selection does not rewind live data. External/legacy SQL import is implemented in Database Manager, matching its pinned placement. Remaining: future-history pruning and final page interaction audit. Profile-scoped JSON exports are not substitutes for full database snapshots. |
 | `server_logs.php` | Control Panel -> Dwemer Debugger CHIM log panels | Three-column log panels, search/severity controls, expanded readers, refresh, visible-entry download and UTC/local display aligned; populated/empty/narrow fixtures and dense live standalone/hub views checked. Only actual Lorkhan service logs are read; cross-product dashboard/MCP controls are not imported. |
 | `provider_usage.php` | `audit.php` (Cost Breakdown) | Date/week header/filter/pie layout aligned; desktop and narrow populated/empty/unknown-cost states compared. Whole-range request-type totals, scoped UTC boundaries and CSV coverage checked; token/provider details remain collapsed. See Cost Breakdown checkpoint below. |
 | `provider_attempts.php` | `request_logs.php` operational presentation; no exact all-provider CHIM page | Explicit safe metadata columns, toolbar, status pills, scoped filters, full pagination and page CSV. Populated/empty source-rendered comparison and narrow keyboard scrolling checked. |
@@ -13318,3 +13317,43 @@ creates a named archive without setting database_snapshot_source, whereas pinned
 Herika marks that first default active. Also complete source-versus-live cold-page
 HTTP test diagnosis. Future-history pruning is a runtime feature gap, not a CSS
 or page-layout claim.
+
+
+## Initial default snapshot activation (2026-09-12)
+
+Pinned Herika marks its first default snapshot active. DatabaseBackupJobHandler
+now writes the first default's name and active-source marker in one SQL statement
+only after the archive is successfully captured. It does not change an existing
+source or activate a later ordinary named save. The statement also refuses initial
+activation when another named snapshot already exists. No migration changes
+existing deployments or user snapshot state.
+
+Focused disposable handler fixture verifies the first-visit queue is reused,
+completed capture becomes active, repeated visit queues nothing, replaying the
+capture remains idempotent, and the subsequent A/B/A/B generation and rejection
+checks still pass. Separate actual browser renders of the first default at 1280
+and 390 verify Already Active disabled, protected default without a Delete form,
+Download SQL present, no overflow and no page errors. Both screenshots inspected.
+1210 server checks and 111 protocol comparisons pass. Existing management HTTP
+checks now require the first source marker and expect named autosave metadata.
+
+The native-Linux full HTTP run passed the formerly timing-out Database Manager
+GET, then stopped at the fixture worker's hard-coded postgres login because the
+cluster was initialized under lorkhan. It is being rerun under the intended
+postgres test account; production-role permissions are unchanged. This records
+an infrastructure diagnosis, not a complete-suite pass.
+
+Deployment: all 897 runtime files match source, with no extras/old paths and
+expected private/unauthenticated HTTP rejection. Actual deployed code under the
+lorkhan worker account passes initial activation, repeated-visit/replay, named
+switching, notes/default/active protection and incompatible-installation checks
+in a disposable database. Configuration, credentials and voice files preserved;
+rollback /var/backups/lorkhanserver-code.25GMb9. Workflow 330702270 disabled_manually.
+
+The intended postgres-account native-copy HTTP suite passed Database Manager and
+continued through connector/profile checks, then stopped at management_http.py's
+NPC profile-generate request (line 1147), HTTP 422 versus expected 200. The fixture
+has not assigned a Profile Generation connector there, while current
+profileGenerationPayload requires one; confirm the response error and repair the
+fixture setup or product behavior as appropriate. No generation fallback should
+be added merely to make this old test pass. Full HTTP acceptance remains open.

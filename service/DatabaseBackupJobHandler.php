@@ -30,7 +30,17 @@ final class DatabaseBackupJobHandler implements JobHandler
             if($automatic && !(new \LorkhanServer\Infrastructure\ManagementRepository($this->db))->databaseBackupSettings()['enabled'])throw new RuntimeException('automatic_backup_disabled');
             $store->create($this->db,$payload['backup_id'],$heartbeat,$automatic);
             if($snapshot!==null){
-                $save=$this->db->prepare("UPDATE backup_records SET scope=scope||jsonb_build_object('snapshot',CAST(:snapshot AS jsonb)) WHERE backup_id=:id");
+                // The first default capture becomes active atomically with its name, as in Herika.
+                // Later saves never change the current source or revive deleted-source provenance.
+                $save=$this->db->prepare("WITH saved AS (
+                    UPDATE backup_records SET scope=scope||jsonb_build_object('snapshot',CAST(:snapshot AS jsonb))
+                    WHERE backup_id=:id RETURNING backup_id,scope
+                ) UPDATE lorkhan_internal.database_snapshot_source source
+                    SET backup_id=saved.backup_id,name=saved.scope#>>'{snapshot,name}',copied_at=clock_timestamp()
+                    FROM saved WHERE source.singleton AND source.backup_id IS NULL
+                    AND saved.scope#>>'{snapshot,name}'='default'
+                    AND NOT EXISTS (SELECT 1 FROM backup_records other
+                        WHERE other.backup_id<>saved.backup_id AND jsonb_exists(other.scope,'snapshot'))");
                 $save->execute(['snapshot'=>json_encode($snapshot,JSON_THROW_ON_ERROR),'id'=>$payload['backup_id']]);
             }
             if($automatic)$store->pruneAutomatic($this->db,$payload['backup_id']);
