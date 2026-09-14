@@ -101,4 +101,3 @@ schema, build, deployment, or browser check is promoted to game evidence.
 The current implementation and exact automated/deployment evidence are recorded in
 ../CURRENT-PARITY-PLAN.md. Schema117,944 runtime files,32 client files and the final
 Windows engine are deployed and hash-verified. In-game acceptance remains unverified.
-
