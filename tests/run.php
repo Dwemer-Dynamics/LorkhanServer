@@ -742,6 +742,42 @@ $transferPlayer=array_replace($transferActor,['kind'=>'player','record_id'=>'pla
 $transferItem=['item_id'=>'@0x1234567890abcdef','record_id'=>'gold_001','name'=>'Gold','count'=>100,
     'location'=>'actor_inventory','owner'=>$transferActor];
 $transferTurn=['target'=>$transferActor,'speaker'=>$transferPlayer,'context'=>['action_items'=>[$transferItem]]];
+$worldTurn=$transferTurn;$worldTurn['execution_mode']='cheat';$worldTurn['ui_source']='lorkhan_text';
+$worldTurn['context']['player']=$transferPlayer;
+$worldTurn['context']['nearbyActors']=['items'=>[array_replace($transferActor,['dead'=>true])]];
+$worldTurn['context']['advanced_actions']=['items'=>[['record_id'=>'robe','name'=>'Robe']],
+    'actors'=>[['record_id'=>'rat','name'=>'Rat','kind'=>'creature']], 'destinations'=>[['destination_id'=>'Balmora','name'=>'Balmora']]];
+$worldParams=['item.create'=>['record_id'=>'robe','count'=>1],'gold.create'=>['amount'=>10],
+    'actor.spawn'=>['record_id'=>'rat','count'=>1],'player.teleport'=>['destination_id'=>'Balmora']];
+foreach([
+    ['items'=>array_fill(0,17,['record_id'=>'robe','name'=>'Robe'])],
+    ['actors'=>[['record_id'=>'player','name'=>'Player','kind'=>'player']]],
+    ['destinations'=>[['destination_id'=>str_repeat('x',129),'name'=>'Too long']]],
+    ['items'=>[['record_id'=>'robe','name'=>'Robe','script'=>'forbidden']]],
+]as$malformed)$check(!\LorkhanServer\Application\AdvancedActionPolicy::validCandidates(array_replace($worldTurn['context']['advanced_actions'],$malformed)),
+    'native candidate contract rejects overflow, wrong kinds, oversized IDs and extra authority');
+foreach(\LorkhanServer\Application\AdvancedActionPolicy::NAMES as$name){
+    $physical=in_array($name,['actor.teleport_to_player','actor.resurrect','actor.kill'],true);
+    $worldTurn['context']['nearbyActors']['items'][0]['dead']=$name==='actor.resurrect';
+    $worldProposal=['name'=>$name,'actor'=>$transferPlayer,'target'=>$physical?$transferActor:$transferPlayer,'parameters'=>$worldParams[$name]??[]];
+    \LorkhanServer\Application\AdvancedActionPolicy::validate($worldProposal,$worldTurn,['action.confirmation']);
+    $check(true,'explicit world action uses native observations '.$name);
+    foreach([['execution_mode'=>'standard'],['execution_mode'=>'director'],['ui_source'=>'lorkhan_open_mic'],
+        ['ui_source'=>'lorkhan_rechat'],['director_instruction_id'=>'child']]as$change)
+        $check(!\LorkhanServer\Application\AdvancedActionPolicy::available($name,array_replace($worldTurn,$change),['action.confirmation']),
+            'world action denies autonomous/wrong mode '.$name.' '.json_encode($change));
+    $check(!\LorkhanServer\Application\AdvancedActionPolicy::available($name,$worldTurn,[]),'world action requires confirmation '.$name);
+    $worldProposal['actor']=$transferActor;
+    try{\LorkhanServer\Application\AdvancedActionPolicy::validate($worldProposal,$worldTurn,['action.confirmation']);$check(false,'NPC cannot grant world authority');}
+    catch(DomainException){$check(true,'NPC cannot grant world authority');}
+}
+$worldProposal=['name'=>'item.create','actor'=>$transferPlayer,'target'=>$transferPlayer,'parameters'=>['record_id'=>'invented','count'=>1]];
+try{\LorkhanServer\Application\AdvancedActionPolicy::validate($worldProposal,$worldTurn,['action.confirmation']);$check(false,'world record must match frozen candidate');}
+catch(DomainException){$check(true,'world record must match frozen candidate');}
+$worldTurn['context']['advanced_actions']['items'][]=$worldTurn['context']['advanced_actions']['items'][0];
+$worldProposal['parameters']['record_id']='robe';
+try{\LorkhanServer\Application\AdvancedActionPolicy::validate($worldProposal,$worldTurn,['action.confirmation']);$check(false,'duplicate world record ambiguity rejected');}
+catch(DomainException){$check(true,'duplicate world record ambiguity rejected');}
 $spellTurn=$transferTurn;$spellTurn['context']['targetState']=['spells_known'=>true,'spells'=>[['spell_id'=>'fireball','name'=>'Fireball']]];
 $cast=['name'=>'spell.cast','actor'=>$transferActor,'target'=>$transferActor,'parameters'=>['spell_id'=>'fireball']];
 \LorkhanServer\Application\SpellActionPolicy::validate($cast,$spellTurn,['action.confirmation']);
@@ -1587,6 +1623,35 @@ $check($continued['followup_enabled']===false&&$continued['followup_actions_allo
     &&$continued['followup_depth']===1&&$required['confirmation_required']===true,
     'one extra action is the hard follow-up cap and required confirmations cannot be disabled');
 $actionTurn = $promptTurn;
+$worldTurn['context']['advanced_actions']['items']=[$worldTurn['context']['advanced_actions']['items'][0]];
+$worldDefinition=['name'=>'item.create','tier'=>2,'available_to_npc'=>false,'available_to_narrator'=>true,
+    'client_capability'=>'action.item.create','confirmation_mode'=>'required','parameter_schema'=>[
+        'type'=>'object','additionalProperties'=>false,'required'=>['record_id','count'],
+        'properties'=>['record_id'=>['type'=>'string','minLength'=>1,'maxLength'=>256],
+            'count'=>['type'=>'integer','minimum'=>1,'maximum'=>100]]]];
+$worldProviderTurn=['payload'=>$worldTurn,'_allowed_action_definitions'=>[$worldDefinition]];
+$normalizer=new ReflectionMethod($actionProvider,'normalizeAction');
+$compactWorld=['utterances'=>[],'action'=>['name'=>'item.create','parameters'=>['record_id'=>'robe','count'=>1],'recipient_id'=>'self']];
+$worldNormalized=$normalizer->invoke($actionProvider,$compactWorld,$worldProviderTurn);
+$check(\LorkhanServer\Application\TransferActionPolicy::sameIdentity($worldNormalized['action']['actor'],$transferPlayer)&&\LorkhanServer\Application\TransferActionPolicy::sameIdentity($worldNormalized['action']['target'],$transferActor),
+    'compact world action resolves exact player executor and observed recipient');
+$worldSchema=(new ReflectionMethod($actionProvider,'responseSchema'))->invoke($actionProvider,$worldProviderTurn);
+$check($worldSchema['properties']->action['anyOf'][1]['properties']->parameters['properties']->record_id['enum']===['robe'],
+    'world provider schema restricts IDs to the exact native candidate set');
+$worldProviderTurn['payload']['execution_mode']='narrator';
+$worldProviderTurn['payload']['target']=array_replace($transferActor,['kind'=>'narrator']);
+$worldProviderTurn['_narrator_action_executors']=['player'=>['actor'=>$transferPlayer,'definitions'=>[$worldDefinition]]];
+$compactWorld['action']['actor_id']='player';$compactWorld['action']['recipient_id']='player';
+$worldNormalized=$normalizer->invoke($actionProvider,$compactWorld,$worldProviderTurn);
+$check($worldNormalized['action']['actor']===$transferPlayer&&$worldNormalized['action']['target']===$transferPlayer,
+    'Narrator world action selects player without borrowing NPC authority');
+$worldLoaded=['session'=>['capabilities'=>['action.confirmation','action.item.create'],'enabled_actions'=>['item.create']],
+    'definitions'=>[$worldDefinition],'turn_payload'=>$worldTurn,'policy'=>['content'=>['actions'=>['item.create'=>['confirmation_required'=>false]]]]];
+$worldApproved=$policy->validate($worldNormalized['action'],$worldLoaded);
+$check($worldApproved['confirmation_required']===true,'world per-action approval cannot be disabled in policy');
+$worldLoaded['continuation']=['depth'=>1];
+try{$policy->validate($worldNormalized['action'],$worldLoaded);$check(false,'world actions cannot execute from action followups');}
+catch(DomainException){$check(true,'world actions cannot execute from action followups');}
 $actionTurn['_allowed_action_definitions'] = $allowedActions;
 $dialogueSchema=(new ReflectionMethod($actionProvider,'responseSchema'))->invoke($actionProvider,$actionTurn);
 $schemaActions=$dialogueSchema['properties']->action['anyOf'];

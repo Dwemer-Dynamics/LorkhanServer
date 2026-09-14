@@ -3547,6 +3547,87 @@ try{
     catch(DomainException $error){$assert($error->getMessage()==='action_parameters_invalid','unexpected frozen spell error: '.$error->getMessage());}
 }finally{$db->rollBack();}
 
+// World mutations never inherit ordinary NPC authority or caller-replaced mode/record observations.
+$db->beginTransaction();
+try{
+    foreach(\LorkhanServer\Application\AdvancedActionPolicy::NAMES as$name)$db->prepare('UPDATE sessions SET enabled_actions=array_append(enabled_actions,:name),capabilities=array_append(capabilities,:cap) WHERE session_id=:session')
+        ->execute(['name'=>$name,'cap'=>'action.'.$name,'session'=>$sessionId]);
+    $db->prepare("UPDATE sessions SET capabilities=array_append(capabilities,'action.confirmation') WHERE session_id=:session")->execute(['session'=>$sessionId]);
+    $advancedRequest=static function()use($transferTurn):array{
+        $request=$transferTurn();$request['payload']['execution_mode']='cheat';$request['payload']['ui_source']='lorkhan_text';
+        $request['payload']['context']['player']=$request['payload']['speaker'];
+        $request['payload']['context']['advanced_actions']=['items'=>[['record_id'=>'robe','name'=>'Robe']],
+            'actors'=>[['record_id'=>'rat','name'=>'Rat','kind'=>'creature']], 'destinations'=>[['destination_id'=>'Balmora','name'=>'Balmora']]];
+        return $request;
+    };
+    $advancedParams=['item.create'=>['record_id'=>'robe','count'=>1],'gold.create'=>['amount'=>10],
+        'actor.spawn'=>['record_id'=>'rat','count'=>1],'player.teleport'=>['destination_id'=>'Balmora']];
+    foreach(['cheat','narrator']as$mode)foreach(\LorkhanServer\Application\AdvancedActionPolicy::NAMES as$name){
+        $request=$advancedRequest();$physical=$request['payload']['target'];
+        $request['payload']['execution_mode']=$mode;
+        if($mode==='narrator'){
+            $request['payload']['target']=array_replace($physical,['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN','display_name'=>'The Narrator']);
+            $request['payload']['context']['nearbyActors']['items'][]=$physical;
+        }
+        $target=in_array($name,['actor.teleport_to_player','actor.resurrect','actor.kill'],true)?$physical:$request['payload']['speaker'];
+        [$status,$body]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+        $assert($status===202,'world turn rejected '.$name.': '.json_encode($body));
+        $definitions=$repo->allowedPromptActions($sessionId,$request['generation'],$request['payload']);
+        $assert(in_array($name,array_column($definitions,'name'),true),'world action not exposed '.$mode.' '.$name);
+        if($mode==='narrator')$assert(isset($repo->narratorExecutors($sessionId,$request['generation'],$request['payload'])['player']),'Narrator missing world executor');
+        $provider=$transferProviderFor(['name'=>$name,'tier'=>2,'parameters'=>$advancedParams[$name]??[],
+            'actor'=>$request['payload']['speaker'],'target'=>$target]);
+        $runTurnWorker($provider);$assert($provider->calls>0,'world provider bypassed');
+        $transferActionRows->execute(['turn'=>$request['turn_id']]);$intent=$transferActionRows->fetch();
+        $assert($intent&&$intent['action_name']===$name&&$intent['confirmation_required']===true
+            &&json_decode($intent['actor'],true)==$request['payload']['speaker'],'world intent lost authority or approval '.$mode.' '.$name);
+        $beforeReplay=(int)$db->query('SELECT count(*) FROM action_intents')->fetchColumn();
+        [$replayStatus]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+        $assert($replayStatus===202&&(int)$db->query('SELECT count(*) FROM action_intents')->fetchColumn()===$beforeReplay,
+            'world request retry duplicated a mutation '.$name);
+    }
+    foreach(['standard','openmic','npc_executor','record','count','confirmation','forged_target']as$failure){
+        $db->exec('SAVEPOINT invalid_world');$request=$advancedRequest();
+        if($failure==='standard')$request['payload']['execution_mode']='standard';
+        if($failure==='openmic')$request['payload']['ui_source']='lorkhan_open_mic';
+        if($failure==='confirmation')$db->prepare("UPDATE sessions SET capabilities=array_remove(capabilities,'action.confirmation') WHERE session_id=:session")->execute(['session'=>$sessionId]);
+        [$status]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+        $assert($status===202,'negative world turn rejected at unrelated boundary');
+        $proposal=['name'=>'item.create','tier'=>2,'parameters'=>['record_id'=>$failure==='record'?'invented':'robe','count'=>$failure==='count'?101:1],
+            'actor'=>$failure==='npc_executor'?$request['payload']['target']:$request['payload']['speaker'],'target'=>$request['payload']['speaker']];
+        if($failure==='forged_target')$proposal['target']['refnum']['index']++;
+        $before=(int)$db->query('SELECT count(*) FROM action_intents')->fetchColumn();
+        $provider=$transferProviderFor($proposal);$runTurnWorker($provider);
+        $assert((int)$db->query('SELECT count(*) FROM action_intents')->fetchColumn()===$before,'invalid world mutation emitted: '.$failure);
+        $db->exec('ROLLBACK TO SAVEPOINT invalid_world');
+    }
+    $request=$advancedRequest();$request['payload']['execution_mode']='standard';
+    [$status]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+    $assert($status===202,'frozen world mode fixture rejected');$request['payload']['execution_mode']='cheat';
+    try{$repo->completeTurn($request,['utterances'=>[],'action'=>['name'=>'gold.create','tier'=>2,'parameters'=>['amount'=>5],
+        'actor'=>$request['payload']['speaker'],'target'=>$request['payload']['speaker']]]);$assert(false,'caller replaced accepted world mode');}
+    catch(DomainException $error){$assert($error->getMessage()==='provider_action_not_allowed','unexpected world mode boundary: '.$error->getMessage());}
+    $request=$advancedRequest();
+    [$status]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+    $assert($status===202,'frozen record fixture rejected');
+    $request['payload']['context']['advanced_actions']['items']=[['record_id'=>'invented','name'=>'Invented']];
+    try{$repo->completeTurn($request,['utterances'=>[],'action'=>['name'=>'item.create','tier'=>2,'parameters'=>['record_id'=>'invented','count'=>1],
+        'actor'=>$request['payload']['speaker'],'target'=>$request['payload']['speaker']]]);$assert(false,'caller replaced accepted native record candidates');}
+    catch(DomainException $error){$assert($error->getMessage()==='action_parameters_invalid','unexpected world candidate boundary: '.$error->getMessage());}
+    $request=$advancedRequest();$request['payload']['target']=array_replace($request['payload']['target'],
+        ['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN','display_name'=>'The Narrator']);
+    $request['payload']['context']['nearbyActors']['items']=[];
+    [$status,$body]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+    $assert($status===202,'Cheat without selected NPC rejected: '.json_encode($body));
+    $available=$repo->allowedPromptActions($sessionId,$request['generation'],$request['payload']);
+    $assert(in_array('gold.create',array_column($available,'name'),true)
+        &&!in_array('ai.follow',array_column($available,'name'),true),'bodiless Cheat lost world action or gained physical NPC actions');
+    $provider=$transferProviderFor(['name'=>'gold.create','tier'=>2,'parameters'=>['amount'=>5],
+        'actor'=>$request['payload']['speaker'],'target'=>$request['payload']['speaker']]);
+    $runTurnWorker($provider);$transferActionRows->execute(['turn'=>$request['turn_id']]);
+    $assert($transferActionRows->fetch()!==false,'Cheat required a selected NPC for player-only mutation');
+}finally{$db->rollBack();}
+
 // Offered service menus share the frozen vendor/player authority for direct and generated actions.
 $db->beginTransaction();
 try{

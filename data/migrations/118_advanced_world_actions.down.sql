@@ -1,0 +1,1 @@
+DELETE FROM lorkhan_internal.action_catalog WHERE action_name IN ('item.create','gold.create','actor.spawn','actor.teleport_to_player','player.teleport','actor.restore','actor.resurrect','actor.kill');

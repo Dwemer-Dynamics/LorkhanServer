@@ -15,7 +15,7 @@ final class ExecutionModePolicy
         if(isset($payload['director_instruction_id'])||($payload['speaker']['kind']??null)!=='player'
             ||!in_array($payload['ui_source']??null,['lorkhan_text','lorkhan_voice','lorkhan_open_mic'],true))throw new DomainException('execution_mode_not_allowed');
         if($mode==='narrator'&&($payload['target']['kind']??null)!=='narrator')throw new DomainException('execution_mode_target_invalid');
-        if($mode==='cheat'&&!in_array($payload['target']['kind']??null,['npc','creature'],true))throw new DomainException('execution_mode_target_invalid');
+        if($mode==='cheat'&&!in_array($payload['target']['kind']??null,['npc','creature','narrator'],true))throw new DomainException('execution_mode_target_invalid');
         return $mode;
     }
 

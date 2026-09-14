@@ -52,6 +52,18 @@ sort($expectedVersions, SORT_NUMERIC);
 $latestVersion = $expectedVersions[array_key_last($expectedVersions)] ?? throw new RuntimeException('no source migrations found');
 $check($runner->up() === $expectedVersions, 'fresh up did not apply ordered migrations');
 fwrite(STDOUT,'Fresh schema head: '.$latestVersion.'; applied migrations: '.count($expectedVersions)."\n");
+$advancedDefinitions=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),
+    array_fill_keys(\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true));
+$check(count($advancedDefinitions)===8,'advanced upgrade omitted world actions');
+foreach($advancedDefinitions as$name=>$definition)$check($definition['available_to_npc']===false
+    &&$definition['available_to_narrator']===true&&$definition['metadata']['tier']===2
+    &&$definition['metadata']['confirmation_mode']==='required'&&!$definition['metadata']['continuation_capable'],
+    'world action must retain explicit authority and mandatory confirmation: '.$name);
+$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/118_advanced_world_actions.down.sql'));
+$check(!isset(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['actor.kill']),'world downgrade retained action');
+$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/118_advanced_world_actions.up.sql'));
+$check(array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),$advancedDefinitions)===$advancedDefinitions,
+    'world actions changed on reapply');
 $serviceDefinitions=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),
     array_fill_keys(\LorkhanServer\Application\ServiceActionPolicy::NAMES,true));
 $check(count($serviceDefinitions)===7,'service upgrade omitted menu types');

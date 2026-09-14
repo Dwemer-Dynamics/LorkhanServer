@@ -106,6 +106,10 @@ final class Validator
         if (!is_string($payload['ui_source']) || count($payload['context']) > 256) {
             throw new ValidationException('invalid_schema');
         }
+        if (array_key_exists('advanced_actions', $payload['context'])
+            && !\LorkhanServer\Application\AdvancedActionPolicy::validCandidates($payload['context']['advanced_actions'])) {
+            throw new ValidationException('invalid_schema');
+        }
         foreach ($payload['recent_action_results'] as $result) $this->embeddedActionResult($result);
         foreach ([$payload['speaker'], $payload['target'], ...$payload['audience']] as $identity) {
             $this->identity($identity);

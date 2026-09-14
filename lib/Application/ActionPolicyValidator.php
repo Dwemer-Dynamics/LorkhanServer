@@ -54,9 +54,11 @@ final class ActionPolicyValidator
             throw new DomainException('action_tier_mismatch');
         }
         $actorKind = $proposal['actor']['kind'] ?? null;
-        $scopeAllowed = $actorKind === 'narrator'
+        $scopeAllowed = in_array($proposal['name'],AdvancedActionPolicy::NAMES,true)
+            ? $actorKind==='player' && ($definition['available_to_narrator']??false)===true
+            : ($actorKind === 'narrator'
             ? ($definition['available_to_narrator'] ?? false) === true
-            : in_array($actorKind, ['npc', 'creature'], true) && ($definition['available_to_npc'] ?? false) === true;
+            : in_array($actorKind, ['npc', 'creature'], true) && ($definition['available_to_npc'] ?? false) === true);
         if (!$scopeAllowed) {
             throw new DomainException('provider_action_not_allowed');
         }
@@ -73,6 +75,8 @@ final class ActionPolicyValidator
         TransferActionPolicy::validate($proposal, $loaded['turn_payload'] ?? [], $capabilities);
         ServiceActionPolicy::validate($proposal, $loaded['turn_payload'] ?? []);
         SpellActionPolicy::validate($proposal, $loaded['turn_payload'] ?? [], $capabilities);
+        AdvancedActionPolicy::validate($proposal, $loaded['turn_payload'] ?? [], $capabilities);
+        if(in_array($proposal['name'],AdvancedActionPolicy::NAMES,true)&&isset($loaded['continuation']))throw new DomainException('provider_action_not_allowed');
 
         $override = $policy['overrides'][$proposal['name']] ?? [];
         $cooldown = (int) ($override['cooldown_seconds'] ?? $definition['cooldown_seconds'] ?? 0);
@@ -111,7 +115,7 @@ final class ActionPolicyValidator
         }
         $normalized['cooldown_seconds']=$cooldown;
         if (in_array($proposal['name'], TransferActionPolicy::NAMES, true)) $normalized['confirmation_required']=true;
-        if ($proposal['name']==='spell.cast') $normalized['confirmation_required']=true;
+        if ($proposal['name']==='spell.cast'||in_array($proposal['name'],AdvancedActionPolicy::NAMES,true)) $normalized['confirmation_required']=true;
         return $normalized;
     }
 
@@ -142,6 +146,7 @@ final class ActionPolicyValidator
                 && TransferActionPolicy::available($definition['name'], $loaded['turn_payload'] ?? [], $capabilities)
                 && ServiceActionPolicy::available($definition['name'], $loaded['turn_payload'] ?? [])
                 && SpellActionPolicy::available($definition['name'], $loaded['turn_payload'] ?? [], $capabilities)
+                && AdvancedActionPolicy::available($definition['name'], $loaded['turn_payload'] ?? [], $capabilities)
                 && $this->policyAllows($definition['name'], $definition['tier'], $policy)) {
                 $override = $policy['overrides'][$definition['name']] ?? [];
                 $cooldown=(int)($override['cooldown_seconds']??$definition['cooldown_seconds']??0);
@@ -174,6 +179,7 @@ final class ActionPolicyValidator
     {
         $cue=ExecutionModePolicy::promptCue($turn['payload']??[]);
         $cue=$cue===''?'':$cue."\n";
+        $cue.=AdvancedActionPolicy::prompt($turn['payload']??[]);
         if(ExecutionModePolicy::mode($turn['payload']??[])==='narrator'){
             $executors=$turn['_narrator_action_executors']??[];
             if($executors===[])return $cue.'action must be null. No physical actor actions are available for this turn.';
@@ -194,7 +200,7 @@ final class ActionPolicyValidator
                     $rows[]='For this actor, recipient_id choices (self is only valid for spell.cast): '.implode('; ',$labels).'.';
                 }
             }
-            return $cue."action must be null or an object with exactly actor_id, name and parameters. actor_id is required and must use an exact selector below; never emit a full actor identity. Only item.give, gold.give and spell.cast may additionally specify recipient_id, outside parameters; omission targets the player. Use self only for spell.cast. Choose only actions listed for the selected actor.\n".implode("\n",$rows);
+            return $cue."action must be null or an object with exactly actor_id, name and parameters. actor_id is required and must use an exact selector below; never emit a full actor identity. World actions, item.give, gold.give and spell.cast may additionally specify recipient_id, outside parameters; omission targets the player. Use self only for spell.cast. Choose only actions listed for the selected actor.\n".implode("\n",$rows);
         }
         $definitions = $turn['_allowed_action_definitions'] ?? [];
         if ($definitions === []) {
@@ -217,8 +223,8 @@ final class ActionPolicyValidator
             if ($recipients!==[]) {
                 $labels=[];
                 foreach ($recipients as $selector=>$actor) $labels[]=$selector.' = '.json_encode($actor['display_name'],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
-                $recipientHelp="\nOnly item.give, gold.give and spell.cast may add a top-level recipient_id (never inside parameters). "
-                    ."Omit it for the current interlocutor. The self selector is only valid for spell.cast. Choose exactly from: ".implode('; ',$labels).'.';
+                $recipientHelp="\nIn addition to world actions, item.give, gold.give and spell.cast may add a top-level recipient_id (never inside parameters). "
+                    ."Omit it for the current interlocutor. For these physical actions the self selector is only valid for spell.cast. Choose exactly from: ".implode('; ',$labels).'.';
             }
             break;
         }

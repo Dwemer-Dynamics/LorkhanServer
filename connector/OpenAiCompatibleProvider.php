@@ -234,6 +234,11 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         if($narrator)$physicalPayload['target']=$executor['actor'];
         foreach ($executor['definitions'] as $definition) {
             $parameters = $definition['parameter_schema'];
+            $candidateGroup=match($definition['name']){'item.create'=>'items','actor.spawn'=>'actors','player.teleport'=>'destinations',default=>null};
+            if($candidateGroup!==null){
+                $candidateKey=$candidateGroup==='destinations'?'destination_id':'record_id';
+                $parameters['properties'][$candidateKey]['enum']=array_column($turn['payload']['context']['advanced_actions'][$candidateGroup]??[],$candidateKey);
+            }
             $parameters['properties'] = (object)($parameters['properties'] ?? []);
             $parameters['required'] ??= [];
             $actorProperty=$narrator?['actor_id'=>['type'=>'string','enum'=>[$selector]]]:[];
@@ -241,8 +246,10 @@ final class OpenAiCompatibleProvider implements StreamingProvider
                 'name'=>['type'=>'string', 'enum'=>[$definition['name']]],
                 'parameters'=>$parameters,
             ]);
-            if (in_array($definition['name'],['item.give','gold.give','spell.cast'],true)) {
-                $recipients=ObservedActionActors::recipients($physicalPayload,$definition['name']==='spell.cast');
+            if (in_array($definition['name'],array_merge(['item.give','gold.give','spell.cast'],\LorkhanServer\Application\AdvancedActionPolicy::NAMES),true)) {
+                $recipients=in_array($definition['name'],\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true)
+                    ? \LorkhanServer\Application\AdvancedActionPolicy::recipients($turn['payload']??[])
+                    : ObservedActionActors::recipients($physicalPayload,$definition['name']==='spell.cast');
                 if ($recipients!==[]) $actions[]=LlmConnector::objectSchema($actorProperty+[
                     'name'=>['type'=>'string','enum'=>[$definition['name']]],
                     'parameters'=>$parameters,
@@ -382,8 +389,10 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             $recipient=$payload['context']['player'];
         }
         if (array_key_exists('recipient_id',$action)) {
-            $recipients=ObservedActionActors::recipients($payload,$name==='spell.cast');
-            if (!in_array($name,['item.give','gold.give','spell.cast'],true) || !is_string($action['recipient_id'])
+            $recipients=in_array($name,\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true)
+                ? \LorkhanServer\Application\AdvancedActionPolicy::recipients($turn['payload'])
+                : ObservedActionActors::recipients($payload,$name==='spell.cast');
+            if (!in_array($name,array_merge(['item.give','gold.give','spell.cast'],\LorkhanServer\Application\AdvancedActionPolicy::NAMES),true) || !is_string($action['recipient_id'])
                 || !isset($recipients[$action['recipient_id']])) {
                 $result['action']=null;
                 return $result;
@@ -393,7 +402,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         $result['action'] = [
             'name' => $name,
             'tier' => $tiers[$name],
-            'actor' => $payload['target'],
+            'actor' => in_array($name,\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true)?$payload['context']['player']:$payload['target'],
             'target' => $recipient,
             'parameters' => $action['parameters'],
         ];

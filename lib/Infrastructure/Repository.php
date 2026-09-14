@@ -308,15 +308,16 @@ final class Repository
                     || in_array($directAction['name'],\LorkhanServer\Application\ServiceActionPolicy::NAMES,true))
                     && ($p['context']['player']['kind']??null)==='player') $actionTarget=$p['context']['player'];
                 if (array_key_exists('target', $directAction)) {
-                    if (!in_array($directAction['name'], ['ai.face','combat.start','combat.stop','item.give','gold.give','spell.cast'], true)
+                    $worldAction=in_array($directAction['name'],\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true);
+                    if (!$worldAction && (!in_array($directAction['name'], ['ai.face','combat.start','combat.stop','item.give','gold.give','spell.cast'], true)
                         || ($directAction['name']!=='spell.cast' && !$this->contextContainsIdentity($p['context'], $directAction['target']))
-                        || ($directAction['name']!=='spell.cast' && $this->sameIdentity($p['target'], $directAction['target']))) {
+                        || ($directAction['name']!=='spell.cast' && $this->sameIdentity($p['target'], $directAction['target'])))) {
                         throw new \DomainException('action_target_invalid');
                     }
                     $actionTarget = $directAction['target'];
                 }
                 $proposal = ['name' => $directAction['name'], 'tier' => $directAction['tier'],
-                    'parameters' => $directAction['parameters'], 'actor' => $p['target'], 'target' => $actionTarget];
+                    'parameters' => $directAction['parameters'], 'actor' => in_array($directAction['name'],\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true)?($p['context']['player']??[]):$p['target'], 'target' => $actionTarget];
                 $validatedDirectAction = $this->actionPolicy->validate($proposal,
                     $this->actionCatalog->loadForSession($m['session_id'], $m['generation']) + ['turn_payload'=>$p]);
             }
@@ -535,7 +536,15 @@ final class Repository
                 $loaded['session']['playthrough_id'],$turnPayload['target']);
             $loaded['policy']=$this->actionCatalog->currentPolicy($loaded['session']['installation_id'],$effective['npc_profile']['profile_id']??null);
         }
-        return $this->actionPolicy->allowedDefinitions($loaded+['turn_payload'=>$turnPayload]);
+        $allowed=$this->actionPolicy->allowedDefinitions($loaded+['turn_payload'=>$turnPayload]);
+        if(($turnPayload['target']['kind']??null)==='narrator')$allowed=array_values(array_filter($allowed,fn($d)=>in_array($d['name'],\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true)));
+        if(\LorkhanServer\Application\AdvancedActionPolicy::eligible($turnPayload)){
+            $world=$this->actionCatalog->loadForSession($sessionId,$generation);
+            $world['definitions']=array_values(array_filter($world['definitions'],fn($d)=>in_array($d['name'],\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true)));
+            $allowed=array_values(array_filter($allowed,fn($d)=>!in_array($d['name'],\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true)));
+            $allowed=array_merge($allowed,$this->actionPolicy->allowedDefinitions($world+['turn_payload'=>$turnPayload]));
+        }
+        return $allowed;
     }
 
     /** Intersect Narrator permission with each real observed actor's current installation/NPC policy. */
@@ -546,7 +555,7 @@ final class Repository
         $products=new ProductRepository($this->db);
         $narrator=$products->effectiveSettingsForActor($loaded['session']['installation_id'],$loaded['session']['playthrough_id'],$payload['target']);
         $loaded['policy']=$this->actionCatalog->currentPolicy($loaded['session']['installation_id'],$narrator['npc_profile']['profile_id']??null);
-        return \LorkhanServer\Application\ExecutionModePolicy::narratorExecutors($payload,function(array $actor)use($payload,$loaded,$products){
+        $executors=\LorkhanServer\Application\ExecutionModePolicy::narratorExecutors($payload,function(array $actor)use($payload,$loaded,$products){
             $physical=$payload;$physical['target']=$actor;
             // Narrator targetState cannot be borrowed as another NPC's services or spell authority.
             $physical['context']['targetState']=\LorkhanServer\Application\ExecutionModePolicy::actorState($payload,$actor);
@@ -562,6 +571,12 @@ final class Repository
             $actorLoaded['definitions']=$narratorAllowed;
             return $this->actionPolicy->allowedDefinitions($actorLoaded);
         });
+        if(\LorkhanServer\Application\AdvancedActionPolicy::eligible($payload)){
+            $world=$this->allowedPromptActions($sessionId,$generation,$payload);
+            $world=array_values(array_filter($world,fn($d)=>in_array($d['name'],\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true)));
+            if($world!==[])$executors['player']=['actor'=>$payload['context']['player'],'definitions'=>$world];
+        }
+        return $executors;
     }
 
     /** @return array<string,mixed> */
@@ -1279,7 +1294,10 @@ final class Repository
             try{$frozen=$this->turnMessage($m['turn_id']);}
             catch(\OutOfBoundsException){$frozen=['payload'=>['execution_mode'=>'standard']];}
             $narratorMode=\LorkhanServer\Application\ExecutionModePolicy::mode($frozen['payload'])==='narrator';
-            if($narratorMode){
+            $worldAction=in_array($action['name']??null,\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true);
+            if($worldAction){
+                $loaded['turn_payload']=$frozen['payload'];
+            }elseif($narratorMode){
                 $selected=null;
                 foreach($this->narratorExecutors($m['session_id'],$m['generation'],$frozen['payload']) as $executor){
                     if(\LorkhanServer\Application\TransferActionPolicy::sameIdentity($executor['actor'],$action['actor']??null)){$selected=$executor;break;}
@@ -1303,7 +1321,7 @@ final class Repository
             }
             if(is_array($m['_action_continuation']??null))$loaded['continuation']=$m['_action_continuation'];
             $validated = $this->actionPolicy->validate($action,$loaded);
-            $hasObservedTargetPolicy=in_array($validated['name'],array_merge(\LorkhanServer\Application\TransferActionPolicy::NAMES,
+            $hasObservedTargetPolicy=$worldAction||in_array($validated['name'],array_merge(\LorkhanServer\Application\TransferActionPolicy::NAMES,
                 \LorkhanServer\Application\ServiceActionPolicy::NAMES,['spell.cast']),true);
             // These policies already checked the physical actor and recipient against the stored turn.
             // Other actions retain the existing speaker-target boundary.
