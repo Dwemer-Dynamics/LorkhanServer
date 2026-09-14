@@ -2660,6 +2660,10 @@ final class ManagementRouter
             : (is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id'])
                 ? ($this->repository->globalSettingsForInstallation($values['installation_id'])['content']['context']['short_term_in_compact_chat']??true) : true);
         $content['context']['hide_ambient_combat'] = isset($values['context_hide_ambient_combat']);
+        $content['context']['detect_magic_events'] = isset($values['context_detect_magic_events_present'])
+            ? isset($values['context_detect_magic_events'])
+            : (is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id'])
+                ? ($this->repository->globalSettingsForInstallation($values['installation_id'])['content']['context']['detect_magic_events']??true) : true);
         $content['context']['ground_items_descriptions_only'] = isset($values['context_ground_items_descriptions_only']);
         $content['context']['inventory_items_descriptions_only'] = isset($values['context_inventory_items_descriptions_only']);
         $eventTypes=$values['context_event_types']??[];if(!is_array($eventTypes))throw new InvalidArgumentException('invalid_context_event_types');

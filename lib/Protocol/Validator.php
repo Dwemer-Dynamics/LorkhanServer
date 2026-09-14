@@ -152,7 +152,7 @@ final class Validator
             'runtime_generation','observed_at','game','type','payload']);
         $type=$message['type']??null;
         if(($message['schema']??null)!=='lorkhan.gamedata.v1'||($message['game']??null)!=='tes3'
-            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue','rpg_event','bored_event','quest_event','journal','inventory'],true)
+            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue','rpg_event','bored_event','quest_event','journal','inventory','spell_cast'],true)
             ||!is_int($message['generation'])||$message['generation']<1
             ||$message['generation']>9_007_199_254_740_991||!is_int($message['runtime_generation'])
             ||$message['runtime_generation']<1||$message['runtime_generation']>9_007_199_254_740_991)
@@ -161,6 +161,27 @@ final class Validator
         $this->timestamp($message['observed_at']??null);
         $payload=$message['payload']??null;
         if(!is_array($payload)||array_is_list($payload))throw new ValidationException('invalid_schema');
+        if($type==='spell_cast'){
+            $fields=['caster','spell_id','spell_name','game_time'];foreach(['target','audience']as$optional)if(array_key_exists($optional,$payload))$fields[]=$optional;
+            $this->keys($payload,$fields);
+            foreach(['caster','target']as$field){
+                if($field==='target'&&!array_key_exists($field,$payload))continue;
+                $this->identity($payload[$field]??null);
+                if(!in_array($payload[$field]['kind']??null,['player','npc','creature'],true))throw new ValidationException('invalid_schema');
+            }
+            if(array_key_exists('audience',$payload)){
+                if(!is_array($payload['audience'])||!array_is_list($payload['audience'])||count($payload['audience'])>12)throw new ValidationException('invalid_schema');
+                $seen=[];foreach($payload['audience']as$witness){$this->identity($witness);
+                    if(!in_array($witness['kind']??null,['player','npc','creature'],true))throw new ValidationException('invalid_schema');
+                    ksort($witness);ksort($witness['cell']);ksort($witness['refnum']);$key=json_encode($witness,JSON_THROW_ON_ERROR);
+                    if(isset($seen[$key]))throw new ValidationException('invalid_schema');$seen[$key]=true;}
+            }
+            foreach(['spell_id','spell_name']as$field)$this->boundedUtf8($payload[$field]??null,1,256);
+            if((!is_int($payload['game_time']??null)&&!is_float($payload['game_time']??null))
+                ||!is_finite((float)$payload['game_time'])||$payload['game_time']<0||$payload['game_time']>9_007_199_254_740_991)
+                throw new ValidationException('invalid_schema');
+            return;
+        }
         if($type==='inventory'){
             $this->keys($payload,['owner','items']);$this->identity($payload['owner']??null);
             if(!in_array($payload['owner']['kind']??null,['npc','creature','player'],true))throw new ValidationException('invalid_schema');

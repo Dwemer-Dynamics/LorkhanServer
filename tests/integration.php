@@ -1371,6 +1371,36 @@ $capturedRows=$capturedRows->fetchAll();
 $assert(array_column($capturedRows,'type')===['chat_background','chat']
     &&array_unique(array_column($capturedRows,'event_kind'))===['gamedata.captured_dialogue'],
     'captured dialogue did not project to CHIM-compatible event types: '.json_encode($capturedRows));
+$spell=$captured;$spell['type']='spell_cast';$spell['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+$spell['payload']=['caster'=>$captured['payload']['listener'],'spell_id'=>'spell_capture_sentinel','spell_name'=>'Spell Capture Sentinel',
+    'game_time'=>12345.25,'target'=>$captured['payload']['speaker']];
+$spellTurnCount=(int)$db->query('SELECT count(*) FROM turns')->fetchColumn();
+[$status]=$call($router,'POST',$base.'/gamedata',$headers($spell['request_id']),[],$spell);
+$assert($status===202&&(int)$db->query('SELECT count(*) FROM turns')->fetchColumn()===$spellTurnCount,'spell capture created a model turn or was rejected');
+$spellNpc=$spell;$spellNpc['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();$spellNpc['payload']['caster']=$spell['payload']['target'];unset($spellNpc['payload']['target']);
+[$status]=$call($router,'POST',$base.'/gamedata',$headers($spellNpc['request_id']),[],$spellNpc);
+$assert($status===202,'NPC self spell capture rejected');
+$spellWitness=$spell;$spellWitness['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();unset($spellWitness['payload']['target']);
+$spellWitness['payload']['spell_name']='Witnessed Self Cast Sentinel';$spellWitness['payload']['audience']=[$spell['payload']['target']];
+[$status]=$call($router,'POST',$base.'/gamedata',$headers($spellWitness['request_id']),[],$spellWitness);
+$assert($status===202,'witnessed player self spell capture rejected');
+$spellCandidates=array_column($products->contextFilterCandidates($installationId,'magic')['items'],'value');
+$assert(in_array('Spell Capture Sentinel',$spellCandidates,true)&&in_array('spell_capture_sentinel',$spellCandidates,true)
+    &&in_array('Witnessed Self Cast Sentinel',$spellCandidates,true),'magic chooser missed names/IDs available only in captured casts');
+
+
+$spellProjection=$db->prepare("SELECT e.type,e.data,m.source_event_id,se.payload FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid JOIN source_events se ON se.source_event_id=m.source_event_id WHERE m.source_event_id IN (:player,:npc) ORDER BY e.type");
+$spellProjection->execute(['player'=>$spell['request_id'],'npc'=>$spellNpc['request_id']]);$spellRows=$spellProjection->fetchAll();
+$assert(array_column($spellRows,'type')===['npcspellcast','spellcast']
+    &&str_contains($spellRows[1]['data'],' casts Spell Capture Sentinel toward ')
+    &&!str_contains($spellRows[0]['data'],' toward ')
+    &&json_decode($spellRows[1]['payload'],true,64,JSON_THROW_ON_ERROR)['payload']==$spell['payload'],
+    'spell projection lost immutable input or claimed a hit/unknown target');
+foreach([['game_time'=>-1],['game_time'=>INF],['spell_name'=>''],['spell_id'=>str_repeat('x',257)],['caster'=>array_replace($spell['payload']['caster'],['kind'=>'narrator'])],['target'=>null],['success'=>false],['audience'=>array_fill(0,13,$spell['payload']['caster'])],['audience'=>array_fill(0,2,$spell['payload']['caster'])]]as$invalid){
+    $invalidSpell=$spell;$invalidSpell['payload']=array_replace($spell['payload'],$invalid);
+    try{(new Validator())->validate($invalidSpell,'lorkhan.gamedata.v1');$assert(false,'malformed spell telemetry accepted');}
+    catch(\LorkhanServer\Protocol\ValidationException){}
+}
 $turn = $fixture('turn');
 $turn['session_id'] = $sessionId;
 $turn['payload']['target']=$controlsQuery['target'];
@@ -1400,6 +1430,25 @@ $memoryRetrievalStatement=$db->prepare("SELECT prompt_section,result_ids,reasons
 $memoryRetrievalStatement->execute(['turn'=>$turn['turn_id']]);$memoryRetrieval=$memoryRetrievalStatement->fetch();
 $promptMessages=$snapshot['message']['_prompt']['_messages']??[];
 $promptHistoryJson=json_encode($promptMessages,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+$assert(str_contains($promptHistoryJson,'Spell Capture Sentinel'),'captured spell did not reach the scoped NPC prompt');
+$assert(str_contains($promptHistoryJson,'Witnessed Self Cast Sentinel'),'witnessed player selfcast did not reach the NPC prompt');
+$unrelatedSpellProbe=$turn;$unrelatedSpellProbe['payload']['target']['refnum']['index']+=100000;
+$assert(!str_contains(json_encode($products->promptContext($unrelatedSpellProbe,$now)['history'],JSON_THROW_ON_ERROR),'Witnessed Self Cast Sentinel'),
+    'selfcast leaked into an unrelated NPC prompt');
+
+$db->beginTransaction();
+try{
+    $spellCore=$products->getRevisioned('core_profile',$actorCoreProfile['core_profile_id']);$spellContent=$spellCore['content'];
+    foreach([['detect_magic_events'=>false],['event_types'=>['chat']],['magic_effects_blacklist'=>['SPELL_CAPTURE_SENTINEL']],['magic_effects_blacklist'=>['spell capture sentinel']]]as$filter){
+        $changed=$spellContent;$changed['settings_overrides']['context']=array_replace($changed['settings_overrides']['context']??[],$filter);
+        $products->revise('core_profile',$actorCoreProfile['core_profile_id'],$changed,'spell context filter regression',$now);
+        $history=json_encode($products->promptContext($turn,$now)['history'],JSON_THROW_ON_ERROR);
+        $assert(!str_contains($history,'Spell Capture Sentinel'),'spell event bypassed disabled action category or magic blacklist');
+    }
+    $spellProjection->execute(['player'=>$spell['request_id'],'npc'=>$spellNpc['request_id']]);
+    $assert(count($spellProjection->fetchAll())===2,'prompt blacklist deleted captured spell sources');
+}finally{$db->rollBack();}
+
 $assert(count($snapshot['message']['_allowed_action_definitions']??[])===17
     &&str_contains((string)($promptMessages[0]['content']??''),'`conversation.end()`')
     &&str_contains((string)($promptMessages[0]['content']??''),

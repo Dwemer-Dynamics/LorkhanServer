@@ -14,7 +14,7 @@ use Throwable;
 final class EventLogRepository
 {
     private const NPC_HISTORY_TYPES = [
-        'inputtext','chat','chat_background','location','weather','death','infoaction','narration','quest','book',
+        'inputtext','chat','chat_background','location','weather','death','infoaction','narration','quest','book','spellcast','npcspellcast',
     ];
 
     private const DEFAULT_HIDDEN_TYPES = [
@@ -409,6 +409,17 @@ final class EventLogRepository
             'location'=>$kind === 'gamedata.captured_dialogue'
                 ? $this->identityLocation($speaker) : $this->location($context),'sess'=>$sessionId,
             'people'=>$this->people($speaker,$target,$audience)];
+        if ($kind === 'gamedata.spell_cast') {
+            $caster=$this->object($body['caster']??[]);
+            $text=$this->displayName($caster,'Actor').' casts '.(string)($body['spell_name']??'');
+            if($target!==[])$text.=' toward '.$this->displayName($target,'Actor');
+            $this->insert(array_merge($common,['speaker'=>$caster,'type'=>($caster['kind']??null)==='player'?'spellcast':'npcspellcast',
+                'data'=>$text,'payload'=>$body+['text'=>$text],'people'=>$this->people($caster,$target,$audience),
+                'gamets'=>max(0,(int)floor((float)($body['game_time']??0))),
+                'location'=>$this->identityLocation($caster),'projection_kind'=>'world','projection_key'=>'spell-cast:'.$sourceId,
+                'delivery_state'=>null,'utterance_id'=>null]));
+            return;
+        }
         if ($kind === 'gamedata.quest_event') {
             $text=trim((string)($body['text']??''));if($text==='')return;
             $responder=$this->object($body['responder']??[]);

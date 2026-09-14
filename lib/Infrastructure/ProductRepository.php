@@ -666,12 +666,14 @@ final class ProductRepository
                 }
             }
         }
+        $castCte=$kind==='magic' ? "recent_casts AS MATERIALIZED (SELECT e.payload->'payload' AS payload FROM source_events e WHERE e.installation_id=:installation AND e.event_kind='gamedata.spell_cast' AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=e.source_event_id) ORDER BY e.received_at DESC,e.source_event_id DESC LIMIT 5000), " : '';
+        $castNames=$kind==='magic' ? " UNION ALL SELECT btrim(spell.name) FROM recent_casts CROSS JOIN LATERAL (SELECT DISTINCT name FROM (VALUES (payload->>'spell_id'),(payload->>'spell_name')) v(name)) spell" : '';
         // JSON projection and aggregation stay in PostgreSQL; never transfer thousands of full prompts to PHP.
         $query = $this->db->prepare("WITH recent AS MATERIALIZED (SELECT t.context FROM active_turns t JOIN sessions s ON s.session_id=t.session_id "
-            . "WHERE s.installation_id=:installation ORDER BY t.accepted_at DESC LIMIT 5000), names AS ("
+            . "WHERE s.installation_id=:installation ORDER BY t.accepted_at DESC LIMIT 5000), ".$castCte."names AS ("
             . "SELECT btrim(CASE jsonb_typeof(v.value) WHEN 'string' THEN v.value#>>'{}' WHEN 'object' THEN COALESCE(v.value->>'display_name',v.value->>'name',v.value->>'record_id') END) AS name "
             . "FROM recent CROSS JOIN jsonb_array_elements_text(CAST(:paths AS jsonb)) p(path) "
-            . "CROSS JOIN LATERAL jsonb_path_query(recent.context,p.path::jsonpath,'{}',true) v(value)) "
+            . "CROSS JOIN LATERAL jsonb_path_query(recent.context,p.path::jsonpath,'{}',true) v(value)".$castNames.") "
             . "SELECT min(name) AS value,count(*) AS count FROM names WHERE name<>'' AND octet_length(name)<=256 AND name !~ '[[:cntrl:]]' "
             . "GROUP BY lower(name) ORDER BY count(*) DESC,lower(name) LIMIT 500");
         $query->execute(['installation'=>$installationId,'paths'=>json_encode($paths, JSON_THROW_ON_ERROR)]);
@@ -3266,7 +3268,10 @@ SQL);
         $recentTurnLimit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
         $history=[];
         if($contextSections['conversation_history']&&$contextPolicy['event_types']!==[]){$typeParameters=[];$historyParameters=[];
-        foreach($contextPolicy['event_types']as$index=>$eventType){$name='event_type_'.$index;$typeParameters[]=':'.$name;$historyParameters[$name]=$eventType;}
+        // Successful casts share the existing action-event switch; older saved settings need no new category.
+        $historyEventTypes=$contextPolicy['event_types'];
+        if(($contextPolicy['detect_magic_events']??true)&&in_array('infoaction',$historyEventTypes,true))$historyEventTypes=array_merge($historyEventTypes,['spellcast','npcspellcast']);
+        foreach($historyEventTypes as$index=>$eventType){$name='event_type_'.$index;$typeParameters[]=':'.$name;$historyParameters[$name]=$eventType;}
         $isNarratorTarget=($turn['payload']['target']['kind']??'')==='narrator';
         $hideNarratorDialogue=!$isNarratorTarget
             &&($this->narratorProfileForInstallation((string)$turn['installation_id'])['content']['hide_from_context']??true)===true;
@@ -3293,7 +3298,7 @@ SELECT 'event:'||e.rowid::text AS id,
                'details',CASE
                    WHEN e.type='location' THEN jsonb_strip_nulls(jsonb_build_object('location',e.location,'game_time',NULLIF(e.gamets,0)))
                    WHEN e.type='weather' THEN jsonb_strip_nulls(jsonb_build_object('weather',COALESCE(m.payload->>'weather',replace(e.data,'Weather changed to ',''))))
-                    WHEN e.type IN ('quest','book','death','infoaction','narration','chat_background') THEN m.payload
+                    WHEN e.type IN ('quest','book','death','infoaction','narration','chat_background','spellcast','npcspellcast') THEN m.payload
                    ELSE NULL END,
                'speaker',CASE WHEN m.speaker='{}'::jsonb THEN NULL ELSE m.speaker END,
                'target',CASE WHEN m.target='{}'::jsonb THEN NULL ELSE m.target END,
@@ -3324,9 +3329,13 @@ SQL);
         ]);
         // Count conversation turns, not individual input, response, and world-event rows.
         $historyTurns=[];$locationBlacklist=[];foreach($contextPolicy['location_blacklist']as$location)$locationBlacklist[mb_strtolower(trim((string)$location),'UTF-8')]=true;
+        $magicBlacklist=[];foreach($contextPolicy['magic_effects_blacklist']as$spell)$magicBlacklist[mb_strtolower(trim((string)$spell),'UTF-8')]=true;
         foreach($historyStatement->fetchAll()as$row){
             $content=$this->json($row['content']);$location=mb_strtolower(trim((string)($content['location']??$content['details']['location']??'')),'UTF-8');
             if($location!==''&&isset($locationBlacklist[$location]))continue;
+            if(in_array($content['type']??null,['spellcast','npcspellcast'],true)
+                &&(isset($magicBlacklist[mb_strtolower(trim((string)($content['details']['spell_id']??'')),'UTF-8')])
+                    ||isset($magicBlacklist[mb_strtolower(trim((string)($content['details']['spell_name']??'')),'UTF-8')])))continue;
             $turnKey=(string)($row['turn_id']??$row['id']);
             if(!isset($historyTurns[$turnKey])&&count($historyTurns)>=$recentTurnLimit)continue;
             $historyTurns[$turnKey]=true;

@@ -28,6 +28,7 @@ $coreOverrideCatalog['relationship.enabled']=['label'=>'Relationship System Enab
 $coreOverrideCatalog['relationship.update_chance_percent']=['label'=>'Relationship Update Chance','type'=>'integer','value'=>50,'range'=>[0,100]];
 $coreOverrideCatalog['context.short_term_in_compact_chat']=['label'=>'Short Term Memory in Compact Chat','type'=>'boolean','value'=>true];
 $coreOverrideCatalog['context.transformation_detection']=['label'=>'Transformation Detection','type'=>'boolean','value'=>true];
+$coreOverrideCatalog['context.detect_magic_events']=['label'=>'Detect Magic Events','type'=>'boolean','value'=>true];
 $coreOverrideCatalog['context.power_awareness_enabled']=['label'=>'Power Awareness Enabled','type'=>'boolean','value'=>false];
 $contextSelectionGroups=require dirname(__DIR__,2).'/tmpl/context_selection_groups.php';
 foreach(['sections'=>'Context Sections','details'=>'Context Details']as$key=>$label){
@@ -48,6 +49,7 @@ $coreOverrideHelp = [
     'context.hide_ambient_combat'=>'Hide ambient death events containing has killed from conversation context. Other death events and the stored event log are retained.',
     'context.short_term_in_compact_chat'=>'Keep past-scene summaries in compact chat. Off omits summaries without hiding original dialogue; Short Term Memory must also be enabled.',
     'context.transformation_detection'=>'Include the observed werewolf form in player and NPC current-state context.',
+    'context.detect_magic_events'=>'Include observed successful spell casts in this profile’s conversation context. The Infoaction event filter and Magic Effect Blacklist still apply; original event records are retained.',
     'context.power_awareness_enabled'=>'Compare observed character levels so NPCs can assess relative threats. The Nearby Actor Details Power selection must also be enabled. Missing levels produce no assessment.',
     'behavior.rechat_mode'=>'Tight uses the listener; Conversational prefers the current partner; Group rotates nearby NPCs; Random chooses a mode at the start of each chain. Existing chains retain their starting mode.',
     'behavior.rechat_strict_targeting'=>'Require the chosen responder to address the previous speaker directly. The selected responder’s setting is captured when the chain starts.',

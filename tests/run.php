@@ -2567,6 +2567,11 @@ $check(EffectiveSettingsResolver::validateGlobalSettings($legacyCompact)['contex
     'existing global settings retain compact memory by default');
 $check(EffectiveSettingsResolver::validateSettingsOverrides(['context'=>['short_term_in_compact_chat'=>false]],true)['context']['short_term_in_compact_chat']===false,
     'NPC compact memory opt-out is a typed override');
+$legacyMagic=SettingsCatalog::globalDefaults();unset($legacyMagic['context']['detect_magic_events']);
+$check(EffectiveSettingsResolver::validateGlobalSettings($legacyMagic)['context']['detect_magic_events']===true,
+    'existing global settings enable spell capture context by default');
+$check(EffectiveSettingsResolver::validateSettingsOverrides(['context'=>['detect_magic_events'=>false]],true)['context']['detect_magic_events']===false,
+    'NPC magic detection opt-out is a typed override');
 $minimalOverlap=(new PromptAssembler(512,256))->assemble($promptTurn,$overlapSelection);
 $check(!in_array('covered_by_memory',array_column($minimalOverlap['trace']['sources'],'reason'),true)
     &&$minimalOverlap['trace']['memory_retrieval']['result_ids']===[],

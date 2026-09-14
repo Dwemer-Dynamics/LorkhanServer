@@ -1078,6 +1078,7 @@ Return a tones object before mood and text in every utterance. Include all eight
             'book' => ($title = trim((string)($details['title'] ?? $details['record_id'] ?? ''))) === ''
                 ? null : '[Book read] ' . $title . (($text = trim((string)($details['text'] ?? ''))) === '' ? '' : ': ' . $text),
             'death' => '[World event] ' . (trim((string)($details['text'] ?? 'An actor died.')) ?: 'An actor died.'),
+            'spellcast', 'npcspellcast' => ($text = trim((string)($details['text'] ?? ''))) === '' ? null : '[Spell cast] ' . $text,
             'infoaction' => '[Action result] ' . (trim((string)($details['text'] ?? $details['data'] ?? 'An action completed.')) ?: 'An action completed.'),
             'narration' => ($text = trim((string)($details['text'] ?? ''))) === '' ? null : '[Narration] ' . $text,
             'chat_background' => ($text = trim((string)($details['text'] ?? ''))) === '' ? null
