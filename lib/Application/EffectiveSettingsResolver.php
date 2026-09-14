@@ -213,6 +213,13 @@ final class EffectiveSettingsResolver
             $profileDiary=DiaryGenerationPolicy::validateOverrides($npcProfileContent['diary']);
             $this->mergeSettings($settings, ['diary'=>$profileDiary], 'npc', 'settings', $sources);
         }
+        // The NPC relationship editor owns this leaf separately from generic metadata overrides.
+        if (isset($npcProfileContent['relationship']) && is_array($npcProfileContent['relationship'])
+            && array_key_exists('locked', $npcProfileContent['relationship'])) {
+            $locked=$npcProfileContent['relationship']['locked'];
+            if (!is_bool($locked)) throw new InvalidArgumentException('invalid_npc_relationship_override');
+            $this->mergeSettings($settings, ['relationship'=>['locked'=>$locked]], 'npc', 'settings', $sources);
+        }
 
         if (!is_array($narratorProfileContent) || ($narratorProfileContent !== [] && array_is_list($narratorProfileContent))) {
             throw new InvalidArgumentException('invalid_settings_layer');
@@ -306,7 +313,7 @@ final class EffectiveSettingsResolver
         if (($content['schema'] ?? null) !== SettingsCatalog::GLOBAL_SCHEMA) throw new InvalidArgumentException('invalid_global_settings');
         self::validateSettingsShape($content['client'], SettingsCatalog::clientDefaults(), false);
         if(!is_array($content['task_availability'])||array_is_list($content['task_availability']))throw new InvalidArgumentException('invalid_global_settings');
-        $content['task_availability'] += ['scene_classifier'=>true];
+        $content['task_availability'] += ['scene_classifier'=>true,'director'=>true];
         self::assertExactKeys($content['task_availability'],$expected['task_availability'],'invalid_global_settings');
         foreach($content['task_availability']as$enabled)if(!is_bool($enabled))throw new InvalidArgumentException('invalid_global_settings');
         self::assertExactKeys($content['prompt'], $expected['prompt'], 'invalid_global_settings');
@@ -334,7 +341,7 @@ final class EffectiveSettingsResolver
             throw new InvalidArgumentException('invalid_global_settings');
         }
         // New global-only task routes default to Disabled for older saved documents.
-        if(is_array($content['system_routing'])&&!array_is_list($content['system_routing']))$content['system_routing'] += ['background_memory_configuration_id'=>'','scene_classifier_configuration_id'=>''];
+        if(is_array($content['system_routing'])&&!array_is_list($content['system_routing']))$content['system_routing'] += ['background_memory_configuration_id'=>'','scene_classifier_configuration_id'=>'','director_configuration_id'=>''];
         self::assertExactKeys($content['system_routing'], $expected['system_routing'], 'invalid_global_settings');
         foreach (SettingsCatalog::systemRoutingFields() as $field) self::validateUuidOrEmpty($content['system_routing'][$field]);
         return $content;

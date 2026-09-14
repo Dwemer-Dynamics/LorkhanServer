@@ -1,5 +1,8 @@
 # All user-facing pages: HerikaServer UI parity
 
+Current runtime/settings/action work: [Current parity plan](CURRENT-PARITY-PLAN.md).
+The dated entries below retain historical evidence, not a second current backlog.
+
 ## Supported-page presentation closure (2026-09-13)
 
 The user rejected the earlier shared-style pass as insufficient on 2026-09-05.

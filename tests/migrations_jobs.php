@@ -51,6 +51,83 @@ $expectedVersions = array_map(
 sort($expectedVersions, SORT_NUMERIC);
 $latestVersion = $expectedVersions[array_key_last($expectedVersions)] ?? throw new RuntimeException('no source migrations found');
 $check($runner->up() === $expectedVersions, 'fresh up did not apply ordered migrations');
+fwrite(STDOUT,'Fresh schema head: '.$latestVersion.'; applied migrations: '.count($expectedVersions)."\n");
+$serviceDefinitions=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),
+    array_fill_keys(\LorkhanServer\Application\ServiceActionPolicy::NAMES,true));
+$check(count($serviceDefinitions)===7,'service upgrade omitted menu types');
+foreach($serviceDefinitions as$name=>$definition)$check($definition['metadata']['tier']===1
+    &&$definition['metadata']['client_capability']==='action.'.$name&&$definition['metadata']['confirmation_mode']==='optional'
+    &&$definition['parameters_json']===['type'=>'object','additionalProperties'=>false], 'service catalogue changed its empty parameters or optional confirmation: '.$name);
+$db->beginTransaction();
+try{
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.down.sql'));
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/115_service_actions.down.sql'));
+    $check(array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),$serviceDefinitions)===[], 'service downgrade retained menu entries');
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/115_service_actions.up.sql'));
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.up.sql'));
+    $check(array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),$serviceDefinitions)===$serviceDefinitions,'service reapply changed catalogue');
+}finally{$db->rollBack();}
+$sheatheDefinition=array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['weapon.sheathe']??null;
+$check(is_array($sheatheDefinition)&&$sheatheDefinition['metadata']['client_capability']==='action.weapon.sheathe'
+    &&$sheatheDefinition['metadata']['confirmation_mode']==='optional'&&$sheatheDefinition['parameters_json']===['type'=>'object','additionalProperties'=>false]
+    &&$sheatheDefinition['metadata']['terminal_result_required']===true,'sheathe catalog definition lost its bounded empty parameters or optional confirmation');
+$db->beginTransaction();
+try{
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.down.sql'));
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/112_weapon_sheathe.down.sql'));
+    $check((int)$db->query("SELECT count(*) FROM action_catalog WHERE action_name='weapon.sheathe'")->fetchColumn()===0,
+        'sheathe downgrade retained its catalog entry');
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/112_weapon_sheathe.up.sql'));
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.up.sql'));
+    $sheatheReapplied=array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['weapon.sheathe']??null;
+    $check($sheatheReapplied===$sheatheDefinition,'sheathe reapply changed its catalog definition');
+}finally{$db->rollBack();}
+$transferDefinitions=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),
+    array_fill_keys(['item.give','item.take','item.pickup','gold.give','gold.take'],true));
+$check(count($transferDefinitions)===5,'transfer upgrade omitted a typed action family');
+foreach($transferDefinitions as$name=>$definition){
+    $required=str_starts_with($name,'gold.')?['amount']:($name==='item.pickup'?['item_id']:['item_id','count']);
+    $check($definition['metadata']['tier']===2&&$definition['metadata']['client_capability']==='action.'.$name
+        &&$definition['metadata']['confirmation_mode']==='required'&&$definition['metadata']['terminal_result_required']===true
+        &&$definition['parameters_json']['additionalProperties']===false&&$definition['parameters_json']['required']===$required,
+        'transfer catalogue omitted its exact bounded parameters or forced approval: '.$name);
+}
+$db->beginTransaction();
+try{
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.down.sql'));
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/113_transfer_actions.down.sql'));
+    $remaining=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),$transferDefinitions);
+    $check($remaining===[],'transfer downgrade retained typed transfer entries');
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/113_transfer_actions.up.sql'));
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.up.sql'));
+    $reapplied=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),$transferDefinitions);
+    $check($reapplied===$transferDefinitions,'transfer reapply changed catalogue definitions');
+}finally{$db->rollBack();}
+$db->beginTransaction();
+try{
+    $check($db->query("SELECT to_regclass('lorkhan_internal.director_plans') IS NOT NULL AND to_regclass('lorkhan_internal.director_instructions') IS NOT NULL")->fetchColumn()===true,
+        'Director upgrade omitted its durable instruction tables');
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/114_director_plans.down.sql'));
+    $check($db->query("SELECT to_regclass('lorkhan_internal.director_plans') IS NULL AND to_regclass('lorkhan_internal.director_instructions') IS NULL")->fetchColumn()===true,
+        'empty Director downgrade retained instruction tables');
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/114_director_plans.up.sql'));
+    $directorEventConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='lorkhan_internal.response_events'::regclass AND conname='response_events_event_type_check'")->fetchColumn();
+    $check(str_contains($directorEventConstraint,'director.instructions'),'Director reapply lost its event contract');
+}finally{$db->rollBack();}
+$spellDefinition=array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['spell.cast']??null;
+$check(is_array($spellDefinition)&&$spellDefinition['metadata']['tier']===2&&$spellDefinition['metadata']['confirmation_mode']==='required'
+    &&$spellDefinition['metadata']['client_capability']==='action.spell.cast'&&$spellDefinition['parameters_json']['required']===['spell_id']
+    &&$spellDefinition['available_to_narrator']===true,'spell catalogue lost bounded identifier, approval or Narrator eligibility');
+$db->beginTransaction();
+try{
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.down.sql'));
+    foreach((new ActionCatalogRepository($db))->enabledDefinitions()as$definition)$check($definition['available_to_narrator']===false,'pre117 catalogue silently enabled Narrator execution');
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/116_spell_cast.down.sql'));
+    $check(!isset(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['spell.cast']),'spell downgrade retained action');
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/116_spell_cast.up.sql'));
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.up.sql'));
+    $check(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['spell.cast']===$spellDefinition,'spell/Narrator reapply changed authority');
+}finally{$db->rollBack();}
 $dialogueIndexConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
     ."WHERE conrelid='lorkhan_internal.dialogue_utterances'::regclass "
     ."AND conname='dialogue_utterances_utterance_index_check'")->fetchColumn();
@@ -910,6 +987,15 @@ $npcScope=['installation_id'=>$installation,'profile_id'=>$npcProfile['profile_i
 $relationship=$service->setRelationship($npcScope+['actor_identity'=>['kind'=>'player','record_id'=>'player','display_name'=>'Nerevarine','content_file'=>'Morrowind.esm','refnum'=>['index'=>1,'content_file'=>0]],'disposition'=>20,'affinity'=>5,
     'source_mode'=>'manual','reason'=>'test']);
 $check($relationship['disposition'] === 20 && count($products->relationships($npcScope)) === 1, 'relationship audit foundation failed');
+$relationshipRevision=$db->prepare('SELECT provenance FROM relationship_revisions WHERE relationship_id=:id AND revision=1');
+$relationshipRevision->execute(['id'=>$relationship['relationship_id']]);
+$check($relationshipRevision->fetchColumn()==='{}','manual relationship revision was mislabeled automatic');
+$db->beginTransaction();
+try{
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/111_relationship_timeline.down.sql'));
+    $check(false,'relationship timeline downgrade discarded retained history');
+}catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove relationship timeline history'),'unexpected relationship timeline downgrade error');}
+finally{$db->rollBack();}
 $relationshipProjection=$db->prepare("SELECT npc.extended_data#>>'{relationships,player,disposition}' FROM npc_metadata metadata JOIN public.core_npc_master npc ON npc.id=metadata.npc_id WHERE metadata.source_profile_id=:profile");
 $relationshipProjection->execute(['profile'=>$npcProfile['profile_id']]);
 $check($relationshipProjection->fetchColumn()==='20','relationship did not project into the Herika NPC contract');
@@ -2047,6 +2133,8 @@ $stats = $worker->run();
 $check($stats === ['claimed' => 1, 'succeeded' => 1, 'retried' => 0, 'dead' => 0] && $handler->calls === 1, 'bounded worker failed');
 
 // Real backup and replay against the disposable migration fixture, never the deployed database.
+// The populated-history downgrade refusal was tested above. This success fixture needs an empty history table.
+$db->exec('DELETE FROM relationship_revisions');
 $replayRoot=sys_get_temp_dir().'/lorkhan-replay-'.bin2hex(random_bytes(8));
 $replayConfig=['database_dsn'=>$dsn,'database_user'=>getenv('LORKHAN_TEST_DB_USER')?:'','database_password'=>getenv('LORKHAN_TEST_DB_PASSWORD')?:'','backup_storage_path'=>$replayRoot];
 $replayRegistry=new JobHandlerRegistry([new \LorkhanServer\Application\DatabaseReplayJobHandler($db,$replayConfig)]);

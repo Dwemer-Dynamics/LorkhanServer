@@ -70,6 +70,9 @@ final class ActionPolicyValidator
         if (!is_array($schema) || !$this->matchesSchema($proposal['parameters'], $schema)) {
             throw new DomainException('action_parameters_invalid');
         }
+        TransferActionPolicy::validate($proposal, $loaded['turn_payload'] ?? [], $capabilities);
+        ServiceActionPolicy::validate($proposal, $loaded['turn_payload'] ?? []);
+        SpellActionPolicy::validate($proposal, $loaded['turn_payload'] ?? [], $capabilities);
 
         $override = $policy['overrides'][$proposal['name']] ?? [];
         $cooldown = (int) ($override['cooldown_seconds'] ?? $definition['cooldown_seconds'] ?? 0);
@@ -107,6 +110,8 @@ final class ActionPolicyValidator
                 ($override['followup_prompt']??$definition['followup_prompt']??'');
         }
         $normalized['cooldown_seconds']=$cooldown;
+        if (in_array($proposal['name'], TransferActionPolicy::NAMES, true)) $normalized['confirmation_required']=true;
+        if ($proposal['name']==='spell.cast') $normalized['confirmation_required']=true;
         return $normalized;
     }
 
@@ -134,6 +139,9 @@ final class ActionPolicyValidator
             }
             if (in_array($definition['name'], $negotiatedActions, true)
                 && in_array($definition['client_capability'], $capabilities, true)
+                && TransferActionPolicy::available($definition['name'], $loaded['turn_payload'] ?? [], $capabilities)
+                && ServiceActionPolicy::available($definition['name'], $loaded['turn_payload'] ?? [])
+                && SpellActionPolicy::available($definition['name'], $loaded['turn_payload'] ?? [], $capabilities)
                 && $this->policyAllows($definition['name'], $definition['tier'], $policy)) {
                 $override = $policy['overrides'][$definition['name']] ?? [];
                 $cooldown=(int)($override['cooldown_seconds']??$definition['cooldown_seconds']??0);
@@ -164,9 +172,33 @@ final class ActionPolicyValidator
     /** Render only server-filtered definitions; old snapshots and rechat fail closed to dialogue. */
     public function promptContract(array $turn): string
     {
+        $cue=ExecutionModePolicy::promptCue($turn['payload']??[]);
+        $cue=$cue===''?'':$cue."\n";
+        if(ExecutionModePolicy::mode($turn['payload']??[])==='narrator'){
+            $executors=$turn['_narrator_action_executors']??[];
+            if($executors===[])return $cue.'action must be null. No physical actor actions are available for this turn.';
+            $rows=[];
+            foreach($executors as $selector=>$executor){
+                $rows[]='actor_id '.json_encode($selector,JSON_THROW_ON_ERROR).' = '
+                    .json_encode($executor['actor']['display_name'],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR).':';
+                $give=false;$cast=false;
+                foreach($executor['definitions'] as $definition){
+                    $rows[]='- `'.$definition['name'].$this->parameterSignature((array)$definition['parameter_schema']).'`: '.($definition['description']??'');
+                    if(in_array($definition['name'],['item.give','gold.give'],true))$give=true;
+                    if($definition['name']==='spell.cast')$cast=true;
+                }
+                if($give||$cast){
+                    $physical=$turn['payload'];$physical['target']=$executor['actor'];$labels=[];
+                    foreach(ObservedActionActors::recipients($physical,$cast) as $id=>$actor)
+                        $labels[]=$id.' = '.json_encode($actor['display_name'],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+                    $rows[]='For this actor, recipient_id choices (self is only valid for spell.cast): '.implode('; ',$labels).'.';
+                }
+            }
+            return $cue."action must be null or an object with exactly actor_id, name and parameters. actor_id is required and must use an exact selector below; never emit a full actor identity. Only item.give, gold.give and spell.cast may additionally specify recipient_id, outside parameters; omission targets the player. Use self only for spell.cast. Choose only actions listed for the selected actor.\n".implode("\n",$rows);
+        }
         $definitions = $turn['_allowed_action_definitions'] ?? [];
         if ($definitions === []) {
-            return 'action must be null. No actions are available for this turn.';
+            return $cue.'action must be null. No actions are available for this turn.';
         }
         $actions = [];
         foreach ($definitions as $definition) {
@@ -177,8 +209,21 @@ final class ActionPolicyValidator
             if($description!=='')$contract.=': '.$description;
             $actions[]=$contract;
         }
-        return "action must be null or an object with exactly name and parameters; the server adds actor, target, and tier.\n"
-            ."Use only these actions and their compact typed parameters:\n".implode("\n",$actions);
+        $recipientHelp='';
+        $castAvailable=in_array('spell.cast',array_column($definitions,'name'),true);
+        foreach ($definitions as $definition) {
+            if (!in_array($definition['name'],['item.give','gold.give','spell.cast'],true)) continue;
+            $recipients=ObservedActionActors::recipients($turn['payload']??[],$castAvailable);
+            if ($recipients!==[]) {
+                $labels=[];
+                foreach ($recipients as $selector=>$actor) $labels[]=$selector.' = '.json_encode($actor['display_name'],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+                $recipientHelp="\nOnly item.give, gold.give and spell.cast may add a top-level recipient_id (never inside parameters). "
+                    ."Omit it for the current interlocutor. The self selector is only valid for spell.cast. Choose exactly from: ".implode('; ',$labels).'.';
+            }
+            break;
+        }
+        return $cue."action must be null or an object with name and parameters; the server adds actor, target, and tier.\n"
+            ."Use only these actions and their compact typed parameters:\n".implode("\n",$actions).$recipientHelp;
     }
 
     /** @return array{enabled:bool,max_tier:int,allow:?list<string>,deny:list<string>,overrides:array<string,array<string,mixed>>} */

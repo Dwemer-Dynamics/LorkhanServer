@@ -274,12 +274,19 @@ final class Repository
         });
     }
 
+    /** Read trusted child text before prompt assembly; acceptance rechecks and claims it atomically. */
+    public function directorChildInput(array $message): array
+    {
+        return (new DirectorPlanningRepository($this->db))->prepareChild($message);
+    }
+
     /** @param array<string,mixed>|null $providerInput @param array<string,mixed>|null $promptTrace */
     public function acceptTurn(array $m, ?array $providerInput = null, ?array $promptTrace = null,
-        ?string $idempotencyHash = null, ?array $idempotencyResponse = null, ?array $directAction = null, ?array $dynamicPlan = null): array
+        ?string $idempotencyHash = null, ?array $idempotencyResponse = null, ?array $directAction = null, ?array $dynamicPlan = null,
+        array $directorScene = []): array
     {
         return $this->transaction(function () use (
-            $m, $providerInput, $promptTrace, $idempotencyHash, $idempotencyResponse, $directAction, $dynamicPlan
+            $m, $providerInput, $promptTrace, $idempotencyHash, $idempotencyResponse, $directAction, $dynamicPlan, $directorScene
         ): array {
             $session = $this->session($m['session_id'], $m['generation'], true);
             foreach (['installation_id' => 'installation_id', 'profile_id' => 'profile_id', 'playthrough_id' => 'playthrough_id',
@@ -287,14 +294,23 @@ final class Repository
                 if ((string) $m[$request] !== (string) $session[$stored]) throw new \UnexpectedValueException('stale_generation');
             }
             $p = $m['payload'];
+            $director=new DirectorPlanningRepository($this->db);
+            $isDirector=($p['execution_mode']??'standard')==='director';
+            if($isDirector && ($providerInput!==null || $directAction!==null)) throw new \DomainException('director_route_invalid');
+            if(!isset($p['director_instruction_id']) && ($p['speaker']['kind']??null)==='player'
+                && in_array($p['ui_source']??null,['lorkhan_text','lorkhan_open_mic','lorkhan_voice','lorkhan_action_menu'],true))
+                $director->cancel($m['session_id'],(int)$m['generation']);
             $validatedDirectAction = null;
             if ($directAction !== null) {
                 if ($this->actionCatalog === null || $this->actionPolicy === null) throw new \DomainException('action_disabled');
                 $actionTarget = $p['speaker'];
+                if ((in_array($directAction['name'],['item.take','item.pickup','gold.take'],true)
+                    || in_array($directAction['name'],\LorkhanServer\Application\ServiceActionPolicy::NAMES,true))
+                    && ($p['context']['player']['kind']??null)==='player') $actionTarget=$p['context']['player'];
                 if (array_key_exists('target', $directAction)) {
-                    if (!in_array($directAction['name'], ['ai.face','combat.start','combat.stop'], true)
-                        || !$this->contextContainsIdentity($p['context'], $directAction['target'])
-                        || $this->sameIdentity($p['target'], $directAction['target'])) {
+                    if (!in_array($directAction['name'], ['ai.face','combat.start','combat.stop','item.give','gold.give','spell.cast'], true)
+                        || ($directAction['name']!=='spell.cast' && !$this->contextContainsIdentity($p['context'], $directAction['target']))
+                        || ($directAction['name']!=='spell.cast' && $this->sameIdentity($p['target'], $directAction['target']))) {
                         throw new \DomainException('action_target_invalid');
                     }
                     $actionTarget = $directAction['target'];
@@ -302,7 +318,7 @@ final class Repository
                 $proposal = ['name' => $directAction['name'], 'tier' => $directAction['tier'],
                     'parameters' => $directAction['parameters'], 'actor' => $p['target'], 'target' => $actionTarget];
                 $validatedDirectAction = $this->actionPolicy->validate($proposal,
-                    $this->actionCatalog->loadForSession($m['session_id'], $m['generation']));
+                    $this->actionCatalog->loadForSession($m['session_id'], $m['generation']) + ['turn_payload'=>$p]);
             }
             $stmt = $this->db->prepare('INSERT INTO turns (turn_id, request_id, message_id, session_id, generation, runtime_generation, input_kind, '
                 . 'input_language, input_text, speaker, target, audience, context, state, accepted_at) VALUES '
@@ -312,6 +328,13 @@ final class Repository
                 'generation' => $m['generation'], 'runtime_generation' => $m['runtime_generation'], 'kind' => $p['input']['kind'], 'language' => $p['input']['language'], 'text' => $p['input']['text'],
                 'speaker' => $this->encode($p['speaker']), 'target' => $this->encode($p['target']), 'audience' => $this->encode($p['audience']),
                 'context' => $this->encode($p['context']), 'state' => 'accepted', 'accepted' => $m['created_at']]);
+            if(isset($p['director_instruction_id'])){
+                $trusted=$director->claimChild($m);
+                if($p['input']['text']!==$trusted['instruction']
+                    || ($p['context']['director']['plan_id']??null)!==$trusted['plan_id']
+                    || ($p['context']['director']['scene_note']??null)!==$trusted['scene_note'])
+                    throw new \DomainException('director_instruction_mismatch');
+            }
             if(is_array($m['_action_continuation']??null)){
                 $actionId=(string)($m['_action_continuation']['action_id']??'');
                 if($actionId===''||$this->actionCatalog===null||!$this->actionCatalog->consumeContinuation(
@@ -352,6 +375,7 @@ final class Repository
             $dynamicOghma=new DynamicOghmaRepository($this->db);
             $dynamicOghma->apply((string)$m['installation_id'],(string)$m['playthrough_id'],(string)$m['message_id'],$dynamicPlan??$dynamicOghma->plan($m));
             $event = $this->event($m['session_id'], $m['generation'], $m['request_id'], $m['turn_id'], 'turn.accepted', ['status' => 'accepted']);
+            if($isDirector)$director->enqueuePlan($m,$directorScene);
             if ($providerInput !== null) {
                 $providerInput['_negotiated_capabilities']=$session['capabilities'];
                 $jobPayload = ['turn_id' => $m['turn_id'], 'session_id' => $m['session_id'], 'generation' => $m['generation']];
@@ -500,12 +524,44 @@ final class Repository
     }
 
     /** Resolve prompt-visible actions through the same catalog and policy used at execution. */
-    public function allowedPromptActions(string $sessionId, int $generation): array
+    public function allowedPromptActions(string $sessionId, int $generation, array $turnPayload = []): array
     {
         // Preserve ingress stale/closed-session errors before the catalog's active-session read.
         $this->session($sessionId, $generation);
         if ($this->actionCatalog === null || $this->actionPolicy === null) return [];
-        return $this->actionPolicy->allowedDefinitions($this->actionCatalog->loadForSession($sessionId, $generation));
+        $loaded=$this->actionCatalog->loadForSession($sessionId,$generation);
+        if(in_array($turnPayload['target']['kind']??null,['npc','creature'],true)){
+            $effective=(new ProductRepository($this->db))->effectiveSettingsForActor($loaded['session']['installation_id'],
+                $loaded['session']['playthrough_id'],$turnPayload['target']);
+            $loaded['policy']=$this->actionCatalog->currentPolicy($loaded['session']['installation_id'],$effective['npc_profile']['profile_id']??null);
+        }
+        return $this->actionPolicy->allowedDefinitions($loaded+['turn_payload'=>$turnPayload]);
+    }
+
+    /** Intersect Narrator permission with each real observed actor's current installation/NPC policy. */
+    public function narratorExecutors(string $sessionId,int $generation,array $payload): array
+    {
+        if($this->actionCatalog===null||$this->actionPolicy===null)return [];
+        $loaded=$this->actionCatalog->loadForSession($sessionId,$generation);
+        $products=new ProductRepository($this->db);
+        $narrator=$products->effectiveSettingsForActor($loaded['session']['installation_id'],$loaded['session']['playthrough_id'],$payload['target']);
+        $loaded['policy']=$this->actionCatalog->currentPolicy($loaded['session']['installation_id'],$narrator['npc_profile']['profile_id']??null);
+        return \LorkhanServer\Application\ExecutionModePolicy::narratorExecutors($payload,function(array $actor)use($payload,$loaded,$products){
+            $physical=$payload;$physical['target']=$actor;
+            // Narrator targetState cannot be borrowed as another NPC's services or spell authority.
+            $physical['context']['targetState']=\LorkhanServer\Application\ExecutionModePolicy::actorState($payload,$actor);
+            $narratorLoaded=$loaded+['turn_payload'=>$physical];
+            $narratorAllowed=$this->actionPolicy->allowedDefinitions($narratorLoaded);
+            foreach($narratorAllowed as &$definition){
+                if(($definition['confirmation_required']??false)===true)$definition['confirmation_mode']='required';
+            }
+            unset($definition);
+            $actorLoaded=$narratorLoaded;
+            $effective=$products->effectiveSettingsForActor($loaded['session']['installation_id'],$loaded['session']['playthrough_id'],$actor);
+            $actorLoaded['policy']=$this->actionCatalog->currentPolicy($loaded['session']['installation_id'],$effective['npc_profile']['profile_id']??null);
+            $actorLoaded['definitions']=$narratorAllowed;
+            return $this->actionPolicy->allowedDefinitions($actorLoaded);
+        });
     }
 
     /** @return array<string,mixed> */
@@ -1017,6 +1073,7 @@ final class Repository
             if (!$turn) throw new \OutOfBoundsException('unknown_turn');
             if ($turn['request_id'] !== $m['request_id']) throw new \DomainException('request_mismatch');
             if (!in_array($turn['state'], ['accepted', 'processing'], true)) throw new \DomainException('turn_terminal');
+            (new DirectorPlanningRepository($this->db))->cancel($m['session_id'],(int)$m['generation']);
             $this->db->prepare('INSERT INTO interruptions VALUES (:message, :request, :session, :turn, :generation, :reason, :created)')
                 ->execute(['message' => $m['message_id'], 'request' => $m['request_id'], 'session' => $m['session_id'], 'turn' => $m['turn_id'],
                     'generation' => $m['generation'], 'reason' => $m['reason'], 'created' => $m['created_at']]);
@@ -1210,6 +1267,7 @@ final class Repository
 
     private function validateProviderResult(array $result, array $session, array $m): array
     {
+        \LorkhanServer\Application\ExecutionModePolicy::mode($m['payload']);
         $keys = array_keys($result);
         sort($keys);
         if ($keys !== ['action', 'utterances']) throw new \DomainException('provider_invalid_output');
@@ -1218,9 +1276,40 @@ final class Repository
         if (!is_array($action) || array_is_list($action)) throw new \DomainException('provider_invalid_action');
         if ($this->actionCatalog !== null && $this->actionPolicy !== null) {
             $loaded=$this->actionCatalog->loadForSession($m['session_id'],$m['generation']);
+            try{$frozen=$this->turnMessage($m['turn_id']);}
+            catch(\OutOfBoundsException){$frozen=['payload'=>['execution_mode'=>'standard']];}
+            $narratorMode=\LorkhanServer\Application\ExecutionModePolicy::mode($frozen['payload'])==='narrator';
+            if($narratorMode){
+                $selected=null;
+                foreach($this->narratorExecutors($m['session_id'],$m['generation'],$frozen['payload']) as $executor){
+                    if(\LorkhanServer\Application\TransferActionPolicy::sameIdentity($executor['actor'],$action['actor']??null)){$selected=$executor;break;}
+                }
+                if($selected===null)throw new \DomainException('provider_action_not_allowed');
+                $loaded['definitions']=$selected['definitions'];
+                $loaded['turn_payload']=$frozen['payload'];$loaded['turn_payload']['target']=$selected['actor'];
+                $loaded['turn_payload']['context']['targetState']=\LorkhanServer\Application\ExecutionModePolicy::actorState($frozen['payload'],$selected['actor']);
+                $effective=(new ProductRepository($this->db))->effectiveSettingsForActor($loaded['session']['installation_id'],
+                    $loaded['session']['playthrough_id'],$selected['actor']);
+                $loaded['policy']=$this->actionCatalog->currentPolicy($loaded['session']['installation_id'],$effective['npc_profile']['profile_id']??null);
+            }
+            if (in_array($action['name']??null,array_merge(\LorkhanServer\Application\TransferActionPolicy::NAMES,
+                \LorkhanServer\Application\ServiceActionPolicy::NAMES,['spell.cast']),true)&&!$narratorMode) {
+                // Observed actions use accepted state, never a caller-replaced provider message snapshot.
+                $stored=$this->db->prepare('SELECT speaker,target,audience,context FROM turns WHERE turn_id=:turn AND session_id=:session AND generation=:generation');
+                $stored->execute(['turn'=>$m['turn_id'],'session'=>$m['session_id'],'generation'=>$m['generation']]);
+                $row=$stored->fetch();
+                if (!$row) throw new \DomainException('unknown_turn');
+                $loaded['turn_payload']=array_map(fn($value)=>$this->json($value),$row);
+            }
             if(is_array($m['_action_continuation']??null))$loaded['continuation']=$m['_action_continuation'];
             $validated = $this->actionPolicy->validate($action,$loaded);
-            if ($validated['actor'] != $m['payload']['target'] || $validated['target'] != $m['payload']['speaker']) {
+            $hasObservedTargetPolicy=in_array($validated['name'],array_merge(\LorkhanServer\Application\TransferActionPolicy::NAMES,
+                \LorkhanServer\Application\ServiceActionPolicy::NAMES,['spell.cast']),true);
+            // These policies already checked the physical actor and recipient against the stored turn.
+            // Other actions retain the existing speaker-target boundary.
+            if (!$hasObservedTargetPolicy && ($narratorMode
+                ? !\LorkhanServer\Application\TransferActionPolicy::sameIdentity($validated['target'],$frozen['payload']['speaker'])
+                : ($validated['actor'] != $m['payload']['target'] || $validated['target'] != $m['payload']['speaker']))) {
                 throw new \DomainException('provider_action_not_allowed');
             }
             $result['action']=$validated;return$result;
@@ -1240,6 +1329,10 @@ final class Repository
 
     private function cancelOutstandingTurns(string $sessionId,string $reason):void
     {
+        $directorScope=$this->db->prepare('SELECT generation FROM sessions WHERE session_id=:session');
+        $directorScope->execute(['session'=>$sessionId]);
+        if(($generation=$directorScope->fetchColumn())!==false)
+            (new DirectorPlanningRepository($this->db))->cancel($sessionId,(int)$generation);
         $select=$this->db->prepare("SELECT t.turn_id,t.request_id,t.generation,t.runtime_generation,s.installation_id,s.profile_id,s.playthrough_id "
             . "FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE t.session_id=:session "
             . "AND t.state IN ('accepted','processing') FOR UPDATE OF t");

@@ -32,6 +32,7 @@ spl_autoload_register(static function (string $class): void {
         'Application\\DialogueExpiryJobHandler' => '/service/DialogueExpiryJobHandler.php',
         'Application\\DialoguePlanner' => '/processor/DialoguePlanner.php',
         'Application\\DiaryGenerateJobHandler' => '/service/DiaryGenerateJobHandler.php',
+        'Application\\DirectorPlanJobHandler' => '/service/DirectorPlanJobHandler.php',
         'Application\\EmbeddingProvider' => '/connector/EmbeddingProvider.php',
         'Application\\FirstPartyJobHandlerFactory' => '/service/FirstPartyJobHandlerFactory.php',
         'Application\\FirstPartyJobHandlers' => '/service/FirstPartyJobHandlers.php',

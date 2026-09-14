@@ -1080,6 +1080,8 @@ Return a tones object before mood and text in every utterance. Include all eight
             'death' => '[World event] ' . (trim((string)($details['text'] ?? 'An actor died.')) ?: 'An actor died.'),
             'itemfound' => ($text = trim((string)($details['text'] ?? ''))) === '' ? null : '[Item pickup] ' . $text,
             'spellcast', 'npcspellcast' => ($text = trim((string)($details['text'] ?? ''))) === '' ? null : '[Spell cast] ' . $text,
+            'info' => ($details['observation_type']??null)==='actor_resurrected'
+                && ($text=trim((string)($details['text']??'')))!=='' ? '[Resurrection] '.$text : null,
             'infoaction' => '[Action result] ' . (trim((string)($details['text'] ?? $details['data'] ?? 'An action completed.')) ?: 'An action completed.'),
             'narration' => ($text = trim((string)($details['text'] ?? ''))) === '' ? null : '[Narration] ' . $text,
             'chat_background' => ($text = trim((string)($details['text'] ?? ''))) === '' ? null

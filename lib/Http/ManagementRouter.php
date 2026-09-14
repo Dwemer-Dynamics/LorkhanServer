@@ -2685,12 +2685,18 @@ final class ManagementRouter
         }
         $content['relationship']=['enabled'=>isset($values['relationship_enabled']),
             'update_chance_percent'=>$integer($values,'relationship_update_chance_percent',0)];
-        if(isset($values['task_availability_present']))$content['task_availability']=['background_memory'=>isset($values['background_memory_enabled']),'profile_generation'=>isset($values['profile_tasks_enabled']),'scene_classifier'=>isset($values['scene_classifier_enabled'])];
+        if(isset($values['task_availability_present']))$content['task_availability']=['background_memory'=>isset($values['background_memory_enabled']),'profile_generation'=>isset($values['profile_tasks_enabled']),'scene_classifier'=>isset($values['scene_classifier_enabled']),'director'=>isset($values['director_enabled'])];
         elseif(is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id']))$content['task_availability']=$this->repository->globalSettingsForInstallation($values['installation_id'])['content']['task_availability']??SettingsCatalog::globalDefaults()['task_availability'];
         if(!isset($values['scene_classifier_present'])&&is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id'])){
             $previous=$this->repository->globalSettingsForInstallation($values['installation_id'])['content']??[];
             $content['task_availability']['scene_classifier']=$previous['task_availability']['scene_classifier']??true;
             $values['scene_classifier_configuration_id']=$previous['system_routing']['scene_classifier_configuration_id']??'';
+        }
+        // Older open forms must not erase a Director route or toggle they did not render.
+        if(!isset($values['director_present'])&&is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id'])){
+            $previous=$this->repository->globalSettingsForInstallation($values['installation_id'])['content']??[];
+            $content['task_availability']['director']=$previous['task_availability']['director']??true;
+            $values['director_configuration_id']=$previous['system_routing']['director_configuration_id']??'';
         }
         foreach(SettingsCatalog::systemRoutingFields()as$field){$value=trim((string)($values[$field]??''));
             if($value!=='')$this->uuid($value,$field);$content['system_routing'][$field]=$value;}

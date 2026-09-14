@@ -431,6 +431,16 @@ final class EventLogRepository
                 'delivery_state'=>null,'utterance_id'=>null]));
             return;
         }
+        if ($kind === 'gamedata.actor_resurrected') {
+            $actor=$this->object($body['actor']??[]);
+            $text=$this->displayName($actor,'Actor').' was resurrected.';
+            $this->insert(array_merge($common,['speaker'=>$actor,'target'=>[],'type'=>'info','data'=>$text,
+                'payload'=>$body+['text'=>$text,'observation_type'=>'actor_resurrected'],'people'=>$this->people($actor,[],$audience),
+                'gamets'=>max(0,(int)floor((float)($body['game_time']??0))),
+                'location'=>$this->identityLocation($actor),'projection_kind'=>'world','projection_key'=>'resurrection:'.$sourceId,
+                'delivery_state'=>null,'utterance_id'=>null]));
+            return;
+        }
         if ($kind === 'gamedata.quest_event') {
             $text=trim((string)($body['text']??''));if($text==='')return;
             $responder=$this->object($body['responder']??[]);

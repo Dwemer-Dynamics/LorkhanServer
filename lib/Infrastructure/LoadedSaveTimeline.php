@@ -61,7 +61,7 @@ final class LoadedSaveTimeline
             $markTurn->execute($parameters+['id'=>$row['turn_id']]);$counts['turns']+=$markTurn->rowCount();
         }
         $sources=$this->db->prepare("SELECT e.source_event_id,e.session_id,e.event_kind,
-            COALESCE(e.payload#>'{context,world,calendar}',e.payload#>'{payload,context,world,calendar}',e.payload->'calendar',CASE WHEN e.event_kind IN ('gamedata.spell_cast','gamedata.item_pickup') THEN e.payload#>'{payload,calendar}' END) AS calendar,
+            COALESCE(e.payload#>'{context,world,calendar}',e.payload#>'{payload,context,world,calendar}',e.payload->'calendar',CASE WHEN e.event_kind IN ('gamedata.spell_cast','gamedata.item_pickup','gamedata.actor_resurrected') THEN e.payload#>'{payload,calendar}' END) AS calendar,
             EXISTS(SELECT 1 FROM timeline_invalidated_turns i WHERE i.turn_id=e.turn_id) AS invalid_turn
             FROM source_events e JOIN sessions s ON s.session_id=e.session_id
             WHERE e.installation_id=:installation AND s.playthrough_id=:playthrough AND e.source_event_id<>:load
@@ -71,7 +71,7 @@ final class LoadedSaveTimeline
         while ($row=$sources->fetch()) {
             $second=self::calendarSecond($row['calendar']);
             // Undated observations cannot be placed on a loaded branch. With no load date, no older observation is safe.
-            $unanchoredObservation=in_array($row['event_kind'],['gamedata.spell_cast','gamedata.item_pickup'],true)
+            $unanchoredObservation=in_array($row['event_kind'],['gamedata.spell_cast','gamedata.item_pickup','gamedata.actor_resurrected'],true)
                 &&$row['session_id']!==$loadSession&&($second===null||$cutoffSecond===null);
             if (!$row['invalid_turn']&&!$unanchoredObservation&&($cutoffSecond===null||$second===null||$second<$cutoffSecond)) continue;
             $markSource->execute($parameters+['id'=>$row['source_event_id']]);$counts['sources']+=$markSource->rowCount();
@@ -103,6 +103,7 @@ final class LoadedSaveTimeline
                 AND m.installation_id=:installation AND m.playthrough_id=:playthrough");$orphan->execute($scope);
         }
         $counts+=$this->restoreGeneratedProfiles($scope,$message['message_id']);
+        $counts+=(new RelationshipTimelineRepository($this->db))->restore($scope,$message['message_id']);
         return $counts;
     }
 

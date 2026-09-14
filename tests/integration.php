@@ -28,6 +28,7 @@ use LorkhanServer\Infrastructure\ProviderAttemptRepository;
 use LorkhanServer\Infrastructure\ProductRepository;
 use LorkhanServer\Infrastructure\Repository;
 use LorkhanServer\Infrastructure\TtsPronunciationRepository;
+use LorkhanServer\Infrastructure\Uuid;
 use LorkhanServer\Protocol\Validator;
 use LorkhanServer\Security\PairingToken;
 use LorkhanServer\Security\RequestMac;
@@ -471,7 +472,9 @@ $assert(($factoryProfile['content']['biography']??null)===$factoryRow['npc_stati
 unlink($factoryBiographies);unlink($factoryManifest);rmdir($factoryDirectory);
 $automaticTarget=['kind'=>'npc','record_id'=>'automatic_bosmer','refnum'=>['index'=>101,'content_file'=>0],
     'content_file'=>'Morrowind.esm','cell'=>['kind'=>'exterior','grid_x'=>-2,'grid_y'=>-9],'display_name'=>'Automatic Bosmer'];
-$automaticContext=['targetState'=>['identity'=>['race'=>'Wood Elf','class'=>'Commoner','gender'=>'Male','is_male'=>true],
+$automaticContext=['targetState'=>['recordProvenance'=>['state'=>'complete','record_id'=>$automaticTarget['record_id'],
+    'files'=>['Morrowind.esm'],'winning_file'=>'Morrowind.esm'],
+    'identity'=>['race'=>'Wood Elf','class'=>'Commoner','gender'=>'Male','is_male'=>true],
     'factions'=>[['id'=>'fighters guild','rank'=>1,'reputation'=>4],['id'=>'former guild','rank'=>-1,'reputation'=>0]]]];
 $automaticVoice=$morrowindVoices->resolve($automaticTarget,$automaticContext);
 $assert(($automaticVoice['id']??null)==='mw_wood_elf_male','Morrowind voice catalog did not resolve Wood Elf male');
@@ -962,7 +965,8 @@ $autoProfileData['installation_id']=$installationId;$autoProfileData['playthroug
 $autoProfileData['session_id']=$sessionId;$autoProfileData['generation']=7;$autoProfileData['runtime_generation']=7;
 $autoProfileData['request_id']=$newUuid(852);$autoProfileData['type']='actor_profile';
 $autoProfileData['payload']=['actor'=>$autoTarget,'race'=>'Wood Elf','class'=>'Commoner','gender'=>'male',
-    'level'=>1,'disposition'=>50,'factions'=>['fighters guild']];
+    'level'=>1,'disposition'=>50,'factions'=>['fighters guild'],
+    'record_provenance'=>['state'=>'complete','record_id'=>$autoTarget['record_id'],'files'=>['Morrowind.esm'],'winning_file'=>'Morrowind.esm']];
 [$status,$autoAccepted]=$call($router,'POST',$base.'/gamedata',$headers($autoProfileData['request_id']),[],$autoProfileData);
 $autoControls=$controlsQuery;$autoControls['message_id']=$newUuid(853);$autoControls['request_id']=$newUuid(854);
 $autoControls['target']=$autoTarget;
@@ -1101,6 +1105,7 @@ $assert($backfillThreshold['reason']==='history_threshold'&&$backfillThreshold['
 $backfillContent['settings_overrides']['profile_management']['autofill_custom_profiles_trigger']=10;
 $products->revise('profile',$backfillProfile['profile_id'],$backfillContent,'use ten actor events',$now);
 $backfillData=$autoProfileData;$backfillData['request_id']=$newUuid(6160);$backfillData['payload']['actor']=$backfillTarget;
+$backfillData['payload']['record_provenance']['record_id']=$backfillTarget['record_id'];
 [$backfillStatus]=$call($router,'POST',$base.'/gamedata',$headers($backfillData['request_id']),[],$backfillData);
 $backfillSource=$db->prepare("SELECT event_kind FROM source_events WHERE source_event_id=:source");
 $backfillSource->execute(['source'=>$backfillData['request_id']]);
@@ -1436,6 +1441,15 @@ foreach([['count'=>0],['count'=>2147483648],['unit_value'=>-1],['unit_value'=>0.
 }
 $turn = $fixture('turn');
 $turn['session_id'] = $sessionId;
+$resurrected=$spell;$resurrected['type']='actor_resurrected';$resurrected['request_id']=Uuid::v4();
+$resurrected['payload']=['actor'=>$controlsQuery['target'],'audience'=>[$controlsQuery['target']],'game_time'=>1];
+$resurrectionText=$resurrected['payload']['actor']['display_name'].' was resurrected.';
+[$resurrectedStatus,$resurrectedBody]=$call($router,'POST',$base.'/gamedata',$headers($resurrected['request_id']),[],$resurrected);
+$assert($resurrectedStatus===202,'resurrection telemetry rejected: '.json_encode($resurrectedBody));
+$resurrectionProjection=$db->prepare("SELECT e.type,e.data FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.source_event_id=:source");
+$resurrectionProjection->execute(['source'=>$resurrected['request_id']]);$resurrectionRow=$resurrectionProjection->fetch();
+$assert($resurrectionRow&&$resurrectionRow['type']==='info'&&$resurrectionRow['data']===$resurrectionText,
+    'resurrection did not project witnessed background info');
 $turn['payload']['target']=$controlsQuery['target'];
 $turn['payload']['input']['text'] = 'Please follow me.';
 $turn['payload']['input']['mood']=['kind'=>'playful'];
@@ -1464,6 +1478,7 @@ $memoryRetrievalStatement->execute(['turn'=>$turn['turn_id']]);$memoryRetrieval=
 $promptMessages=$snapshot['message']['_prompt']['_messages']??[];
 $promptHistoryJson=json_encode($promptMessages,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
 $assert(str_contains($promptHistoryJson,'Spell Capture Sentinel'),'captured spell did not reach the scoped NPC prompt');
+$assert(str_contains($promptHistoryJson,$resurrectionText),'resurrection did not reach formatted NPC prompt');
 $assert(str_contains($promptHistoryJson,'Valuable Pickup Sentinel')&&!str_contains($promptHistoryJson,'Low Value Pickup Sentinel')
     &&!str_contains($promptHistoryJson,'Unwitnessed Source Pickup Sentinel'),'pickup total-value threshold or witness scoping failed');
 
@@ -1480,11 +1495,12 @@ $assert(!str_contains(json_encode($products->promptContext($unrelatedSpellProbe,
 $db->beginTransaction();
 try{
     $dated=[];
-    foreach(['spell'=>$spell,'pickup'=>$pickup]as$family=>$template){
+    foreach(['spell'=>$spell,'pickup'=>$pickup,'resurrection'=>$resurrected]as$family=>$template){
         foreach(['past'=>11.5,'cutoff'=>12.0,'future'=>12.5,'undated'=>null]as$when=>$hour){
             $observation=$template;$observation['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
             $observation['payload']['game_time']=1; // Deliberately contradicts calendar ordering.
-            $nameField=$family==='spell'?'spell_name':'item_name';$observation['payload'][$nameField]='Timeline '.$family.' '.$when;
+            if($family==='resurrection')$observation['payload']['actor']['display_name']='Timeline '.$family.' '.$when;
+            else{$nameField=$family==='spell'?'spell_name':'item_name';$observation['payload'][$nameField]='Timeline '.$family.' '.$when;}
             if($hour!==null)$observation['payload']['calendar']=['year'=>427,'month'=>7,'day'=>15,'hour'=>$hour];
             (new Validator())->validate($observation,'lorkhan.gamedata.v1');$repo->acceptGameData($observation);
             $dated[$family][$when]=$observation['request_id'];
@@ -1788,6 +1804,120 @@ $assert($relationships->enqueue($delivery['message_id'])['job_id']===$relationsh
     &&$relationshipWorker()['claimed']===0,'duplicate delivery reapplied relationship evaluation');
 $assert((int)$db->query("SELECT config_revision FROM provider_attempts WHERE operation='evaluate_relationship'")->fetchColumn()===1,
     'queued relationship job did not keep its frozen provider revision');
+// Exercise actual automatic provenance and loaded-save restoration without changing the surrounding worker fixtures.
+$db->exec('SAVEPOINT relationship_timeline');
+$db->prepare("UPDATE profiles SET actor_identity=jsonb_set(actor_identity,'{kind}','\"npc\"'::jsonb) WHERE profile_id=:id")
+    ->execute(['id'=>$actorProfile['profile_id']]);
+$relationOwner=$products->getRevisioned('profile',$actorProfile['profile_id']);
+$relationOwnerContent=$relationOwner['content'];$relationOwnerContent['management']['locked']=false;
+$products->revise('profile',$actorProfile['profile_id'],$relationOwnerContent,'unlocked relationship timeline fixture',$now);
+$relationshipTimeline=new \LorkhanServer\Infrastructure\LoadedSaveTimeline($db);
+$relationScope=['installation'=>$installationId,'playthrough'=>$session['playthrough_id']];
+$relationId=$relationshipReceipt['relationship_id'];
+$relationRead=$db->prepare('SELECT * FROM relationship_records WHERE relationship_id=:id');
+$relationRead->execute(['id'=>$relationId]);$relationBefore=$relationRead->fetch();
+$relationHistory=$db->prepare('SELECT provenance FROM relationship_revisions WHERE relationship_id=:id AND revision=:revision');
+$relationHistory->execute(['id'=>$relationId,'revision'=>$relationBefore['revision']]);
+$relationOrigin=json_decode($relationHistory->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
+$assert($relationOrigin['kind']==='automatic_relationship'&&$relationOrigin['job_id']===$relationshipJob['job_id']
+    &&$relationOrigin['source_turn_ids']===[$turn['turn_id']]&&$relationOrigin['base_revision']===0,
+    'automatic relationship did not retain its actual leased job and source ancestry');
+$db->exec('SAVEPOINT relationship_expired_provenance');
+try{
+    $products->setRelationship(['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],
+        'playthrough_id'=>$session['playthrough_id'],'relationship_id'=>$relationId,'expected_revision'=>(int)$relationBefore['revision'],
+        'source_event_id'=>$delivery['message_id'],'disposition'=>60,'affinity'=>60,'source_mode'=>'derived',
+        '_relationship_job'=>['job_id'=>$relationshipJob['job_id'],'attempt'=>1,'lease_token'=>\LorkhanServer\Infrastructure\Uuid::v4()]],$now);
+    $assert(false,'expired relationship job manufactured automatic ancestry');
+}catch(RuntimeException $error){$assert($error->getMessage()==='relationship_provenance_lease_lost','wrong automatic provenance lease failure');}
+$db->exec('ROLLBACK TO SAVEPOINT relationship_expired_provenance');
+$relationLoadQuery=$db->prepare("SELECT e.source_event_id FROM source_events e JOIN sessions s ON s.session_id=e.session_id
+    WHERE e.installation_id=:installation AND s.playthrough_id=:playthrough AND e.event_kind='session.init' LIMIT 1");
+$relationLoadQuery->execute($relationScope);
+$relationLoad=['message_id'=>$relationLoadQuery->fetchColumn(),'installation_id'=>$installationId,
+    'playthrough_id'=>$session['playthrough_id'],'loaded_save'=>['year'=>427,'month'=>7,'day'=>15,'hour'=>12]];
+$relationDate=$db->prepare("UPDATE turns SET context=jsonb_set(context,'{world}',COALESCE(context->'world','{}'::jsonb)
+    ||jsonb_build_object('calendar',CAST(:calendar AS jsonb))) WHERE turn_id=:id");
+$relationDate->execute(['id'=>$turn['turn_id'],'calendar'=>'{"year":427,"month":7,"day":16,"hour":12}']);
+$db->exec('SAVEPOINT relationship_timeline_seed');
+$relationCounts=$relationshipTimeline->invalidate($relationLoad);
+$relationRead->execute(['id'=>$relationId]);$relationRemoved=$relationRead->fetch();
+$assert($relationCounts['relationships']===1&&$relationRemoved['deleted_at']!==null
+    &&(int)$relationRemoved['revision']===(int)$relationBefore['revision']+1,
+    'loaded save retained an automatic-only relationship or decreased its revision: '.json_encode([$relationCounts,$relationRemoved['revision'],$relationBefore['revision'],$relationRemoved['deleted_at'],$products->getRevisioned('profile',$actorProfile['profile_id'])['actor_identity']]));
+$assert($relationshipTimeline->invalidate($relationLoad)['relationships']===0,'repeated load reapplied relationship retirement');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_timeline_seed');
+$relationManual=$products->setRelationship(['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],
+    'playthrough_id'=>$session['playthrough_id'],'relationship_id'=>$relationId,'expected_revision'=>(int)$relationBefore['revision'],
+    'disposition'=>21,'affinity'=>19,'custom_info'=>'Keep my manual canon','details'=>['note'=>'Manual relationship'],
+    'source_mode'=>'manual'],$now);
+$db->exec('SAVEPOINT relationship_manual_boundary');
+$assert($relationshipTimeline->invalidate($relationLoad)['relationships']===0,'loaded save replaced a manual relationship edit');
+$relationRead->execute(['id'=>$relationId]);$relationManualState=$relationRead->fetch();
+$assert($relationManualState['custom_info']==='Keep my manual canon'&&(int)$relationManualState['disposition']===21,
+    'manual relationship canon was lost');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_manual_boundary');
+// A historical automatic chain crosses two game dates but must stop at the manual baseline.
+$relationEarlierTurn=\LorkhanServer\Infrastructure\Uuid::v4();
+$relationClone=$db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,
+    speaker,target,audience,context,state,accepted_at)
+    SELECT :id,:request,:message,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,'complete',accepted_at
+    FROM turns WHERE turn_id=:source");
+$relationClone->execute(['id'=>$relationEarlierTurn,'request'=>\LorkhanServer\Infrastructure\Uuid::v4(),
+    'message'=>\LorkhanServer\Infrastructure\Uuid::v4(),'source'=>$turn['turn_id']]);
+$relationDate->execute(['id'=>$relationEarlierTurn,'calendar'=>'{"year":427,"month":7,"day":13,"hour":12}']);
+$relationRevision=$relationManual['revision'];
+foreach([[$relationEarlierTurn,31],[$turn['turn_id'],41]]as[$sourceTurn,$score]){
+    $next=$products->setRelationship(['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],
+        'playthrough_id'=>$session['playthrough_id'],'relationship_id'=>$relationId,'expected_revision'=>$relationRevision,
+        'disposition'=>$score,'affinity'=>$score,'source_mode'=>'derived'],$now);
+    $fixtureProvenance=$relationOrigin;$fixtureProvenance['base_revision']=$relationRevision;$fixtureProvenance['source_turn_ids']=[$sourceTurn];
+    $db->prepare('UPDATE relationship_revisions SET provenance=CAST(:provenance AS jsonb) WHERE relationship_id=:id AND revision=:revision')
+        ->execute(['id'=>$relationId,'revision'=>$next['revision'],'provenance'=>json_encode($fixtureProvenance)]);
+    $relationRevision=$next['revision'];
+}
+$db->exec('SAVEPOINT relationship_chain');
+foreach(['creature','player','narrator','other_playthrough','unknown']as$relationBoundary){
+    $db->exec('SAVEPOINT relationship_boundary');
+    if(in_array($relationBoundary,['creature','player','narrator'],true)){
+        $db->prepare("UPDATE profiles SET actor_identity=jsonb_set(actor_identity,'{kind}',CAST(:kind AS jsonb)) WHERE profile_id=:id")
+            ->execute(['id'=>$actorProfile['profile_id'],'kind'=>json_encode($relationBoundary)]);
+    }else{
+        $boundaryProvenance=$fixtureProvenance;
+        if($relationBoundary==='unknown')$boundaryProvenance=[];
+        else $boundaryProvenance['playthrough_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+        $db->prepare('UPDATE relationship_revisions SET provenance=CAST(:provenance AS jsonb) WHERE relationship_id=:id AND revision=:revision')
+            ->execute(['id'=>$relationId,'revision'=>$relationRevision,'provenance'=>json_encode((object)$boundaryProvenance)]);
+    }
+    $assert($relationshipTimeline->invalidate($relationLoad)['relationships']===($relationBoundary==='creature'?1:0),
+        'relationship restoration crossed its '.$relationBoundary.' boundary');
+    $db->exec('ROLLBACK TO SAVEPOINT relationship_boundary');
+}
+$assert($relationshipTimeline->invalidate($relationLoad)['relationships']===1,'automatic relationship chain was not restored');
+$relationRead->execute(['id'=>$relationId]);$restoredRelation=$relationRead->fetch();
+$assert((int)$restoredRelation['disposition']===31&&(int)$restoredRelation['revision']===$relationRevision+1
+    &&$restoredRelation['custom_info']==='Keep my manual canon','relationship baseline, custom information or monotonic revision failed');
+$relationProjection=$db->prepare("SELECT npc.extended_data->'relationships' FROM npc_metadata metadata
+    JOIN public.core_npc_master npc ON npc.id=metadata.npc_id WHERE metadata.source_profile_id=:profile");
+$relationProjection->execute(['profile'=>$actorProfile['profile_id']]);
+$relationProjected=json_decode($relationProjection->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
+$assert((int)($relationProjected[$turn['payload']['speaker']['record_id']]['disposition']??-999)===31,
+    'restored relationship did not reach the public NPC projection');
+$assert($relationshipTimeline->invalidate($relationLoad)['relationships']===0,'identical load appended another relationship revision');
+$relationEarlierLoad=$relationLoad;$relationEarlierLoad['loaded_save']['day']=12;
+$assert($relationshipTimeline->invalidate($relationEarlierLoad)['relationships']===1,'earlier load did not follow restored relationship ancestry');
+$relationRead->execute(['id'=>$relationId]);$restoredRelation=$relationRead->fetch();
+$assert((int)$restoredRelation['disposition']===21&&(int)$restoredRelation['revision']===$relationRevision+2
+    &&$restoredRelation['custom_info']==='Keep my manual canon','earlier load did not stop at manual baseline');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_chain');
+$relationLocked=$products->getRevisioned('profile',$actorProfile['profile_id']);
+$relationLockedContent=$relationLocked['content'];$relationLockedContent['relationship']['locked']=true;
+$products->revise('profile',$actorProfile['profile_id'],$relationLockedContent,'relationship lock fixture',$now);
+$assert($relationshipTimeline->invalidate($relationLoad)['relationships']===0,'relationship lock did not prevent loaded-save restoration');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_chain');
+$products->deleteRelationship($relationId,$now,$relationRevision);
+$assert($relationshipTimeline->invalidate($relationLoad)['relationships']===0,'loaded save resurrected a manual relationship deletion');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_timeline');
 $db->exec('SAVEPOINT prefill_relationship_audit');
 $prefillAuditId='00000000-0000-4000-8000-000000000991';
 (new ProviderAttemptRepository($db))->start($prefillAuditId,'llm','mock','evaluate_relationship',1);
@@ -3189,6 +3319,359 @@ $assert($autonomyExcluded,'excluded autonomy scheduling remained reachable');
 $assert($status===200&&$autonomyEvents['autonomy']===[],'excluded autonomy directive was delivered');
 
 // Player menu actions bypass the provider but retain the same authenticated turn and action policy boundary.
+// Transfers are proposals against frozen native observations, never authority to invent or reselect inventory.
+$transferRouter=new Router($repo,new Validator(),new MockProvider(),$tokenHash,rateLimitRequests:1000,providerAttempts:$attempts);
+$db->beginTransaction();
+try{
+    $transferNames=['item.give','item.take','item.pickup','gold.give','gold.take'];
+    $db->prepare("UPDATE sessions SET enabled_actions=enabled_actions||ARRAY['item.give','item.take','item.pickup','gold.give','gold.take'],
+        capabilities=capabilities||ARRAY['action.item.give','action.item.take','action.item.pickup','action.gold.give','action.gold.take','action.confirmation']
+        WHERE session_id=:session")->execute(['session'=>$sessionId]);
+    $transferRecipient=$turn['payload']['target'];$transferRecipient['record_id']='transfer_recipient';
+    $transferRecipient['display_name']='Transfer Recipient';$transferRecipient['refnum']['index']=99123;
+    $transferRows=[
+        ['item_id'=>'@0x1001','record_id'=>'iron_dagger','name'=>'Iron Dagger','count'=>3,'location'=>'actor_inventory','owner'=>$turn['payload']['target']],
+        ['item_id'=>'@0x1002','record_id'=>'common_shirt_01','name'=>'Common Shirt','count'=>4,'location'=>'player_inventory','owner'=>$turn['payload']['speaker']],
+        ['item_id'=>'@0x1003','record_id'=>'ingred_bread_01','name'=>'Bread','count'=>2,'location'=>'ground','owner'=>null],
+        ['item_id'=>'@0x1004','record_id'=>'gold_001','name'=>'Gold','count'=>50,'location'=>'actor_inventory','owner'=>$turn['payload']['target']],
+        ['item_id'=>'@0x1005','record_id'=>'gold_001','name'=>'Gold','count'=>30,'location'=>'player_inventory','owner'=>$turn['payload']['speaker']],
+    ];
+    $transferTurn=static function()use($turn,$transferRows,$transferRecipient):array{
+        $request=$turn;foreach(['message_id','request_id','turn_id']as$field)$request[$field]=Uuid::v4();
+        $request['payload']['input']['text']='Propose the observed transfer.';$request['payload']['recent_action_results']=[];
+        $request['payload']['context']['action_items']=$transferRows;
+        $request['payload']['context']['nearbyActors']=['items'=>[$transferRecipient]];
+        unset($request['payload']['action_request']);return$request;
+    };
+    $transferActionRows=$db->prepare('SELECT action_name,parameters,confirmation_required,actor,target FROM action_intents WHERE turn_id=:turn');
+    $transferProviderFor=static fn(array$proposal)=>new class($proposal) implements Provider {
+        public int $calls=0;
+        public function __construct(private array $proposal){}
+        public function complete(array $turn,CancellationToken $cancellation):array{
+            $cancellation->throwIfCancellationRequested();++$this->calls;
+            return ['utterances'=>[['speaker'=>$turn['payload']['target'],
+                'addressee'=>$turn['payload']['speaker'],'text'=>'The transfer awaits your confirmation.']],'action'=>$this->proposal];
+        }
+    };
+    $transferCases=[['item.give',['item_id'=>'@0x1001','count'=>3]],['item.take',['item_id'=>'@0x1002','count'=>4]],
+        ['item.pickup',['item_id'=>'@0x1003']],['gold.give',['amount'=>50]],['gold.take',['amount'=>30]]];
+    foreach(['direct','provider']as$transferPath)foreach($transferCases as[$transferName,$transferParameters]){
+        $request=$transferTurn();
+        if($transferPath==='direct')$request['payload']['action_request']=['name'=>$transferName,'tier'=>2,'parameters'=>$transferParameters];
+        [$transferStatus,$transferBody]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+        $assert($transferStatus===202,'transfer '.$transferPath.' ingress failed: '.json_encode([$transferName,$transferStatus,$transferBody]));
+        if($transferPath==='provider'){
+            $proposal=['name'=>$transferName,'tier'=>2,'parameters'=>$transferParameters,
+                'actor'=>$request['payload']['target'],'target'=>$request['payload']['speaker']];
+            $transferProvider=$transferProviderFor($proposal);
+            $transferStats=$runTurnWorker($transferProvider);
+            $assert($transferStats['succeeded']>=1,'transfer provider worker failed: '.$transferName);
+        }
+        $transferActionRows->execute(['turn'=>$request['turn_id']]);$transferIntents=$transferActionRows->fetchAll();
+        $storedParameters=isset($transferIntents[0])?json_decode($transferIntents[0]['parameters'],true):[];
+        $expectedParameters=$transferParameters;ksort($storedParameters);ksort($expectedParameters);
+        $transferState=$db->prepare('SELECT state,response_payload FROM turns WHERE turn_id=:id');$transferState->execute(['id'=>$request['turn_id']]);
+        $assert(count($transferIntents)===1&&$transferIntents[0]['action_name']===$transferName
+            &&$storedParameters===$expectedParameters&&$transferIntents[0]['confirmation_required']===true,
+            'transfer intent changed exact parameters or omitted forced confirmation: '.json_encode([$transferName,$transferPath,$transferIntents,$transferStats??null,$transferState->fetch(),$transferProvider->calls??null]));
+        $frozen=$db->prepare('SELECT context FROM turns WHERE turn_id=:turn');$frozen->execute(['turn'=>$request['turn_id']]);
+        $assert(json_decode($frozen->fetchColumn(),true)['action_items']==$transferRows,'transfer mutated accepted item observations');
+    }
+    foreach(['unknown_id','over_count','wrong_owner','missing_confirmation','missing_action_capability','wrong_target','gold_overdraft','fake_gold','unavailable_recipient']as$transferFailure){
+        $db->exec('SAVEPOINT invalid_transfer');$request=$transferTurn();
+        $request['payload']['action_request']=['name'=>'item.give','tier'=>2,'parameters'=>['item_id'=>'@0x1001','count'=>1]];
+        if($transferFailure==='unknown_id')$request['payload']['action_request']['parameters']['item_id']='@0xdead';
+        elseif($transferFailure==='over_count')$request['payload']['action_request']['parameters']['count']=4;
+        elseif($transferFailure==='wrong_owner')$request['payload']['context']['action_items'][0]['owner']=$request['payload']['speaker'];
+        elseif($transferFailure==='missing_confirmation'||$transferFailure==='missing_action_capability'){
+            $db->prepare('UPDATE sessions SET capabilities=array_remove(capabilities,:capability) WHERE session_id=:session')
+                ->execute(['session'=>$sessionId,'capability'=>$transferFailure==='missing_confirmation'?'action.confirmation':'action.item.give']);
+        }elseif($transferFailure==='wrong_target'){
+            $request['payload']['action_request']['target']=$transferRecipient;$request['payload']['action_request']['target']['refnum']['index']++;
+        }elseif($transferFailure==='unavailable_recipient'){
+            $request['payload']['action_request']['target']=$transferRecipient;$request['payload']['context']['nearbyActors']['items'][0]['available']=false;
+        }else{
+            $request['payload']['action_request']=['name'=>'gold.give','tier'=>2,'parameters'=>['amount'=>$transferFailure==='gold_overdraft'?51:1]];
+            if($transferFailure==='fake_gold')$request['payload']['context']['action_items'][3]['record_id']='fake_gold';
+        }
+        $beforeTransfers=(int)$db->query('SELECT count(*) FROM action_intents')->fetchColumn();
+        [$transferStatus]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+        $assert($transferStatus>=400&&(int)$db->query('SELECT count(*) FROM action_intents')->fetchColumn()===$beforeTransfers,
+            'invalid transfer emitted an intent: '.$transferFailure);
+        $stored=$db->prepare('SELECT count(*) FROM turns WHERE turn_id=:id');$stored->execute(['id'=>$request['turn_id']]);
+        $assert((int)$stored->fetchColumn()===0,'invalid direct transfer partially persisted a turn: '.$transferFailure);
+        $db->exec('ROLLBACK TO SAVEPOINT invalid_transfer');
+    }
+    foreach(['direct','provider']as$transferPath){
+        $request=$transferTurn();$proposal=['name'=>'item.give','tier'=>2,'parameters'=>['item_id'=>'@0x1001','count'=>1],
+            'actor'=>$request['payload']['target'],'target'=>$transferRecipient];
+        if($transferPath==='direct')$request['payload']['action_request']=array_diff_key($proposal,['actor'=>true]);
+        [$transferStatus]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+        $assert($transferStatus===202,'observed NPC recipient was rejected on '.$transferPath);
+        if($transferPath==='provider')$runTurnWorker($transferProviderFor($proposal));
+        $transferActionRows->execute(['turn'=>$request['turn_id']]);$intent=$transferActionRows->fetch();
+        $assert($intent&&json_decode($intent['target'],true)==$transferRecipient&&$intent['confirmation_required']===true,
+            'observed NPC transfer recipient was replaced or lost approval on '.$transferPath);
+    }
+    foreach(['unknown_id','wrong_actor','wrong_target','over_count','unavailable_recipient','missing_confirmation']as$transferFailure){
+        $db->exec('SAVEPOINT invalid_provider_transfer');$request=$transferTurn();
+        if($transferFailure==='unavailable_recipient')$request['payload']['context']['nearbyActors']['items'][0]['available']=false;
+        if($transferFailure==='missing_confirmation')$db->prepare("UPDATE sessions SET capabilities=array_remove(capabilities,'action.confirmation') WHERE session_id=:session")
+            ->execute(['session'=>$sessionId]);
+        [$transferStatus]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+        $assert($transferStatus===202,'invalid provider proposal fixture failed acceptance');
+        $proposal=['name'=>'item.give','tier'=>2,'parameters'=>['item_id'=>'@0x1001','count'=>1],
+            'actor'=>$request['payload']['target'],'target'=>$request['payload']['speaker']];
+        if($transferFailure==='unknown_id')$proposal['parameters']['item_id']='@0xdead';
+        elseif($transferFailure==='over_count')$proposal['parameters']['count']=4;
+        elseif($transferFailure==='wrong_actor')$proposal['actor']=$transferRecipient;
+        elseif($transferFailure==='wrong_target'){$proposal['target']=$transferRecipient;$proposal['target']['refnum']['index']++;}
+        elseif($transferFailure==='unavailable_recipient')$proposal['target']=$transferRecipient;
+        $invalidProvider=$transferProviderFor($proposal);$beforeTransfers=(int)$db->query('SELECT count(*) FROM action_intents')->fetchColumn();
+        $runTurnWorker($invalidProvider);
+        $assert($invalidProvider->calls>0&&(int)$db->query('SELECT count(*) FROM action_intents')->fetchColumn()===$beforeTransfers,
+            'invalid provider transfer emitted intent or bypassed the provider fixture: '.$transferFailure);
+        $db->exec('ROLLBACK TO SAVEPOINT invalid_provider_transfer');
+    }
+    // Rechat changes the interlocutor, not ownership of the separately observed player inventory.
+    $request=$transferTurn();$request['payload']['speaker']=$transferRecipient;
+    $request['payload']['context']['player']=$turn['payload']['speaker'];
+    $request['payload']['action_request']=['name'=>'gold.take','tier'=>2,'parameters'=>['amount'=>30]];
+    [$transferStatus]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+    $transferActionRows->execute(['turn'=>$request['turn_id']]);$rechatTransfer=$transferActionRows->fetch();
+    $assert($transferStatus===202&&$rechatTransfer&&json_decode($rechatTransfer['target'],true)==$turn['payload']['speaker']
+        &&$rechatTransfer['confirmation_required']===true,'NPC interlocutor changed the observed player-gold owner or recipient');
+
+    // A caller-modified worker message must not replace the accepted turn's item authority.
+    $request=$transferTurn();[$transferStatus]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+    $assert($transferStatus===202,'immutable transfer fixture was not accepted');
+    $request['payload']['context']['action_items'][0]['item_id']='@0xdead';
+    $beforeTransfers=(int)$db->query('SELECT count(*) FROM action_intents')->fetchColumn();
+    try{$repo->completeTurn($request,['utterances'=>[],'action'=>['name'=>'item.give','tier'=>2,
+        'actor'=>$request['payload']['target'],'target'=>$request['payload']['speaker'],'parameters'=>['item_id'=>'@0xdead','count'=>1]]]);
+        $assert(false,'caller-substituted transfer context gained authority');
+    }catch(DomainException $error){$assert($error->getMessage()==='action_parameters_invalid','unexpected stale transfer authority failure: '.$error->getMessage());}
+    $assert((int)$db->query('SELECT count(*) FROM action_intents')->fetchColumn()===$beforeTransfers,'stale provider snapshot emitted a transfer');
+}finally{$db->rollBack();}
+
+// Explicit Narrator actions need both policies and an observed physical executor's own state.
+$db->beginTransaction();
+try{
+    $db->prepare("UPDATE sessions SET enabled_actions=array_append(enabled_actions,'service.barter'),capabilities=array_append(capabilities,'action.service.barter') WHERE session_id=:session")->execute(['session'=>$sessionId]);
+    $physicalIdentity=$turn['payload']['target'];
+    $physicalProfile=$products->effectiveSettingsForActor($installationId,$turn['playthrough_id'],$physicalIdentity)['npc_profile'];
+    $assert(isset($physicalProfile['profile_id']),'Narrator policy fixture has no physical NPC profile');
+    foreach(['allowed','npc_denied','narrator_denied','forged_executor','borrowed_state']as$narratorCase){
+        $db->exec('SAVEPOINT narrator_authority');$request=$transferTurn();
+        $request['payload']['execution_mode']='narrator';$request['payload']['ui_source']='lorkhan_text';
+        $request['payload']['target']=array_replace($physicalIdentity,['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN','display_name'=>'The Narrator']);
+        $request['payload']['context']['nearbyActors']=['items'=>[$physicalIdentity]];
+        $request['payload']['context']['actorActionStates']=[['actor'=>$physicalIdentity,'services_known'=>true,'services'=>['barter']]];
+        $request['payload']['context']['targetState']=['services_known'=>true,'services'=>['barter']];
+        if($narratorCase==='borrowed_state')$request['payload']['context']['actorActionStates']=[];
+        if(in_array($narratorCase,['npc_denied','narrator_denied'],true)){
+            $policyProfile=$narratorCase==='npc_denied'?$physicalProfile['profile_id']:$narratorProfile['profile_id'];
+            $products->createRevisioned('action_policy',['installation_id'=>$installationId,'profile_id'=>$policyProfile,
+                'name'=>'Narrator intersection fixture','content'=>['enabled'=>true,'denied_actions'=>['service.barter']]],$now);
+        }
+        [$narratorStatus,$narratorBody]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+        $assert($narratorStatus===202,'Narrator action fixture rejected: '.json_encode($narratorBody));
+        $executor=$narratorCase==='forged_executor'?$transferRecipient:$physicalIdentity;
+        $narratorProvider=$transferProviderFor(['name'=>'service.barter','tier'=>1,'parameters'=>[],
+            'actor'=>$executor,'target'=>$request['payload']['speaker']]);
+        $runTurnWorker($narratorProvider);$assert($narratorProvider->calls>0,'Narrator mock provider bypassed');
+        $transferActionRows->execute(['turn'=>$request['turn_id']]);$narratorIntent=$transferActionRows->fetch();
+        $assert(($narratorCase==='allowed')===($narratorIntent!==false),'Narrator crossed actor/policy boundary: '.$narratorCase);
+        if($narratorIntent)$assert(json_decode($narratorIntent['actor'],true)==$physicalIdentity,'Narrator became physical executor');
+        $db->exec('ROLLBACK TO SAVEPOINT narrator_authority');
+    }
+    $request=$transferTurn();$request['payload']['execution_mode']='narrator';$request['payload']['ui_source']='lorkhan_text';
+    $request['payload']['target']=array_replace($physicalIdentity,['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN','display_name'=>'The Narrator']);
+    $request['payload']['context']['nearbyActors']=['items'=>[]];$request['payload']['context']['actorActionStates']=[];
+    [$narratorStatus]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+    $assert($narratorStatus===202,'frozen Narrator fixture rejected');
+    $request['payload']['context']['nearbyActors']=['items'=>[$physicalIdentity]];
+    $request['payload']['context']['actorActionStates']=[['actor'=>$physicalIdentity,'services_known'=>true,'services'=>['barter']]];
+    try{$repo->completeTurn($request,['utterances'=>[],'action'=>['name'=>'service.barter','tier'=>1,'parameters'=>[],
+        'actor'=>$physicalIdentity,'target'=>$request['payload']['speaker']]]);$assert(false,'caller invented Narrator executor');}
+    catch(DomainException $error){$assert($error->getMessage()==='provider_action_not_allowed','unexpected frozen Narrator error: '.$error->getMessage());}
+}finally{$db->rollBack();}
+
+// Casting uses a known spell and an exact observed recipient, with mandatory approval.
+$db->beginTransaction();
+try{
+    $db->prepare("UPDATE sessions SET enabled_actions=array_append(enabled_actions,'spell.cast'),capabilities=capabilities||ARRAY['action.spell.cast','action.confirmation'] WHERE session_id=:session")->execute(['session'=>$sessionId]);
+    foreach(['direct','provider']as$spellPath)foreach(['self','player','nearby']as$spellRecipient){
+        $request=$transferTurn();$request['payload']['context']['targetState']['spells_known']=true;
+        $request['payload']['context']['targetState']['spells']=[['spell_id'=>'fire bite','name'=>'Fire Bite']];
+        $spellTarget=match($spellRecipient){'self'=>$request['payload']['target'],'nearby'=>$transferRecipient,default=>$request['payload']['speaker']};
+        $spellProposal=['name'=>'spell.cast','tier'=>2,'parameters'=>['spell_id'=>'fire bite'],'actor'=>$request['payload']['target'],'target'=>$spellTarget];
+        if($spellPath==='direct')$request['payload']['action_request']=array_diff_key($spellProposal,['actor'=>true]);
+        [$spellStatus,$spellBody]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+        $assert($spellStatus===202,'known spell rejected: '.json_encode([$spellPath,$spellRecipient,$spellBody]));
+        if($spellPath==='provider'){$spellProvider=$transferProviderFor($spellProposal);$runTurnWorker($spellProvider);$assert($spellProvider->calls>0,'spell provider bypassed');}
+        $transferActionRows->execute(['turn'=>$request['turn_id']]);$spellIntent=$transferActionRows->fetch();
+        $assert($spellIntent&&$spellIntent['action_name']==='spell.cast'&&$spellIntent['confirmation_required']===true
+            &&json_decode($spellIntent['parameters'],true)===['spell_id'=>'fire bite']&&json_decode($spellIntent['target'],true)==$spellTarget,
+            'spell lost exact recipient, known ID or forced approval: '.$spellPath.' '.$spellRecipient);
+    }
+    foreach(['direct','provider']as$spellPath)foreach(['unknown_id','unknown_state','unobserved_target','dead_target','missing_confirmation']as$spellFailure){
+        $db->exec('SAVEPOINT invalid_spell');$request=$transferTurn();
+        $request['payload']['context']['targetState']['spells_known']=$spellFailure!=='unknown_state';
+        $request['payload']['context']['targetState']['spells']=[['spell_id'=>'fire bite','name'=>'Fire Bite']];
+        $spellProposal=['name'=>'spell.cast','tier'=>2,'parameters'=>['spell_id'=>$spellFailure==='unknown_id'?'invented spell':'fire bite'],
+            'actor'=>$request['payload']['target'],'target'=>$request['payload']['speaker']];
+        if(in_array($spellFailure,['unobserved_target','dead_target'],true)){
+            $spellProposal['target']=$transferRecipient;
+            if($spellFailure==='dead_target')$request['payload']['context']['nearbyActors']['items'][0]['dead']=true;
+            else $spellProposal['target']['refnum']['index']++;
+        }
+        if($spellFailure==='missing_confirmation')$db->prepare("UPDATE sessions SET capabilities=array_remove(capabilities,'action.confirmation') WHERE session_id=:session")->execute(['session'=>$sessionId]);
+        if($spellPath==='direct')$request['payload']['action_request']=array_diff_key($spellProposal,['actor'=>true]);
+        $beforeSpells=(int)$db->query('SELECT count(*) FROM action_intents')->fetchColumn();
+        [$spellStatus]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+        if($spellPath==='provider'){
+            $assert($spellStatus===202,'spell provider fixture rejected');$spellProvider=$transferProviderFor($spellProposal);
+            $runTurnWorker($spellProvider);$assert($spellProvider->calls>0,'invalid spell provider bypassed');
+        }else $assert($spellStatus>=400,'invalid direct spell accepted: '.$spellFailure);
+        $assert((int)$db->query('SELECT count(*) FROM action_intents')->fetchColumn()===$beforeSpells,'invalid spell emitted intent: '.$spellPath.' '.$spellFailure);
+        $db->exec('ROLLBACK TO SAVEPOINT invalid_spell');
+    }
+    $request=$transferTurn();$request['payload']['context']['targetState']['spells_known']=true;
+    $request['payload']['context']['targetState']['spells']=[['spell_id'=>'fire bite','name'=>'Fire Bite']];
+    [$spellStatus]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+    $assert($spellStatus===202,'frozen known spell fixture rejected');
+    $request['payload']['context']['targetState']['spells']=[['spell_id'=>'invented spell','name'=>'Invented']];
+    try{$repo->completeTurn($request,['utterances'=>[],'action'=>['name'=>'spell.cast','tier'=>2,'parameters'=>['spell_id'=>'invented spell'],
+        'actor'=>$request['payload']['target'],'target'=>$request['payload']['speaker']]]);$assert(false,'caller substituted known spells');}
+    catch(DomainException $error){$assert($error->getMessage()==='action_parameters_invalid','unexpected frozen spell error: '.$error->getMessage());}
+}finally{$db->rollBack();}
+
+// Offered service menus share the frozen vendor/player authority for direct and generated actions.
+$db->beginTransaction();
+try{
+    $serviceNames=\LorkhanServer\Application\ServiceActionPolicy::NAMES;
+    foreach($serviceNames as$serviceName)$db->prepare('UPDATE sessions SET enabled_actions=array_append(enabled_actions,:name),capabilities=array_append(capabilities,:cap) WHERE session_id=:session')
+        ->execute(['name'=>$serviceName,'cap'=>'action.'.$serviceName,'session'=>$sessionId]);
+    foreach(['direct','provider']as$servicePath)foreach($serviceNames as$serviceName){
+        $request=$transferTurn();$request['payload']['context']['targetState']['services_known']=true;
+        $request['payload']['context']['targetState']['services']=[substr($serviceName,8)];
+        if($servicePath==='direct')$request['payload']['action_request']=['name'=>$serviceName,'tier'=>1,'parameters'=>[]];
+        [$serviceStatus,$serviceBody]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+        $assert($serviceStatus===202,'offered service rejected: '.json_encode([$serviceName,$servicePath,$serviceBody]));
+        if($servicePath==='provider'){
+            $serviceProvider=$transferProviderFor(['name'=>$serviceName,'tier'=>1,'parameters'=>[],
+                'actor'=>$request['payload']['target'],'target'=>$request['payload']['speaker']]);
+            $runTurnWorker($serviceProvider);$assert($serviceProvider->calls>0,'service mock provider was bypassed');
+        }
+        $transferActionRows->execute(['turn'=>$request['turn_id']]);$serviceIntent=$transferActionRows->fetch();
+        $assert($serviceIntent&&$serviceIntent['action_name']===$serviceName&&json_decode($serviceIntent['parameters'],true)===[]
+            &&json_decode($serviceIntent['actor'],true)==$request['payload']['target']
+            &&json_decode($serviceIntent['target'],true)==$request['payload']['speaker'],'offered service lost vendor/player identity or empty parameters: '.$serviceName.' '.$servicePath);
+    }
+    foreach(['direct','provider']as$servicePath)foreach(['not_offered','unknown','wrong_actor','wrong_player','missing_capability']as$serviceFailure){
+        $db->exec('SAVEPOINT invalid_service');$request=$transferTurn();
+        $request['payload']['context']['targetState']['services_known']=$serviceFailure!=='unknown';
+        $request['payload']['context']['targetState']['services']=$serviceFailure==='not_offered'?['repair']:['barter'];
+        $serviceProposal=['name'=>'service.barter','tier'=>1,'parameters'=>[],
+            'actor'=>$request['payload']['target'],'target'=>$request['payload']['speaker']];
+        if($serviceFailure==='wrong_actor')$serviceProposal['actor']=$transferRecipient;
+        if($serviceFailure==='wrong_player')$serviceProposal['target']=$transferRecipient;
+        if($serviceFailure==='missing_capability')$db->prepare("UPDATE sessions SET capabilities=array_remove(capabilities,'action.service.barter') WHERE session_id=:session")->execute(['session'=>$sessionId]);
+        // Direct requests derive the actor from the actual observed vendor; only providers supply it.
+        if($servicePath==='direct'&&$serviceFailure==='wrong_actor'){$db->exec('ROLLBACK TO SAVEPOINT invalid_service');continue;}
+        if($servicePath==='direct')$request['payload']['action_request']=array_diff_key($serviceProposal,['actor'=>true]);
+        $beforeServices=(int)$db->query('SELECT count(*) FROM action_intents')->fetchColumn();
+        [$serviceStatus,$serviceBody]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+        if($servicePath==='provider'){
+            $assert($serviceStatus===202,'service rejection fixture was not accepted');
+            $serviceProvider=$transferProviderFor($serviceProposal);$runTurnWorker($serviceProvider);
+            $assert($serviceProvider->calls>0,'invalid service bypassed mock provider');
+        }else $assert($serviceStatus>=400,'invalid direct service accepted: '.$serviceFailure);
+        $assert((int)$db->query('SELECT count(*) FROM action_intents')->fetchColumn()===$beforeServices,'invalid service emitted action: '.$serviceFailure.' '.$servicePath);
+        $db->exec('ROLLBACK TO SAVEPOINT invalid_service');
+    }
+    $request=$transferTurn();$request['payload']['speaker']=$transferRecipient;
+    $request['payload']['context']['player']=$turn['payload']['speaker'];
+    $request['payload']['context']['targetState']['services_known']=true;$request['payload']['context']['targetState']['services']=['barter'];
+    $request['payload']['action_request']=['name'=>'service.barter','tier'=>1,'parameters'=>[]];
+    [$serviceStatus]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+    $transferActionRows->execute(['turn'=>$request['turn_id']]);$serviceIntent=$transferActionRows->fetch();
+    $assert($serviceStatus===202&&$serviceIntent&&json_decode($serviceIntent['target'],true)==$turn['payload']['speaker'],
+        'NPC interlocutor replaced the observed service player');
+    $request=$transferTurn();$request['payload']['context']['targetState']['services_known']=true;
+    $request['payload']['context']['targetState']['services']=[];
+    [$serviceStatus]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+    $assert($serviceStatus===202,'frozen service context fixture rejected');
+    $request['payload']['context']['targetState']['services']=['barter'];
+    try{$repo->completeTurn($request,['utterances'=>[],'action'=>['name'=>'service.barter','tier'=>1,'parameters'=>[],
+        'actor'=>$request['payload']['target'],'target'=>$request['payload']['speaker']]]);$assert(false,'caller invented an unobserved service');}
+    catch(DomainException $error){$assert($error->getMessage()==='provider_action_not_allowed','unexpected frozen service error: '.$error->getMessage());}
+}finally{$db->rollBack();}
+
+// Director planning persists only leased, scoped instructions; children consume them once in order.
+$db->beginTransaction();
+try{
+    $director=new \LorkhanServer\Infrastructure\DirectorPlanningRepository($db);
+    $directorGlobal=$products->globalSettingsForInstallation($installationId);
+    $directorContent=$directorGlobal['content']??\LorkhanServer\Application\SettingsCatalog::globalDefaults();
+    $directorContent['system_routing']['director_configuration_id']=$modelSlot['configuration_id'];
+    $directorContent['task_availability']['director']=true;
+    if($directorGlobal)$products->revise('global_settings',$directorGlobal['configuration_id'],$directorContent,'Director test',gmdate('Y-m-d\TH:i:s\Z'));
+    else $products->createRevisioned('global_settings',['installation_id'=>$installationId,'name'=>'Director test','content'=>$directorContent],gmdate('Y-m-d\TH:i:s\Z'));
+    $directorRequest=$transferTurn();$directorRequest['payload']['execution_mode']='director';
+    $directorRequest['payload']['ui_source']='lorkhan_text';
+    $directorRequest['payload']['context']['nearbyActors']=['items'=>[$turn['payload']['target'],$transferRecipient]];
+    [$directorStatus,$directorAccepted]=$call($transferRouter,'POST',$base.'/turns',$headers($directorRequest['message_id']),[],$directorRequest);
+    $assert($directorStatus===202,'Director route rejected: '.json_encode($directorAccepted));
+    $directorPlan=$db->prepare('SELECT plan_id FROM director_plans WHERE origin_turn_id=:turn');
+    $directorPlan->execute(['turn'=>$directorRequest['turn_id']]);$directorId=$directorPlan->fetchColumn();
+    $assert(is_string($directorId),'Director origin did not queue its dedicated plan');
+    $directorInput=$director->input($directorId);
+    $assert(isset($directorInput['actors']['nearby:1'],$directorInput['actors']['nearby:2'],$directorInput['actors']['player']), 'Director lost frozen actor selectors');
+    $directorLease=Uuid::v4();
+    $leaseDirector=$db->prepare("UPDATE durable_jobs SET state='leased',attempt_count=1,lease_token=:lease,lease_owner='director-integration',leased_at=clock_timestamp(),heartbeat_at=clock_timestamp(),lease_expires_at=clock_timestamp()+interval '60 seconds' WHERE job_id=:job");
+    $leaseDirector->execute(['lease'=>$directorLease,'job'=>$directorId]);
+    $directorOutput=['instructions'=>[
+        ['actor_id'=>'nearby:1','recipient_id'=>'player','instruction'=>'Explain the local history.','scene_note'=>'A discussion about Balmora.'],
+        ['actor_id'=>'nearby:2','recipient_id'=>'player','instruction'=>'Offer a different opinion.','scene_note'=>'']]];
+    try{$director->deliver($directorId,1,Uuid::v4(),$directorOutput);$assert(false,'stale Director lease delivered');}
+    catch(RuntimeException $error){$assert($error->getMessage()==='director_cancelled','wrong Director lease error');}
+    $director->deliver($directorId,1,$directorLease,$directorOutput);
+    $director->deliver($directorId,1,$directorLease,$directorOutput);
+    $directorEvents=$db->prepare('SELECT event_type,count(*) AS total FROM response_events WHERE turn_id=:turn GROUP BY event_type');
+    $directorEvents->execute(['turn'=>$directorRequest['turn_id']]);$directorEventCounts=$directorEvents->fetchAll(PDO::FETCH_KEY_PAIR);
+    $assert((int)($directorEventCounts['director.instructions']??0)===1&&(int)($directorEventCounts['turn.complete']??0)===1
+        &&!isset($directorEventCounts['response.complete'],$directorEventCounts['speech.ready']),'Director redelivery duplicated events or fabricated dialogue');
+    $directorRows=$db->prepare('SELECT instruction_id FROM director_instructions WHERE plan_id=:plan ORDER BY ordinal');
+    $directorRows->execute(['plan'=>$directorId]);$directorInstructions=$directorRows->fetchAll(PDO::FETCH_COLUMN);
+    $assert(count($directorInstructions)===2&&count($director->sceneNotes($sessionId,$directorRequest['generation']))===1,'Director instructions or temporary notes missing');
+    $directorChild=$transferTurn();$directorChild['payload']['execution_mode']='standard';
+    $directorChild['payload']['director_instruction_id']=$directorInstructions[1];$directorChild['payload']['target']=$transferRecipient;
+    try{$director->prepareChild($directorChild);$assert(false,'Director allowed out-of-order child');}
+    catch(RuntimeException $error){$assert($error->getMessage()==='director_previous_child_pending','wrong Director sequence error');}
+    $directorChild['payload']['director_instruction_id']=$directorInstructions[0];$directorChild['payload']['target']=$turn['payload']['target'];
+    $directorChild['payload']['input']['text']='Client-substituted planner instructions';
+    [$childStatus,$childAccepted]=$call($transferRouter,'POST',$base.'/turns',$headers($directorChild['message_id']),[],$directorChild);
+    $assert($childStatus===202,'Director child rejected: '.json_encode($childAccepted));
+    $childText=$db->prepare('SELECT input_text FROM turns WHERE turn_id=:turn');$childText->execute(['turn'=>$directorChild['turn_id']]);
+    $assert($childText->fetchColumn()==='Explain the local history.','Director trusted substituted child instruction text');
+    $duplicateChild=$directorChild;$duplicateChild['turn_id']=Uuid::v4();
+    try{$director->prepareChild($duplicateChild);$assert(false,'Director instruction reused by another turn');}
+    catch(RuntimeException $error){$assert($error->getMessage()==='director_instruction_unavailable','wrong Director single-consumption error');}
+    $runTurnWorker(new MockProvider());
+    $nextChild=$transferTurn();$nextChild['payload']['execution_mode']='standard';
+    $nextChild['payload']['director_instruction_id']=$directorInstructions[1];$nextChild['payload']['target']=$transferRecipient;
+    $assert($director->prepareChild($nextChild)['instruction']==='Offer a different opinion.','Director second child remained blocked after terminal first child');
+    $wrongChild=$nextChild;$wrongChild['payload']['target']=$turn['payload']['target'];
+    try{$director->prepareChild($wrongChild);$assert(false,'Director substituted actor accepted');}
+    catch(RuntimeException $error){$assert($error->getMessage()==='director_actor_mismatch','wrong Director actor error');}
+    $director->cancel($sessionId,$directorRequest['generation']);
+    $assert($director->sceneNotes($sessionId,$directorRequest['generation'])===[],'cancelled Director notes remained visible');
+    try{$director->prepareChild($nextChild);$assert(false,'cancelled Director child accepted');}
+    catch(RuntimeException $error){$assert($error->getMessage()==='director_instruction_unavailable','wrong cancelled Director child error');}
+}finally{$db->rollBack();}
+
 $menuTurn=$turn;$menuTurn['message_id']=$newUuid(280);$menuTurn['request_id']=$newUuid(281);$menuTurn['turn_id']=$newUuid(282);
 $menuTurn['payload']['input']['text']='Wait here';$menuTurn['payload']['recent_action_results']=[];
 $menuTurn['payload']['action_request']=['name'=>'ai.wait','tier'=>1,'parameters'=>['duration_seconds'=>3600]];

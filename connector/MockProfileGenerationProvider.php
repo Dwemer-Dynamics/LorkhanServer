@@ -10,6 +10,14 @@ final class MockProfileGenerationProvider implements ProfileGenerationProvider
     public function generate(array $profile, CancellationToken $cancellation): array
     {
         $cancellation->throwIfCancellationRequested();
+        if(($profile['generation_mode']??'')==='director_plan'){
+            foreach($profile['actors']??[] as $selector=>$actor){
+                if(in_array($actor['kind']??null,['npc','creature'],true)&&isset($profile['actors']['player']))
+                    return DirectorPolicy::output(['instructions'=>[['actor_id'=>$selector,'recipient_id'=>'player',
+                        'instruction'=>'Greet the player briefly in character.','scene_note'=>'A greeting is being arranged.']]],$profile['actors']);
+            }
+            throw new \RuntimeException('director_no_actors');
+        }
         if(($profile['generation_mode']??'')==='scene_classification')return ['genre'=>'default'];
         if(($profile['generation_mode']??'')==='npc_evolution_report')return ['report'=>"**Mock evolution report**\n* ".count($profile['history']??[]).' distinct personality snapshots supplied. No NPC profile was changed.'];
         if(in_array($profile['generation_mode']??'',['relationship_build','relationship_text_conversion'],true))return ['relationships'=>[]];

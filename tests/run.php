@@ -514,17 +514,20 @@ $actionProvider = new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/c
 $normalizeAction = new ReflectionMethod($actionProvider, 'normalizeAction');
 $normalizedAction = $normalizeAction->invoke($actionProvider,
     ['utterances' => [['text' => 'Hello']], 'action' => ['function' => 'animation.play', 'parameters' => ['group' => 'idle2']]],
-    ['payload' => ['target' => ['record_id' => 'fargoth'], 'speaker' => ['record_id' => 'player']]]);
+    ['_allowed_action_definitions'=>[['name'=>'animation.play','tier'=>1]],
+        'payload' => ['target' => ['record_id' => 'fargoth'], 'speaker' => ['record_id' => 'player']]]);
 $check(($normalizedAction['action']['name'] ?? null) === 'animation.play'
     && ($normalizedAction['action']['tier'] ?? null) === 1
     && ($normalizedAction['action']['actor']['record_id'] ?? null) === 'fargoth',
     'OpenAI-compatible provider normalizes compact actions with trusted identities and canonical tiers');
-foreach (['inventory.inspect'=>0,'ai.approach'=>1,'ai.wait'=>1,'ai.travel'=>1,'ai.escort'=>1,'ai.face'=>1] as $name=>$tier) {
+foreach (['inventory.inspect'=>0,'ai.approach'=>1,'ai.wait'=>1,'ai.travel'=>1,'ai.escort'=>1,'ai.face'=>1,
+    'conversation.end'=>1,'weapon.sheathe'=>1,'item.give'=>2,'item.take'=>2,'item.pickup'=>2,'gold.give'=>2,'gold.take'=>2] as $name=>$tier) {
     $parameters=$name==='ai.wait'?['duration_seconds'=>3600]:(in_array($name,['ai.travel','ai.escort'],true)
         ?['destination_x'=>1,'destination_y'=>2,'destination_z'=>3,'destination_cell'=>'exterior:0:0']:[]);
     $normalized=$normalizeAction->invoke($actionProvider,
         ['utterances'=>[['text'=>'Ready.']],'action'=>['name'=>$name,'parameters'=>$parameters]],
-        ['payload'=>['target'=>['record_id'=>'fargoth'],'speaker'=>['record_id'=>'player']]]);
+        ['_allowed_action_definitions'=>[['name'=>$name,'tier'=>$tier]],
+            'payload'=>['target'=>['record_id'=>'fargoth'],'speaker'=>['record_id'=>'player']]]);
     $check(($normalized['action']['name']??null)===$name&&($normalized['action']['tier']??null)===$tier,
         "OpenAI-compatible provider exposes {$name} with its canonical tier");
 }
@@ -708,11 +711,110 @@ foreach (['session-loaded-save-leap-day','session-loaded-save-hour'] as $fixture
     catch (ValidationException $error) {$check($error->getMessage()==='invalid_schema',$fixture.' rejected');}
 }
 $actorProfileGameData=json_decode((string)file_get_contents($fixtureRoot.'/gamedata-captured-dialogue.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+$resurrection=$actorProfileGameData;$resurrection['type']='actor_resurrected';
+$resurrection['payload']=['actor'=>$actorProfileGameData['payload']['speaker'],'audience'=>[],'game_time'=>1234];
+$validator->validate($resurrection,'lorkhan.gamedata.v1');$check(true,'actual resurrection observation validates without spell or healing fields');
+foreach([['game_time'=>-1],['spell_id'=>'heal'],['actor'=>array_replace($resurrection['payload']['actor'],['kind'=>'narrator'])]]as$invalidResurrection){
+    $invalidEvent=$resurrection;$invalidEvent['payload']=array_replace($resurrection['payload'],$invalidResurrection);
+    try{$validator->validate($invalidEvent,'lorkhan.gamedata.v1');$check(false,'resurrection rejects invented or malformed observation');}
+    catch(ValidationException){$check(true,'resurrection rejects invented or malformed observation');}
+}
+$modeTurn=json_decode((string)file_get_contents($fixtureRoot.'/turn.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+foreach(['standard','narrator','director','cheat']as$mode){
+    $modeTurn['payload']['execution_mode']=$mode;
+    $validator->validate($modeTurn,'lorkhan.turn.v1');$check(true,'typed execution mode validates '.$mode);
+}
+foreach([['execution_mode'=>'console'],['execution_mode'=>'standard','director_instruction_id'=>'not-a-uuid'],
+    ['execution_mode'=>'director','director_instruction_id'=>$modeTurn['turn_id']]]as$invalidMode){
+    $invalidModeTurn=$modeTurn;$invalidModeTurn['payload']=array_replace($modeTurn['payload'],$invalidMode);
+    try{$validator->validate($invalidModeTurn,'lorkhan.turn.v1');$check(false,'invalid or recursive Director request rejected');}
+    catch(ValidationException){$check(true,'invalid or recursive Director request rejected');}
+}
+$modeTurn['payload']['execution_mode']='standard';$modeTurn['payload']['director_instruction_id']=$modeTurn['turn_id'];
+$validator->validate($modeTurn,'lorkhan.turn.v1');$check(true,'ordinary child turn carries exact Director instruction correlation');
 $actorProfileGameData['type']='actor_profile';
 $actorProfileGameData['payload']=['actor'=>$actorProfileGameData['payload']['speaker'],'race'=>'Wood Elf',
     'class'=>'Commoner','gender'=>'male','level'=>1,'disposition'=>50,'factions'=>['fighters guild']];
 $validator->validate($actorProfileGameData,'lorkhan.gamedata.v1');
 $check(true,'auto-activated NPC profile snapshot validates');
+$transferActor=$actorProfileGameData['payload']['actor'];
+$transferPlayer=array_replace($transferActor,['kind'=>'player','record_id'=>'player','refnum'=>['index'=>1,'content_file'=>0]]);
+$transferItem=['item_id'=>'@0x1234567890abcdef','record_id'=>'gold_001','name'=>'Gold','count'=>100,
+    'location'=>'actor_inventory','owner'=>$transferActor];
+$transferTurn=['target'=>$transferActor,'speaker'=>$transferPlayer,'context'=>['action_items'=>[$transferItem]]];
+$spellTurn=$transferTurn;$spellTurn['context']['targetState']=['spells_known'=>true,'spells'=>[['spell_id'=>'fireball','name'=>'Fireball']]];
+$cast=['name'=>'spell.cast','actor'=>$transferActor,'target'=>$transferActor,'parameters'=>['spell_id'=>'fireball']];
+\LorkhanServer\Application\SpellActionPolicy::validate($cast,$spellTurn,['action.confirmation']);
+$check(true,'known spell may target exact caster');
+$cast['parameters']['spell_id']='invented spell';
+try{\LorkhanServer\Application\SpellActionPolicy::validate($cast,$spellTurn,['action.confirmation']);$check(false,'unknown spell rejected');}
+catch(DomainException){$check(true,'unknown spell rejected');}
+$check(!\LorkhanServer\Application\SpellActionPolicy::available('spell.cast',$spellTurn,[]),'spell casting requires negotiated confirmation');
+foreach(\LorkhanServer\Application\TransferActionPolicy::NAMES as$name){
+    $sampleTurn=$transferTurn;
+    if(str_ends_with($name,'.take'))$sampleTurn['context']['action_items'][0]=array_replace($transferItem,['location'=>'player_inventory','owner'=>$transferPlayer]);
+    if($name==='item.pickup'){$sampleTurn['context']['action_items'][0]['location']='ground';unset($sampleTurn['context']['action_items'][0]['owner']);}
+    $params=str_starts_with($name,'gold.')?['amount'=>10]:['item_id'=>$transferItem['item_id']]+($name==='item.pickup'?[]:['count'=>2]);
+    $proposal=['name'=>$name,'actor'=>$transferActor,'target'=>$transferPlayer,'parameters'=>$params];
+    \LorkhanServer\Application\TransferActionPolicy::validate($proposal,$sampleTurn,['action.confirmation']);
+    $check(true,'transfer uses exact observed source and quantity '.$name);
+    $check(!\LorkhanServer\Application\TransferActionPolicy::available($name,$sampleTurn,[]),'transfers require negotiated confirmation '.$name);
+}
+foreach([
+    ['item.give',['item_id'=>'@0x1234567890abcdee','count'=>1]],
+    ['item.give',['item_id'=>$transferItem['item_id'],'count'=>101]],
+    ['gold.give',['amount'=>101]],
+    ['item.take',['item_id'=>$transferItem['item_id'],'count'=>1]],
+]as[$name,$params]){
+    try{\LorkhanServer\Application\TransferActionPolicy::validate(['name'=>$name,'actor'=>$transferActor,'target'=>$transferPlayer,'parameters'=>$params],$transferTurn,['action.confirmation']);
+        $check(false,'transfer cannot substitute instances, owners or exceed observed amounts');}
+    catch(DomainException){$check(true,'transfer cannot substitute instances, owners or exceed observed amounts');}
+}
+$ambiguousTransfer=$transferTurn;$ambiguousTransfer['context']['action_items'][]=$transferItem;
+$check(!\LorkhanServer\Application\TransferActionPolicy::available('gold.give',$ambiguousTransfer,['action.confirmation']),'duplicate instance observations cannot double-count gold');
+$transferRecipient=array_replace($transferActor,['record_id'=>'other_npc','refnum'=>['index'=>17,'content_file'=>0]]);
+$recipientTurn=$transferTurn;
+$recipientTurn['context']['nearbyActors']['items']=[$transferActor,$transferRecipient+['available'=>true,'distance'=>20,'equipment'=>[]]];
+$recipientMap=\LorkhanServer\Application\ObservedActionActors::recipients($recipientTurn);
+$check(array_keys($recipientMap)===['player','nearby:2'] && $recipientMap['nearby:2']==$transferRecipient,
+    'recipient selectors retain observed indices and strip enrichment without exposing self');
+$rechatTransfer=$recipientTurn;
+$rechatTransfer['speaker']=$transferRecipient;
+$rechatTransfer['context']['player']=$transferPlayer;
+$rechatTransfer['context']['action_items'][0]=array_replace($transferItem,['location'=>'player_inventory','owner'=>$transferPlayer]);
+\LorkhanServer\Application\TransferActionPolicy::validate(['name'=>'gold.take','actor'=>$transferActor,
+    'target'=>$transferPlayer,'parameters'=>['amount'=>1]],$rechatTransfer,['action.confirmation']);
+$check(true,'Rechat transfer uses observed player inventory rather than NPC speaker inventory');
+$rechatTransfer['context']['action_items'][0]['owner']=$transferRecipient;
+$check(!\LorkhanServer\Application\TransferActionPolicy::available('gold.take',$rechatTransfer,['action.confirmation']),
+    'NPC Rechat speaker cannot be substituted as player inventory owner');
+foreach(['item.give','gold.give']as$name){
+    $proposal=['name'=>$name,'actor'=>$transferActor,'target'=>$transferRecipient,
+        'parameters'=>$name==='item.give'?['item_id'=>$transferItem['item_id'],'count'=>1]:['amount'=>1]];
+    \LorkhanServer\Application\TransferActionPolicy::validate($proposal,$recipientTurn,['action.confirmation']);
+    $check(true,'give accepts exact available observed recipient '.$name);
+    foreach([['available'=>false],['dead'=>true]]as$unavailable){
+        $invalidRecipientTurn=$recipientTurn;
+        $invalidRecipientTurn['context']['nearbyActors']['items'][1]=array_replace($transferRecipient,$unavailable);
+        try{\LorkhanServer\Application\TransferActionPolicy::validate($proposal,$invalidRecipientTurn,['action.confirmation']);
+            $check(false,'give rejects unavailable or dead recipient '.$name);}
+        catch(DomainException$e){$check($e->getMessage()==='action_target_invalid','give rejects unavailable or dead recipient '.$name);}
+    }
+}
+$observedRecord=['state'=>'complete','record_id'=>$actorProfileGameData['payload']['actor']['record_id'],
+    'files'=>['Morrowind.esm','Override.esp'],'winning_file'=>'Override.esp'];
+foreach([$observedRecord,['state'=>'unavailable','files'=>[]],['state'=>'dynamic','files'=>[]],
+    array_replace($observedRecord,['state'=>'truncated','winning_file'=>'Last.esp'])]as$provenance){
+    $recordProfile=$actorProfileGameData;$recordProfile['payload']['record_provenance']=$provenance;
+    $validator->validate($recordProfile,'lorkhan.gamedata.v1');$check(true,'bounded native record provenance validates');
+}
+foreach([['state'=>'invented'],['record_id'=>'other_actor'],['files'=>['Morrowind.esm','Morrowind.esm']],
+    ['files'=>['C:\\private\\mod.esp']],['winning_file'=>"bad\nfile.esp"],['files'=>['../mod.esp']],
+    ['files'=>array_fill(0,129,'mod.esp')],['state'=>'dynamic'],['winning_file'=>null],['extra'=>'field']]as$invalidProvenance){
+    $recordProfile=$actorProfileGameData;$recordProfile['payload']['record_provenance']=array_replace($observedRecord,$invalidProvenance);
+    try{$validator->validate($recordProfile,'lorkhan.gamedata.v1');$check(false,'invalid record provenance rejected');}
+    catch(ValidationException){$check(true,'invalid record provenance rejected');}
+}
 $creatureActorProfile=$actorProfileGameData;$creatureActorProfile['payload']['actor']['kind']='creature';
 $creatureActorProfile['payload']['race']='Creature';$creatureActorProfile['payload']['class']='';
 $creatureActorProfile['payload']['gender']='none';$creatureActorProfile['payload']['disposition']=0;
@@ -3355,7 +3457,8 @@ $ruleMerged=\LorkhanServer\Application\ProfileAssignmentRule::apply(['settings_o
 $check($ruleMerged['settings_overrides']['context']===['location_blacklist'=>['new'],'prompt_timestamp'=>true],'rule override lists replace instead of keeping stale items');
 
 $diaryRule=\LorkhanServer\Application\ProfileAssignmentRule::normalize(['action'=>['metadata'=>[
-    'DIARY_PROMPT'=>'Rule diary instructions','DIARY_COOLDOWN'=>'240','CONTEXT_HISTORY_DIARY'=>'35']]]);
+    'DIARY_PROMPT'=>'Rule diary instructions','DIARY_COOLDOWN'=>'240','CONTEXT_HISTORY_DIARY'=>'35',
+    'MATERIALIZE_DIARY_ENABLED'=>true,'AUTO_DIARY_ENABLED'=>true,'AUTO_DIARY_WAIT_ENABLED'=>false]]]);
 $diaryRuleProfile=\LorkhanServer\Application\ProfileAssignmentRule::apply([
     'diary'=>['prompt'=>'Old diary instructions','automatic_interval_seconds'=>120,'context_turn_limit'=>20,'enabled'=>false],
     'voice'=>['id'=>'preserved']],$diaryRule['action']);
@@ -3364,9 +3467,28 @@ $check($diaryRuleEffective['settings']['diary']['prompt']==='Rule diary instruct
     &&$diaryRuleEffective['settings']['diary']['automatic_interval_seconds']===240
     &&$diaryRuleEffective['settings']['diary']['context_turn_limit']===35
     &&$diaryRuleEffective['settings']['diary']['enabled']===false
+    &&$diaryRuleEffective['settings']['diary']['materialize_enabled']===true
+    &&$diaryRuleEffective['settings']['diary']['automatic_enabled']===true
+    &&$diaryRuleEffective['settings']['diary']['automatic_wait_enabled']===false
     &&$diaryRuleProfile['voice']['id']==='preserved','diary rules override existing NPC diary fields without enabling generation or changing voice');
 
 $ruleMetadataSamples=['RECHAT_H'=>'2','AUTOFILL_CUSTOM_PROFILES_TRIGGER'=>'40','DIARY_COOLDOWN'=>'120','CORE_LANG'=>'es','RECHAT_MODE'=>'tight','OGHMA_AMOUNT'=>'1'];
+$ruleRepository=(new ReflectionClass(\LorkhanServer\Infrastructure\ProductRepository::class))->newInstanceWithoutConstructor();
+$relationshipLock=(new EffectiveSettingsResolver())->resolve([],[],['relationship'=>['locked'=>true]]);
+$check($relationshipLock['settings']['relationship']['locked']===true,'saved NPC relationship lock reaches effective settings');
+$ruleActorValues=new ReflectionMethod($ruleRepository,'profileRuleActorValues');
+$ruleTarget=['record_id'=>'fargoth','content_file'=>'PlacedReference.esp'];
+foreach([
+    [[],[]],
+    [['state'=>'dynamic','record_id'=>'fargoth','files'=>['Morrowind.esm']],[]],
+    [['state'=>'complete','record_id'=>'other','files'=>['Morrowind.esm']],[]],
+    [['state'=>'complete','record_id'=>'FARGOTH','files'=>['Morrowind.esm','Override.esp'],'winning_file'=>'Override.esp'],['Morrowind.esm','Override.esp']],
+    [['state'=>'truncated','record_id'=>'fargoth','files'=>['Morrowind.esm'],'winning_file'=>'Last.esp'],['Morrowind.esm','Last.esp']],
+    [['state'=>'complete','record_id'=>'fargoth','files'=>['C:/private/mod.esp','../invalid.esp']],[]],
+]as[$provenance,$expected]){
+    $observed=$ruleActorValues->invoke($ruleRepository,$ruleTarget,['targetState'=>['recordProvenance'=>$provenance]]);
+    $check($observed['content_files']===$expected,'Required Mods uses matching loaded-record contributors, never placed-reference origin');
+}
 foreach(\LorkhanServer\Application\ProfileAssignmentRule::METADATA_FIELDS as$key=>[$section,$field,$type]){
     $sample=$ruleMetadataSamples[$key]??match($type){'boolean'=>'false','integer'=>'10','percent'=>'25%','list'=>'Seyda Neen, Balmora',default=>'Rule text'};
     $converted=\LorkhanServer\Application\ProfileAssignmentRule::normalize(['action'=>['metadata'=>[$key=>$sample]]]);
@@ -3384,7 +3506,7 @@ foreach([['metadata'=>['UNKNOWN_SETTING'=>true]],['metadata'=>['RECHAT_H'=>'bad'
 }
 
 $legacyTasks=\LorkhanServer\Application\SettingsCatalog::globalDefaults();unset($legacyTasks['task_availability']);
-$check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($legacyTasks)['task_availability']===['background_memory'=>true,'profile_generation'=>true,'scene_classifier'=>true],'legacy task availability preserves prior enabled behavior');
+$check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($legacyTasks)['task_availability']===['background_memory'=>true,'profile_generation'=>true,'scene_classifier'=>true,'director'=>true],'legacy task availability preserves prior enabled behavior');
 foreach(['bad',[],['background_memory'=>'false','profile_generation'=>true]]as$invalidTasks){$taskGlobals=\LorkhanServer\Application\SettingsCatalog::globalDefaults();$taskGlobals['task_availability']=$invalidTasks;try{\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($taskGlobals);$check(false,'invalid task availability rejected');}catch(InvalidArgumentException){$check(true,'invalid task availability rejected');}}
 
 // Scene classification mirrors the reference genre priority and only romance adds a timed note.

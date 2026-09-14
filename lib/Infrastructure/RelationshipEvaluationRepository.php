@@ -77,6 +77,9 @@ final class RelationshipEvaluationRepository
     {
         $output=RelationshipEvaluationPolicy::output($output);
         return $this->transaction(function()use($payload,$output,$now,$attemptId):bool{
+            // Use the load transaction's first lock before taking actor/session locks.
+            $lock=$this->db->prepare('SELECT installation_id FROM installations WHERE installation_id=:installation FOR UPDATE');
+            $lock->execute(['installation'=>$payload['installation_id']]);
             $source=$this->source($payload['source_event_id']);if($source===null)return false;
             $this->lockIdentity($source);$input=$this->input($payload);if($input===null)return false;
             $record=$input['record'];$beforeDisposition=(int)($record['disposition']??0);$beforeAffinity=(int)($record['affinity']??0);
@@ -89,7 +92,7 @@ final class RelationshipEvaluationRepository
             if($disposition!==$beforeDisposition||$affinity!==$beforeAffinity||$relationshipType!==$beforeType){
                 $write=array_intersect_key($source,array_fill_keys(['installation_id','profile_id','playthrough_id'],true))
                     +['disposition'=>$disposition,'affinity'=>$affinity,'relationship_type'=>$relationshipType,'source_mode'=>'derived',
-                        'source_event_id'=>$source['source_event_id'],'reason'=>$output['reason']];
+                        'source_event_id'=>$source['source_event_id'],'reason'=>$output['reason'],'_relationship_job'=>$payload['_job']];
                 if($record===null)$write['actor_identity']=$source['target_identity'];
                 else $write+=['relationship_id'=>$relationshipId,'expected_revision'=>(int)$record['revision']];
                 $saved=(new ProductRepository($this->db))->setRelationship($write,$now);$relationshipId=$saved['relationship_id'];

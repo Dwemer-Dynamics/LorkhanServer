@@ -163,6 +163,24 @@ final class Router
             $cached = $this->repository->idempotent($m['installation_id'], $m['message_id'], '/turns', $hash);
             if ($cached !== null) return Response::json($cached['status'], $cached['body']);
 
+            \LorkhanServer\Application\ExecutionModePolicy::mode($m['payload']);
+            if(isset($m['payload']['director_instruction_id'])){
+                $trusted=$this->repository->directorChildInput($m);
+                $m['payload']['input']['text']=$trusted['instruction'];
+                $m['payload']['context']['director']=['plan_id'=>$trusted['plan_id'],'scene_note'=>$trusted['scene_note']];
+            }
+            if(($m['payload']['execution_mode']??'standard')==='director'){
+                if(($m['payload']['speaker']['kind']??null)!=='player' || isset($m['payload']['action_request'])
+                    || isset($m['payload']['director_instruction_id'])
+                    || !in_array($m['payload']['ui_source']??null,['lorkhan_text','lorkhan_voice','lorkhan_open_mic'],true))
+                    throw new DomainException('director_route_invalid');
+                $scene=$this->products?->promptContext($m,gmdate('Y-m-d\TH:i:s\Z'))??[];
+                $body=['schema'=>'lorkhan.turn.accepted.v1','message_id'=>$m['message_id'],'turn_id'=>$m['turn_id'],
+                    'request_id'=>$m['request_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation']];
+                $accepted=$this->repository->acceptTurn($m,null,null,$hash,$body,null,[],$scene);
+                $body['event_cursor']=$accepted['sequence'];
+                return Response::json(202,$body);
+            }
             if (($m['payload']['ui_source'] ?? null) === 'lorkhan_rechat') {
                 if ($this->rechatCoordinator === null) throw new DomainException('rechat_unavailable');
                 $m = $this->rechatCoordinator->resolve($m);
@@ -199,13 +217,12 @@ final class Router
                     ||in_array($source,['lorkhan_auto_greeting','lorkhan_auto_boredom','lorkhan_auto_combat_bark','lorkhan_rpg_event','lorkhan_quest_event'],true)
                     ||str_starts_with((string)$source,'lorkhan_narrator_')
                     ||($source==='lorkhan_action_followup'&&!($m['_action_continuation']['allow_action']??false))
-                    ?[]:$this->repository->allowedPromptActions($m['session_id'],$m['generation']);
-                // A synthetic Narrator cannot execute NPC actions; inline narration keeps the NPC target unchanged.
-                if (($m['payload']['target']['kind'] ?? null) === 'narrator') {
-                    $providerInput['_allowed_action_definitions'] = array_values(array_filter(
-                        $providerInput['_allowed_action_definitions'],
-                        static fn (array $definition): bool => ($definition['available_to_narrator'] ?? false) === true
-                    ));
+                    ?[]:$this->repository->allowedPromptActions($m['session_id'],$m['generation'],$m['payload']);
+                if (($m['payload']['execution_mode'] ?? 'standard') === 'narrator') {
+                    $providerInput['_narrator_action_executors']=$this->repository->narratorExecutors($m['session_id'],$m['generation'],$m['payload']);
+                    $providerInput['_allowed_action_definitions']=[];
+                } elseif (($m['payload']['target']['kind'] ?? null) === 'narrator') {
+                    $providerInput['_allowed_action_definitions']=[];
                 }
             }
             $assembled = null;
@@ -311,6 +328,7 @@ final class Router
             'stats'=>['level'=>$payload['level']],'disposition'=>$payload['disposition'],
             'factions'=>array_map(static fn(string$faction):array=>['id'=>$faction],$payload['factions'])]];
         $resolved=$this->morrowindVoices->resolve($actor,$context);
+        if(isset($payload['record_provenance']))$context['targetState']['recordProvenance']=$payload['record_provenance'];
         if($resolved!==null)$resolved=$this->products->preferExactProviderActorVoice((string)$message['installation_id'],$actor,$resolved);
         return$this->products->ensureMorrowindActorProfile([
             'installation_id'=>$message['installation_id'],'profile_id'=>$session['profile_id'],

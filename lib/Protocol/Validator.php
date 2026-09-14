@@ -85,7 +85,16 @@ final class Validator
         }
         $payloadKeys = ['input','speaker','target','audience','context','recent_action_results','ui_source'];
         if (array_key_exists('action_request', $payload)) $payloadKeys[] = 'action_request';
+        if (array_key_exists('execution_mode', $payload)) $payloadKeys[] = 'execution_mode';
+        if (array_key_exists('director_instruction_id', $payload)) $payloadKeys[] = 'director_instruction_id';
         $this->keys($payload, $payloadKeys);
+        if (array_key_exists('execution_mode',$payload)
+            && !in_array($payload['execution_mode'],['standard','narrator','director','cheat'],true))
+            throw new ValidationException('invalid_schema');
+        if (array_key_exists('director_instruction_id',$payload)) {
+            $this->uuid($payload['director_instruction_id']);
+            if (($payload['execution_mode']??'standard')!=='standard') throw new ValidationException('invalid_schema');
+        }
         if (!is_array($payload['audience']) || !array_is_list($payload['audience']) || count($payload['audience']) > 12
             || !is_array($payload['recent_action_results']) || !array_is_list($payload['recent_action_results'])
             || count($payload['recent_action_results']) > 16
@@ -154,7 +163,7 @@ final class Validator
             'runtime_generation','observed_at','game','type','payload']);
         $type=$message['type']??null;
         if(($message['schema']??null)!=='lorkhan.gamedata.v1'||($message['game']??null)!=='tes3'
-            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue','rpg_event','bored_event','quest_event','journal','inventory','spell_cast','item_pickup'],true)
+            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue','rpg_event','bored_event','quest_event','journal','inventory','spell_cast','item_pickup','actor_resurrected'],true)
             ||!is_int($message['generation'])||$message['generation']<1
             ||$message['generation']>9_007_199_254_740_991||!is_int($message['runtime_generation'])
             ||$message['runtime_generation']<1||$message['runtime_generation']>9_007_199_254_740_991)
@@ -163,7 +172,7 @@ final class Validator
         $this->timestamp($message['observed_at']??null);
         $payload=$message['payload']??null;
         if(!is_array($payload)||array_is_list($payload))throw new ValidationException('invalid_schema');
-        if(in_array($type,['item_pickup','spell_cast'],true)&&array_key_exists('calendar',$payload)){
+        if(in_array($type,['item_pickup','spell_cast','actor_resurrected'],true)&&array_key_exists('calendar',$payload)){
             $calendar=$payload['calendar'];if(!is_array($calendar))throw new ValidationException('invalid_schema');
             $this->keys($calendar,['year','month','day','hour']);
             if((!is_int($calendar['hour'])&&!is_float($calendar['hour']))||!is_finite((float)$calendar['hour'])
@@ -195,10 +204,12 @@ final class Validator
             }
             return;
         }
-        if($type==='spell_cast'){
-            $fields=['caster','spell_id','spell_name','game_time'];foreach(['target','audience','calendar']as$optional)if(array_key_exists($optional,$payload))$fields[]=$optional;
+        if($type==='spell_cast'||$type==='actor_resurrected'){
+            $resurrected=$type==='actor_resurrected';
+            $fields=$resurrected?['actor','game_time']:['caster','spell_id','spell_name','game_time'];
+            foreach($resurrected?['audience','calendar']:['target','audience','calendar']as$optional)if(array_key_exists($optional,$payload))$fields[]=$optional;
             $this->keys($payload,$fields);
-            foreach(['caster','target']as$field){
+            foreach($resurrected?['actor']:['caster','target']as$field){
                 if($field==='target'&&!array_key_exists($field,$payload))continue;
                 $this->identity($payload[$field]??null);
                 if(!in_array($payload[$field]['kind']??null,['player','npc','creature'],true))throw new ValidationException('invalid_schema');
@@ -210,7 +221,7 @@ final class Validator
                     ksort($witness);ksort($witness['cell']);ksort($witness['refnum']);$key=json_encode($witness,JSON_THROW_ON_ERROR);
                     if(isset($seen[$key]))throw new ValidationException('invalid_schema');$seen[$key]=true;}
             }
-            foreach(['spell_id','spell_name']as$field)$this->boundedUtf8($payload[$field]??null,1,256);
+            if(!$resurrected)foreach(['spell_id','spell_name']as$field)$this->boundedUtf8($payload[$field]??null,1,256);
             if((!is_int($payload['game_time']??null)&&!is_float($payload['game_time']??null))
                 ||!is_finite((float)$payload['game_time'])||$payload['game_time']<0||$payload['game_time']>9_007_199_254_740_991)
                 throw new ValidationException('invalid_schema');
@@ -297,8 +308,35 @@ final class Validator
             return;
         }
         if($type==='actor_profile'){
-            $this->keys($payload,['actor','race','class','gender','level','disposition','factions']);
+            $this->keys($payload,array_merge(['actor','race','class','gender','level','disposition','factions'],
+                array_key_exists('record_provenance',$payload)?['record_provenance']:[]));
             $this->identity($payload['actor']??null);
+            if(array_key_exists('record_provenance',$payload)){
+                $provenance=$payload['record_provenance'];
+                if(!is_array($provenance)||array_is_list($provenance))throw new ValidationException('invalid_schema');
+                if(array_diff(array_keys($provenance),['state','files','record_id','winning_file']))throw new ValidationException('invalid_schema');
+                if(!in_array($provenance['state']??null,['complete','truncated','dynamic','unavailable'],true)
+                    ||!is_array($provenance['files']??null)||!array_is_list($provenance['files'])
+                    ||count($provenance['files'])>128)throw new ValidationException('invalid_schema');
+                $known=in_array($provenance['state'],['complete','truncated'],true);
+                if(($known&&(!isset($provenance['record_id'],$provenance['winning_file'])||$provenance['files']===[]))
+                    ||(!$known&&($provenance['files']!==[]||array_key_exists('winning_file',$provenance))))throw new ValidationException('invalid_schema');
+                if(array_key_exists('record_id',$provenance)&&(!is_string($provenance['record_id'])
+                    ||$provenance['record_id']===''||!mb_check_encoding($provenance['record_id'],'UTF-8')
+                    ||mb_strlen($provenance['record_id'],'UTF-8')>256
+                    ||strcasecmp($provenance['record_id'],(string)($payload['actor']['record_id']??''))!==0))throw new ValidationException('invalid_schema');
+                $seenFiles=[];
+                foreach($provenance['files']as$file){
+                    if(!is_string($file)||$file===''||!mb_check_encoding($file,'UTF-8')||mb_strlen($file,'UTF-8')>256
+                        ||preg_match('~[/\\\\\\\\:\\x00-\\x1F\\x7F]~',$file)||isset($seenFiles[$file]))throw new ValidationException('invalid_schema');
+                    $seenFiles[$file]=true;
+                }
+                if(isset($provenance['winning_file'])){
+                    $file=$provenance['winning_file'];
+                    if(!is_string($file)||$file===''||!mb_check_encoding($file,'UTF-8')||mb_strlen($file,'UTF-8')>256
+                        ||preg_match('~[/\\\\\\\\:\\x00-\\x1F\\x7F]~',$file))throw new ValidationException('invalid_schema');
+                }
+            }
             if(!in_array($payload['actor']['kind']??null,['creature','npc'],true)||!is_string($payload['race']??null)||$payload['race']===''
                 ||!mb_check_encoding($payload['race'],'UTF-8')||mb_strlen($payload['race'],'UTF-8')>128
                 ||!is_string($payload['class']??null)||!mb_check_encoding($payload['class'],'UTF-8')

@@ -696,6 +696,7 @@ final class ProductRepository
         $definitions=[
             ['memory_summary_connector','Summaries',(string)($summary['provider_configuration_id']??''),($summary['enabled']??false)===true],
             ['background_memory_configuration_id','Background & Memory Tasks',$routing['background_memory_configuration_id'],$settings['task_availability']['background_memory']],
+            ['director_configuration_id','Director',$routing['director_configuration_id'],$settings['task_availability']['director']],
             ['scene_classifier_configuration_id','Scene Classifier',(string)((new SceneClassificationRepository($this->db))->route($installationId)['configuration_id']??''),$settings['task_availability']['scene_classifier']],
             ['profile_generation_configuration_id','Profile Tasks',$routing['profile_generation_configuration_id'],$settings['task_availability']['profile_generation']],
             ['oghma_configuration_id','Custom Oghma LLM',$routing['oghma_configuration_id'],$settings['oghma']['enabled']&&$settings['oghma']['extractor_enabled']],
@@ -1491,7 +1492,7 @@ final class ProductRepository
                 $policy=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
                     WHERE c.kind='memory_policy' AND c.deleted_at IS NULL AND r.content->>'provider_configuration_id'=:id LIMIT 1");
                 $policy->execute(['id'=>$id]);if($policy->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
-                $global=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.kind='global_settings' AND c.deleted_at IS NULL AND :id IN (r.content#>>'{system_routing,oghma_configuration_id}',r.content#>>'{system_routing,profile_generation_configuration_id}',r.content#>>'{system_routing,background_memory_configuration_id}',r.content#>>'{system_routing,scene_classifier_configuration_id}',r.content#>>'{system_routing,relationship_configuration_id}') LIMIT 1");
+                $global=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.kind='global_settings' AND c.deleted_at IS NULL AND :id IN (r.content#>>'{system_routing,oghma_configuration_id}',r.content#>>'{system_routing,profile_generation_configuration_id}',r.content#>>'{system_routing,background_memory_configuration_id}',r.content#>>'{system_routing,scene_classifier_configuration_id}',r.content#>>'{system_routing,director_configuration_id}',r.content#>>'{system_routing,relationship_configuration_id}') LIMIT 1");
                 $global->execute(['id'=>$id]);if($global->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id OR r.content->'routing'->>'relationship_configuration_id'=:id OR r.content->'routing'->>'diary_generation_configuration_id'=:id OR r.content->'routing'->>'player_autochat_configuration_id'=:id) LIMIT 1");
                 $profile->execute(['id'=>$id]);if($profile->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
@@ -2589,6 +2590,8 @@ SQL);
                     .':disposition,:affinity,:type,:mode,:source,:custom,CAST(:details AS jsonb),:now) RETURNING revision');
                 $params=$scope+['id'=>$id,'identity'=>$identity];
             }
+            $timeline=new RelationshipTimelineRepository($this->db);
+            if($before)$timeline->snapshot($before);
             $customInfo=$input['custom_info']??($before['custom_info']??'');
             $details=$input['details']??$this->json($before['details']??'{}');
             $relationshipType=$input['relationship_type']??($before['relationship_type']??'neutral');
@@ -2604,6 +2607,7 @@ SQL);
                     'before'=>$this->encode($before?['disposition'=>(int)$before['disposition'],'affinity'=>(int)$before['affinity'],
                         'relationship_type'=>(string)$before['relationship_type'],'revision'=>(int)$before['revision']]:[]),
                     'after'=>$this->encode($after),'reason'=>$input['reason']??'updated','source'=>$input['source_event_id']??null,'now'=>$now]);
+            $timeline->recordWrite($id,$before?(int)$before['revision']:0,$input['_relationship_job']??null);
             return ['relationship_id'=>$id]+$after+['source_mode'=>$input['source_mode']];
         });
     }
@@ -3292,6 +3296,8 @@ SQL);
         if($contextSections['conversation_history']&&$contextPolicy['event_types']!==[]){$typeParameters=[];$historyParameters=[];
         // Successful casts share the existing action-event switch; older saved settings need no new category.
         $historyEventTypes=$contextPolicy['event_types'];
+        $resurrectionSql=in_array('infoaction',$historyEventTypes,true)
+            ? " OR (e.type='info' AND m.projection_key LIKE 'resurrection:%')" : '';
         if(in_array('infoaction',$historyEventTypes,true))$historyEventTypes[]='itemfound';
         if(($contextPolicy['detect_magic_events']??true)&&in_array('infoaction',$historyEventTypes,true))$historyEventTypes=array_merge($historyEventTypes,['spellcast','npcspellcast']);
         foreach($historyEventTypes as$index=>$eventType){$name='event_type_'.$index;$typeParameters[]=':'.$name;$historyParameters[$name]=$eventType;}
@@ -3319,6 +3325,7 @@ SELECT 'event:'||e.rowid::text AS id,
                'kind','event','type',e.type,'turn_id',m.turn_id,
                'input',CASE WHEN e.type IN ('inputtext','rechat') THEN m.payload->'input' END,
                'details',CASE
+                   WHEN e.type='info' AND m.projection_key LIKE 'resurrection:%' THEN m.payload
                    WHEN e.type='location' THEN jsonb_strip_nulls(jsonb_build_object('location',e.location,'game_time',NULLIF(e.gamets,0)))
                    WHEN e.type='weather' THEN jsonb_strip_nulls(jsonb_build_object('weather',COALESCE(m.payload->>'weather',replace(e.data,'Weather changed to ',''))))
                     WHEN e.type IN ('quest','book','death','infoaction','narration','chat_background','spellcast','npcspellcast','itemfound') THEN m.payload
@@ -3332,14 +3339,14 @@ FROM eventlog e
 JOIN eventlog_metadata m ON m.rowid=e.rowid
 WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL
   AND m.turn_id IS DISTINCT FROM :current_turn
-  AND e.type IN ($eventTypeSql)
+  AND (e.type IN ($eventTypeSql)$resurrectionSql)
   AND (e.type<>'itemfound' OR (lower(btrim(COALESCE(m.payload->>'item_record_id','')))<>ALL(CAST(:item_blacklist AS text[]))
        AND lower(btrim(COALESCE(m.payload->>'item_name','')))<>ALL(CAST(:item_blacklist AS text[]))))
   AND (e.type NOT IN ('spellcast','npcspellcast') OR (lower(btrim(COALESCE(m.payload->>'spell_id','')))<>ALL(CAST(:magic_blacklist AS text[]))
        AND lower(btrim(COALESCE(m.payload->>'spell_name','')))<>ALL(CAST(:magic_blacklist AS text[]))))
   AND (e.type<>'itemfound' OR CASE WHEN jsonb_typeof(m.payload->'count')='number' AND jsonb_typeof(m.payload->'unit_value')='number'
        THEN (m.payload->>'count')::numeric*(m.payload->>'unit_value')::numeric>=CAST(:pickup_min_value AS numeric) ELSE false END)
-  AND (e.type NOT IN ('spellcast','npcspellcast','itemfound') OR (
+  AND ((e.type NOT IN ('spellcast','npcspellcast','itemfound') AND COALESCE(m.projection_key,'') NOT LIKE 'resurrection:%') OR (
       NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=m.source_event_id)
       AND (EXISTS(SELECT 1 FROM source_events observation WHERE observation.source_event_id=m.source_event_id AND observation.session_id=:context_session AND observation.generation=COALESCE(CAST(:context_generation AS bigint),(SELECT generation FROM sessions WHERE session_id=:context_session)))
           OR (jsonb_typeof(m.payload->'calendar')='object' AND EXISTS(SELECT 1 FROM source_events load WHERE load.session_id=:context_session AND load.event_kind='session.init' AND jsonb_typeof(load.payload->'loaded_save')='object')))))
@@ -3565,8 +3572,18 @@ SQL);
     {
         $values=array_fill_keys(self::PROFILE_RULE_MATCH_FIELDS,[]);
         $this->addProfileRuleOption($values['names'],$target['display_name']??null);
-        $this->addProfileRuleOption($values['content_files'],$target['content_file']??null);
         $state=is_array($context['targetState']??null)&&!array_is_list($context['targetState'])?$context['targetState']:[];
+        // RefNum/content_file describes the placed reference, not the NPC record's override chain.
+        $provenance=$state['recordProvenance']??null;
+        if(is_array($provenance)&&in_array($provenance['state']??null,['complete','truncated'],true)
+            &&is_string($provenance['record_id']??null)&&is_string($target['record_id']??null)
+            &&strcasecmp($provenance['record_id'],$target['record_id'])===0
+            &&is_array($provenance['files']??null)&&array_is_list($provenance['files'])&&count($provenance['files'])<=128){
+            // Truncation may omit contributors, but each retained contributor is positive evidence.
+            foreach([...$provenance['files'],$provenance['winning_file']??null]as$file)
+                if(is_string($file)&&!str_contains($file,'/')&&!str_contains($file,'\\'))
+                    $this->addProfileRuleOption($values['content_files'],$file);
+        }
         $identity=is_array($state['identity']??null)&&!array_is_list($state['identity'])?$state['identity']:[];
         $this->addProfileRuleOption($values['races'],$identity['race']??$state['race']??null);
         $this->addProfileRuleOption($values['classes'],$identity['class']??$state['class']??null);

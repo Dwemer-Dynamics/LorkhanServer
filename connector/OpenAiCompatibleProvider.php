@@ -227,14 +227,29 @@ final class OpenAiCompatibleProvider implements StreamingProvider
     private function responseSchema(array $turn): array
     {
         $actions = [['type'=>'null']];
-        foreach ($turn['_allowed_action_definitions'] ?? [] as $definition) {
+        $narrator=ExecutionModePolicy::mode($turn['payload']??[])==='narrator';
+        $executors=$narrator?($turn['_narrator_action_executors']??[]):[''=>['definitions'=>$turn['_allowed_action_definitions']??[]]];
+        foreach($executors as $selector=>$executor){
+        $physicalPayload=$turn['payload']??[];
+        if($narrator)$physicalPayload['target']=$executor['actor'];
+        foreach ($executor['definitions'] as $definition) {
             $parameters = $definition['parameter_schema'];
             $parameters['properties'] = (object)($parameters['properties'] ?? []);
             $parameters['required'] ??= [];
-            $actions[] = LlmConnector::objectSchema([
+            $actorProperty=$narrator?['actor_id'=>['type'=>'string','enum'=>[$selector]]]:[];
+            $actions[] = LlmConnector::objectSchema($actorProperty+[
                 'name'=>['type'=>'string', 'enum'=>[$definition['name']]],
                 'parameters'=>$parameters,
             ]);
+            if (in_array($definition['name'],['item.give','gold.give','spell.cast'],true)) {
+                $recipients=ObservedActionActors::recipients($physicalPayload,$definition['name']==='spell.cast');
+                if ($recipients!==[]) $actions[]=LlmConnector::objectSchema($actorProperty+[
+                    'name'=>['type'=>'string','enum'=>[$definition['name']]],
+                    'parameters'=>$parameters,
+                    'recipient_id'=>['type'=>'string','enum'=>array_keys($recipients)],
+                ]);
+            }
+        }
         }
         $properties = ($turn['_prompt']['_llm_tts_language']??false)===true ? ['language'=>['type'=>'string','enum'=>SpeechLanguage::CODES]] : [];
         $textSchema=['type'=>'string','minLength'=>1,'maxLength'=>4096];
@@ -329,42 +344,57 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         }
         $keys = array_keys($action);
         sort($keys);
-        if ($keys === ['actor', 'name', 'parameters', 'target', 'tier']) return $result;
-        if ($keys !== ['name', 'parameters'] && $keys !== ['function', 'parameters']) {
+        $narrator=ExecutionModePolicy::mode($turn['payload']??[])==='narrator';
+        if ($keys === ['actor', 'name', 'parameters', 'target', 'tier']&&!$narrator) return $result;
+        $executor=null;
+        if($narrator){
+            $selector=$action['actor_id']??null;
+            if(!is_string($selector)||!isset($turn['_narrator_action_executors'][$selector])){
+                $result['action']=null;return $result;
+            }
+            $executor=$turn['_narrator_action_executors'][$selector];
+            unset($action['actor_id']);$keys=array_keys($action);sort($keys);
+        }
+        if (!in_array($keys,[['name','parameters'],['function','parameters'],
+            ['name','parameters','recipient_id'],['function','parameters','recipient_id']],true)) {
             $result['action'] = null;
             return $result;
         }
         $name = $action['name'] ?? $action['function'] ?? null;
-        $tiers = [
-            'inspect.report' => 0,
-            'inventory.inspect' => 0,
-            'ai.follow' => 1,
-            'ai.stop' => 1,
-            'ai.approach' => 1,
-            'ai.wait' => 1,
-            'ai.travel' => 1,
-            'ai.escort' => 1,
-            'ai.face' => 1,
-            'ai.wander' => 1,
-            'combat.start' => 2,
-            'combat.stop' => 1,
-            'animation.play' => 1,
-            'item.use' => 2,
-            'item.equip' => 2,
-            'item.unequip' => 2,
-        ];
+        // The same negotiated catalog drives tool exposure and normalization, including new actions.
+        $tiers = [];
+        foreach (($executor['definitions']??($turn['_allowed_action_definitions']??[])) as $definition) {
+            if (is_string($definition['name'] ?? null) && is_int($definition['tier'] ?? null))
+                $tiers[$definition['name']]=$definition['tier'];
+        }
         $payload = $turn['payload'] ?? null;
+        if($narrator&&is_array($payload))$payload['target']=$executor['actor'];
         if (!is_string($name) || !array_key_exists($name, $tiers)
             || !is_array($action['parameters'] ?? null)
             || !is_array($payload) || !is_array($payload['target'] ?? null) || !is_array($payload['speaker'] ?? null)) {
             $result['action'] = null;
             return $result;
         }
+        $recipient=$payload['speaker'];
+        if ((in_array($name,['item.take','item.pickup','gold.take'],true)
+            || in_array($name,\LorkhanServer\Application\ServiceActionPolicy::NAMES,true))
+            && ($payload['context']['player']['kind']??null)==='player') {
+            $recipient=$payload['context']['player'];
+        }
+        if (array_key_exists('recipient_id',$action)) {
+            $recipients=ObservedActionActors::recipients($payload,$name==='spell.cast');
+            if (!in_array($name,['item.give','gold.give','spell.cast'],true) || !is_string($action['recipient_id'])
+                || !isset($recipients[$action['recipient_id']])) {
+                $result['action']=null;
+                return $result;
+            }
+            $recipient=$recipients[$action['recipient_id']];
+        }
         $result['action'] = [
             'name' => $name,
             'tier' => $tiers[$name],
             'actor' => $payload['target'],
-            'target' => $payload['speaker'],
+            'target' => $recipient,
             'parameters' => $action['parameters'],
         ];
         return $result;

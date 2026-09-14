@@ -1,5 +1,8 @@
 # LorkhanServer feature parity matrix
 
+Current outstanding work and corrected exclusions: [Current parity plan](CURRENT-PARITY-PLAN.md).
+The detailed rows below include historical implementation decisions.
+
 Parity means the user outcome works end to end and is observable/persisted, not that a similarly named
 route or table exists. The implementation ledger adds state and evidence to every row.
 

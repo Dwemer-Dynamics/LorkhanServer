@@ -160,6 +160,7 @@ $sections = [
     ],
     'global-connectors' => [
         'Global Connectors' => [
+            ['director_configuration_id', 'Director', '&#x1F3AC;', 'select', $systemRouting['director_configuration_id'], 'Plans instructions for nearby NPCs in Director mode. Requires this dedicated connector; no other connector is used as a fallback.', ['values'=>$llmOptions,'toggle'=>['director_enabled','Director',$globalDocument['task_availability']['director']]]],
             ['memory_summary_connector', 'Summaries', '&#x1F4DD;', 'select', $memorySummary['provider_configuration_id'] ?? '', 'Summarize consolidated memories with the selected LLM. Original memories are retained.', ['values'=>$llmOptions, 'toggle'=>['memory_summary_enabled','Automatic Memory Summaries',$memorySummary['enabled'] ?? false]]],
             ['background_memory_configuration_id', 'Background & Memory Tasks', '&#x1F9E0;', 'select', $systemRouting['background_memory_configuration_id'], 'Generates NPC evolution reports from saved history. Disabled never calls a provider. Separate from automatic memory summaries.', ['values'=>$llmOptions,'toggle'=>['background_memory_enabled','Background & Memory Tasks',$globalDocument['task_availability']['background_memory']]]],
             ['scene_classifier_configuration_id', 'Scene Classifier', '&#x1F3AD;', 'select', $systemRouting['scene_classifier_configuration_id'], 'Classifies recent dialogue after a response. Uses a named Scene Classifier connector or enabled Background Tasks when no connector is selected. Romance adds a scene note for 60 seconds.', ['values'=>array_replace($llmOptions,[''=>'Automatic fallback']),'toggle'=>['scene_classifier_enabled','Scene Classifier',$globalDocument['task_availability']['scene_classifier']]]],
@@ -280,6 +281,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <input type="hidden" name="memory_settings_present" value="1">
         <input type="hidden" name="task_availability_present" value="1">
         <input type="hidden" name="scene_classifier_present" value="1">
+        <input type="hidden" name="director_present" value="1">
         <input type="hidden" name="context_transformation_detection_present" value="1">
         <input type="hidden" name="context_detect_magic_events_present" value="1">
         <input type="hidden" name="context_item_pickup_min_value_present" value="1">

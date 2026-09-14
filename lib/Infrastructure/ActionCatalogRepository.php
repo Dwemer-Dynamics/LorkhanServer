@@ -22,7 +22,7 @@ final class ActionCatalogRepository
         $rows = $this->db->query(
             'SELECT action_name, tier, display_name, category, sort_order, description, parameter_schema, result_schema, '
             . 'client_capability, server_owned, terminal_result_required, continuation_capable, confirmation_mode, '
-            . 'followup_default, followup_actions_supported, cooldown_seconds '
+            . "followup_default, followup_actions_supported, cooldown_seconds, COALESCE((to_jsonb(action_catalog)->>'available_to_narrator')::boolean,false) AS available_to_narrator "
             . 'FROM action_catalog WHERE enabled = true ORDER BY category, sort_order, action_name'
         )->fetchAll();
 
@@ -141,7 +141,7 @@ final class ActionCatalogRepository
             'return_message' => '',
             'available_to_npc' => true,
             'available_to_followers' => false,
-            'available_to_narrator' => false,
+            'available_to_narrator' => $this->boolean($row['available_to_narrator'] ?? false),
             'is_activated' => true,
             'parameters_json' => $parameterSchema,
             'metadata' => $metadata,
