@@ -45,3 +45,25 @@ tests, and responsive browser rendering pass. The deployed tree has zero checksu
 pushed implementation source after preserved runtime paths are excluded. Both draft PRs are green.
 In-game action/playback success, compatibility, publication, and release remain unproven; no local mock,
 schema, build, deployment, or browser check is promoted to game evidence.
+
+## 2026-09-13 observed spell and pickup context
+
+- Successful native casts and player item acquisitions feed immutable source events,
+  scoped event history, and prompt context. No observation schedules a model turn.
+- Spell targets are cast targets, not hit confirmations. Pickups report transferred
+  quantity with canonical inventory gold units; cancelled transfers, barter, crafting,
+  and console/script additions are excluded.
+- Detect Magic Events defaults on. Item Pickup Detection Value defaults to 500 total
+  gold. Global/Core/NPC overrides and existing category/blacklist filters affect
+  prompt inclusion; original event records are retained.
+- Capture-time calendars use existing zero-based Morrowind months. Loaded-save
+  rollback suppresses dated future observations and retires unanchored prior-session
+  spell/pickup evidence from active context. Original sources remain immutable.
+- Automated Lua and protocol checks pass (81 Lua cases; 38 schemas, 77 fixtures,
+  115 paired files). Live gameplay and paid-provider checks have not been performed.
+- Server migration 109 records automatic NPC/creature profile revision provenance
+  from the leased job. Save rollback appends a restoration revision while preserving
+  manual/locked/Narrator/player/unknown-history boundaries. Revision numbers never
+  move backwards, and an earlier subsequent load can follow restored ancestry.
+- Physical diary book materialization awaits an explicit exception to the closed
+  game-record creation boundary; it is not supplied by web diary generation.

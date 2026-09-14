@@ -1129,6 +1129,9 @@ $assert($backfillJobRow&&$backfillJobRow['state']==='queued'
     'automatic profile backfill did not freeze bounded actor history or persist its source observation: '.json_encode([
         'status'=>$backfillStatus,'job'=>$backfillJobRow,'payload'=>$backfillPayload],JSON_UNESCAPED_SLASHES));
 $backfillHandlerPayload=$backfillPayload;
+$leaseProfileFixture=$db->prepare("UPDATE durable_jobs SET state='leased',attempt_count=1,lease_owner='profile-fixture',
+    lease_token=:token,leased_at=clock_timestamp(),lease_expires_at=clock_timestamp()+interval '5 minutes',heartbeat_at=clock_timestamp() WHERE job_id=:job");
+$leaseProfileFixture->execute(['job'=>$backfillJobRow['job_id'],'token'=>\LorkhanServer\Infrastructure\Uuid::v4()]);
 $backfillHandlerPayload['_job']=['job_id'=>$backfillJobRow['job_id'],'attempt'=>1];
 (new \LorkhanServer\Application\ProfileGenerateJobHandler($products,
     new \LorkhanServer\Application\MockProfileGenerationProvider()))->handle($backfillHandlerPayload,'profile-backfill-test',static fn():bool=>true);
@@ -1203,6 +1206,7 @@ try{
         $assert($sources===array_column($events,'turn_id')&&strlen(json_encode($events,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))<=65536,'truncated history retained discarded source IDs or exceeded the worker byte cap');
         $assert($case==='truncated'?(count($events)>0&&count($events)<400):count($events)===400,'configured 400-turn limit was not honored within its byte budget');
         $largePayload['_job']=['job_id'=>$queued['job_id'],'attempt'=>1];
+        $leaseProfileFixture->execute(['job'=>$queued['job_id'],'token'=>\LorkhanServer\Infrastructure\Uuid::v4()]);
         $handler=new \LorkhanServer\Application\ProfileGenerateJobHandler($products,new \LorkhanServer\Application\MockProfileGenerationProvider());
         if($case!=='truncated'){
             $tooLarge=$largePayload;$id=\LorkhanServer\Infrastructure\Uuid::v4();$tooLarge['source_turn_ids'][]=$id;$tooLarge['recent_events'][]=['turn_id'=>$id,'player_input'=>'Hello','npc_responses'=>['Hello']];
@@ -1215,6 +1219,7 @@ try{
 }finally{$db->exec('ROLLBACK TO SAVEPOINT profile_history_limits_probe');if($historyOwns)$db->rollBack();}
 
 $dynamicHandlerPayload=$dynamicPayload;
+$leaseProfileFixture->execute(['job'=>$dynamicJobRow['job_id'],'token'=>\LorkhanServer\Infrastructure\Uuid::v4()]);
 $dynamicHandlerPayload['_job']=['job_id'=>$dynamicJobRow['job_id'],'attempt'=>1];
 (new \LorkhanServer\Application\ProfileGenerateJobHandler($products,
     new \LorkhanServer\Application\MockProfileGenerationProvider()))->handle($dynamicHandlerPayload,'profile-evolution-test',static fn():bool=>true);
@@ -1248,6 +1253,7 @@ $assert(($narratorEvolution['queued']??false)===true&&$narratorEvolutionRow
     'dynamic narrator evolution did not freeze the shared witnessed history');
 $narratorEvolutionHandler=$narratorEvolutionPayload;
 $narratorEvolutionHandler['_job']=['job_id'=>$narratorEvolutionRow['job_id'],'attempt'=>1];
+$leaseProfileFixture->execute(['job'=>$narratorEvolutionRow['job_id'],'token'=>\LorkhanServer\Infrastructure\Uuid::v4()]);
 (new \LorkhanServer\Application\ProfileGenerateJobHandler($products,
     new \LorkhanServer\Application\MockProfileGenerationProvider()))->handle($narratorEvolutionHandler,'narrator-evolution-test',static fn():bool=>true);
 $evolvedNarrator=$products->getRevisioned('profile',$narratorDynamic['profile_id']);
@@ -1401,6 +1407,33 @@ foreach([['game_time'=>-1],['game_time'=>INF],['spell_name'=>''],['spell_id'=>st
     try{(new Validator())->validate($invalidSpell,'lorkhan.gamedata.v1');$assert(false,'malformed spell telemetry accepted');}
     catch(\LorkhanServer\Protocol\ValidationException){}
 }
+$pickup=$captured;$pickup['type']='item_pickup';$pickup['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+$pickup['payload']=['player'=>$spell['payload']['caster'],'item_record_id'=>'valuable_pickup_sentinel','item_name'=>'Valuable Pickup Sentinel',
+    'count'=>2,'unit_value'=>250,'game_time'=>12346.5,'source_kind'=>'container','source'=>['record_id'=>'chest_ref','display_name'=>'Wooden Chest'],
+    'audience'=>[$spell['payload']['target']]];
+$pickupTurns=(int)$db->query('SELECT count(*) FROM turns')->fetchColumn();
+[$status]=$call($router,'POST',$base.'/gamedata',$headers($pickup['request_id']),[],$pickup);$assert($status===202,'container pickup rejected');
+$lowPickup=$pickup;$lowPickup['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();$lowPickup['payload']['item_record_id']='low_pickup_sentinel';
+$lowPickup['payload']['item_name']='Low Value Pickup Sentinel';$lowPickup['payload']['count']=1;$lowPickup['payload']['unit_value']=499;
+$lowPickup['payload']['source_kind']='world';unset($lowPickup['payload']['source']);
+[$status]=$call($router,'POST',$base.'/gamedata',$headers($lowPickup['request_id']),[],$lowPickup);$assert($status===202,'below-threshold pickup source rejected');
+$sourceOnlyPickup=$pickup;$sourceOnlyPickup['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();$sourceOnlyPickup['payload']['item_name']='Unwitnessed Source Pickup Sentinel';
+$sourceOnlyPickup['payload']['source_kind']='actor';$sourceOnlyPickup['payload']['audience']=[];
+$sourceOnlyPickup['payload']['source']=['record_id'=>$spell['payload']['target']['record_id'],'display_name'=>$spell['payload']['target']['display_name']];
+[$status]=$call($router,'POST',$base.'/gamedata',$headers($sourceOnlyPickup['request_id']),[],$sourceOnlyPickup);
+$assert($status===202&&(int)$db->query('SELECT count(*) FROM turns')->fetchColumn()===$pickupTurns,'pickup source created a model turn');
+$pickupCandidates=array_column($products->contextFilterCandidates($installationId,'items')['items'],'value');
+$assert(in_array('Valuable Pickup Sentinel',$pickupCandidates,true)&&in_array('valuable_pickup_sentinel',$pickupCandidates,true),
+    'item chooser missed a captured pickup absent from inventory turns');
+
+$pickupProjection=$db->prepare("SELECT e.type,e.data,m.target,se.payload FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid JOIN source_events se ON se.source_event_id=m.source_event_id WHERE m.source_event_id=:id");
+$pickupProjection->execute(['id'=>$pickup['request_id']]);$pickupRow=$pickupProjection->fetch();
+$assert($pickupRow['type']==='itemfound'&&str_contains($pickupRow['data'],' picks up 2 Valuable Pickup Sentinel from Wooden Chest')
+    &&json_decode($pickupRow['target'],true)===[]&&json_decode($pickupRow['payload'],true)['payload']==$pickup['payload'],'pickup projection lost source or promoted source description to target');
+foreach([['count'=>0],['count'=>2147483648],['unit_value'=>-1],['unit_value'=>0.5],['game_time'=>INF],['item_name'=>''],['source_kind'=>'barter'],['calendar'=>null],['calendar'=>['year'=>427,'month'=>1,'day'=>30,'hour'=>12]],['source'=>['record_id'=>'x']],['audience'=>array_fill(0,2,$spell['payload']['target'])]]as$invalid){
+    $badPickup=$pickup;$badPickup['payload']=array_replace($pickup['payload'],$invalid);
+    try{(new Validator())->validate($badPickup,'lorkhan.gamedata.v1');$assert(false,'malformed pickup telemetry accepted');}catch(\LorkhanServer\Protocol\ValidationException){}
+}
 $turn = $fixture('turn');
 $turn['session_id'] = $sessionId;
 $turn['payload']['target']=$controlsQuery['target'];
@@ -1431,20 +1464,100 @@ $memoryRetrievalStatement->execute(['turn'=>$turn['turn_id']]);$memoryRetrieval=
 $promptMessages=$snapshot['message']['_prompt']['_messages']??[];
 $promptHistoryJson=json_encode($promptMessages,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
 $assert(str_contains($promptHistoryJson,'Spell Capture Sentinel'),'captured spell did not reach the scoped NPC prompt');
+$assert(str_contains($promptHistoryJson,'Valuable Pickup Sentinel')&&!str_contains($promptHistoryJson,'Low Value Pickup Sentinel')
+    &&!str_contains($promptHistoryJson,'Unwitnessed Source Pickup Sentinel'),'pickup total-value threshold or witness scoping failed');
+
 $assert(str_contains($promptHistoryJson,'Witnessed Self Cast Sentinel'),'witnessed player selfcast did not reach the NPC prompt');
+$jobContextProbe=$turn;unset($jobContextProbe['generation']);
+$assert(str_contains(json_encode($products->promptContext($jobContextProbe,$now)['history'],JSON_THROW_ON_ERROR),'Valuable Pickup Sentinel'),
+    'job prompt scope without explicit generation did not use its recorded session generation');
+
 $unrelatedSpellProbe=$turn;$unrelatedSpellProbe['payload']['target']['refnum']['index']+=100000;
 $assert(!str_contains(json_encode($products->promptContext($unrelatedSpellProbe,$now)['history'],JSON_THROW_ON_ERROR),'Witnessed Self Cast Sentinel'),
     'selfcast leaked into an unrelated NPC prompt');
 
+// Save rollback uses captured calendar globals, never the independent DaysPassed game_time clock.
+$db->beginTransaction();
+try{
+    $dated=[];
+    foreach(['spell'=>$spell,'pickup'=>$pickup]as$family=>$template){
+        foreach(['past'=>11.5,'cutoff'=>12.0,'future'=>12.5,'undated'=>null]as$when=>$hour){
+            $observation=$template;$observation['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+            $observation['payload']['game_time']=1; // Deliberately contradicts calendar ordering.
+            $nameField=$family==='spell'?'spell_name':'item_name';$observation['payload'][$nameField]='Timeline '.$family.' '.$when;
+            if($hour!==null)$observation['payload']['calendar']=['year'=>427,'month'=>7,'day'=>15,'hour'=>$hour];
+            (new Validator())->validate($observation,'lorkhan.gamedata.v1');$repo->acceptGameData($observation);
+            $dated[$family][$when]=$observation['request_id'];
+        }
+    }
+    $pickupMemories=[];$pickupWriter=new \LorkhanServer\Infrastructure\FirstPartyJobRepository($db);
+    foreach(['past','future']as$when){$memoryId=\LorkhanServer\Infrastructure\Uuid::v4();$pickupMemories[$when]=$memoryId;
+        $pickupWriter->upsertMemory($memoryId,['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],
+            'profile_id'=>$actorProfile['profile_id'],'tier'=>'recent','content'=>'Pickup memory '.$when,
+            'source_event_id'=>$dated['pickup'][$when],'provenance'=>['source'=>'pickup-regression']],$now);}
+    $load=$session;$load['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();$load['generation']=8;
+    $load['loaded_save']=['year'=>427,'month'=>7,'day'=>15,'hour'=>12.0];$loadSession=\LorkhanServer\Infrastructure\Uuid::v4();
+    $repo->createSession($load,$loadSession,$tokenHash);
+    $loadProbe=$turn;$loadProbe['session_id']=$loadSession;$loadProbe['generation']=8;
+    $loadedHistory=json_encode($products->promptContext($loadProbe,$now)['history'],JSON_THROW_ON_ERROR);
+    foreach($dated as$family=>$observations){
+        foreach($observations as$when=>$source){
+            $q=$db->prepare('SELECT EXISTS(SELECT 1 FROM timeline_invalidated_sources WHERE source_event_id=:source)');$q->execute(['source'=>$source]);
+            $assert($q->fetchColumn()===($when!=='past'),'calendar rollback did not classify '.$family.' '.$when);
+        }
+        $assert(str_contains($loadedHistory,'Timeline '.$family.' past')&&!str_contains($loadedHistory,'Timeline '.$family.' future')
+            &&!str_contains($loadedHistory,'Timeline '.$family.' undated'),'loaded history leaked abandoned '.$family.' observations');
+    }
+    foreach($pickupMemories as$when=>$memoryId){$q=$db->prepare('SELECT deleted_at IS NOT NULL FROM memory_records WHERE memory_id=:id');$q->execute(['id'=>$memoryId]);
+        $assert($q->fetchColumn()===($when==='future'),'save rollback did not retire only future derived pickup memory');}
+    $loadCandidates=array_column($products->contextFilterCandidates($installationId,'items')['items'],'value');
+    $assert(in_array('Timeline pickup past',$loadCandidates,true)&&!in_array('Timeline pickup future',$loadCandidates,true),'chooser leaked future pickup after load');
+    $q=$db->prepare('UPDATE eventlog_metadata SET suppressed_at=NULL,suppression_reason=NULL WHERE source_event_id=:source');$q->execute(['source'=>$dated['pickup']['future']]);
+    $q=$db->prepare('SELECT suppressed_at IS NOT NULL FROM eventlog_metadata WHERE source_event_id=:source');$q->execute(['source'=>$dated['pickup']['future']]);
+    $assert($q->fetchColumn()===true,'late projection revived an invalidated pickup');
+    $unknownLoad=$load;$unknownLoad['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();$unknownLoad['generation']=9;$unknownLoad['loaded_save']=null;
+    $unknownSession=\LorkhanServer\Infrastructure\Uuid::v4();$repo->createSession($unknownLoad,$unknownSession,$tokenHash);
+    $q=$db->prepare('SELECT EXISTS(SELECT 1 FROM timeline_invalidated_sources WHERE source_event_id=:source)');$q->execute(['source'=>$dated['pickup']['past']]);
+    $assert($q->fetchColumn()===true,'unanchored load retained an older pickup as known-past');
+}finally{$db->rollBack();}
+
 $db->beginTransaction();
 try{
     $spellCore=$products->getRevisioned('core_profile',$actorCoreProfile['core_profile_id']);$spellContent=$spellCore['content'];
+    // More cheap pickups than the candidate cap must not evict eligible conversation before filtering.
+    $db->exec('SAVEPOINT cheap_pickup_candidate_probe');
+    $cheapRows=$db->prepare("WITH added AS (INSERT INTO eventlog(type,data,sess,gamets,localts,ts,people,location)
+        SELECT e.type,e.data,e.sess,e.gamets,e.localts,(extract(epoch FROM clock_timestamp())*1000)::bigint+n,e.people,e.location
+        FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid CROSS JOIN generate_series(1,501) n
+        WHERE m.source_event_id=:source RETURNING rowid)
+        INSERT INTO eventlog_metadata SELECT (jsonb_populate_record(NULL::eventlog_metadata,to_jsonb(m)||jsonb_build_object('rowid',added.rowid,'projection_key','cheap-fixture:'||added.rowid::text))).*
+        FROM added CROSS JOIN eventlog_metadata m WHERE m.source_event_id=:source");
+    $cheapRows->execute(['source'=>$lowPickup['request_id']]);
+    $cheapHistory=json_encode($products->promptContext($turn,$now)['history'],JSON_THROW_ON_ERROR);
+    $assert(str_contains($cheapHistory,'Ambient captured sentinel.')&&str_contains($cheapHistory,'Valuable Pickup Sentinel'),
+        'below-threshold pickups evicted eligible conversation before candidate limit');
+    $cheapFilter=$spellContent;$cheapFilter['settings_overrides']['context']['item_pickup_min_value']=0;
+    $cheapFilter['settings_overrides']['context']['item_blacklist']=['LOW_PICKUP_SENTINEL'];
+    $products->revise('core_profile',$actorCoreProfile['core_profile_id'],$cheapFilter,'blacklisted pickup candidate regression',$now);
+    $cheapHistory=json_encode($products->promptContext($turn,$now)['history'],JSON_THROW_ON_ERROR);
+    $assert(str_contains($cheapHistory,'Ambient captured sentinel.')&&str_contains($cheapHistory,'Valuable Pickup Sentinel'),
+        'blacklisted pickups evicted eligible conversation before candidate limit');
+    $db->exec('ROLLBACK TO SAVEPOINT cheap_pickup_candidate_probe');
     foreach([['detect_magic_events'=>false],['event_types'=>['chat']],['magic_effects_blacklist'=>['SPELL_CAPTURE_SENTINEL']],['magic_effects_blacklist'=>['spell capture sentinel']]]as$filter){
         $changed=$spellContent;$changed['settings_overrides']['context']=array_replace($changed['settings_overrides']['context']??[],$filter);
         $products->revise('core_profile',$actorCoreProfile['core_profile_id'],$changed,'spell context filter regression',$now);
         $history=json_encode($products->promptContext($turn,$now)['history'],JSON_THROW_ON_ERROR);
         $assert(!str_contains($history,'Spell Capture Sentinel'),'spell event bypassed disabled action category or magic blacklist');
     }
+    foreach([['item_pickup_min_value'=>501],['event_types'=>['chat']],['item_blacklist'=>['VALUABLE_PICKUP_SENTINEL']],['item_blacklist'=>['valuable pickup sentinel']]]as$filter){
+        $changed=$spellContent;$changed['settings_overrides']['context']=array_replace($changed['settings_overrides']['context']??[],$filter);
+        $products->revise('core_profile',$actorCoreProfile['core_profile_id'],$changed,'pickup context filter regression',$now);
+        $assert(!str_contains(json_encode($products->promptContext($turn,$now)['history'],JSON_THROW_ON_ERROR),'Valuable Pickup Sentinel'),'pickup bypassed profile threshold/category/item blacklist');
+    }
+    $changed=$spellContent;$changed['settings_overrides']['context']['item_pickup_min_value']=0;
+    $products->revise('core_profile',$actorCoreProfile['core_profile_id'],$changed,'zero pickup threshold regression',$now);
+    $assert(str_contains(json_encode($products->promptContext($turn,$now)['history'],JSON_THROW_ON_ERROR),'Low Value Pickup Sentinel'),'lower profile threshold could not recover retained pickup');
+    $pickupProjection->execute(['id'=>$lowPickup['request_id']]);$assert($pickupProjection->fetch()!==false,'below-threshold immutable pickup was removed');
     $spellProjection->execute(['player'=>$spell['request_id'],'npc'=>$spellNpc['request_id']]);
     $assert(count($spellProjection->fetchAll())===2,'prompt blacklist deleted captured spell sources');
 }finally{$db->rollBack();}
@@ -2391,6 +2504,7 @@ $narratorGenerationQuery=$db->prepare('SELECT payload FROM durable_jobs WHERE jo
 $narratorGenerationQuery->execute(['job'=>$narratorGenerationJob['job_id']]);
 $narratorGenerationPayload=json_decode($narratorGenerationQuery->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
 $narratorGenerationPayload['_job']=['job_id'=>$narratorGenerationJob['job_id'],'attempt'=>1];
+$leaseProfileFixture->execute(['job'=>$narratorGenerationJob['job_id'],'token'=>\LorkhanServer\Infrastructure\Uuid::v4()]);
 $narratorGenerator=new \LorkhanServer\Application\ProfileGenerateJobHandler($products,new \LorkhanServer\Application\MockProfileGenerationProvider());
 $narratorGenerator->handle($narratorGenerationPayload,'narrator-composition-probe',static fn():bool=>true);
 $generatedNarrator=$products->getRevisioned('profile',$narratorProfile['profile_id']);
@@ -2500,12 +2614,64 @@ try {
     foreach($timelineTurns as$row){$id=\LorkhanServer\Infrastructure\Uuid::v4();$ids[]=$id;$writer->upsertMemory($id,['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],'profile_id'=>$actorProfile['profile_id'],'tier'=>'recent','content'=>'Timeline memory','source_event_id'=>$row['message_id'],'provenance'=>['source'=>'timeline-test']],gmdate('c'));}
     $diaryId=\LorkhanServer\Infrastructure\Uuid::v4();$manualId=\LorkhanServer\Infrastructure\Uuid::v4();
     foreach([$diaryId,$manualId]as$id)$writer->upsertNarrative($id,['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],'profile_id'=>$actorProfile['profile_id'],'kind'=>'diary','title'=>'Timeline diary','content'=>'Test entry','provenance'=>$id===$diaryId?['source_turn_ids'=>[$timelineTurns[0]['turn_id']]]:['source'=>'manual']],gmdate('c'));
+    // Real leased jobs record ancestry: a past-source descendant still inherits its future-source base.
+    $baseline=$products->getRevisioned('profile',$actorProfile['profile_id']);
+    $baselineContent=$baseline['content'];$baselineContent['management']['locked']=false;$baselineContent['personality']='SAFE PROFILE BASELINE';
+    $products->revise('profile',$actorProfile['profile_id'],$baselineContent,'manual baseline',gmdate('c'));
+    $profileBase=$products->getRevisioned('profile',$actorProfile['profile_id']);
+    $generatedJob=$db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,state,attempt_count,
+        lease_owner,lease_token,leased_at,lease_expires_at,heartbeat_at) VALUES(:id,'profile.generate',1,:key,CAST(:payload AS jsonb),'leased',1,
+        'timeline-test',:token,clock_timestamp(),clock_timestamp()+interval '5 minutes',clock_timestamp())");
+    foreach([1,0,1]as$generationIndex=>$sourceIndex){
+        $current=$products->getRevisioned('profile',$actorProfile['profile_id']);$jobId=\LorkhanServer\Infrastructure\Uuid::v4();
+        $sources=[$timelineTurns[$sourceIndex]['turn_id']];
+        $jobPayload=['profile_id'=>$actorProfile['profile_id'],'base_revision'=>$current['current_revision'],
+            'mode'=>'profile_evolution','playthrough_id'=>$turn['playthrough_id'],'source_turn_ids'=>$sources];
+        $generatedJob->execute(['id'=>$jobId,'key'=>$jobId,'token'=>\LorkhanServer\Infrastructure\Uuid::v4(),'payload'=>json_encode($jobPayload)]);
+        $generatedContent=$current['content'];$generatedContent['personality']='GENERATED PROFILE '.$generationIndex;
+        $assert($products->reviseGeneratedProfileIfCurrent($actorProfile['profile_id'],$current['current_revision'],$generatedContent,
+            'reason is not provenance',gmdate('c'),$sources,$jobId,1),'leased automatic profile revision was not published');
+    }
+    $generatedHead=$products->getRevisioned('profile',$actorProfile['profile_id']);
+    $timeline=new \LorkhanServer\Infrastructure\LoadedSaveTimeline($db);
+    foreach(['manual','locked','other_playthrough','unknown','player','narrator','creature']as$boundary){
+        $db->exec('SAVEPOINT profile_boundary_probe');
+        if($boundary==='manual')$products->revise('profile',$actorProfile['profile_id'],$generatedHead['content'],'manual edit',gmdate('c'));
+        elseif($boundary==='locked'){
+            $q=$db->prepare("UPDATE profile_revisions SET content=jsonb_set(content,'{management,locked}','true') WHERE profile_id=:profile AND revision=:revision");
+            $q->execute(['profile'=>$actorProfile['profile_id'],'revision'=>$generatedHead['current_revision']]);
+        }elseif(in_array($boundary,['player','narrator','creature'],true)){
+            $q=$db->prepare("UPDATE profiles SET actor_identity=jsonb_set(actor_identity,'{kind}',CAST(:kind AS jsonb)) WHERE profile_id=:profile");
+            $q->execute(['profile'=>$actorProfile['profile_id'],'kind'=>json_encode($boundary)]);
+        }else{
+            $q=$db->prepare("UPDATE profile_revisions SET provenance=CAST(:provenance AS jsonb) WHERE profile_id=:profile AND revision=:revision");
+            $q->execute(['profile'=>$actorProfile['profile_id'],'revision'=>$generatedHead['current_revision'],
+                'provenance'=>$boundary==='unknown'?'{}':json_encode(['kind'=>'automatic_profile','playthrough_id'=>\LorkhanServer\Infrastructure\Uuid::v4()])]);
+        }
+        $protected=$products->getRevisioned('profile',$actorProfile['profile_id']);$timeline->invalidate($load);
+        $afterBoundary=$products->getRevisioned('profile',$actorProfile['profile_id']);
+        $assert($boundary==='creature'?$afterBoundary['content']['personality']==='GENERATED PROFILE 0':
+            $afterBoundary['current_revision']===$protected['current_revision'],'profile rollback boundary failed: '.$boundary);
+        $db->exec('ROLLBACK TO SAVEPOINT profile_boundary_probe');
+    }
     $before=(int)$db->query('SELECT count(*) FROM source_events')->fetchColumn();
     $timeline=new \LorkhanServer\Infrastructure\LoadedSaveTimeline($db);$counts=$timeline->invalidate($load);
+    $restored=$products->getRevisioned('profile',$actorProfile['profile_id']);
+    $assert($counts['profiles']===1&&$restored['current_revision']===$generatedHead['current_revision']+1
+        &&$restored['content']['personality']==='GENERATED PROFILE 0','rollback did not remove inherited future profile content monotonically');
+    $projection=$db->prepare('SELECT n.personality FROM public.core_npc_master n JOIN npc_metadata m ON m.npc_id=n.id WHERE m.source_profile_id=:profile');
+    $projection->execute(['profile'=>$actorProfile['profile_id']]);
+    $assert($projection->fetchColumn()===$restored['content']['personality'],'restored profile public projection is stale');
     $q=$db->prepare('SELECT deleted_at IS NOT NULL FROM memory_records WHERE memory_id=:id');$q->execute(['id'=>$ids[0]]);$assert($q->fetchColumn()===true,'future memory remains active');$q->execute(['id'=>$ids[1]]);$assert($q->fetchColumn()===false,'past memory was retired');
     $q=$db->prepare('SELECT deleted_at IS NOT NULL FROM narrative_records WHERE narrative_id=:id');$q->execute(['id'=>$diaryId]);$assert($q->fetchColumn()===true,'future diary remains active');$q->execute(['id'=>$manualId]);$assert($q->fetchColumn()===false,'undated manual diary was retired');
     $assert((int)$db->query('SELECT count(*) FROM source_events')->fetchColumn()===$before,'immutable sources changed');
     $assert(array_sum($timeline->invalidate($load))===0,'timeline invalidation is not idempotent');
+    $db->exec('SAVEPOINT profile_earlier_load_probe');
+    $earlier=$load;$earlier['loaded_save']['day']=12;$timeline->invalidate($earlier);
+    $earlierProfile=$products->getRevisioned('profile',$actorProfile['profile_id']);
+    $assert($earlierProfile['current_revision']===$restored['current_revision']+1
+        &&$earlierProfile['content']===$profileBase['content'],'earlier load failed to traverse restored ancestry');
+    $db->exec('ROLLBACK TO SAVEPOINT profile_earlier_load_probe');
     $bookRow=$db->query("INSERT INTO public.books(title,content,localts,gamets) VALUES('Retired book','Reconstructible book text',0,0) RETURNING rowid")->fetchColumn();
     $bookMeta=$db->prepare('INSERT INTO book_metadata(rowid,installation_id,playthrough_id,record_id,source_turn_id) VALUES(:row,:installation,:playthrough,:record,:turn)');
     $bookMeta->execute($scope+['row'=>$bookRow,'record'=>'timeline_late_book','turn'=>$timelineTurns[0]['turn_id']]);

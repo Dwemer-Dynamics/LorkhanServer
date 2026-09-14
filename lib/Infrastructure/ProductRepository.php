@@ -666,17 +666,19 @@ final class ProductRepository
                 }
             }
         }
-        $castCte=$kind==='magic' ? "recent_casts AS MATERIALIZED (SELECT e.payload->'payload' AS payload FROM source_events e WHERE e.installation_id=:installation AND e.event_kind='gamedata.spell_cast' AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=e.source_event_id) ORDER BY e.received_at DESC,e.source_event_id DESC LIMIT 5000), " : '';
-        $castNames=$kind==='magic' ? " UNION ALL SELECT btrim(spell.name) FROM recent_casts CROSS JOIN LATERAL (SELECT DISTINCT name FROM (VALUES (payload->>'spell_id'),(payload->>'spell_name')) v(name)) spell" : '';
+        $observationType=$kind==='magic'?'gamedata.spell_cast':($kind==='items'?'gamedata.item_pickup':null);
+        $observationFields=$kind==='magic'?['spell_id','spell_name']:['item_record_id','item_name'];
+        $observationCte=$observationType!==null ? "recent_observations AS MATERIALIZED (SELECT e.payload->'payload' AS payload FROM source_events e WHERE e.installation_id=:installation AND e.event_kind=:observation_type AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=e.source_event_id) AND EXISTS(SELECT 1 FROM sessions current_session WHERE current_session.installation_id=e.installation_id AND current_session.playthrough_id::text=e.payload->>'playthrough_id' AND current_session.state='active' AND ((e.session_id=current_session.session_id AND e.generation=current_session.generation) OR (jsonb_typeof(e.payload#>'{payload,calendar}')='object' AND EXISTS(SELECT 1 FROM source_events load WHERE load.session_id=current_session.session_id AND load.event_kind='session.init' AND jsonb_typeof(load.payload->'loaded_save')='object')))) ORDER BY e.received_at DESC,e.source_event_id DESC LIMIT 5000), " : '';
+        $observationNames=$observationType!==null ? " UNION ALL SELECT btrim(observation.name) FROM recent_observations CROSS JOIN LATERAL (SELECT DISTINCT name FROM (VALUES (payload->>'".$observationFields[0]."'),(payload->>'".$observationFields[1]."')) v(name)) observation" : '';
         // JSON projection and aggregation stay in PostgreSQL; never transfer thousands of full prompts to PHP.
         $query = $this->db->prepare("WITH recent AS MATERIALIZED (SELECT t.context FROM active_turns t JOIN sessions s ON s.session_id=t.session_id "
-            . "WHERE s.installation_id=:installation ORDER BY t.accepted_at DESC LIMIT 5000), ".$castCte."names AS ("
+            . "WHERE s.installation_id=:installation ORDER BY t.accepted_at DESC LIMIT 5000), ".$observationCte."names AS ("
             . "SELECT btrim(CASE jsonb_typeof(v.value) WHEN 'string' THEN v.value#>>'{}' WHEN 'object' THEN COALESCE(v.value->>'display_name',v.value->>'name',v.value->>'record_id') END) AS name "
             . "FROM recent CROSS JOIN jsonb_array_elements_text(CAST(:paths AS jsonb)) p(path) "
-            . "CROSS JOIN LATERAL jsonb_path_query(recent.context,p.path::jsonpath,'{}',true) v(value)".$castNames.") "
+            . "CROSS JOIN LATERAL jsonb_path_query(recent.context,p.path::jsonpath,'{}',true) v(value)".$observationNames.") "
             . "SELECT min(name) AS value,count(*) AS count FROM names WHERE name<>'' AND octet_length(name)<=256 AND name !~ '[[:cntrl:]]' "
             . "GROUP BY lower(name) ORDER BY count(*) DESC,lower(name) LIMIT 500");
-        $query->execute(['installation'=>$installationId,'paths'=>json_encode($paths, JSON_THROW_ON_ERROR)]);
+        $query->execute(['installation'=>$installationId,'paths'=>json_encode($paths, JSON_THROW_ON_ERROR)]+($observationType!==null?['observation_type'=>$observationType]:[]));
         return ['items'=>array_map(static fn(array $row): array => ['value'=>$row['value'],'count'=>(int)$row['count']], $query->fetchAll()), 'scan_limit'=>5000];
     }
 
@@ -1291,15 +1293,35 @@ final class ProductRepository
     }
 
     /** Commit generated fields only while the queued base revision is still current. */
-    public function reviseGeneratedProfileIfCurrent(string $profileId,int $baseRevision,array $content,string $reason,string $now,array $sourceTurnIds=[]):bool
+    public function reviseGeneratedProfileIfCurrent(string $profileId,int $baseRevision,array $content,string $reason,string $now,array $sourceTurnIds=[],?string $jobId=null,?int $attempt=null):bool
     {
-        return$this->transaction(function()use($profileId,$baseRevision,$content,$reason,$now,$sourceTurnIds):bool{
+        return$this->transaction(function()use($profileId,$baseRevision,$content,$reason,$now,$sourceTurnIds,$jobId,$attempt):bool{
             $installation=$this->db->prepare('SELECT i.installation_id FROM installations i JOIN profiles p ON p.installation_id=i.installation_id WHERE p.profile_id=:profile FOR SHARE OF i');
             $installation->execute(['profile'=>$profileId]);
+            $installationId=$installation->fetchColumn();if($installationId===false)return false;
+            $provenance=[];
+            if($jobId!==null){
+                $job=$this->db->prepare("SELECT payload FROM durable_jobs WHERE job_id=:job AND job_type='profile.generate'
+                    AND state='leased' AND attempt_count=:attempt AND lease_expires_at>clock_timestamp() FOR SHARE");
+                $job->execute(['job'=>$jobId,'attempt'=>$attempt]);$stored=$job->fetchColumn();if($stored===false)return false;
+                $payload=$this->json($stored);
+                if(($payload['profile_id']??null)!==$profileId||($payload['base_revision']??null)!==$baseRevision)return false;
+                if(in_array($payload['mode']??null,['npc_profile_backfill','profile_evolution'],true)){
+                    $sources=$payload['source_turn_ids']??[];$playthrough=$payload['playthrough_id']??null;
+                    if(!is_string($playthrough)||!Uuid::isValid($playthrough)||$sources!==$sourceTurnIds
+                        ||!(new LoadedSaveTimeline($this->db))->sourcesBelongTo($sources,(string)$installationId,$playthrough))return false;
+                    $provenance=['kind'=>'automatic_profile','mode'=>$payload['mode'],'playthrough_id'=>$playthrough,
+                        'base_revision'=>$baseRevision,'source_turn_ids'=>$sources];
+                }
+            }
             if (!(new LoadedSaveTimeline($this->db))->sourcesActive($sourceTurnIds)) return false;
             $select=$this->db->prepare('SELECT current_revision FROM profiles WHERE profile_id=:id AND deleted_at IS NULL FOR UPDATE');
             $select->execute(['id'=>$profileId]);$current=$select->fetchColumn();if($current===false||(int)$current!==$baseRevision)return false;
-            $next=$baseRevision+1;$this->revision('profile_revisions','profile_id',$profileId,$next,$content,$reason,$now);
+            $next=$baseRevision+1;
+            $insert=$this->db->prepare('INSERT INTO profile_revisions(profile_id,revision,content,change_reason,created_at,provenance)
+                VALUES(:profile,:revision,CAST(:content AS jsonb),:reason,:now,CAST(:provenance AS jsonb))');
+            $insert->execute(['profile'=>$profileId,'revision'=>$next,'content'=>json_encode($content,JSON_THROW_ON_ERROR),
+                'reason'=>$reason,'now'=>$now,'provenance'=>json_encode($provenance===[]?(object)[]:$provenance,JSON_THROW_ON_ERROR)]);
             $this->db->prepare('UPDATE profiles SET current_revision=:revision WHERE profile_id=:id')->execute(['revision'=>$next,'id'=>$profileId]);return true;
         });
     }
@@ -3270,6 +3292,7 @@ SQL);
         if($contextSections['conversation_history']&&$contextPolicy['event_types']!==[]){$typeParameters=[];$historyParameters=[];
         // Successful casts share the existing action-event switch; older saved settings need no new category.
         $historyEventTypes=$contextPolicy['event_types'];
+        if(in_array('infoaction',$historyEventTypes,true))$historyEventTypes[]='itemfound';
         if(($contextPolicy['detect_magic_events']??true)&&in_array('infoaction',$historyEventTypes,true))$historyEventTypes=array_merge($historyEventTypes,['spellcast','npcspellcast']);
         foreach($historyEventTypes as$index=>$eventType){$name='event_type_'.$index;$typeParameters[]=':'.$name;$historyParameters[$name]=$eventType;}
         $isNarratorTarget=($turn['payload']['target']['kind']??'')==='narrator';
@@ -3298,7 +3321,7 @@ SELECT 'event:'||e.rowid::text AS id,
                'details',CASE
                    WHEN e.type='location' THEN jsonb_strip_nulls(jsonb_build_object('location',e.location,'game_time',NULLIF(e.gamets,0)))
                    WHEN e.type='weather' THEN jsonb_strip_nulls(jsonb_build_object('weather',COALESCE(m.payload->>'weather',replace(e.data,'Weather changed to ',''))))
-                    WHEN e.type IN ('quest','book','death','infoaction','narration','chat_background','spellcast','npcspellcast') THEN m.payload
+                    WHEN e.type IN ('quest','book','death','infoaction','narration','chat_background','spellcast','npcspellcast','itemfound') THEN m.payload
                    ELSE NULL END,
                'speaker',CASE WHEN m.speaker='{}'::jsonb THEN NULL ELSE m.speaker END,
                'target',CASE WHEN m.target='{}'::jsonb THEN NULL ELSE m.target END,
@@ -3310,6 +3333,16 @@ JOIN eventlog_metadata m ON m.rowid=e.rowid
 WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL
   AND m.turn_id IS DISTINCT FROM :current_turn
   AND e.type IN ($eventTypeSql)
+  AND (e.type<>'itemfound' OR (lower(btrim(COALESCE(m.payload->>'item_record_id','')))<>ALL(CAST(:item_blacklist AS text[]))
+       AND lower(btrim(COALESCE(m.payload->>'item_name','')))<>ALL(CAST(:item_blacklist AS text[]))))
+  AND (e.type NOT IN ('spellcast','npcspellcast') OR (lower(btrim(COALESCE(m.payload->>'spell_id','')))<>ALL(CAST(:magic_blacklist AS text[]))
+       AND lower(btrim(COALESCE(m.payload->>'spell_name','')))<>ALL(CAST(:magic_blacklist AS text[]))))
+  AND (e.type<>'itemfound' OR CASE WHEN jsonb_typeof(m.payload->'count')='number' AND jsonb_typeof(m.payload->'unit_value')='number'
+       THEN (m.payload->>'count')::numeric*(m.payload->>'unit_value')::numeric>=CAST(:pickup_min_value AS numeric) ELSE false END)
+  AND (e.type NOT IN ('spellcast','npcspellcast','itemfound') OR (
+      NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=m.source_event_id)
+      AND (EXISTS(SELECT 1 FROM source_events observation WHERE observation.source_event_id=m.source_event_id AND observation.session_id=:context_session AND observation.generation=COALESCE(CAST(:context_generation AS bigint),(SELECT generation FROM sessions WHERE session_id=:context_session)))
+          OR (jsonb_typeof(m.payload->'calendar')='object' AND EXISTS(SELECT 1 FROM source_events load WHERE load.session_id=:context_session AND load.event_kind='session.init' AND jsonb_typeof(load.payload->'loaded_save')='object')))))
   AND (CAST(:is_narrator_target AS boolean) OR e.type<>'inputtext' OR COALESCE(m.target->>'kind','')<>'narrator')
   AND (NOT CAST(:hide_narrator_dialogue AS boolean) OR e.type<>'chat' OR COALESCE(m.speaker->>'kind','')<>'narrator')
   AND (e.type<>'chat' OR e.delivery_state IN ('emitted','pending','spoken','played'))
@@ -3322,6 +3355,10 @@ SQL);
         $historyStatement->execute($historyParameters+[
             'installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
             'current_turn'=>$turn['turn_id']??null,
+            'context_session'=>$turn['session_id'],'context_generation'=>$turn['generation']??null,
+            'pickup_min_value'=>$contextPolicy['item_pickup_min_value']??500,
+            'item_blacklist'=>$this->pgArray(array_map(static fn(string $value):string=>mb_strtolower(trim($value),'UTF-8'),$contextPolicy['item_blacklist'])),
+            'magic_blacklist'=>$this->pgArray(array_map(static fn(string $value):string=>mb_strtolower(trim($value),'UTF-8'),$contextPolicy['magic_effects_blacklist'])),
             'event_speaker'=>$actorJson,'event_target'=>$actorJson,'event_audience'=>$audienceJson,
             'hide_narrator_dialogue'=>$hideNarratorDialogue?'true':'false',
             'is_narrator_target'=>$isNarratorTarget?'true':'false',
@@ -3330,12 +3367,20 @@ SQL);
         // Count conversation turns, not individual input, response, and world-event rows.
         $historyTurns=[];$locationBlacklist=[];foreach($contextPolicy['location_blacklist']as$location)$locationBlacklist[mb_strtolower(trim((string)$location),'UTF-8')]=true;
         $magicBlacklist=[];foreach($contextPolicy['magic_effects_blacklist']as$spell)$magicBlacklist[mb_strtolower(trim((string)$spell),'UTF-8')]=true;
+        $itemBlacklist=[];foreach($contextPolicy['item_blacklist']as$item)$itemBlacklist[mb_strtolower(trim((string)$item),'UTF-8')]=true;
         foreach($historyStatement->fetchAll()as$row){
             $content=$this->json($row['content']);$location=mb_strtolower(trim((string)($content['location']??$content['details']['location']??'')),'UTF-8');
             if($location!==''&&isset($locationBlacklist[$location]))continue;
             if(in_array($content['type']??null,['spellcast','npcspellcast'],true)
                 &&(isset($magicBlacklist[mb_strtolower(trim((string)($content['details']['spell_id']??'')),'UTF-8')])
                     ||isset($magicBlacklist[mb_strtolower(trim((string)($content['details']['spell_name']??'')),'UTF-8')])))continue;
+            if(($content['type']??null)==='itemfound'){
+                $pickup=$content['details']??[];
+                if(!is_int($pickup['count']??null)||!is_int($pickup['unit_value']??null)
+                    ||$pickup['count']*$pickup['unit_value']<($contextPolicy['item_pickup_min_value']??500)
+                    ||isset($itemBlacklist[mb_strtolower(trim((string)($pickup['item_record_id']??'')),'UTF-8')])
+                    ||isset($itemBlacklist[mb_strtolower(trim((string)($pickup['item_name']??'')),'UTF-8')]))continue;
+            }
             $turnKey=(string)($row['turn_id']??$row['id']);
             if(!isset($historyTurns[$turnKey])&&count($historyTurns)>=$recentTurnLimit)continue;
             $historyTurns[$turnKey]=true;

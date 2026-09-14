@@ -156,6 +156,7 @@ final class SettingsCatalog
     ];
 
     private const RANGES = [
+        'context.item_pickup_min_value' => [0, 2147483647],
         'behavior.rechat_delay_seconds' => [30, 3600],
         'behavior.rechat_max_depth' => [1, 20],
         'behavior.rechat_probability_percent' => [0, 100],
@@ -216,6 +217,7 @@ final class SettingsCatalog
                 'short_term_in_compact_chat' => true,
                 'hide_ambient_combat' => false,
                 'detect_magic_events' => true,
+                'item_pickup_min_value' => 500,
                 'ground_items_descriptions_only' => false,
                 'inventory_items_descriptions_only' => false,
                 'sections' => self::CONTEXT_SECTION_DEFAULTS,
@@ -325,7 +327,7 @@ final class SettingsCatalog
             'diary' => ['prompt', 'automatic_interval_seconds', 'context_turn_limit'],
             'profile_evolution' => ['history_limit'],
             'profile_management' => ['autofill_custom_profiles','autofill_custom_profiles_trigger'],
-            'context' => ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','transformation_detection','short_term_in_compact_chat','hide_ambient_combat','detect_magic_events','location_blacklist','item_blacklist','magic_effects_blacklist','event_types','sections','details'],
+            'context' => ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','transformation_detection','short_term_in_compact_chat','hide_ambient_combat','detect_magic_events','item_pickup_min_value','location_blacklist','item_blacklist','magic_effects_blacklist','event_types','sections','details'],
             'prompt' => ['prompt_head','emote_moods'],
             'oghma' => ['location_context_enabled','topic_count','extractor_fallback_enabled','extractor_timeout_ms','enabled','result_limit','racial_context_enabled'],
             'relationship' => ['enabled','update_chance_percent'],

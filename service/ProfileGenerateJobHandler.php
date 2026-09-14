@@ -102,7 +102,7 @@ final class ProfileGenerateJobHandler implements JobHandler
                 'profile_evolution'=>'automatic NPC profile evolution','narrator_profile_evolution'=>'automatic narrator profile evolution',
                 'npc_profile_backfill'=>'automatic AI profile backfill',default=>'AI profile generation'};
             if($mode==='player_speech_style')$this->repository->storePlayerSpeechStyleDraft($job['job_id'],$job['attempt'],$profileId,$baseRevision,$content['speech_style']);
-            else $this->repository->reviseGeneratedProfileIfCurrent($profileId,$baseRevision,$content,$reason,gmdate('Y-m-d\TH:i:s\Z'),$payload['source_turn_ids']??[]);
+            else $this->repository->reviseGeneratedProfileIfCurrent($profileId,$baseRevision,$content,$reason,gmdate('Y-m-d\TH:i:s\Z'),$payload['source_turn_ids']??[],$job['job_id'],$job['attempt']);
             $this->attempts?->finish($attemptId,'succeeded',strlen(json_encode($generated,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)));
         }catch(OperationCancelled $error){$this->attempts?->finish($attemptId,'cancelled',errorCode:'operation_cancelled');throw$error;
         }catch(Throwable $error){try{$this->attempts?->finish($attemptId,'failed',errorCode:'provider_unavailable');}catch(Throwable){}throw$error;}

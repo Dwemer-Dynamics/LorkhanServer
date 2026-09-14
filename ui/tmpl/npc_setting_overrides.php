@@ -31,6 +31,7 @@ $overrideLabels = [
     'context.inventory_items_descriptions_only'=>'Inventory Items Descriptions Only', 'context.power_awareness_enabled'=>'Power Awareness Enabled',
     'context.short_term_in_compact_chat'=>'Short Term Memory in Compact Chat',
     'context.detect_magic_events'=>'Detect Magic Events',
+    'context.item_pickup_min_value'=>'Item Pickup Detection Value',
     'context.transformation_detection'=>'Transformation Detection', 'context.hide_ambient_combat'=>'Hide Ambient Combat', 'prompt.prompt_head'=>'Prompt Head',
     'oghma.location_context_enabled'=>'Force Location Oghma', 'oghma.topic_count'=>'Oghma Articles Amount',
     'oghma.extractor_fallback_enabled'=>'Oghma Extractor Fallback', 'oghma.extractor_timeout_ms'=>'Oghma Extractor Timeout',
@@ -38,6 +39,7 @@ $overrideLabels = [
 ];
 $help=[
     'context.detect_magic_events'=>'Include observed successful spell casts in this NPC’s conversation context. The Infoaction event filter and Magic Effect Blacklist still apply; original event records are retained.',
+    'context.item_pickup_min_value'=>'Minimum total gold value (quantity times item value) for observed pickups in conversation context. Zero includes all pickups; original event records are retained.',
     'behavior.combat_bark_period_seconds'=>'Cooldown in seconds between combat barks (5–600). Does not enable combat barks. The active actor’s effective setting is sent to the game controls.',
     'profile_management.autofill_custom_profiles'=>'Automatically fill this NPC’s empty, unlocked profile after enough witnessed dialogue. Dynamic Profile updates remain separate.',
     'profile_management.autofill_custom_profiles_trigger'=>'Witnessed dialogue records required before automatic profile backfill (10–100).',

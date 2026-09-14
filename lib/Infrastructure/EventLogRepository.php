@@ -14,7 +14,7 @@ use Throwable;
 final class EventLogRepository
 {
     private const NPC_HISTORY_TYPES = [
-        'inputtext','chat','chat_background','location','weather','death','infoaction','narration','quest','book','spellcast','npcspellcast',
+        'inputtext','chat','chat_background','location','weather','death','infoaction','narration','quest','book','spellcast','npcspellcast','itemfound',
     ];
 
     private const DEFAULT_HIDDEN_TYPES = [
@@ -409,6 +409,17 @@ final class EventLogRepository
             'location'=>$kind === 'gamedata.captured_dialogue'
                 ? $this->identityLocation($speaker) : $this->location($context),'sess'=>$sessionId,
             'people'=>$this->people($speaker,$target,$audience)];
+        if ($kind === 'gamedata.item_pickup') {
+            $player=$this->object($body['player']??[]);
+            $text=$this->displayName($player,'Player').' picks up '.(string)($body['count']??1).' '.(string)($body['item_name']??'');
+            if(is_array($body['source']??null))$text.=' from '.(string)($body['source']['display_name']??'');
+            $this->insert(array_merge($common,['speaker'=>$player,'target'=>[],'type'=>'itemfound','data'=>$text,
+                'payload'=>$body+['text'=>$text],'people'=>$this->people($player,[],$audience),
+                'gamets'=>max(0,(int)floor((float)($body['game_time']??0))),
+                'location'=>$this->identityLocation($player),'projection_kind'=>'world','projection_key'=>'item-pickup:'.$sourceId,
+                'delivery_state'=>null,'utterance_id'=>null]));
+            return;
+        }
         if ($kind === 'gamedata.spell_cast') {
             $caster=$this->object($body['caster']??[]);
             $text=$this->displayName($caster,'Actor').' casts '.(string)($body['spell_name']??'');

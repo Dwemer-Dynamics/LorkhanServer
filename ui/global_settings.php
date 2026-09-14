@@ -143,6 +143,7 @@ $sections = [
         ],
         'Context' => [
             ['context_detect_magic_events', 'Detect Magic Events', '&#x2728;', 'boolean', $contextPolicy['detect_magic_events'] ?? true, 'Include observed successful spell casts in conversation context. Respects the Infoaction event filter and Magic & Effects Blacklist. Original observations remain in the event log.', []],
+            ['context_item_pickup_min_value', 'Item Pickup Detection Value', '&#x1F4B0;', 'integer', $contextPolicy['item_pickup_min_value'] ?? 500, 'Minimum total gold value (quantity times item value) for observed pickups in conversation context. Zero includes all pickups. Original observations remain in the event log.', ['min'=>0,'max'=>2147483647]],
             ['context_hide_ambient_combat', 'Hide Ambient Combat', '&#x1F54A;&#xFE0F;', 'boolean', $contextPolicy['hide_ambient_combat'] ?? false, 'Hide ambient death events containing has killed from conversation context. Other death events and the stored event log are retained.', []],
             ['context_transformation_detection', 'Transformation Detection', '&#x1F43A;', 'boolean', $contextPolicy['transformation_detection'] ?? true, 'Include an observed werewolf form in player and NPC current-state context. Requires a current OpenMW observation; does not infer transformations from race or biography.', []],
             ['context_power_awareness_enabled', 'Power Awareness Enabled', '&#x2694;&#xFE0F;', 'boolean', $contextPolicy['power_awareness_enabled'] ?? false, 'Compare observed character levels so NPCs can assess relative threats. Missing levels produce no assessment.', []],
@@ -205,8 +206,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             </select>
             <div class="preset-actions">
                 <button type="button" class="btn-settings-transfer preset-btn-compact" data-preset-operation="apply">Apply</button>
-                <button type="button" class="btn-settings-transfer preset-btn-compact" data-preset-operation="save_new">Save as new…</button>
-                <button type="button" class="btn-settings-transfer preset-btn-compact" data-preset-operation="overwrite" disabled>Overwrite…</button>
+                <button type="button" class="btn-settings-transfer preset-btn-compact" data-preset-operation="save_new">Save as newâ€¦</button>
+                <button type="button" class="btn-settings-transfer preset-btn-compact" data-preset-operation="overwrite" disabled>Overwriteâ€¦</button>
             </div>
             <span id="gs-preset-status" role="status" aria-live="polite"></span>
         </div>
@@ -281,6 +282,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <input type="hidden" name="scene_classifier_present" value="1">
         <input type="hidden" name="context_transformation_detection_present" value="1">
         <input type="hidden" name="context_detect_magic_events_present" value="1">
+        <input type="hidden" name="context_item_pickup_min_value_present" value="1">
         <input type="hidden" name="context_short_term_in_compact_chat_present" value="1">
         <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
         <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">

@@ -422,7 +422,7 @@ final class EffectiveSettingsResolver
         if (array_key_exists('context', $validation)) {
             $context = $validation['context'];
             if (!is_array($context) || array_is_list($context)
-                || array_diff(array_keys($context), ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','transformation_detection','short_term_in_compact_chat','hide_ambient_combat','detect_magic_events','location_blacklist','item_blacklist','magic_effects_blacklist','event_types','sections','details']) !== [])
+                || array_diff(array_keys($context), ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','transformation_detection','short_term_in_compact_chat','hide_ambient_combat','detect_magic_events','item_pickup_min_value','location_blacklist','item_blacklist','magic_effects_blacklist','event_types','sections','details']) !== [])
                 throw new InvalidArgumentException('invalid_settings_overrides');
             foreach ($context as $key=>$value) {
                 if (in_array($key,['location_blacklist','item_blacklist','magic_effects_blacklist'],true)) {
@@ -436,6 +436,8 @@ final class EffectiveSettingsResolver
                     if (!is_array($value)||!array_is_list($value)||count($value)>count(SettingsCatalog::eventTypes())) throw new InvalidArgumentException('invalid_settings_overrides');
                     foreach($value as $type) if(!is_string($type)||!in_array($type,SettingsCatalog::eventTypes(),true)) throw new InvalidArgumentException('invalid_settings_overrides');
                     $overrides['context'][$key]=array_values(array_filter(SettingsCatalog::eventTypes(),static fn($type)=>in_array($type,$value,true)));
+                } elseif ($key==='item_pickup_min_value') {
+                    if(!is_int($value)||$value<0||$value>2147483647)throw new InvalidArgumentException('invalid_settings_overrides');
                 } elseif (!is_bool($value)) throw new InvalidArgumentException('invalid_settings_overrides');
             }
             unset($validation['context']);
@@ -519,8 +521,9 @@ final class EffectiveSettingsResolver
     {
         $expected = SettingsCatalog::globalDefaults()['context'];
         if (!is_array($context) || array_is_list($context)) throw new InvalidArgumentException('invalid_global_settings');
-        $context += ['prompt_timestamp' => false, 'ground_items_descriptions_only' => false, 'inventory_items_descriptions_only' => false, 'power_awareness_enabled'=>false, 'transformation_detection'=>true, 'short_term_in_compact_chat'=>true, 'hide_ambient_combat'=>false, 'detect_magic_events'=>true];
+        $context += ['prompt_timestamp' => false, 'ground_items_descriptions_only' => false, 'inventory_items_descriptions_only' => false, 'power_awareness_enabled'=>false, 'transformation_detection'=>true, 'short_term_in_compact_chat'=>true, 'hide_ambient_combat'=>false, 'detect_magic_events'=>true, 'item_pickup_min_value'=>500];
         self::assertExactKeys($context, $expected, 'invalid_global_settings');
+        if(!is_int($context['item_pickup_min_value'])||$context['item_pickup_min_value']<0||$context['item_pickup_min_value']>2147483647)throw new InvalidArgumentException('invalid_global_settings');
         if (!is_bool($context['prompt_timestamp']) || !is_bool($context['ground_items_descriptions_only']) || !is_bool($context['inventory_items_descriptions_only']) || !is_bool($context['power_awareness_enabled']) || !is_bool($context['transformation_detection']) || !is_bool($context['short_term_in_compact_chat']) || !is_bool($context['hide_ambient_combat']) || !is_bool($context['detect_magic_events'])) throw new InvalidArgumentException('invalid_global_settings');
         foreach (['sections', 'details'] as $group) {
             if($group==='details'&&is_array($context[$group]))$context[$group]=SettingsCatalog::normalizeContextDetails($context[$group]);

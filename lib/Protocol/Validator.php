@@ -152,7 +152,7 @@ final class Validator
             'runtime_generation','observed_at','game','type','payload']);
         $type=$message['type']??null;
         if(($message['schema']??null)!=='lorkhan.gamedata.v1'||($message['game']??null)!=='tes3'
-            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue','rpg_event','bored_event','quest_event','journal','inventory','spell_cast'],true)
+            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue','rpg_event','bored_event','quest_event','journal','inventory','spell_cast','item_pickup'],true)
             ||!is_int($message['generation'])||$message['generation']<1
             ||$message['generation']>9_007_199_254_740_991||!is_int($message['runtime_generation'])
             ||$message['runtime_generation']<1||$message['runtime_generation']>9_007_199_254_740_991)
@@ -161,8 +161,40 @@ final class Validator
         $this->timestamp($message['observed_at']??null);
         $payload=$message['payload']??null;
         if(!is_array($payload)||array_is_list($payload))throw new ValidationException('invalid_schema');
+        if(in_array($type,['item_pickup','spell_cast'],true)&&array_key_exists('calendar',$payload)){
+            $calendar=$payload['calendar'];if(!is_array($calendar))throw new ValidationException('invalid_schema');
+            $this->keys($calendar,['year','month','day','hour']);
+            if((!is_int($calendar['hour'])&&!is_float($calendar['hour']))||!is_finite((float)$calendar['hour'])
+                ||$calendar['hour']<0||$calendar['hour']>=24||\LorkhanServer\Application\MorrowindCalendar::parse($calendar)===null)
+                throw new ValidationException('invalid_schema');
+        }
+        if($type==='item_pickup'){
+            $fields=['player','item_record_id','item_name','count','unit_value','game_time','source_kind'];
+            foreach(['source','audience','calendar']as$optional)if(array_key_exists($optional,$payload))$fields[]=$optional;
+            $this->keys($payload,$fields);$this->identity($payload['player']??null);
+            if(($payload['player']['kind']??null)!=='player'||!in_array($payload['source_kind']??null,['world','container','actor'],true))throw new ValidationException('invalid_schema');
+            foreach(['item_record_id','item_name']as$field)$this->boundedUtf8($payload[$field]??null,1,256);
+            if(!is_int($payload['count']??null)||$payload['count']<1||$payload['count']>2147483647
+                ||!is_int($payload['unit_value']??null)||$payload['unit_value']<0||$payload['unit_value']>2147483647
+                ||(!is_int($payload['game_time']??null)&&!is_float($payload['game_time']??null))
+                ||!is_finite((float)$payload['game_time'])||$payload['game_time']<0||$payload['game_time']>9_007_199_254_740_991)
+                throw new ValidationException('invalid_schema');
+            if(array_key_exists('source',$payload)){
+                if(!is_array($payload['source']))throw new ValidationException('invalid_schema');
+                $this->keys($payload['source'],['record_id','display_name']);
+                foreach(['record_id','display_name']as$field)$this->boundedUtf8($payload['source'][$field]??null,1,256);
+            }
+            if(array_key_exists('audience',$payload)){
+                if(!is_array($payload['audience'])||!array_is_list($payload['audience'])||count($payload['audience'])>12)throw new ValidationException('invalid_schema');
+                $seen=[];foreach($payload['audience']as$witness){$this->identity($witness);
+                    if(!in_array($witness['kind']??null,['player','npc','creature'],true))throw new ValidationException('invalid_schema');
+                    ksort($witness);ksort($witness['cell']);ksort($witness['refnum']);$key=json_encode($witness,JSON_THROW_ON_ERROR);
+                    if(isset($seen[$key]))throw new ValidationException('invalid_schema');$seen[$key]=true;}
+            }
+            return;
+        }
         if($type==='spell_cast'){
-            $fields=['caster','spell_id','spell_name','game_time'];foreach(['target','audience']as$optional)if(array_key_exists($optional,$payload))$fields[]=$optional;
+            $fields=['caster','spell_id','spell_name','game_time'];foreach(['target','audience','calendar']as$optional)if(array_key_exists($optional,$payload))$fields[]=$optional;
             $this->keys($payload,$fields);
             foreach(['caster','target']as$field){
                 if($field==='target'&&!array_key_exists($field,$payload))continue;

@@ -2660,6 +2660,10 @@ final class ManagementRouter
             : (is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id'])
                 ? ($this->repository->globalSettingsForInstallation($values['installation_id'])['content']['context']['short_term_in_compact_chat']??true) : true);
         $content['context']['hide_ambient_combat'] = isset($values['context_hide_ambient_combat']);
+        $content['context']['item_pickup_min_value'] = isset($values['context_item_pickup_min_value_present'])
+            ? $integer($values,'context_item_pickup_min_value',500)
+            : (is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id'])
+                ? ($this->repository->globalSettingsForInstallation($values['installation_id'])['content']['context']['item_pickup_min_value']??500) : 500);
         $content['context']['detect_magic_events'] = isset($values['context_detect_magic_events_present'])
             ? isset($values['context_detect_magic_events'])
             : (is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id'])

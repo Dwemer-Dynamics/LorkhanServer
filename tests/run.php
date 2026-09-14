@@ -2567,6 +2567,9 @@ $check(EffectiveSettingsResolver::validateGlobalSettings($legacyCompact)['contex
     'existing global settings retain compact memory by default');
 $check(EffectiveSettingsResolver::validateSettingsOverrides(['context'=>['short_term_in_compact_chat'=>false]],true)['context']['short_term_in_compact_chat']===false,
     'NPC compact memory opt-out is a typed override');
+$legacyPickup=SettingsCatalog::globalDefaults();unset($legacyPickup['context']['item_pickup_min_value']);
+$check(EffectiveSettingsResolver::validateGlobalSettings($legacyPickup)['context']['item_pickup_min_value']===500,'legacy pickup context threshold defaults to500');
+$check(EffectiveSettingsResolver::validateSettingsOverrides(['context'=>['item_pickup_min_value'=>0]],true)['context']['item_pickup_min_value']===0,'NPC pickup zero threshold is retained');
 $legacyMagic=SettingsCatalog::globalDefaults();unset($legacyMagic['context']['detect_magic_events']);
 $check(EffectiveSettingsResolver::validateGlobalSettings($legacyMagic)['context']['detect_magic_events']===true,
     'existing global settings enable spell capture context by default');
