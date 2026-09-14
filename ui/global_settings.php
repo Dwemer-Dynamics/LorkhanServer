@@ -206,8 +206,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             </select>
             <div class="preset-actions">
                 <button type="button" class="btn-settings-transfer preset-btn-compact" data-preset-operation="apply">Apply</button>
-                <button type="button" class="btn-settings-transfer preset-btn-compact" data-preset-operation="save_new">Save as newâ€¦</button>
-                <button type="button" class="btn-settings-transfer preset-btn-compact" data-preset-operation="overwrite" disabled>Overwriteâ€¦</button>
+                <button type="button" class="btn-settings-transfer preset-btn-compact" data-preset-operation="save_new">Save as new&hellip;</button>
+                <button type="button" class="btn-settings-transfer preset-btn-compact" data-preset-operation="overwrite" disabled>Overwrite&hellip;</button>
             </div>
             <span id="gs-preset-status" role="status" aria-live="polite"></span>
         </div>
