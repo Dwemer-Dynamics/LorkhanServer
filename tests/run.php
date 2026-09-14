@@ -3617,6 +3617,15 @@ $check($compactResolved['context']['short_term_in_compact_chat']===false&&$compa
 $compactResolved=(new EffectiveSettingsResolver())->resolve([],$compactCore,['settings_overrides'=>['context'=>['short_term_in_compact_chat'=>true]]]);
 $check($compactResolved['context']['short_term_in_compact_chat']===true&&$compactResolved['sources']['context.short_term_in_compact_chat']==='npc',
     'NPC compact memory override takes precedence over Core');
+require_once dirname(__DIR__).'/ui/core/race_portrait.php';
+foreach (['Dark Elf'=>'darkelf','Dunmer'=>'darkelf','High Elf'=>'highelf','Altmer'=>'highelf',
+    'Wood Elf'=>'woodelf','Bosmer'=>'woodelf','Khajiit'=>'khajit','Khajit'=>'khajit',
+    'Argonian'=>'argonian','Breton'=>'breton','Imperial'=>'imperial','Nord'=>'nord',
+    'Redguard'=>'redguard','Orc'=>'orc','Orsimer'=>'orc','DarkElfRace'=>'darkelf',
+    ''=>'default','Cliff Racer'=>'default','../../server.php'=>'default'] as $race=>$portrait) {
+    $check(lorkhan_race_portrait($race)===$portrait.'.png', 'Race portrait maps safely: '.$race);
+    $check(is_file(dirname(__DIR__).'/ui/images/races/'.lorkhan_race_portrait($race)), 'Bundled race portrait exists: '.$race);
+}
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

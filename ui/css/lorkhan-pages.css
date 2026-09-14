@@ -1238,14 +1238,7 @@ body.hub-page > main {
     margin: 8px 0 12px;
 }
 
-.profile-portrait img {
-    width: 160px;
-    height: 160px;
-    object-fit: cover;
-    border: 1px solid var(--lorkhan-border, #404040);
-    border-radius: var(--lorkhan-radius-md, 10px);
-    background: var(--lorkhan-surface-0, #181818);
-}
+.profile-portrait img { object-fit: cover; }
 
 .portrait-form input[type="file"] {
     max-width: 100%;
@@ -1893,8 +1886,8 @@ body.view-characters .npc-title-actions button.btn-trash {
 }
 
 .npc-race-art {
-    border: 1px solid #454545;
-    border-radius: 6px;
+    border: 0;
+    border-radius: 0;
 }
 
 .npc-race-art-placeholder {

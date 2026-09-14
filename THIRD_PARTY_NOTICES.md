@@ -11,6 +11,12 @@ Unmodified distributions and their full licenses are in `ui/lib/ui/d3/`.
 
 ## Dwemer Dynamics shared server UI
 
+Default NPC race portraits in `ui/images/races/*.png` are copied unchanged from
+HerikaServer `748f62d48dfcc9519320bcfd9a585cb1cc23a4ab`, `ui/images/races/`.
+The race aliases and square 200/160/140px responsive portrait presentation follow
+that revision's `ui/core/npc_master.php`. Lorkhan retains its private uploaded
+portrait storage and uses Morrowind race names and a fixed filename allowlist.
+
 NPC relationship table, affinity tiers, type icons, signals, build/custom-type
 dialogs, lock/clear controls and recent-change presentation derive from HerikaServer
 `529364c4c12b3a8bd4cc12a481f400ce19b3a344`,

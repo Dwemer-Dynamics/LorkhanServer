@@ -7,6 +7,7 @@ use LorkhanServer\Infrastructure\ProductRepository;
 
 if (!isset($uiRootDir, $view, $pageTitle, $topNavSection)) throw new RuntimeException('Incomplete management page definition.');
 require $uiRootDir . '/ui_bootstrap.php';
+require_once $uiRootDir . '/core/race_portrait.php';
 $rows = $uiRepository->rows($view);
 $policyRows = $view === 'actions' ? $uiRepository->rows('action_policies') : [];
 $narrativeRows = $view === 'autonomy' ? $uiRepository->rows('narratives') : [];
@@ -581,8 +582,9 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         if($coreProfileId!==''&&!isset($coreProfileOptions[$coreProfileId]))$coreProfileOptions[$coreProfileId]=(string)($row['core_profile_label']??'Unavailable Core Profile');
         echo '<article class="profile-card'.($compact?' profile-card-compact':'').'"><header><div><span class="connector-kind">'.($isTemplate?'Biography template':'OpenMW NPC').'</span><h3>' . lorkhan_ui_h($row['name'] ?? '') . '</h3></div>';
         echo '<div class="profile-statuses">'.($favorite?'<span class="status-badge connector-active">Favorite</span>':'').($locked?'<span class="status-badge profile-locked">Locked</span>':'').'<span class="status-badge">Revision ' . lorkhan_ui_h($row['current_revision'] ?? '') . '</span></div></header>';
-        if($portrait!==[])echo'<div class="profile-portrait"><img src="'.lorkhan_ui_h($portraitEndpoint.'?profile_id='.rawurlencode($profileId).'&revision='.(int)($row['current_revision']??1)).'" alt="Portrait of '.lorkhan_ui_h($row['name']??'NPC').'" width="160" height="160"></div>';
-        elseif($compact)echo'<div class="profile-portrait profile-portrait-fallback" aria-hidden="true">'.lorkhan_ui_h(mb_strtoupper(mb_substr((string)($row['name']??'N'),0,1))).'</div>';
+        $portraitUrl=$portraitEndpoint.'?profile_id='.rawurlencode($profileId).'&revision='.(int)($row['current_revision']??1);
+        if($portrait===[])$portraitUrl=dirname($portraitEndpoint,2).'/images/races/'.lorkhan_race_portrait((string)($content['race']??''));
+        echo'<div class="profile-portrait"><img class="npc-race-art" src="'.lorkhan_ui_h($portraitUrl).'" alt="Portrait of '.lorkhan_ui_h($row['name']??'NPC').'" width="200" height="200" loading="lazy"></div>';
         if($compact)echo'<dl class="profile-card-glance"><dt>Race</dt><dd>'.lorkhan_ui_h(trim((string)($content['gender']??'').' '.(string)($content['race']??''))?:'Unspecified').'</dd><dt>Voice</dt><dd>'.lorkhan_ui_h($voice['id']??'Connector default').'</dd><dt>Bindings</dt><dd>'.lorkhan_ui_h($row['binding_count']??0).'</dd></dl><details class="profile-routing-summary"><summary>Profile summary</summary>';
         echo '<dl><dt>'.($isTemplate?'Record match':'Record').'</dt><dd><code>' . lorkhan_ui_h($identity['record_id'] ?? ($isTemplate?'Any record':'Unbound profile')) . '</code></dd>';
         echo '<dt>Content file</dt><dd>' . lorkhan_ui_h($identity['content_file'] ?? '') . '</dd>';
@@ -828,8 +830,9 @@ function lorkhan_ui_chim_profile_cards(array $rows,array $voiceOptions,array $pr
         echo'<div class="npc-line"><span class="npc-muted">RefID:</span> '.lorkhan_ui_h($recordId).'</div>';
         echo'<div class="npc-line"><span class="npc-muted">Oghma Tags:</span> '.lorkhan_ui_h($tags?:'none').'</div>';
         echo'<div class="npc-line"><span class="npc-muted">Profile:</span> '.lorkhan_ui_h($coreProfileLabel).'</div></div><div class="npc-right">';
-        if($portrait!==[])echo'<img class="npc-race-art" src="'.lorkhan_ui_h($portraitEndpoint.'?profile_id='.rawurlencode($profileId).'&revision='.(int)($row['current_revision']??1)).'" alt="Portrait of '.lorkhan_ui_h($name).'">';
-        else echo'<div class="npc-race-art npc-race-art-placeholder" aria-label="Portrait placeholder"><strong>'.lorkhan_ui_h(mb_strtoupper(mb_substr($name,0,1))).'</strong><span>'.lorkhan_ui_h($content['race']??'Morrowind NPC').'</span></div>';
+        $portraitUrl=$portraitEndpoint.'?profile_id='.rawurlencode($profileId).'&revision='.(int)($row['current_revision']??1);
+        if($portrait===[])$portraitUrl=dirname($portraitEndpoint,2).'/images/races/'.lorkhan_race_portrait((string)($content['race']??''));
+        echo'<img class="npc-race-art" src="'.lorkhan_ui_h($portraitUrl).'" alt="Portrait of '.lorkhan_ui_h($name).'" width="200" height="200" loading="lazy">';
         echo'</div></div></article>';
 
         $exportUrl=$managementBasePath.'/exports/profiles/'.$profileId.'.json';

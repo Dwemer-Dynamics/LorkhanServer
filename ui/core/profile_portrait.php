@@ -8,6 +8,7 @@ use LorkhanServer\Infrastructure\ProductRepository;
 
 $uiRootDir=dirname(__DIR__);$pageTitle='NPC Portrait';$topNavSection='configuration';
 require $uiRootDir.'/ui_bootstrap.php';
+require_once __DIR__.'/race_portrait.php';
 
 $portraitRoot=(string)($config['portrait_storage_path']??'/var/lib/lorkhanserver/profile-portraits');
 if(!is_dir($portraitRoot)&&!mkdir($portraitRoot,0750,true)&&!is_dir($portraitRoot))throw new RuntimeException('Portrait storage is unavailable.');
@@ -36,9 +37,12 @@ try{
     $profile=lorkhan_portrait_profile($products,$profileId);$content=$profile['content'];
     if($_SERVER['REQUEST_METHOD']==='GET'){
         $portrait=is_array($content['portrait']??null)?$content['portrait']:[];$path=lorkhan_portrait_path($portraitRoot,$profileId,$portrait);
-        if($path===null)throw new RuntimeException('portrait_metadata_invalid');
-        if(!is_file($path))throw new RuntimeException('portrait_file_missing');
-        header('Content-Type: '.(string)$portrait['mime']);header('Content-Length: '.(string)filesize($path));
+        $mime=(string)($portrait['mime']??'image/png');
+        if($path===null||!is_file($path)){
+            $path=$uiRootDir.'/images/races/'.lorkhan_race_portrait((string)($content['race']??''));
+            $mime='image/png';
+        }
+        header('Content-Type: '.$mime);header('Content-Length: '.(string)filesize($path));
         header('Cache-Control: private, max-age=300');header('X-Content-Type-Options: nosniff');readfile($path);exit;
     }
     if($_SERVER['REQUEST_METHOD']!=='POST'||!hash_equals($csrf,(string)($_POST['_csrf']??'')))throw new RuntimeException('unauthorized');
