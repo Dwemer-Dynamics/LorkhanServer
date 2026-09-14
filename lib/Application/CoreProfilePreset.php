@@ -20,7 +20,7 @@ final class CoreProfilePreset
         'relationship'=>['enabled','update_chance_percent'],
         'memory'=>['recent_turn_limit','short_term_enabled','mid_term_enabled','long_term_enabled','short_term_max_summaries','oghma_knowledge_tags'],
         'oghma'=>['enabled','topic_count','result_limit','racial_context_enabled','location_context_enabled','extractor_fallback_enabled','extractor_timeout_ms'],
-        'diary'=>['enabled','automatic_enabled','automatic_wait_enabled','automatic_interval_seconds','include_in_context','latest_entry_in_context','context_turn_limit','prompt'],
+        'diary'=>['enabled','materialize_enabled','automatic_enabled','automatic_wait_enabled','automatic_interval_seconds','include_in_context','latest_entry_in_context','context_turn_limit','prompt'],
         'profile_evolution'=>['enabled','fields','history_limit'],
         'profile_management'=>['autofill_custom_profiles','autofill_custom_profiles_trigger'],
     ];

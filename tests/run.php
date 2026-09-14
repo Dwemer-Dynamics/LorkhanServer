@@ -203,6 +203,14 @@ $conversionMock=(new \LorkhanServer\Application\MockProfileGenerationProvider())
 $check($conversionMock===['relationships'=>[]]
     &&in_array('relationship.convert',\LorkhanServer\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
     'relationship text conversion is not registered as a bounded first-party job');
+$physicalValidator=new \LorkhanServer\Protocol\Validator();
+foreach(['diary-book-query','diary-book-result']as$fixture){
+    $physicalMessage=json_decode((string)file_get_contents(dirname(__DIR__).'/protocol/fixtures/v1/valid/'.$fixture.'.json'),true)['instance'];
+    $physicalValidator->validate($physicalMessage,$physicalMessage['schema']);
+    $physicalMessage['command']='anything';
+    try{$physicalValidator->validate($physicalMessage,$physicalMessage['schema']);$check(false,'diary protocol rejects command injection');}
+    catch(\LorkhanServer\Protocol\ValidationException){$check(true,'diary protocol rejects command injection');}
+}
 $diaryDefaults=\LorkhanServer\Application\DiaryGenerationPolicy::defaults();
 $diaryOverrides=['enabled'=>true,'automatic_enabled'=>true,'automatic_wait_enabled'=>false,
     'automatic_interval_seconds'=>120,'include_in_context'=>false,'latest_entry_in_context'=>false,'context_turn_limit'=>12,
@@ -2905,7 +2913,7 @@ catch(InvalidArgumentException){$check(true,'relationship chance outside 0-100 r
 $diaryResolved=(new EffectiveSettingsResolver())->resolve($globalSettings,['routing'=>[
     'diary_generation_configuration_id'=>'00000000-0000-4000-8000-000000000555'],
     'settings_overrides'=>['diary'=>$diaryOverrides]],[]);
-$check($diaryResolved['settings']['diary']===$diaryOverrides
+$check($diaryResolved['settings']['diary']===['materialize_enabled'=>false]+$diaryOverrides
     &&$diaryResolved['routing']['diary_generation_configuration_id']==='00000000-0000-4000-8000-000000000555'
     &&$diaryResolved['sources']['settings.diary.enabled']==='core_profile',
     'manual diary policy and dedicated connector route inherit through effective server settings');

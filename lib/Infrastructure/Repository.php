@@ -10,7 +10,7 @@ use Throwable;
 
 final class Repository
 {
-    private const SERVER_CAPABILITIES = ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'debug.npc_manager.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
+    private const SERVER_CAPABILITIES = ['diary.books.v1', 'dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'debug.npc_manager.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
         'action.ai.stop', 'action.conversation.end', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
         'action.inventory.inspect','action.confirmation','action.result-followup'];
@@ -186,6 +186,17 @@ final class Repository
     }
 
     public function sessionInstallation(string $sessionId):string{$s=$this->db->prepare('SELECT installation_id FROM sessions WHERE session_id=:id');$s->execute(['id'=>$sessionId]);$v=$s->fetchColumn();if($v===false)throw new \OutOfBoundsException('unknown_session');return(string)$v;}
+
+    /** Physical books have a separate typed queue, never an operator or model command. */
+    public function claimDiaryBook(array $message): ?array
+    {
+        return (new PhysicalDiaryRepository($this->db))->claim($message);
+    }
+
+    public function completeDiaryBook(array $message): bool
+    {
+        return (new PhysicalDiaryRepository($this->db))->complete($message);
+    }
 
     /** Claim one operator-authored, typed debug command for the current game generation. */
     public function claimDebugCommand(array $message):?array

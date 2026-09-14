@@ -709,7 +709,8 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     foreach(['personality'=>'Personality','occupation'=>'Occupation','skills'=>'Skills','speech_style'=>'Speech Style','goals'=>'Goals']as$key=>$label)echo'<label><input name="dynamic_profile_fields[]" form="'.lorkhan_ui_h($formId).'" type="checkbox" value="'.$key.'"'.(in_array($key,$dynamicFields,true)?' checked':'').'> '.$label.'</label>';
     echo'<small class="hint">Choose at least one field when Dynamic Profile is enabled.</small></details>';
     foreach(['automatic_enabled'=>['📙 Auto Diary','Generate diary entries on the configured timer and sleep events. Requires Diary generation and a Diary LLM in Core Profile.'],
-        'automatic_wait_enabled'=>['⏳ Auto Diary Wait','When Auto Diary is enabled, include wait events as well as sleep events.']]as$key=>[$label,$help]){
+        'automatic_wait_enabled'=>['⏳ Auto Diary Wait','When Auto Diary is enabled, include wait events as well as sleep events.'],
+        'materialize_enabled'=>['📕 Physical Diary','Keep one readable diary book in this NPC’s inventory, updated from the latest five saved generated entries.']]as$key=>[$label,$help]){
         $defaults=[];foreach($coreProfileRows as$core){
             $scope=(string)($core['installation_id']??'');$id=(string)$core['core_profile_id'];
             $defaults[$scope][$id]=($core['content']['settings_overrides']['diary'][$key]??false)===true;

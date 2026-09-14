@@ -1542,6 +1542,7 @@ final class ManagementRouter
                 + array_intersect_key($overrides['behavior']??[],array_flip(['combat_bark_period_seconds','rechat_mode','open_rechat','rechat_strict_targeting','end_conversation_cooldown_seconds'])),
             'memory'=>['recent_turn_limit'=>(int)($overrides['memory']['recent_turn_limit']??20),'short_term_max_summaries'=>(int)($overrides['memory']['short_term_max_summaries']??10)]+array_intersect_key($overrides['memory']??[],array_flip(['short_term_enabled','mid_term_enabled','long_term_enabled','oghma_knowledge_tags'])),
             'diary'=>['enabled'=>($overrides['diary']['enabled']??false)===true,
+                'materialize_enabled'=>($overrides['diary']['materialize_enabled']??false)===true,
                 'automatic_enabled'=>($overrides['diary']['automatic_enabled']??false)===true,
                 'automatic_wait_enabled'=>($overrides['diary']['automatic_wait_enabled']??false)===true,
                 'automatic_interval_seconds'=>(int)($overrides['diary']['automatic_interval_seconds']??$diary['automatic_interval_seconds']),
@@ -2556,6 +2557,13 @@ final class ManagementRouter
                 'prompt'=>trim((string)($values['setting_diary_prompt']??DiaryGenerationPolicy::defaults()['prompt']))],
         ];
 
+        if (isset($values['diary_materialize_present'])) {
+            $overrides['diary']['materialize_enabled']=isset($values['setting_diary_materialize_enabled']);
+        } elseif (isset($values['core_profile_id'])) {
+            $previousDiary=$this->repository->getRevisioned('core_profile',$values['core_profile_id'])['content']['settings_overrides']['diary']??[];
+            if(array_key_exists('materialize_enabled',$previousDiary))$overrides['diary']['materialize_enabled']=$previousDiary['materialize_enabled'];
+        }
+
         if (isset($values['quest_comments_present'])) {
             $overrides['quest_comments']=['enabled'=>isset($values['setting_quest_comments_enabled']),
                 'chance_percent'=>$number($values,'setting_quest_comments_chance_percent',10)];
@@ -2743,7 +2751,7 @@ final class ManagementRouter
             if($relationship===[])unset($content['relationship']);else$content['relationship']=$relationship;
         }
         // NPC diary switches override only their own leaves; unrelated saves retain inheritance.
-        foreach(['automatic_enabled','automatic_wait_enabled']as$field){
+        foreach(['automatic_enabled','automatic_wait_enabled','materialize_enabled']as$field){
             $key='npc_diary_'.$field;if(!array_key_exists($key,$values))continue;
             $value=$values[$key];if(!in_array($value,['inherit','0','1'],true))throw new InvalidArgumentException('invalid_npc_diary_override');
             $diary=is_array($content['diary']??null)?$content['diary']:[];

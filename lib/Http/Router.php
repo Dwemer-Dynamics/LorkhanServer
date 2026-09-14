@@ -80,6 +80,8 @@ final class Router
             if ($request->method === 'POST' && $path === '/gamedata') return $this->gameData($request);
             if ($request->method === 'POST' && $path === '/controls/query') return $this->controlsQuery($request);
             if ($request->method === 'POST' && $path === '/controls/select') return $this->controlsSelect($request);
+            if ($request->method === 'POST' && $path === '/diary-books/query') return $this->diaryBookQuery($request);
+            if ($request->method === 'POST' && $path === '/diary-book-results') return $this->diaryBookResult($request);
             if ($request->method === 'POST' && $path === '/debug-commands/query') return $this->debugCommandQuery($request);
             if ($request->method === 'POST' && $path === '/debug-command-results') return $this->debugCommandResult($request);
             if ($request->method === 'GET' && $path === '/events') return $this->events($request);
@@ -456,6 +458,28 @@ final class Router
             'session_id'=>$request['session_id'],'generation'=>$request['generation'],'target'=>$request['target']]+$controls;
     }
 
+    /** Poll a capability-gated diary snapshot using the authenticated active session. */
+    private function diaryBookQuery(Request $request): Response
+    {
+        $m=$this->json($request,'lorkhan.diary-book.query.v1');
+        $this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));
+        $book=$this->repository->claimDiaryBook($m);
+        return Response::json(200,['schema'=>'lorkhan.diary-book.v1','message_id'=>$m['message_id'],
+            'request_id'=>$m['request_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation'],'book'=>$book]);
+    }
+
+    /** A receipt records game-side completion, not merely HTTP delivery. */
+    private function diaryBookResult(Request $request): Response
+    {
+        $m=$this->json($request,'lorkhan.diary-book-result.v1');
+        $this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));
+        $this->requireIdempotency($request,$m['message_id']);
+        $duplicate=$this->repository->completeDiaryBook($m);
+        return Response::json(200,['schema'=>'lorkhan.diary-book-result.accepted.v1','message_id'=>$m['message_id'],
+            'request_id'=>$m['request_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation'],
+            'delivery_id'=>$m['delivery_id'],'status'=>$m['status'],'duplicate'=>$duplicate]);
+    }
+
     /** Return at most one current-generation operator debug command. */
     private function debugCommandQuery(Request $request):Response
     {
@@ -814,7 +838,8 @@ final class Router
 
     private function publicCode(string $code):string
     {
-        $aliases=['revision_conflict'=>'request_mismatch','dialogue_result_mismatch'=>'request_mismatch','dialogue_result_time_invalid'=>'invalid_schema','unknown_dialogue'=>'not_found'];if(isset($aliases[$code]))return$aliases[$code];
+        $aliases=['diary_books_unsupported'=>'invalid_schema','diary_book_not_found'=>'not_found','diary_book_mismatch'=>'request_mismatch',
+            'diary_book_terminal'=>'duplicate_conflict','diary_book_superseded'=>'request_mismatch','revision_conflict'=>'request_mismatch','dialogue_result_mismatch'=>'request_mismatch','dialogue_result_time_invalid'=>'invalid_schema','unknown_dialogue'=>'not_found'];if(isset($aliases[$code]))return$aliases[$code];
         $allowed=['action_disabled','action_parameters_invalid','action_result_expired','action_result_mismatch','invalid_audio',
             'action_target_invalid','action_tier_mismatch','cursor_expired','duplicate_conflict','invalid_idempotency_key',
             'invalid_schema','media_unavailable','not_found','provider_action_not_allowed','provider_invalid_action',

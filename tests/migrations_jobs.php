@@ -22,6 +22,7 @@ use LorkhanServer\Infrastructure\ManagementUiRepository;
 use LorkhanServer\Infrastructure\MigrationRunner;
 use LorkhanServer\Infrastructure\OghmaCatalogImporter;
 use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\Repository;
 use LorkhanServer\Infrastructure\ProviderAttemptRepository;
 use LorkhanServer\Infrastructure\Uuid;
 
@@ -1429,6 +1430,133 @@ $check($diaryStats['succeeded']===1&&$diaryRow['kind']==='diary'&&$diaryRow['tit
     'manual diary worker did not use the frozen provider revision or persist exact scoped provenance');
 
 // The supported diary history range must survive worker validation beyond the former 100-row cap.
+// Physical diary delivery reuses completed generated entries without another provider call.
+$db->beginTransaction();
+try {
+    $physicalRepo=new Repository($db);
+    $bookSession=json_decode((string)file_get_contents(dirname(__DIR__).'/protocol/fixtures/v1/valid/session-init.json'),true)['instance'];
+    $bookSession['installation_id']=$installation;$bookSession['profile_id']=$profile['profile_id'];
+    $bookSession['playthrough_id']=$playthrough['playthrough_id'];$bookSession['message_id']=Uuid::v4();
+    $bookSession['runtime']['capabilities'][]='diary.books.v1';$bookSessionId=Uuid::v4();
+    $physicalRepo->createSession($bookSession,$bookSessionId,str_repeat('a',64));
+    $bookQuery=['schema'=>'lorkhan.diary-book.query.v1','message_id'=>Uuid::v4(),'request_id'=>Uuid::v4(),
+        'session_id'=>$bookSessionId,'generation'=>$bookSession['generation']];
+    $check($physicalRepo->claimDiaryBook($bookQuery)===null,'physical diaries must default off');
+    $physicalActor=$diaryActor+['refnum'=>['index'=>765,'content_file'=>0],'cell'=>['kind'=>'interior','name'=>'Balmora']];
+    $db->prepare('UPDATE profiles SET actor_identity=CAST(:actor AS jsonb) WHERE profile_id=:profile')->execute([
+        'actor'=>json_encode($physicalActor),'profile'=>$diaryProfile['profile_id']]);
+    $physicalCore=$products->getRevisioned('core_profile',$diaryCore['core_profile_id'])['content'];
+    $physicalCore['settings_overrides']['diary']['materialize_enabled']=true;
+    $service->revise('core_profile',$diaryCore['core_profile_id'],$physicalCore,'physical diary test');
+    $inherited=$products->effectiveSettingsForProfile($installation,$diaryProfile['profile_id']);
+    $check($inherited['settings']['diary']['materialize_enabled']===true,'NPC did not inherit Core physical diary opt-in');
+    // More than one poll's candidate budget of manual-only entries cannot hide the generated book.
+    for($index=0;$index<101;$index++){
+        $manualProfile=sprintf('00000000-0000-4000-8000-%012d',7000+$index);
+        $db->prepare('INSERT INTO profiles(profile_id,installation_id,name,actor_identity,core_profile_id)
+            SELECT :id,installation_id,name||:suffix,actor_identity,core_profile_id FROM profiles WHERE profile_id=:source')
+            ->execute(['id'=>$manualProfile,'source'=>$diaryProfile['profile_id'],'suffix'=>' '.$index]);
+        $db->prepare('INSERT INTO profile_revisions(profile_id,revision,content,change_reason)
+            SELECT :id,1,content,change_reason FROM profile_revisions WHERE profile_id=:source AND revision=1')
+            ->execute(['id'=>$manualProfile,'source'=>$diaryProfile['profile_id']]);
+        $products->createNarrative(['installation_id'=>$installation,'profile_id'=>$manualProfile,
+            'playthrough_id'=>$playthrough['playthrough_id'],'kind'=>'diary','title'=>'Not generated','content'=>'Manual only',
+            'provenance'=>['source'=>'manual-diary-generation']],$clock->iso());
+    }
+    $db->exec("UPDATE core_profiles SET default_npc=false WHERE installation_id='{$installation}' AND default_npc=true");
+    $db->exec("UPDATE core_profiles SET default_npc=true WHERE core_profile_id='{$diaryCore['core_profile_id']}'");
+    $db->exec("UPDATE profiles SET core_profile_id=NULL WHERE profile_id='{$diaryProfile['profile_id']}'");
+    $physical=$physicalRepo->claimDiaryBook($bookQuery);
+    $check($physical!==null&&$physical['title']==="Diary NPC's Diary"&&$physical['target']==$physicalActor
+        &&$physical['content_hash']===hash('sha256',$physical['content']),'physical diary snapshot scope/title/hash mismatch');
+    $check($physicalRepo->claimDiaryBook($bookQuery)==$physical,'lost response did not replay identical pending delivery');
+    $db->exec("UPDATE profiles SET core_profile_id='{$diaryCore['core_profile_id']}' WHERE profile_id='{$diaryProfile['profile_id']}'");
+    $bookResult=['schema'=>'lorkhan.diary-book-result.v1','message_id'=>Uuid::v4(),'request_id'=>Uuid::v4(),
+        'session_id'=>$bookSessionId,'generation'=>$bookSession['generation'],'delivery_id'=>$physical['delivery_id'],
+        'book_id'=>$physical['book_id'],'content_hash'=>$physical['content_hash'],'status'=>'failed','reason_code'=>'target_unavailable',
+        'completed_at'=>'2026-09-13T12:00:00Z'];
+    (new \LorkhanServer\Protocol\Validator())->validate($bookResult,$bookResult['schema']);
+    $check($physicalRepo->completeDiaryBook($bookResult)===false&&$physicalRepo->completeDiaryBook($bookResult)===true,
+        'physical diary receipt was not durable/idempotent');
+    $bookResult['request_id']=Uuid::v4();
+    $check($physicalRepo->completeDiaryBook($bookResult)===true,'fresh transport retry did not retain receipt idempotence');
+    $altered=$bookResult;$altered['status']='succeeded';$altered['reason_code']=null;
+    try{$physicalRepo->completeDiaryBook($altered);throw new RuntimeException('altered duplicate diary result accepted');}
+    catch(DomainException $error){$check($error->getMessage()==='diary_book_terminal','wrong altered diary result failure');}
+    $check($physicalRepo->claimDiaryBook($bookQuery)===null,'unavailable actor retry ignored cooldown');
+    $db->exec("UPDATE physical_diary_deliveries SET retry_after=clock_timestamp()-interval '1 second'");
+    $retried=$physicalRepo->claimDiaryBook($bookQuery);
+    $check($retried['delivery_id']!==$physical['delivery_id']&&$retried['book_id']===$physical['book_id'],'retry changed book identity');
+    $bookResult['message_id']=Uuid::v4();$bookResult['delivery_id']=$retried['delivery_id'];$bookResult['status']='succeeded';$bookResult['reason_code']=null;
+    $physicalRepo->completeDiaryBook($bookResult);
+    $check($physicalRepo->claimDiaryBook($bookQuery)===null,'successful same-session snapshot was reissued');
+    $db->prepare("UPDATE narrative_records SET content=:content WHERE narrative_id=:id")->execute([
+        'content'=>str_repeat('長',2200),'id'=>$diaryJob['narrative_id']]);
+    $edited=$physicalRepo->claimDiaryBook($bookQuery);
+    $check($edited['book_id']===$physical['book_id']&&$edited['content_hash']!==$physical['content_hash']
+        &&strlen($edited['title'])<=128&&strlen($edited['content'])<=8192&&mb_strlen($edited['content'])<=2048,
+        'edited generated diary lost identity or exceeded bounds');
+    $physicalContent=$products->getRevisioned('profile',$diaryProfile['profile_id'])['content'];
+    $physicalContent['diary']['materialize_enabled']=false;
+    $service->revise('profile',$diaryProfile['profile_id'],$physicalContent,'NPC opt-out');
+    $check($physicalRepo->claimDiaryBook($bookQuery)===null,'NPC opt-out did not override Core');
+    unset($physicalContent['diary']['materialize_enabled']);
+    $service->revise('profile',$diaryProfile['profile_id'],$physicalContent,'NPC inheritance');
+    $check($physicalRepo->claimDiaryBook($bookQuery)==$edited,'removing NPC override did not restore pending Core snapshot');
+    // An exact unique playthrough binding wins over the profile's historical location/reference.
+    $boundActor=$physicalActor;$boundActor['cell']['name']='Seyda Neen';
+    $db->prepare('INSERT INTO actor_profile_bindings(installation_id,playthrough_id,actor_key,actor_identity,profile_id)
+        VALUES(:installation,:playthrough,:key,CAST(:actor AS jsonb),:profile)')->execute([
+        'installation'=>$installation,'playthrough'=>$playthrough['playthrough_id'],'key'=>str_repeat('d',64),
+        'actor'=>json_encode($boundActor),'profile'=>$diaryProfile['profile_id']]);
+    $boundBook=$physicalRepo->claimDiaryBook($bookQuery);
+    $check($boundBook['target']==$boundActor&&$boundBook['book_id']===$edited['book_id'],'physical diary ignored exact playthrough binding');
+    $db->prepare('INSERT INTO actor_profile_bindings(installation_id,playthrough_id,actor_key,actor_identity,profile_id)
+        SELECT installation_id,playthrough_id,:key,actor_identity,profile_id FROM actor_profile_bindings WHERE profile_id=:profile LIMIT 1')
+        ->execute(['key'=>str_repeat('e',64),'profile'=>$diaryProfile['profile_id']]);
+    $check($physicalRepo->claimDiaryBook($bookQuery)===null,'ambiguous profile binding received a physical diary');
+    $db->exec("DELETE FROM actor_profile_bindings WHERE actor_key='".str_repeat('e',64)."' AND profile_id='{$diaryProfile['profile_id']}'");
+
+    $bookSession['message_id']=Uuid::v4();$bookSession['generation']++;$reconnect=Uuid::v4();
+    $physicalRepo->createSession($bookSession,$reconnect,str_repeat('a',64));
+    $bookQuery['session_id']=$reconnect;$bookQuery['generation']=$bookSession['generation'];$replayed=$physicalRepo->claimDiaryBook($bookQuery);
+    $check($replayed['book_id']===$edited['book_id']&&$replayed['delivery_id']!==$edited['delivery_id'],'reconnect failed to resync stable diary');
+    try{$physicalRepo->completeDiaryBook($bookResult);throw new RuntimeException('replaced diary session accepted result');}
+    catch(OutOfBoundsException $error){$check($error->getMessage()==='unknown_session','replaced diary session mismatch');}
+    // Mutable UI provenance cannot revive a future diary whose actual job source was retired.
+    $physicalTurn=Uuid::v4();
+    $db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,
+        speaker,target,audience,context,state,accepted_at) VALUES(:turn,:request,:message,:session,7,'text','en','Diary source',
+        '{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete',clock_timestamp())")->execute([
+        'turn'=>$physicalTurn,'request'=>Uuid::v4(),'message'=>Uuid::v4(),'session'=>$reconnect]);
+    $db->prepare("UPDATE durable_jobs SET payload=jsonb_set(payload,'{source_turn_ids}',CAST(:sources AS jsonb)) WHERE job_id=:id")
+        ->execute(['sources'=>json_encode([$physicalTurn]),'id'=>$diaryJob['job_id']]);
+    $db->prepare("UPDATE narrative_records SET provenance='{}'::jsonb WHERE narrative_id=:id")->execute(['id'=>$diaryJob['narrative_id']]);
+    $db->prepare('INSERT INTO timeline_invalidated_turns(turn_id,loaded_save_id,cutoff_minute) VALUES(:turn,:load,0)')
+        ->execute(['turn'=>$physicalTurn,'load'=>$bookSession['message_id']]);
+    $check($physicalRepo->claimDiaryBook($bookQuery)===null,'edited provenance revived an invalidated diary job source');
+    $db->exec("UPDATE sessions SET capabilities='{}' WHERE session_id='{$reconnect}'");
+    try{$physicalRepo->claimDiaryBook($bookQuery);throw new RuntimeException('old client received physical diary');}
+    catch(DomainException $error){$check($error->getMessage()==='diary_books_unsupported','capability gate failed');}
+
+    $formRouter=(new ReflectionClass(ManagementRouter::class))->newInstanceWithoutConstructor();
+    (new ReflectionProperty(ManagementRouter::class,'repository'))->setValue($formRouter,$products);
+    $coreForm=new ReflectionMethod($formRouter,'coreProfileContent');
+    $enabledForm=$coreForm->invoke($formRouter,['diary_materialize_present'=>'1','setting_diary_materialize_enabled'=>'1']);
+    $disabledForm=$coreForm->invoke($formRouter,['diary_materialize_present'=>'1']);
+    $oldForm=$coreForm->invoke($formRouter,['core_profile_id'=>$diaryCore['core_profile_id']]);
+    $check($enabledForm['settings_overrides']['diary']['materialize_enabled']===true
+        &&$disabledForm['settings_overrides']['diary']['materialize_enabled']===false
+        &&$oldForm['settings_overrides']['diary']['materialize_enabled']===true,'Core physical diary form lost explicit checkbox or old-form value');
+    $npcForm=new ReflectionMethod($formRouter,'profileContent');
+    $off=$npcForm->invoke($formRouter,['base_content_json'=>json_encode($physicalContent),'npc_diary_materialize_enabled'=>'0']);
+    $inherit=$npcForm->invoke($formRouter,['base_content_json'=>json_encode($off),'npc_diary_materialize_enabled'=>'inherit']);
+    $check($off['diary']['materialize_enabled']===false&&!isset($inherit['diary']['materialize_enabled']),
+        'NPC physical diary form inheritance mismatch');
+    $captured=\LorkhanServer\Application\CoreProfilePreset::capture($physicalCore);
+    $check($captured['settings_overrides']['diary']['materialize_enabled']===true,'Core preset dropped physical diary opt-in');
+} finally {$db->rollBack();}
+
 $largeDiaryPayload=$diaryPayload;$largeDiaryPayload['request_id']=Uuid::v4();$largeDiaryPayload['narrative_id']=Uuid::v4();
 $largeDiaryPayload['source_turn_ids']=[];$largeDiaryPayload['input']['witnessed_context']=[];
 for($index=0;$index<101;$index++){

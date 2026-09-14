@@ -44,6 +44,8 @@ final class Validator
             'lorkhan.player-autochat.v1' => $this->playerAutochat($message),
             'lorkhan.controls.query.v1' => $this->controlsQuery($message),
             'lorkhan.controls.select.v1' => $this->controlsSelect($message),
+            'lorkhan.diary-book.query.v1' => $this->diaryBookQuery($message),
+            'lorkhan.diary-book-result.v1' => $this->diaryBookResult($message),
             'lorkhan.debug-command.query.v1' => $this->debugCommandQuery($message),
             'lorkhan.debug-command-result.v1' => $this->debugCommandResult($message),
             'lorkhan.response.v1' => $this->response($message),
@@ -452,6 +454,31 @@ final class Validator
         foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]??null);
         if(($message['selection_id']??null)!==null)$this->uuid($message['selection_id']);
         $this->identity($message['target']??null);$this->timestamp($message['created_at']??null);
+    }
+
+    private function diaryBookQuery(array $message): void
+    {
+        $this->keys($message,['schema','message_id','request_id','session_id','generation']);
+        if(($message['schema']??null)!=='lorkhan.diary-book.query.v1'||!is_int($message['generation'])
+            ||$message['generation']<0||$message['generation']>9_007_199_254_740_991)
+            throw new ValidationException('invalid_schema');
+        foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]??null);
+    }
+
+    private function diaryBookResult(array $message): void
+    {
+        $this->keys($message,['schema','message_id','request_id','session_id','generation','delivery_id','book_id',
+            'content_hash','status','reason_code','completed_at']);
+        if(($message['schema']??null)!=='lorkhan.diary-book-result.v1'||!is_int($message['generation'])
+            ||$message['generation']<0||$message['generation']>9_007_199_254_740_991
+            ||!in_array($message['status']??null,['succeeded','failed'],true)
+            ||!is_string($message['content_hash']??null)||preg_match('/^[0-9a-f]{64}$/D',$message['content_hash'])!==1
+            ||($message['status']==='succeeded'&&$message['reason_code']!==null)
+            ||($message['status']==='failed'&&!in_array($message['reason_code'],['target_unavailable','target_mismatch',
+                'book_unavailable','record_creation_failed','inventory_update_failed','invalid_payload'],true)))
+            throw new ValidationException('invalid_schema');
+        foreach(['message_id','request_id','session_id','delivery_id','book_id']as$field)$this->uuid($message[$field]??null);
+        $this->timestamp($message['completed_at']??null);
     }
 
     private function debugCommandQuery(array $message): void
