@@ -19,7 +19,7 @@ OpenMW pin: `f4bec41444214a7903bebd178389ca22ca13f646`, Lua API129.
 | Director | Dedicated global connector; bounded ordered plan for up to three observed NPCs, fresh child context, temporary scene notes and ordinary typed-action child turns. One-shot selection, cancellation and failure restoration. | Server integration and client Lua tests pass |
 | Narrator and Cheat | Explicit request modes; Narrator action executors intersect the Narrator and actual NPC policies. Cheat prompts use existing permitted typed actions, never operator console authority. Continuations cannot inherit player-only modes. | Policy, protocol, client and integration checks pass |
 | Resurrection | Actual engine dead-to-alive observation, bounded witnesses, background chatter and prompt projection, with earlier-save invalidation. Healing is not resurrection. | Native build, Lua and real Router-to-prompt integration pass |
-| Publication/deployment | Commit and push both repos to main; back up and deploy exact artifacts without changing private settings/data. | Pending final packaging/factory-aware closure and deployment |
+| Publication/deployment | Commit and push both repos to main; back up and deploy exact artifacts without changing private settings/data. | Complete: pushed both main branches; exact local runtime hashes and UI checks pass |
 
 ## Final automated evidence
 
@@ -49,3 +49,23 @@ No arbitrary model console, Lua, MWScript, SQL, paths, URLs or general record cr
 physical-diary exception remains diary-only. Preserve credentials, voices, settings and data;
 keep the GitHub workflow disabled. User-run in-game acceptance remains explicitly unverified
 and is separate from this automated build/deployment goal.
+
+## Local deployment closure
+
+- Server implementation `991ba7bf69b34ee723233ab2b264d36f68be03db` and client
+  `d3a5489029977d6e108149d7068e194d4eae7e30` pushed directly to their origin/main.
+- Schema117 deployed;944 server runtime files and32 client data files match source exactly.
+  Engine hash matches the final native build above. Worker runs and7514/8090 health passes.
+- Private source paths return403 across tested Apache ports; unauthenticated session creation401.
+  All36 configuration, credential and voice file hashes are unchanged.
+- Factory-aware integration, final fresh inventory write/check, source/provenance audits and all21
+  packaging tests pass (platform-specific executable/symlink cases run under WSL).
+- Browser review: Director connector matches the existing Global Connectors card structure;
+  Action Editor has31 actions and its Narrator filter shows30 permitted actions. No settings saved,
+  connector test invoked or paid provider used. Native game-menu appearance remains user-run proof.
+- Live Director connector remains Disabled until the user selects a dedicated LLM. Existing action
+  policy/confirmation requirements still apply; this deployment does not silently weaken them.
+- Rollback database/config: `/var/backups/lorkhan-parity117.e07u9l`.
+  Rollback server code/Apache: `/var/backups/lorkhanserver-code.okSXEZ`.
+  Client rollback: `%TEMP%/lorkhan-parity117-5f141b24d08d476bb3ab15ffc3d3e073`.
+- GitHub server workflow verified `disabled_manually`. No game was launched or controlled.

@@ -95,3 +95,10 @@ schema, build, deployment, or browser check is promoted to game evidence.
   Client rollback: %TEMP%/lorkhan-physical-diary-de5d33ebcb2d4ce0bc20bf834186cee2.
 - No game or paid provider was invoked. Physical reading, dropping/trading, and save/load behavior
   still require in-game acceptance. This checkpoint completes physical diary implementation only.
+
+## 2026-09-14 remaining parity build and deployment
+
+The current implementation and exact automated/deployment evidence are recorded in
+../CURRENT-PARITY-PLAN.md. Schema117,944 runtime files,32 client files and the final
+Windows engine are deployed and hash-verified. In-game acceptance remains unverified.
+
