@@ -185,7 +185,6 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <span class="hint" id="player-voice-help">Overrides the selected connector's default voice for the player.</span>
                         </div>
 <?php require_once dirname(__DIR__).'/tmpl/tts_filter_field.php'; lorkhan_ui_tts_filter_field($content,(string)($profile['profile_id']??''),$managementBasePath,$csrf); ?>
-<?php require_once dirname(__DIR__).'/tmpl/tts_filter_field.php'; lorkhan_ui_tts_filter_field($content,(string)($profile['profile_id']??''),$managementBasePath,$csrf); ?>
                         <details class="player-voice-options"><summary>Voice options</summary><div class="field-block">
                             <label for="player-voice-language">Voice Language</label>
                             <input id="player-voice-language" name="voice_language" type="text" maxlength="35" value="<?php echo lorkhan_ui_h($voice['language'] ?? 'en-US'); ?>">
