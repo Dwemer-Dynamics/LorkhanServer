@@ -199,6 +199,7 @@ final class SettingsCatalog
     {
         return [
             'schema' => self::GLOBAL_SCHEMA,
+            'backup' => ['dragon_break_days'=>3],
             'prompt' => ['prompt_head'=>'', 'emote_moods'=>''],
             'client' => self::CLIENT_DEFAULTS,
             'profile_management' => [

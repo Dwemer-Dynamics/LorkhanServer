@@ -1326,6 +1326,20 @@ $combatHistorySelection['history']=[
     ['history_id'=>'unknown-death','content'=>['kind'=>'event','type'=>'death','details'=>['text'=>'A guar died.']]],
     ['history_id'=>'ordinary-line','content'=>['kind'=>'speech','text'=>'He has killed before.','speaker'=>'Guard']],
 ];
+$tablePolicy=\LorkhanServer\Infrastructure\PlaythroughTablePolicy::tables();
+$portableTables=array_keys(array_filter($tablePolicy,static fn(array $row):bool=>$row['portable']));sort($portableTables);
+$archiveTables=\LorkhanServer\Infrastructure\PlaythroughArchive::tableNames();sort($archiveTables);
+$check($portableTables===$archiveTables,'Portable policy exactly matches archive allowlist');
+$check(array_filter($tablePolicy,static fn(array $row):bool=>in_array($row['category'],['shared','operational','derived'],true)&&$row['portable'])===[],'Shared operational and derived tables never enter portable archive');
+$backupGlobal=SettingsCatalog::globalDefaults();
+$check($backupGlobal['backup']['dragon_break_days']===3,'Dragon Break default remains three days');
+unset($backupGlobal['backup']);
+$check(EffectiveSettingsResolver::validateGlobalSettings($backupGlobal)['backup']['dragon_break_days']===3,'Legacy settings gain default backup threshold');
+foreach([1,365,0,366,'3'] as $days){
+    $backupGlobal=SettingsCatalog::globalDefaults();$backupGlobal['backup']['dragon_break_days']=$days;$accepted=true;
+    try{EffectiveSettingsResolver::validateGlobalSettings($backupGlobal);}catch(InvalidArgumentException){$accepted=false;}
+    $check($accepted===(is_int($days)&&$days>=1&&$days<=365),'Dragon Break threshold is a bounded integer');
+}
 $ambientGlobal=SettingsCatalog::globalDefaults();
 foreach ([false,true] as $hideAmbient) {
     $ambientGlobal['context']['hide_ambient_combat']=$hideAmbient;
@@ -3026,6 +3040,11 @@ $check(\LorkhanServer\Application\CoreProfilePreset::capture($coreKnowledge)['se
     'Core Oghma overrides survive named preset capture');
 // The General editor writes the existing NPC tag document without changing unrelated fields.
 $tagRouter=(new ReflectionClass(\LorkhanServer\Http\ManagementRouter::class))->newInstanceWithoutConstructor();
+$requestFormat=new ReflectionMethod($tagRouter,'htmlRequest');
+foreach(['playthrough-archive','playthrough-backup-settings','backup-file-retention'] as $archiveForm){
+    $check($requestFormat->invoke($tagRouter,new \LorkhanServer\Http\Request('POST','/LorkhanServer/manage/forms/'.$archiveForm,['Accept'=>'application/json']))===false,
+        'Archive and backup AJAX errors preserve JSON responses: '.$archiveForm);
+}
 $tagMapper=new ReflectionMethod($tagRouter,'profileContent');
 $tagBase=['core'=>'Keep identity','oghma_tags'=>['Old tag'],'oghma_knowledge_tags'=>'Old tag'];
 $tagEdited=$tagMapper->invoke($tagRouter,['base_content_json'=>json_encode($tagBase),'oghma_knowledge_tags'=>' Tribunal; Ashlanders, Tribunal, Common, Esoteric ']);

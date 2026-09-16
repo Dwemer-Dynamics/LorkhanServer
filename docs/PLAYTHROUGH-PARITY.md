@@ -115,3 +115,44 @@ Checkpoint validation: 1,512 server checks, 99 Lua tests, native bridge and Beas
 suites, OpenMW Release build, protocol parity, and client provenance/source-tree audits pass.
 The older structural Python fallback still has its 10 baseline failures; it is not reported as
 passing. Browser tooling was unavailable, so template render/lint is not visual acceptance.
+
+## Portable backup policy and recovery
+
+`data/playthrough-table-policy.json` classifies every reviewed public/internal table. The
+portable table set must exactly match `PlaythroughArchive::tableNames()`. Unknown tables
+are excluded. Mixed tables export only explicitly owned rows, never shared Narrator,
+template, factory-knowledge or configuration rows. PostgreSQL table comments are generated
+from this policy after migration; comments cannot opt a table into export. Existing unrelated
+comments are preserved.
+
+Portable packages contain data, not SQL. Export rejects oversized results instead of truncating
+them (16 MiB / 50,000 rows). Import checks the package checksum, table/column policy, schema
+compatibility, ownership and dependencies before creating fresh IDs. Target Core Profile and
+Narrator references use the target installation; connector routing, credentials and portraits
+are not copied. Full-database SQL recovery is unchanged and remains separate.
+
+Imported session history is explicitly archived and inert. It cannot advance the live session
+counter, become the default current character, accept action/dialogue receipts, or restore queued
+work. Imports are inactive history copies. Selecting an arbitrary imported copy from the game
+save-linking menu is not implemented yet; importing a package does not relink an existing save.
+
+The rollback threshold is stored in Global Settings (`backup.dragon_break_days`, 1-365 days,
+default 3). Manual backup-file retention requires a bounded preview and explicit confirmation.
+It does not delete gameplay rows or enable a new automatic cleanup schedule. Selected/default
+snapshots and backups pending restore are protected by the existing deletion guards.
+
+## Backup checkpoint validation (2026-09-16)
+
+- Policy covers 180 reviewed tables; 44 tables participate in scoped portable archives.
+- 1,524 unit checks, changed PHP lint, JavaScript syntax and whitespace checks pass.
+- Disposable PostgreSQL integration passes with populated profiles, events, dialogue, actions,
+  memories and revisions, relationships and audit, diaries, knowledge and manual memory digests.
+- Invalid checksums, foreign scope, shared Narrator revision injection and unknown columns are
+  rejected. Imported sessions cannot accept delivery receipts or alter the current Player.
+- Populated migration upgrade/down-up checks pass; rollback refuses to discard archived sessions.
+- Backup cleanup tests cover stale previews, protected snapshots and unchanged gameplay records.
+- Actual HTTP export, multipart inspection/import, repeat import, CSRF and changed-file rejection,
+  threshold save/revision conflict, and authenticated page rendering pass. The selected game world
+  remains unchanged. Local Apache upload limits permit the 16 MiB archive cap.
+- Browser screenshots, game-save linking for imported copies and in-game acceptance remain outstanding.
+- This checkpoint is source/test evidence only; it has not been deployed to the live database.

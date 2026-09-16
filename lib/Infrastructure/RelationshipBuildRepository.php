@@ -234,7 +234,7 @@ final class RelationshipBuildRepository
         $query->execute(['id'=>$scope['installation_id']]);if(!$query->fetchColumn())throw new \InvalidArgumentException('invalid_relationship_scope');
         $query=$this->db->prepare('SELECT s.session_id,s.state,s.generation,
             (SELECT COALESCE(max(t.runtime_generation),0) FROM turns t WHERE t.session_id=s.session_id) AS runtime_generation
-            FROM sessions s WHERE s.installation_id=:installation ORDER BY s.generation DESC LIMIT 1 FOR SHARE OF s');
+            FROM sessions s WHERE s.installation_id=:installation AND NOT s.archived ORDER BY s.generation DESC LIMIT 1 FOR SHARE OF s');
         $query->execute(['installation'=>$scope['installation_id']]);$session=$query->fetch()?:[];
         $query=$this->db->prepare('SELECT t.current_revision FROM playthroughs t JOIN profiles p ON p.installation_id=t.installation_id
             WHERE t.playthrough_id=:playthrough_id AND p.profile_id=:profile_id AND t.installation_id=:installation_id

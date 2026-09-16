@@ -266,7 +266,7 @@ final class RelationshipConversionRepository
             AND playthrough_id=:playthrough_id AND deleted_at IS NULL FOR SHARE');
         $query->execute(['installation_id'=>$scope['installation_id'],'playthrough_id'=>$scope['playthrough_id']]);$revision=$query->fetchColumn();
         if($revision===false)throw new \InvalidArgumentException('invalid_relationship_conversion_scope');
-        $query=$this->db->prepare('SELECT session_id,state,generation FROM sessions WHERE installation_id=:installation_id
+        $query=$this->db->prepare('SELECT session_id,state,generation FROM sessions WHERE installation_id=:installation_id AND NOT archived
             ORDER BY generation DESC,session_id DESC LIMIT 1 FOR SHARE');
         $query->execute(['installation_id'=>$scope['installation_id']]);$session=$query->fetch()?:[];
         return ['playthrough_revision'=>(int)$revision,'lifecycle_fence'=>hash('sha256',json_encode($session,JSON_THROW_ON_ERROR))];

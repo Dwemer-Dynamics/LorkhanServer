@@ -141,7 +141,7 @@ final class Repository
             $sourceMessage=$message;
             if($characterId===null)$this->ensureSessionOwners($message);
             else $message['profile_id']=(new ProfileOwnershipRepository($this->db))->prepareSessionOwners($message);
-            $latest = $this->db->prepare('SELECT MAX(generation) FROM sessions WHERE installation_id = :id');
+            $latest = $this->db->prepare('SELECT MAX(generation) FROM sessions WHERE installation_id = :id AND NOT archived');
             $latest->execute(['id' => $message['installation_id']]);
             $previous = $latest->fetchColumn();
             if ($previous !== null && $message['generation'] <= (int) $previous) throw new \UnexpectedValueException('stale_generation');
@@ -990,8 +990,9 @@ final class Repository
     public function dialogueDeliveryResult(array $m):array
     {
         return $this->transaction(function()use($m):array{
-            $utterance=$this->db->prepare('SELECT u.*,s.installation_id,s.profile_id,s.playthrough_id FROM dialogue_utterances u JOIN sessions s ON s.session_id=u.session_id WHERE u.dialogue_message_id=:id FOR UPDATE');
+            $utterance=$this->db->prepare('SELECT u.*,s.installation_id,s.profile_id,s.playthrough_id,s.archived AS session_archived FROM dialogue_utterances u JOIN sessions s ON s.session_id=u.session_id WHERE u.dialogue_message_id=:id FOR UPDATE');
             $utterance->execute(['id'=>$m['dialogue_message_id']]);$stored=$utterance->fetch();if(!$stored)throw new \OutOfBoundsException('unknown_dialogue');
+            if(in_array($stored['session_archived'],[true,'t','true',1,'1'],true))throw new \OutOfBoundsException('unknown_session');
             $existing=$this->db->prepare('SELECT * FROM dialogue_delivery_results WHERE dialogue_message_id=:id OR message_id=:message');
             $existing->execute(['id'=>$m['dialogue_message_id'],'message'=>$m['message_id']]);
             if($row=$existing->fetch()){
@@ -1158,11 +1159,12 @@ final class Repository
     public function actionResult(array $m): array
     {
         return $this->transaction(function () use ($m): array {
-            $stmt = $this->db->prepare('SELECT a.*, s.installation_id, s.state AS session_state FROM action_intents a '
+            $stmt = $this->db->prepare('SELECT a.*, s.installation_id, s.state AS session_state, s.archived AS session_archived FROM action_intents a '
                 . 'JOIN sessions s ON s.session_id = a.session_id WHERE a.action_id = :id FOR UPDATE');
             $stmt->execute(['id' => $m['action_id']]);
             $action = $stmt->fetch();
             if (!$action) throw new \OutOfBoundsException('unknown_action');
+            if(in_array($action['session_archived'],[true,'t','true',1,'1'],true))throw new \OutOfBoundsException('unknown_session');
             foreach (['session_id', 'turn_id'] as $field) {
                 if ($action[$field] !== $m[$field]) throw new \DomainException('action_result_mismatch');
             }

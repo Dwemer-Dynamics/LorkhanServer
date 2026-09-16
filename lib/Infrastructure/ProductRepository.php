@@ -690,7 +690,7 @@ final class ProductRepository
         $observationNames=$observationType!==null ? " UNION ALL SELECT btrim(observation.name) FROM recent_observations CROSS JOIN LATERAL (SELECT DISTINCT name FROM (VALUES (payload->>'".$observationFields[0]."'),(payload->>'".$observationFields[1]."')) v(name)) observation" : '';
         // JSON projection and aggregation stay in PostgreSQL; never transfer thousands of full prompts to PHP.
         $query = $this->db->prepare("WITH recent AS MATERIALIZED (SELECT t.context FROM active_turns t JOIN sessions s ON s.session_id=t.session_id "
-            . "WHERE s.installation_id=:installation ORDER BY t.accepted_at DESC LIMIT 5000), ".$observationCte."names AS ("
+            . "WHERE s.installation_id=:installation AND NOT s.archived ORDER BY t.accepted_at DESC LIMIT 5000), ".$observationCte."names AS ("
             . "SELECT btrim(CASE jsonb_typeof(v.value) WHEN 'string' THEN v.value#>>'{}' WHEN 'object' THEN COALESCE(v.value->>'display_name',v.value->>'name',v.value->>'record_id') END) AS name "
             . "FROM recent CROSS JOIN jsonb_array_elements_text(CAST(:paths AS jsonb)) p(path) "
             . "CROSS JOIN LATERAL jsonb_path_query(recent.context,p.path::jsonpath,'{}',true) v(value)".$observationNames.") "
@@ -807,7 +807,7 @@ final class ProductRepository
             $this->addProfileRuleOption($options['genders'],$content['gender']??null);
             $this->addProfileRuleOption($options['content_files'],$identity['content_file']??null);}
         $turns=$this->db->prepare('SELECT t.target,t.context FROM active_turns t JOIN sessions s ON s.session_id=t.session_id '
-            .'WHERE s.installation_id=:installation AND (NOT EXISTS(SELECT 1 FROM character_playthrough_bindings cb WHERE cb.installation_id=s.installation_id) OR s.playthrough_id=(SELECT latest_scope.playthrough_id FROM sessions latest_scope WHERE latest_scope.installation_id=s.installation_id AND latest_scope.character_id IS NOT NULL ORDER BY latest_scope.generation DESC LIMIT 1)) ORDER BY t.accepted_at DESC LIMIT 1000');
+            .'WHERE s.installation_id=:installation AND NOT s.archived AND (NOT EXISTS(SELECT 1 FROM character_playthrough_bindings cb WHERE cb.installation_id=s.installation_id) OR s.playthrough_id=(SELECT latest_scope.playthrough_id FROM sessions latest_scope WHERE latest_scope.installation_id=s.installation_id AND latest_scope.character_id IS NOT NULL ORDER BY latest_scope.generation DESC LIMIT 1)) ORDER BY t.accepted_at DESC LIMIT 1000');
         $turns->execute(['installation'=>$installationId]);
         foreach($turns->fetchAll()as$row){$target=$this->json($row['target']);$context=$this->json($row['context']);
             $observed=$this->profileRuleActorValues($target,$context);
@@ -2535,7 +2535,7 @@ SQL);
             $playthrough=$story->fetch();if(!$playthrough)throw new RuntimeException('not_found');
         }else{
             // Match the active game first, retaining the last played story when the game is closed.
-            $story=$this->db->prepare("SELECT p.playthrough_id,p.name FROM sessions s JOIN playthroughs p ON p.playthrough_id=s.playthrough_id AND p.installation_id=s.installation_id WHERE s.installation_id=:installation AND p.deleted_at IS NULL ORDER BY (s.state='active') DESC,s.created_at DESC,s.session_id DESC LIMIT 1");
+            $story=$this->db->prepare("SELECT p.playthrough_id,p.name FROM sessions s JOIN playthroughs p ON p.playthrough_id=s.playthrough_id AND p.installation_id=s.installation_id WHERE s.installation_id=:installation AND NOT s.archived AND p.deleted_at IS NULL ORDER BY (s.state='active') DESC,s.created_at DESC,s.session_id DESC LIMIT 1");
             $story->execute(['installation'=>$installationId]);$playthrough=$story->fetch()?:null;
         }
         return ['profile'=>$profile+['profile_id'=>$profileId],'playthrough'=>$playthrough]+$this->oghmaKnowledgeForTags(['installation_id'=>$installationId,'profile_id'=>$profileId,'playthrough_id'=>$playthrough['playthrough_id']??null],$tags,$filters,true);

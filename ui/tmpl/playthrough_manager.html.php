@@ -70,6 +70,33 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
             </div><?php endif; ?>
         </section>
     </div>
+    <section class="content-section" aria-labelledby="portable-archive-title">
+        <h2 id="portable-archive-title">Portable playthrough archive</h2>
+        <p class="section-note">Export this playthrough's supported data without installation-wide settings, credentials, queues or audio files. Import creates an inactive history copy; it never switches your running game or overwrites the original. Imported copies cannot currently be linked to a game save. Archives contain private conversations and profile notes; share carefully.</p>
+        <p class="section-note">Hard limits: 16 MiB and 50,000 rows. Oversized exports fail instead of returning partial data. Imports must match the archive format and database schema version.</p>
+        <?php if($selected): ?><a class="button" href="<?= lorkhan_ui_h($managementBasePath) ?>/exports/playthrough-archives/<?= lorkhan_ui_h($selected['playthrough_id']) ?>.json?installation_id=<?= lorkhan_ui_h($installationId) ?>">Export Playthrough Archive</a><?php endif; ?>
+        <form method="post" enctype="multipart/form-data" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthrough-archive" data-playthrough-archive>
+            <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="installation_id" value="<?= lorkhan_ui_h($installationId) ?>">
+            <label for="playthrough-archive-file">Archive JSON (maximum 16 MiB)</label><input type="file" id="playthrough-archive-file" name="archive_file" accept=".json,application/json" required>
+            <div class="button-group"><button type="submit" name="operation" value="inspect"<?= $installationId===''?' disabled':'' ?>>Inspect Archive</button><button type="submit" name="operation" value="import" disabled>Import Inactive Copy</button></div>
+            <pre role="status" data-archive-preview></pre>
+        </form>
+    </section>
+    <details class="content-section playthrough-tools"><summary>Backup data policy</summary>
+        <p class="section-note">Portable archive support is listed per table. Shared configuration stays installation-wide; operational queues are never resumed from an imported archive.</p>
+        <div class="backup-list" role="region" aria-label="Backup table policy" tabindex="0">
+            <?php foreach($tablePolicy as$policy): ?><article class="backup-item"><div class="backup-info"><h3><?= lorkhan_ui_h($policy['table']) ?></h3><div class="backup-meta"><span><?= lorkhan_ui_h($policy['category']) ?></span><span><?= !empty($policy['portable'])?'Included in portable archive':'Not included in portable archive' ?></span></div><p><?= lorkhan_ui_h($policy['description']) ?></p></div></article><?php endforeach; ?>
+        </div>
+    </details>
+    <section class="content-section" aria-labelledby="dragon-break-title">
+        <h2 id="dragon-break-title">Dragon Break protection</h2>
+        <p class="section-note">Create a full database recovery snapshot before loading a save this many game days behind the last recorded state. This does not delete later gameplay history or automatically restore a backup.</p>
+        <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthrough-backup-settings" data-backup-settings>
+            <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="installation_id" value="<?= lorkhan_ui_h($installationId) ?>"><input type="hidden" name="expected_revision" value="<?= (int)($backupSettings['current_revision']??0) ?>">
+            <label for="dragon-break-days">Rollback threshold (game days)</label><input type="number" id="dragon-break-days" name="dragon_break_days" min="1" max="365" required value="<?= (int)$dragonBreakDays ?>">
+            <button type="submit"<?= $installationId===''?' disabled':'' ?>>Save Threshold</button><p role="status"></p>
+        </form>
+    </section>
     <details class="content-section playthrough-tools"><summary>Advanced profile record tools</summary>
     <p class="section-note">Record import and empty data-scope creation do not start a game or switch saved characters.</p>
     <details class="content-section playthrough-tools"><summary>Import profile snapshot</summary>
@@ -101,6 +128,14 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
     <details class="content-section playthrough-tools"><summary>Full database backups and recovery</summary>
         <p class="section-note">These snapshots contain the whole database, including every character. Restoring one replaces server data and is not a way to switch characters. Game saves and external files are separate.</p>
         <?php include __DIR__.'/playthrough_database_snapshots.php'; ?>
+        <h3>Backup-file retention</h3>
+        <p class="section-note">Automatic cleanup from this control is off. Preview up to 100 old backups, then confirm deletion of each SQL file and its companion dump. This affects full-database backup files for all characters, never live gameplay records. Active, default and pending-restore backups are protected.</p>
+        <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/backup-file-retention" data-backup-retention>
+            <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>">
+            <label for="backup-retention-days">Backups older than (days)</label><input type="number" id="backup-retention-days" name="days" min="1" max="3650" value="30" required>
+            <div class="button-group"><button type="submit" name="operation" value="preview">Preview Backups</button><button type="submit" name="operation" value="delete" disabled>Delete Previewed Backups</button></div>
+            <pre role="status" data-retention-preview></pre>
+        </form>
     </details>
 </main>
 <script src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/playthrough-snapshots.js?v=<?= (int)filemtime(__DIR__.'/../js/playthrough-snapshots.js') ?>" defer></script>

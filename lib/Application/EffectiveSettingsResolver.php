@@ -320,6 +320,9 @@ final class EffectiveSettingsResolver
             if(is_array($content['client']['narrator']??null)&&!array_is_list($content['client']['narrator']))
                 $content['client']['narrator'] += $expected['client']['narrator'];
         }
+        $content += ['backup'=>$expected['backup']];
+        self::assertExactKeys($content['backup'], $expected['backup'], 'invalid_global_settings');
+        if(!is_int($content['backup']['dragon_break_days'])||$content['backup']['dragon_break_days']<1||$content['backup']['dragon_break_days']>365)throw new InvalidArgumentException('invalid_global_settings');
         $content += ['task_availability'=>$expected['task_availability']];
         self::assertExactKeys($content, $expected, 'invalid_global_settings');
         if (($content['schema'] ?? null) !== SettingsCatalog::GLOBAL_SCHEMA) throw new InvalidArgumentException('invalid_global_settings');

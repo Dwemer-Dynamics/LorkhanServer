@@ -69,7 +69,7 @@ final class CharacterPlaythroughRepository
             WHERE b.installation_id=:installation ORDER BY b.created_at,b.character_id LIMIT 100');
         $query->execute(['installation'=>$installation]);$bindings=$query->fetchAll();
         $query=$this->db->prepare('SELECT session_id,profile_id,playthrough_id,character_id,generation,state FROM sessions
-            WHERE installation_id=:installation ORDER BY generation DESC LIMIT 1');
+            WHERE installation_id=:installation AND NOT archived ORDER BY generation DESC LIMIT 1');
         $query->execute(['installation'=>$installation]);$current=$query->fetch()?:null;
         return ['bindings'=>$bindings,'current'=>$current,'switch_available'=>true,'blocked_reason'=>null];
     }

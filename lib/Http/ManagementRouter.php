@@ -111,6 +111,12 @@ final class ManagementRouter
             if($r->method==='GET'&&preg_match('#^/exports/player-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportSpecialProfileSettings($m[1],'player');
             if($r->method==='GET'&&preg_match('#^/exports/narrator-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportSpecialProfileSettings($m[1],'narrator');
             if($r->method==='GET'&&preg_match('#^/exports/global-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportGlobalSettings($m[1]);
+            if($r->method==='GET'&&preg_match('#^/exports/playthrough-archives/([0-9a-f-]{36})\.json$#D',$path,$m)){
+                $installation=$this->need($r->query,'installation_id');$this->uuid($installation,'installation_id');
+                $document=$this->management->exportPlaythroughArchive($installation,$m[1]);
+                return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES),
+                    ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="lorkhan-playthrough.json"','Cache-Control'=>'no-store']);
+            }
             if($r->method==='GET'&&preg_match('#^/exports/playthroughs/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportPlaythroughState($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/providers/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProvider($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/providers/([0-9a-f-]{36})\.csv$#D',$path,$m))return$this->exportProvider($m[1],true);
@@ -488,6 +494,36 @@ final class ManagementRouter
         }
         if($domain==='global-settings-preset')return $this->namedGlobalSettingsPreset($v,$scope);
         if($domain==='core-profile-preset')return $this->namedCoreProfilePreset($v,$scope);
+        if($domain==='playthrough-backup-settings'){
+            $installation=$this->need($scope,'installation_id');$days=filter_var($v['dragon_break_days']??null,FILTER_VALIDATE_INT);
+            if($days===false||$days<1||$days>365)throw new InvalidArgumentException('invalid_dragon_break_days');
+            $existing=$this->repository->globalSettingsForInstallation($installation);
+            $revision=filter_var($v['expected_revision']??null,FILTER_VALIDATE_INT);
+            if($revision===false||$revision!==(int)($existing['current_revision']??0))throw new RuntimeException('revision_conflict');
+            $content=$existing['content']??SettingsCatalog::globalDefaults();$content['backup']=['dragon_break_days'=>$days];
+            $content=EffectiveSettingsResolver::validateGlobalSettings($content);
+            if($existing)$this->repository->revise('global_settings',$existing['configuration_id'],$content,'Playthrough backup settings',gmdate('Y-m-d\TH:i:s\Z'),$revision);
+            else $this->service->createRevisioned('global_settings',['installation_id'=>$installation,'name'=>'Global Settings','content'=>$content]);
+            return Response::json(200,['saved'=>true,'dragon_break_days'=>$days,'revision'=>(int)$this->repository->globalSettingsForInstallation($installation)['current_revision']]);
+        }
+        if($domain==='playthrough-archive'){
+            $operation=$this->need($v,'operation');$installation=$this->need($scope,'installation_id');
+            $file=$r->files['archive_file']??null;
+            if(!is_array($file)||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||!is_uploaded_file((string)($file['tmp_name']??'')))throw new InvalidArgumentException('archive_upload_missing');
+            $bytes=(int)($file['size']??0);if($bytes<1||$bytes>16_777_216)throw new InvalidArgumentException('archive_too_large');
+            $json=file_get_contents($file['tmp_name'],false,null,0,16_777_217);
+            if(!is_string($json)||strlen($json)!==$bytes)throw new InvalidArgumentException('archive_upload_invalid');
+            $digest=hash('sha256',$json);
+            if($operation==='inspect')return Response::json(200,['sha256'=>$digest,'preview'=>$this->management->inspectPlaythroughArchive($json)]);
+            if($operation!=='import'||($v['confirm']??'')!=='Import inactive copy'||!hash_equals($digest,(string)($v['archive_sha256']??'')))throw new InvalidArgumentException('confirmation_mismatch');
+            return Response::json(200,['imported'=>$this->management->importPlaythroughArchive($installation,$json)]);
+        }
+        if($domain==='backup-file-retention'){
+            $days=filter_var($v['days']??null,FILTER_VALIDATE_INT);if($days===false)throw new InvalidArgumentException('invalid_retention_days');
+            if(($v['operation']??'')==='preview')return Response::json(200,$this->management->previewBackupFileRetention($days,gmdate('Y-m-d\TH:i:s\Z')));
+            if(($v['operation']??'')!=='delete'||($v['confirm']??'')!=='Delete previewed backup files')throw new InvalidArgumentException('confirmation_mismatch');
+            return Response::json(200,$this->management->confirmBackupFileRetention($days,$this->need($v,'cutoff'),$this->need($v,'token'),$this->providerConfig));
+        }
         if($domain==='playthrough-snapshot'){
             $operation=$this->need($v,'operation');
             try{
@@ -2630,6 +2666,7 @@ final class ManagementRouter
     {
         $integer=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
         $content=SettingsCatalog::globalDefaults();$client=&$content['client'];
+        if(isset($values['installation_id']))$content['backup']=$this->repository->globalSettingsForInstallation($values['installation_id'])['content']['backup']??$content['backup'];
         foreach(['prompt_head','emote_moods'] as $field)$content['prompt'][$field]=trim((string)($values[$field]??''));
         $events=$values['rpg_events']??[];if(!is_array($events))throw new InvalidArgumentException('invalid_rpg_comments');
         $content['rpg_comments']=['events'=>array_values($events),'chance_percent'=>$integer($values,'rpg_chance',50)];
@@ -3429,6 +3466,7 @@ final class ManagementRouter
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/')
+        &&!((str_ends_with($r->path,'/forms/playthrough-archive')||str_ends_with($r->path,'/forms/playthrough-backup-settings')||str_ends_with($r->path,'/forms/backup-file-retention'))&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/profile-rollback')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/profile-import-to')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/core-profile-import')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))

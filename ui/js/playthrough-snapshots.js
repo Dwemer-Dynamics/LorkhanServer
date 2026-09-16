@@ -90,3 +90,42 @@ if (snapshotFile && snapshotText) {
         if (!snapshotText.value.trim()) { event.preventDefault(); snapshotStatus.textContent = "Choose a snapshot file or paste its JSON first."; snapshotFile.focus(); }
     });
 }
+// Archive and retention operations always require an inspected, unchanged selection.
+for (const form of document.querySelectorAll('[data-playthrough-archive], [data-backup-retention], [data-backup-settings]')) {
+    let preview = null, busy = false, selectionVersion = 0;
+    const status = form.querySelector('[role="status"]');
+    const confirmButton = form.querySelector('button[value="import"], button[value="delete"]');
+    form.addEventListener('change', () => { ++selectionVersion; preview = null; if (confirmButton) confirmButton.disabled = true; status.textContent = ''; });
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (busy) return;
+        const operation = event.submitter?.value || 'save';
+        const submittedVersion = selectionVersion;
+        const data = new FormData(form);
+        data.set('operation', operation);
+        if (operation === 'import') {
+            if (!preview || !confirm('Import this inspected archive as a new inactive copy? The current game and original playthrough will not be changed.')) return;
+            data.set('archive_sha256', preview.sha256); data.set('confirm', 'Import inactive copy');
+        }
+        if (operation === 'delete') {
+            if (!preview || !confirm(`Delete exactly these ${preview.files.length} backups (SQL and companion dumps)? Live gameplay data will not be deleted.`)) return;
+            data.set('token', preview.token); data.set('cutoff', preview.cutoff); data.set('confirm', 'Delete previewed backup files');
+        }
+        busy = true; status.textContent = 'Working…'; if (confirmButton) confirmButton.disabled = true;
+        try {
+            const response = await fetch(form.action, {method: 'POST', body: data, headers: {'Accept': 'application/json'}, credentials: 'same-origin'});
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.code || result.error || 'Request failed');
+            if (submittedVersion !== selectionVersion && (operation === 'inspect' || operation === 'preview')) throw new Error('Selection changed. Inspect or preview again.');
+            if (operation === 'inspect') { preview = result; status.textContent = JSON.stringify(result.preview, null, 2); confirmButton.disabled = false; }
+            else if (operation === 'preview') {
+                preview = result;
+                status.textContent = result.files.length ? result.files.map(file => `${file.name} — ${file.byte_count} bytes — ${file.created_at}`).join('\n') + `\nTotal: ${result.files.length} backups, ${result.bytes} recorded bytes.` : 'No eligible backups.';
+                confirmButton.disabled = result.files.length === 0;
+            } else if (operation === 'import') { preview = null; status.textContent = 'Inactive history copy imported. Linking this copy to a game save is not available yet.\n' + JSON.stringify(result.imported, null, 2); }
+            else if (operation === 'delete') { preview = null; status.textContent = `${result.deleted.length} backups deleted; ${result.skipped.length} skipped after protection checks. No live gameplay records deleted. Preview again before continuing.`; }
+            else { status.textContent = 'Threshold saved.'; if (result.revision) form.elements.expected_revision.value = result.revision; }
+        } catch (error) { preview = null; status.textContent = String(error.message || 'Request failed.'); }
+        finally { busy = false; }
+    });
+}

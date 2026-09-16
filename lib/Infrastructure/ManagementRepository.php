@@ -20,6 +20,22 @@ final class ManagementRepository
 
     public function __construct(private readonly PDO $db) {}
 
+    public function playthroughTablePolicy():array
+    {return PlaythroughTablePolicy::inventory($this->db);}
+
+    /** Keep archive handlers on the authenticated management connection. */
+    public function exportPlaythroughArchive(string $installation,string $playthrough):array
+    {return (new PlaythroughArchive($this->db))->export($installation,$playthrough);}
+    public function inspectPlaythroughArchive(string $json):array
+    {return (new PlaythroughArchive($this->db))->inspect($json);}
+    public function importPlaythroughArchive(string $installation,string $json):array
+    {return (new PlaythroughArchive($this->db))->importCopy($installation,$json);}
+    public function previewBackupFileRetention(int $days,string $cutoff):array
+    {return (new BackupFileRetention($this->db))->preview($days,$cutoff);}
+    public function confirmBackupFileRetention(int $days,string $cutoff,string $token,array $config):array
+    {return (new BackupFileRetention($this->db))->confirm($days,$cutoff,$token,$config);}
+
+
     /** Queue one database-wide maintenance request; repeated submissions reuse pending work. */
     public function queueDatabaseMaintenance(): string
     {

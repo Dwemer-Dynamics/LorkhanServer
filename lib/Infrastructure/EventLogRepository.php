@@ -35,7 +35,7 @@ final class EventLogRepository
                 throw new InvalidArgumentException('invalid_eventlog_scope');
             }
         }
-        $where = [];
+        $where = $playthroughId === null ? ['NOT s.archived'] : [];
         $parameters = [];
         if ($installationId !== null) {
             $where[] = 's.installation_id=:installation';
@@ -61,6 +61,7 @@ final class EventLogRepository
             . "'inactive'::text AS state,p.created_at,i.display_name AS installation_name,p.name AS playthrough_name "
             . 'FROM installations i JOIN playthroughs p ON p.installation_id=i.installation_id '
             . 'WHERE i.installation_id=:installation AND (CAST(:playthrough_filter AS uuid) IS NULL OR p.playthrough_id=CAST(:playthrough AS uuid)) '
+            . ($playthroughId === null ? 'AND NOT EXISTS (SELECT 1 FROM sessions history WHERE history.playthrough_id=p.playthrough_id AND history.archived) ' : '')
             . 'ORDER BY p.created_at DESC,p.playthrough_id DESC LIMIT 1');
         $fallback->execute(['installation'=>$installationId,'playthrough_filter'=>$playthroughId,'playthrough'=>$playthroughId]);
         return $fallback->fetch() ?: null;

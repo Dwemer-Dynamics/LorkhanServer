@@ -13,7 +13,7 @@ final class ProfileOwnershipRepository
 
     public function activePlaythrough(string $installation):?string
     {
-        $q=$this->db->prepare('SELECT playthrough_id FROM sessions WHERE installation_id=:installation AND character_id IS NOT NULL ORDER BY generation DESC LIMIT 1');
+        $q=$this->db->prepare('SELECT playthrough_id FROM sessions WHERE installation_id=:installation AND character_id IS NOT NULL AND NOT archived ORDER BY generation DESC LIMIT 1');
         $q->execute(['installation'=>$installation]);$id=$q->fetchColumn();
         return $id===false?null:(string)$id;
     }

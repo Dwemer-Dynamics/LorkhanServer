@@ -4952,6 +4952,36 @@ $dragonCurrent=\LorkhanServer\Infrastructure\Uuid::v4();
 $repo->createSession($dragonMessage,$dragonCurrent,$tokenHash);
 $db->prepare("UPDATE turns SET context=jsonb_set(context,'{world}',CAST(:world AS jsonb)),accepted_at=clock_timestamp() WHERE turn_id=:id")
     ->execute(['world'=>json_encode(['calendar'=>['year'=>427,'month'=>7,'day'=>19,'hour'=>9.5]]),'id'=>$dragonTurn['turn_id']]);
+// File retention previews are explicit, bounded and independent of live gameplay records.
+$retentionRoot=sys_get_temp_dir().'/lorkhan-retention-'.bin2hex(random_bytes(8));
+$retentionConfig=['backup_storage_path'=>$retentionRoot];$retentionFiles=[];
+$db->beginTransaction();
+try{
+    $retentionIds=[];$retentionInsert=$db->prepare("INSERT INTO backup_records(backup_id,format_version,content_sha256,byte_count,scope,state,created_at) VALUES(:id,1,:hash,4,CAST(:scope AS jsonb),'created','2000-01-01T00:00:00Z')");
+    foreach(['eligible','default','active','pending']as$kind){
+        $id=Uuid::v4();$retentionIds[$kind]=$id;
+        $retentionInsert->execute(['id'=>$id,'hash'=>hash('sha256','test'),'scope'=>json_encode(['kind'=>'database_sql','snapshot'=>['name'=>$kind]])]);
+        $path=(new \LorkhanServer\Infrastructure\DatabaseSqlBackup($retentionConfig))->path($id);file_put_contents($path,'test');$retentionFiles[$kind]=$path;
+    }
+    $db->prepare('UPDATE lorkhan_internal.database_snapshot_source SET backup_id=:id WHERE singleton')->execute(['id'=>$retentionIds['active']]);
+    $db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload) VALUES(:id,'database.restore',1,:key,CAST(:payload AS jsonb))")
+        ->execute(['id'=>Uuid::v4(),'key'=>'retention-'.Uuid::v4(),'payload'=>json_encode(['backup_id'=>$retentionIds['pending']])]);
+    $retention=new \LorkhanServer\Infrastructure\BackupFileRetention($db);$plan=$retention->preview(3650,gmdate('Y-m-d\TH:i:s\Z'));
+    $assert(array_column($plan['files'],'backup_id')===[$retentionIds['eligible']],'retention preview included protected archives');
+    $db->prepare('UPDATE backup_records SET byte_count=5 WHERE backup_id=:id')->execute(['id'=>$retentionIds['eligible']]);
+    try{$retention->confirm(3650,$plan['cutoff'],$plan['token'],$retentionConfig);$assert(false,'changed retention preview accepted');}
+    catch(RuntimeException $error){$assert($error->getMessage()==='retention_preview_changed','wrong retention stale-preview error');}
+    $assert(is_file($retentionFiles['eligible']),'stale preview deleted a file');
+    $plan=$retention->preview(3650,$plan['cutoff']);$beforeGameplay=(int)$db->query('SELECT count(*) FROM source_events')->fetchColumn();
+    $deleted=$retention->confirm(3650,$plan['cutoff'],$plan['token'],$retentionConfig);
+    $assert($deleted['deleted']===[$retentionIds['eligible']]&&!is_file($retentionFiles['eligible']),'confirmed retention did not delete exact preview');
+    $assert((int)$db->query('SELECT count(*) FROM source_events')->fetchColumn()===$beforeGameplay,'retention deleted gameplay data');
+    foreach(['default','active','pending']as$kind)$assert(is_file($retentionFiles[$kind]),'retention deleted a protected file');
+}finally{
+    $db->rollBack();foreach($retentionFiles as$file)if(is_file($file))unlink($file);
+    if(is_dir($retentionRoot.'/sql'))rmdir($retentionRoot.'/sql');if(is_dir($retentionRoot))rmdir($retentionRoot);
+}
+
 $dragonRoot=sys_get_temp_dir().'/lorkhan-dragon-'.bin2hex(random_bytes(8));
 $dragonConfig=['database_dsn'=>$dsn,'database_user'=>getenv('LORKHAN_TEST_DB_USER')?:'',
     'database_password'=>getenv('LORKHAN_TEST_DB_PASSWORD')?:'','backup_storage_path'=>$dragonRoot];
@@ -5441,5 +5471,62 @@ $before=$guardCounts();
 try{$repo->createSession($ambiguous,Uuid::v4(),$tokenHash);$assert(false,'ambiguous legacy profiles were reassigned');}
 catch(DomainException $error){$assert($error->getMessage()==='playthrough_isolation_required','wrong ambiguous adoption reason');}
 $assert($guardCounts()===$before,'ambiguous adoption mutated persisted owners');
+
+$archiveService=new \LorkhanServer\Infrastructure\PlaythroughArchive($db);
+$archiveScope=['installation_id'=>$characterSession['installation_id'],'playthrough_id'=>$characterSession['playthrough_id'],'profile_id'=>$ownedNpc];
+$archiveMemory=$products->createMemory($archiveScope+['tier'=>'long','content'=>'Archive memory retained','provenance'=>['source'=>'manual']],['archive','memory'],\LorkhanServer\Application\DeterministicRetrieval::fakeVector('Archive memory retained'),$now);
+$products->setRelationship($archiveScope+['actor_identity'=>$characterTurn['payload']['speaker'],'disposition'=>25,'affinity'=>10,'source_mode'=>'manual','reason'=>'Archive relationship retained'],$now);
+$products->createNarrative($archiveScope+['kind'=>'diary','title'=>'Archive diary','content'=>'Retained personal diary','provenance'=>['source'=>'manual']],$now);
+$products->createKnowledge($archiveScope+['title'=>'Archive knowledge','content'=>'Character-specific fact','topic'=>'archive_fact','aliases'=>'','topic_desc_basic'=>'','knowledge_class'=>'','knowledge_class_basic'=>'','tags'=>'','category'=>'','provenance'=>['source'=>'manual']],['archive','fact'],$now);
+(new \LorkhanServer\Infrastructure\NpcMemoryDigestRepository($db))->edit($archiveScope['installation_id'],$archiveScope['playthrough_id'],$ownedNpc,0,'Manually curated NPC memory retained.');
+$tablePolicy=\LorkhanServer\Infrastructure\PlaythroughTablePolicy::inventory($db);
+$assert(count($tablePolicy)===count(\LorkhanServer\Infrastructure\PlaythroughTablePolicy::tables())&&!array_filter($tablePolicy,static fn($row)=>$row['category']==='unclassified'),'table inventory has unclassified maintained tables');
+$db->beginTransaction();
+$db->exec("CREATE TABLE public.archive_unknown_probe(id integer); COMMENT ON TABLE lorkhan_internal.profiles IS 'Keep unrelated table note'");
+\LorkhanServer\Infrastructure\PlaythroughTablePolicy::synchronize($db);
+$policyComment=$db->query("SELECT obj_description('lorkhan_internal.profiles'::regclass,'pg_class')")->fetchColumn();
+\LorkhanServer\Infrastructure\PlaythroughTablePolicy::synchronize($db);
+$assert(str_contains($policyComment,'Keep unrelated table note')&&$db->query("SELECT obj_description('lorkhan_internal.profiles'::regclass,'pg_class')")->fetchColumn()===$policyComment,'policy sync replaced unrelated comments or was not idempotent');
+$unknownPolicy=array_values(array_filter(\LorkhanServer\Infrastructure\PlaythroughTablePolicy::inventory($db),static fn($row)=>$row['table']==='public.archive_unknown_probe'))[0];
+$assert($unknownPolicy['portable']===false&&$unknownPolicy['category']==='unclassified','unknown table silently became portable');$db->rollBack();
+$archivePendingAction=Uuid::v4();$archivePendingDialogue=Uuid::v4();
+$db->prepare("INSERT INTO action_intents(action_id,session_id,turn_id,request_id,generation,action_name,tier,actor,parameters,expires_at,emitted_at) VALUES(:id,:session,:turn,:request,1,'inspect.report',0,CAST(:actor AS jsonb),'{}',clock_timestamp()+interval '1 minute',clock_timestamp())")
+    ->execute(['id'=>$archivePendingAction,'session'=>$characterSessionId,'turn'=>$characterTurn['turn_id'],'request'=>Uuid::v4(),'actor'=>json_encode($worldNpcTarget)]);
+$db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,response_line_id,utterance_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:id,:id,:id,:session,:turn,:request,1,1,1,CAST(:speaker AS jsonb),'{}','[]','Preserved archival dialogue',clock_timestamp(),clock_timestamp()+interval '1 minute')")
+    ->execute(['id'=>$archivePendingDialogue,'session'=>$characterSessionId,'turn'=>$characterTurn['turn_id'],'request'=>Uuid::v4(),'speaker'=>json_encode($worldNpcTarget)]);
+(new \LorkhanServer\Infrastructure\EventLogRepository($db))->injectProfileEvent($ownedNpc,$characterSession['playthrough_id'],['event'=>'Archive scene remains in this character history']);
+$publicPlayerBefore=$db->query('SELECT jsonb_agg(to_jsonb(p) ORDER BY id)::text FROM public.core_player p')->fetchColumn();
+$archivePackage=$archiveService->export($characterSession['installation_id'],$characterSession['playthrough_id']);
+$archiveJson=json_encode($archivePackage,JSON_THROW_ON_ERROR);
+$archivePreview=$archiveService->inspect($archiveJson);
+$assert($archivePreview['row_counts']['lorkhan_internal.profiles']===2,'archive exported another character profiles');
+foreach(['memory_records','memory_record_revisions','relationship_records','relationship_revisions','relationship_audit','narrative_records','knowledge_documents','npc_memory_digests','diarylog_metadata']as$table)$assert($archivePreview['row_counts']['lorkhan_internal.'.$table]>0,'archive fixture lost domain data: '.$table);
+$archiveCanonical=new ReflectionMethod($archiveService,'canonical');
+foreach(['checksum','foreign_scope','global_revision','column']as$attack){
+    $bad=$archivePackage;
+    if($attack==='checksum')$bad['sha256']=str_repeat('0',64);
+    if($attack==='foreign_scope')$bad['tables']['lorkhan_internal.sessions'][0]['playthrough_id']=$secondCharacter['playthrough_id'];
+    if($attack==='global_revision'){$sharedId=Uuid::v4();$bad['shared_profiles'][$sharedId]='narrator';$bad['tables']['lorkhan_internal.profile_revisions'][0]['profile_id']=$sharedId;}
+    if($attack==='column')$bad['tables']['lorkhan_internal.profiles'][0]['unsafe_column']='not SQL';
+    if($attack!=='checksum'){unset($bad['sha256']);$bad['sha256']=hash('sha256',$archiveCanonical->invoke($archiveService,$bad));}
+    try{$archiveService->inspect(json_encode($bad,JSON_THROW_ON_ERROR));$assert(false,'hostile archive accepted: '.$attack);}
+    catch(RuntimeException $error){$assert(in_array($error->getMessage(),['archive_checksum_mismatch','archive_scope_mismatch','archive_owner_missing','archive_column_mismatch'],true),'unexpected hostile archive error: '.$error->getMessage());}
+}
+$beforeArchiveSession=(new \LorkhanServer\Infrastructure\ProfileOwnershipRepository($db))->activePlaythrough($characterSession['installation_id']);
+$archiveCopy=$archiveService->importCopy($characterSession['installation_id'],$archiveJson);
+$archiveSecondCopy=$archiveService->importCopy($characterSession['installation_id'],$archiveJson);
+$assert($archiveSecondCopy['playthrough_id']!==$archiveCopy['playthrough_id'],'repeated import did not create a distinct inactive copy');
+$assert($archiveCopy['active']===false&&$archiveCopy['playthrough_id']!==$characterSession['playthrough_id'],'archive did not create inactive copy');
+$assert((new \LorkhanServer\Infrastructure\ProfileOwnershipRepository($db))->activePlaythrough($characterSession['installation_id'])===$beforeArchiveSession,'archive changed selected character');
+$archivedSessions=$db->prepare('SELECT count(*) FROM sessions WHERE playthrough_id=:world AND archived AND state=\'ended\' AND cardinality(capabilities)=0');$archivedSessions->execute(['world'=>$archiveCopy['playthrough_id']]);
+$assert((int)$archivedSessions->fetchColumn()===count($archivePackage['tables']['lorkhan_internal.sessions']),'archive session history is not inert');
+$assert($db->query('SELECT jsonb_agg(to_jsonb(p) ORDER BY id)::text FROM public.core_player p')->fetchColumn()===$publicPlayerBefore,'archive changed public Player projection');
+$archiveAction=$db->prepare('SELECT a.action_id,a.state FROM action_intents a JOIN sessions s USING(session_id) WHERE s.playthrough_id=:world');$archiveAction->execute(['world'=>$archiveCopy['playthrough_id']]);$archivedAction=$archiveAction->fetch();
+$archiveDialogue=$db->prepare('SELECT d.dialogue_message_id,d.delivery_state FROM dialogue_utterances d JOIN sessions s USING(session_id) WHERE s.playthrough_id=:world');$archiveDialogue->execute(['world'=>$archiveCopy['playthrough_id']]);$archivedDialogue=$archiveDialogue->fetch();
+$assert($archivedAction['state']==='terminal'&&$archivedDialogue['delivery_state']==='expired','archive restored executable pending outputs');
+$archiveSideEffects=fn()=>$db->query('SELECT (SELECT count(*) FROM source_events)::text||\':\'||(SELECT count(*) FROM durable_jobs)::text')->fetchColumn();$beforeReceipts=$archiveSideEffects();
+try{$repo->actionResult(['action_id'=>$archivedAction['action_id']]);$assert(false,'archival action receipt accepted');}catch(OutOfBoundsException $error){$assert($error->getMessage()==='unknown_session','wrong archival action receipt rejection');}
+try{$repo->dialogueDeliveryResult(['dialogue_message_id'=>$archivedDialogue['dialogue_message_id']]);$assert(false,'archival dialogue receipt accepted');}catch(OutOfBoundsException $error){$assert($error->getMessage()==='unknown_session','wrong archival dialogue receipt rejection');}
+$assert($archiveSideEffects()===$beforeReceipts,'archival receipt created source events or work');
 
 fwrite(STDOUT, "integration vertical slice passed\n");

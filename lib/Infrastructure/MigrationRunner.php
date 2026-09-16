@@ -60,6 +60,7 @@ final class MigrationRunner
                 $this->apply($migration);
                 $ran[] = $migration['version'];
             }
+            if ($target >= 123) PlaythroughTablePolicy::synchronize($this->db);
             return $ran;
         });
     }
@@ -110,6 +111,7 @@ final class MigrationRunner
                 $this->apply($migration);
                 $ran[] = $migration['version'];
             }
+            if ($migrations !== [] && $migrations[array_key_last($migrations)]['version'] >= 123) PlaythroughTablePolicy::synchronize($this->db);
             return $ran;
         });
     }
@@ -136,6 +138,7 @@ final class MigrationRunner
             }
             $this->revert($migration);
             $this->apply($migration);
+            if ($version >= 123) PlaythroughTablePolicy::synchronize($this->db);
             return $version;
         });
     }
@@ -164,7 +167,9 @@ final class MigrationRunner
                     if($progress!==null)$progress();
                     if($after!==null)$after();
                     if($progress!==null)$progress();
-                    $this->assertNoDrift($migrations,$this->applied());
+                    $current=$this->applied();
+                    if($current!==[]&&max(array_keys($current))>=123)PlaythroughTablePolicy::synchronize($this->db);
+                    $this->assertNoDrift($migrations,$current);
                 }finally{$this->atomicReplay=false;}
             });
             return array_column($replay,'version');
