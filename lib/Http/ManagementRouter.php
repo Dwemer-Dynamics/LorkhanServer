@@ -2073,6 +2073,13 @@ final class ManagementRouter
 
         $profileIds=[];foreach($data['profiles']as$row){if(!$this->objectArray($row)){throw new RuntimeException('backup_integrity_failed');}$keys=array_keys($row);sort($keys);
             $expectedProfileKeys=$format===1?['actor_identity','content','name','profile_id']:['actor_identity','content','core_profile_id','name','profile_id'];
+            if(array_key_exists('playthrough_id',$row)){
+                $expectedProfileKeys[]='playthrough_id';sort($expectedProfileKeys);
+                if($row['playthrough_id']!==null){
+                    if(!is_string($row['playthrough_id']))throw new RuntimeException('backup_integrity_failed');
+                    $this->uuid($row['playthrough_id'],'playthrough_id');
+                }
+            }
             if($keys!==$expectedProfileKeys||!is_string($row['profile_id'])||!is_string($row['name'])||trim($row['name'])===''||strlen($row['name'])>256
                 ||($format===2&&($row['core_profile_id']!==null&&(!is_string($row['core_profile_id'])||!isset($coreIds[$row['core_profile_id']]))))
                 ||!$this->objectArray($row['actor_identity'])||!$this->objectArray($row['content'])||array_key_exists('portrait',$row['content']))throw new RuntimeException('backup_integrity_failed');

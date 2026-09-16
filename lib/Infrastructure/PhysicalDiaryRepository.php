@@ -29,7 +29,7 @@ final class PhysicalDiaryRepository
                 LEFT JOIN core_profile_revisions cr ON cr.core_profile_id=c.core_profile_id AND cr.revision=c.current_revision
                 LEFT JOIN LATERAL (SELECT ab.actor_identity FROM actor_profile_bindings ab WHERE ab.installation_id=p.installation_id
                     AND ab.playthrough_id=:playthrough AND ab.profile_id=p.profile_id LIMIT 1) b ON true
-                WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind' IN ('npc','creature')
+                WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND ".ProfileScopeSql::matches('p',':playthrough')." AND p.actor_identity->>'kind' IN ('npc','creature')
                 AND (SELECT count(*) FROM actor_profile_bindings ab WHERE ab.installation_id=p.installation_id
                     AND ab.playthrough_id=:playthrough AND ab.profile_id=p.profile_id)<=1
                 AND COALESCE(r.content->'diary'->>'materialize_enabled',r.content->'settings_overrides'->'diary'->>'materialize_enabled',

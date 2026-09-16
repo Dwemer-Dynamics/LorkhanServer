@@ -5321,7 +5321,7 @@ $characterSession['character_id']=Uuid::v4();$characterSession['character_bindin
 $characterSessionId=Uuid::v4();$repo->createSession($characterSession,$characterSessionId,$tokenHash);
 $characterState=$products->characterPlaythroughState($characterSession['installation_id']);
 $assert(count($characterState['bindings'])===1&&$characterState['current']['character_id']===$characterSession['character_id']
-    &&$characterState['switch_available']===false,'new empty installation did not persist stable character identity');
+    &&$characterState['switch_available']===true,'new empty installation did not persist stable character identity');
 $characterTurn=$turn;foreach(['installation_id','profile_id','playthrough_id','generation'] as $key)$characterTurn[$key]=$characterSession[$key];
 $characterTurn['session_id']=$characterSessionId;foreach(['message_id','request_id','turn_id'] as $key)$characterTurn[$key]=Uuid::v4();
 $repo->acceptTurn($characterTurn);
@@ -5333,24 +5333,87 @@ $assert($oldCharacterTurn->fetchColumn()==='cancelled','same-character session r
 $guardCounts=fn()=>array_map('intval',$db->query('SELECT (SELECT count(*) FROM installations) AS installations,(SELECT count(*) FROM profiles) AS profiles,
     (SELECT count(*) FROM playthroughs) AS playthroughs,(SELECT count(*) FROM sessions) AS sessions,(SELECT count(*) FROM source_events) AS sources,
     (SELECT count(*) FROM character_playthrough_bindings) AS bindings')->fetch());
-foreach(['legacy','character_conflict','scope_switch','fresh_unknown_existing'] as $bindingCase){
+foreach(['legacy','character_conflict','fresh_unknown_existing'] as $bindingCase){
     $rejected=$characterReload;$rejected['message_id']=Uuid::v4();$rejected['generation']=3;$expected='character_binding_conflict';
     if($bindingCase==='legacy'){unset($rejected['character_id'],$rejected['character_binding']);$expected='character_binding_required';}
     if($bindingCase==='character_conflict')$rejected['character_id']=Uuid::v4();
-    if($bindingCase==='scope_switch'){$rejected['character_id']=Uuid::v4();$rejected['profile_id']=Uuid::v4();$rejected['playthrough_id']=Uuid::v4();$expected='playthrough_isolation_required';}
     if($bindingCase==='fresh_unknown_existing'){$rejected['installation_id']=Uuid::v4();$rejected['character_id']=Uuid::v4();$rejected['profile_id']=Uuid::v4();$rejected['playthrough_id']=Uuid::v4();$rejected['character_binding']='existing';}
     $before=$guardCounts();$snapshotCalled=false;
     try{$repo->createSession($rejected,Uuid::v4(),$tokenHash,null,function()use(&$snapshotCalled):void{$snapshotCalled=true;});$assert(false,'unsafe character admission accepted');}
     catch(DomainException $error){$assert($error->getMessage()===$expected,'unexpected character admission error: '.$error->getMessage());}
     $assert($guardCounts()===$before&&!$snapshotCalled&&$repo->session($characterReloadId,2)['state']==='active','rejected admission created data, captured backup or retired the outgoing session');
 }
+// The saved owner hint may refer to the previous character; new worlds get a fresh blank owner.
+$worldNpcTarget=['kind'=>'npc','record_id'=>'parity_world_npc','refnum'=>['index'=>4242,'content_file'=>0],
+    'content_file'=>'Morrowind.esm','cell'=>['kind'=>'interior','name'=>'Balmora'],'display_name'=>'World NPC'];
+$db->exec("INSERT INTO public.bio_templates_custom(npc_name,personality) VALUES('World NPC','Shared authored biography')");
+$worldNpcTurn=$characterReload;$worldNpcTurn['session_id']=$characterReloadId;$worldNpcTurn['payload']=['target'=>$worldNpcTarget];
+$firstWorldNpc=$products->ensureMorrowindActorProfile($worldNpcTurn,null,$now);
+$firstPersona=$products->getRevisioned('profile',$firstWorldNpc)['content'];$firstPersona['personality']='First world remembers kindness';
+$products->revise('profile',$firstWorldNpc,$firstPersona,'first world persona',$now);
+$secondCharacter=$characterReload;$secondCharacter['message_id']=Uuid::v4();$secondCharacter['generation']=3;
+$secondCharacter['playthrough_id']=Uuid::v4();$secondCharacter['character_id']=Uuid::v4();
+$secondSessionId=Uuid::v4();$secondAccepted=$repo->createSession($secondCharacter,$secondSessionId,$tokenHash);
+$assert($secondAccepted['profile_id']!==$characterSession['profile_id'],'new character reused another world profile');
+$ownedProfiles=$db->prepare('SELECT profile_id,playthrough_id FROM profiles WHERE installation_id=:installation ORDER BY created_at,profile_id');
+$ownedProfiles->execute(['installation'=>$characterSession['installation_id']]);$ownedRows=$ownedProfiles->fetchAll();
+$assert(count($ownedRows)===3&&count(array_unique(array_column($ownedRows,'playthrough_id')))===2,'new characters did not own distinct mutable profiles');
+$secondNpcTurn=$secondCharacter;$secondNpcTurn['session_id']=$secondSessionId;$secondNpcTurn['profile_id']=$secondAccepted['profile_id'];$secondNpcTurn['payload']=['target'=>$worldNpcTarget];
+$secondWorldNpc=$products->ensureMorrowindActorProfile($secondNpcTurn,null,$now);
+$secondPersona=$products->getRevisioned('profile',$secondWorldNpc)['content'];
+$assert($firstWorldNpc!==$secondWorldNpc&&($secondPersona['personality']??'')!=='First world remembers kindness','automatic discovery reused foreign-world NPC persona');
+$secondPersona['personality']='Second world remembers rivalry';$products->revise('profile',$secondWorldNpc,$secondPersona,'second world persona',$now);
+$assert($db->query("SELECT personality FROM public.bio_templates_custom WHERE npc_name='World NPC'")->fetchColumn()==='Shared authored biography','scoped NPC projection overwrote shared biography');
+try{$products->revise('profile',$firstWorldNpc,$firstPersona,'foreign edit',$now);$assert(false,'manual edit changed foreign world NPC');}
+catch(RuntimeException $error){$assert($error->getMessage()==='not_found','wrong foreign profile edit denial');}
+try{$products->bindActorProfile(['installation_id'=>$secondCharacter['installation_id'],'playthrough_id'=>$secondCharacter['playthrough_id']],$worldNpcTarget,$firstWorldNpc,$now);$assert(false,'foreign profile binding accepted');}
+catch(OutOfBoundsException $error){$assert($error->getMessage()==='not_found','wrong foreign binding denial');}
+$returnCharacter=$characterReload;$returnCharacter['message_id']=Uuid::v4();$returnCharacter['generation']=4;
+$returnCharacter['profile_id']=$secondAccepted['profile_id'];
+$returnSessionId=Uuid::v4();$returnAccepted=$repo->createSession($returnCharacter,$returnSessionId,$tokenHash);
+$assert($returnAccepted['profile_id']===$characterSession['profile_id'],'returning save did not resolve its canonical owner');
+$assert((new \LorkhanServer\Infrastructure\ProfileOwnershipRepository($db))->activePlaythrough($characterSession['installation_id'])===$characterSession['playthrough_id'],'selected playthrough did not follow accepted save');
+$worldNpcTurn['session_id']=$returnSessionId;$worldNpcTurn['generation']=4;
+$ownedNpc=$products->ensureMorrowindActorProfile($worldNpcTurn,null,$now);
+$assert($ownedNpc===$firstWorldNpc&&$products->getRevisioned('profile',$ownedNpc)['content']['personality']==='First world remembers kindness','returning save lost its discovered NPC persona');
+$scopeBackup=$products->configurationBackupState($characterSession['installation_id']);
+$backupNpc=array_values(array_filter($scopeBackup['profiles'],static fn(array $row):bool=>$row['profile_id']===$ownedNpc))[0];
+$assert($backupNpc['playthrough_id']===$characterSession['playthrough_id'],'configuration backup dropped ownership');
+$backupNpc['playthrough_id']=$secondCharacter['playthrough_id'];
+try{$products->restoreConfigurationBackup(['installation_id'=>$characterSession['installation_id'],'data'=>['profiles'=>[$backupNpc]]],$now);$assert(false,'backup reassigned profile owner');}
+catch(RuntimeException $error){$assert($error->getMessage()==='backup_scope_conflict','wrong backup owner rejection');}
+try{$products->restoreScope(['scope'=>['installation_id'=>$characterSession['installation_id'],'profile_id'=>$ownedNpc,'playthrough_id'=>$secondCharacter['playthrough_id']],'data'=>['memories'=>[],'relationships'=>[],'narratives'=>[]]],$now);$assert(false,'scope restore accepted foreign profile');}
+catch(RuntimeException $error){$assert($error->getMessage()==='backup_scope_conflict','wrong scope restore rejection');}
+try{$products->createRevisioned('playthrough',['installation_id'=>$characterSession['installation_id'],'profile_id'=>$ownedNpc,'name'=>'Unsafe manual world','content'=>[]],$now);$assert(false,'manual world reused scoped profile');}
+catch(InvalidArgumentException $error){$assert($error->getMessage()==='scope_mismatch','wrong manual world rejection');}
+try{(new \LorkhanServer\Infrastructure\EventLogRepository($db))->injectProfileEvent($ownedNpc,$secondCharacter['playthrough_id'],['event'=>'Must not enter another world']);$assert(false,'cross-character injected event accepted');}
+catch(InvalidArgumentException $error){$assert($error->getMessage()==='invalid_eventlog_scope','wrong cross-character event rejection');}
+try{(new \LorkhanServer\Infrastructure\NpcMemoryDigestRepository($db))->enqueue($characterSession['installation_id'],$secondCharacter['playthrough_id'],$ownedNpc);$assert(false,'cross-character digest accepted');}
+catch(RuntimeException $error){$assert($error->getMessage()==='digest_profile_unavailable','wrong cross-character digest rejection');}
+$assert(!(new \LorkhanServer\Infrastructure\ProfileEvolutionScheduler($db))->active(['profile_id'=>$ownedNpc,'playthrough_id'=>$secondCharacter['playthrough_id']]),'profile evolution accepted mismatched world');
+$scopedUi=new \LorkhanServer\Infrastructure\ManagementUiRepository($db);
+foreach(['characters','player','profiles','relationship_profiles','observed_npcs','action_policies'] as $view){
+    $visible=$scopedUi->rows($view,$characterSession['installation_id']);
+    $assert(is_array($visible),'scoped management query failed: '.$view);
+    foreach($visible as $row)$assert(($row['profile_id']??null)!==$secondAccepted['profile_id'],'management list exposed foreign character profile: '.$view);
+}
 $legacyCharacter=$session;$legacyCharacter['installation_id']=Uuid::v4();$legacyCharacter['profile_id']=Uuid::v4();
 $legacyCharacter['playthrough_id']=Uuid::v4();$legacyCharacter['message_id']=Uuid::v4();$legacyCharacter['generation']=1;unset($legacyCharacter['loaded_save']);
 $repo->createSession($legacyCharacter,Uuid::v4(),$tokenHash);
+$legacyNpc=Uuid::v4();$sharedNarrator=Uuid::v4();
+foreach([$legacyNpc=>'npc',$sharedNarrator=>'narrator'] as $profile=>$kind){
+    $db->prepare('INSERT INTO profiles(profile_id,installation_id,name,actor_identity,created_at) VALUES(:profile,:installation,:name,CAST(:identity AS jsonb),clock_timestamp())')
+        ->execute(['profile'=>$profile,'installation'=>$legacyCharacter['installation_id'],'name'=>'Adoption '.$kind,'identity'=>json_encode(['kind'=>$kind,'record_id'=>'fargoth'])]);
+    $db->prepare("INSERT INTO profile_revisions(profile_id,revision,content,change_reason,created_at) VALUES(:profile,1,'{\"personality\":\"Preserve me\"}','adoption fixture',clock_timestamp())")->execute(['profile'=>$profile]);
+}
 $legacyCharacter['character_id']=Uuid::v4();$legacyCharacter['character_binding']='existing';$legacyCharacter['generation']=2;$legacyCharacter['message_id']=Uuid::v4();
 $before=$guardCounts();$repo->createSession($legacyCharacter,Uuid::v4(),$tokenHash);$after=$guardCounts();
 $assert($after['profiles']===$before['profiles']&&$after['playthroughs']===$before['playthroughs']
     &&$products->characterPlaythroughState($legacyCharacter['installation_id'])['bindings'][0]['binding_mode']==='existing','explicit adoption replaced existing profiles or playthrough history');
+$adopted=$db->prepare('SELECT p.playthrough_id,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:profile');
+$adopted->execute(['profile'=>$legacyNpc]);$adoptedNpc=$adopted->fetch();
+$assert($adoptedNpc['playthrough_id']===$legacyCharacter['playthrough_id']&&json_decode($adoptedNpc['content'],true)['personality']==='Preserve me','adoption lost NPC identity or persona');
+$adopted->execute(['profile'=>$sharedNarrator]);$assert($adopted->fetch()['playthrough_id']===null,'adoption incorrectly scoped shared Narrator');
 $olderUntagged=$legacyCharacter;$olderUntagged['character_id']=Uuid::v4();$olderUntagged['message_id']=Uuid::v4();$olderUntagged['generation']=3;
 $recoveredCharacter=$repo->createSession($olderUntagged,Uuid::v4(),$tokenHash);
 $assert(($recoveredCharacter['character_id']??null)===$legacyCharacter['character_id']
@@ -5366,5 +5429,17 @@ $db->prepare("INSERT INTO character_playthrough_bindings(installation_id,charact
 $foreignRecovery=$olderUntagged;$foreignRecovery['character_id']=$foreignCharacter;$foreignRecovery['generation']=4;$foreignRecovery['message_id']=Uuid::v4();
 try{$repo->createSession($foreignRecovery,Uuid::v4(),$tokenHash);$assert(false,'older-save recovery reassigned an existing foreign character');}
 catch(DomainException $error){$assert($error->getMessage()==='character_binding_conflict','wrong foreign character recovery error');}
+
+// Multiple unpartitioned legacy worlds cannot be assigned to a character by guessing.
+$ambiguous=$session;unset($ambiguous['loaded_save'],$ambiguous['character_id'],$ambiguous['character_binding']);
+$ambiguous['installation_id']=Uuid::v4();$ambiguous['profile_id']=Uuid::v4();$ambiguous['playthrough_id']=Uuid::v4();
+$ambiguous['message_id']=Uuid::v4();$ambiguous['generation']=1;$repo->createSession($ambiguous,Uuid::v4(),$tokenHash);
+$db->prepare('INSERT INTO playthroughs(playthrough_id,installation_id,profile_id,name,created_at) VALUES(:id,:installation,:profile,:name,clock_timestamp())')
+    ->execute(['id'=>Uuid::v4(),'installation'=>$ambiguous['installation_id'],'profile'=>$ambiguous['profile_id'],'name'=>'Other legacy save']);
+$ambiguous['character_id']=Uuid::v4();$ambiguous['character_binding']='existing';$ambiguous['generation']=2;$ambiguous['message_id']=Uuid::v4();
+$before=$guardCounts();
+try{$repo->createSession($ambiguous,Uuid::v4(),$tokenHash);$assert(false,'ambiguous legacy profiles were reassigned');}
+catch(DomainException $error){$assert($error->getMessage()==='playthrough_isolation_required','wrong ambiguous adoption reason');}
+$assert($guardCounts()===$before,'ambiguous adoption mutated persisted owners');
 
 fwrite(STDOUT, "integration vertical slice passed\n");

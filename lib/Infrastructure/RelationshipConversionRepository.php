@@ -34,7 +34,7 @@ final class RelationshipConversionRepository
                 return $payload['batch_summary'];
             }
             $state=$this->scopeState($scope);
-            $owners=$this->owners($scope['installation_id']);$candidates=$this->candidates($scope['installation_id']);
+            $owners=$this->owners($scope['installation_id'],$scope['playthrough_id']);$candidates=$this->candidates($scope['installation_id'],$scope['playthrough_id']);
             $summary=['queued'=>0,'skipped'=>0,'no_text'=>0,'existing'=>0,'locked'=>0,'no_connector'=>0,'no_targets'=>0,'pending'=>0];
             $prepared=[];
             foreach($owners as$owner){
@@ -84,7 +84,7 @@ final class RelationshipConversionRepository
             AND NOT EXISTS(SELECT 1 FROM relationship_conversion_results result WHERE result.job_id=j.job_id) FOR SHARE OF j");
         $query->execute(['job'=>$job['job_id'],'lease'=>$job['lease_token'],'attempt'=>$job['attempt']]);
         if(!$query->fetchColumn())return false;
-        try{$state=$this->scopeState($payload);$owner=$this->owner($payload['installation_id'],$payload['profile_id']);}
+        try{$state=$this->scopeState($payload);$owner=$this->owner($payload['installation_id'],$payload['profile_id'],$payload['playthrough_id']);}
         catch(\InvalidArgumentException){return false;}
         foreach($state as$field=>$value)if(($payload[$field]??null)!==$value)return false;
         if($owner===null||$owner['profile_revision']!==$payload['profile_revision']
@@ -101,7 +101,7 @@ final class RelationshipConversionRepository
     public function input(array $payload):?array
     {
         if(!$this->current($payload))return null;
-        $owner=$this->owner($payload['installation_id'],$payload['profile_id']);if($owner===null)return null;
+        $owner=$this->owner($payload['installation_id'],$payload['profile_id'],$payload['playthrough_id']);if($owner===null)return null;
         $targets=$this->targetsByPayload($payload);if($targets===null||$targets!=$payload['targets'])return null;
         $people=[];$records=[];
         foreach($targets as$key=>$target){
@@ -154,23 +154,23 @@ final class RelationshipConversionRepository
         });
     }
 
-    private function owners(string $installation):array
+    private function owners(string $installation,string $playthrough):array
     {
         $query=$this->db->prepare("SELECT p.profile_id,p.current_revision,p.actor_identity,r.content FROM profiles p
             JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision
-            WHERE p.installation_id=:installation AND p.deleted_at IS NULL
+            WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND ".ProfileScopeSql::matches('p',':playthrough')."
                 AND p.actor_identity->>'kind' IN ('npc','creature') ORDER BY p.profile_id LIMIT 102");
-        $query->execute(['installation'=>$installation]);$rows=$query->fetchAll();
+        $query->execute(['installation'=>$installation,'playthrough'=>$playthrough]);$rows=$query->fetchAll();
         if(count($rows)>101)throw new \InvalidArgumentException('relationship_conversion_too_many_owners');
         return array_map(fn(array$row):array=>$this->ownerRow($row),$rows);
     }
 
-    private function owner(string $installation,string $profile):?array
+    private function owner(string $installation,string $profile,string $playthrough):?array
     {
         $query=$this->db->prepare('SELECT p.profile_id,p.current_revision,p.actor_identity,r.content FROM profiles p
             JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision
-            WHERE p.installation_id=:installation AND p.profile_id=:profile AND p.deleted_at IS NULL FOR SHARE OF p,r');
-        $query->execute(['installation'=>$installation,'profile'=>$profile]);$row=$query->fetch();
+            WHERE p.installation_id=:installation AND p.profile_id=:profile AND p.deleted_at IS NULL AND '.ProfileScopeSql::matches('p',':playthrough').' FOR SHARE OF p,r');
+        $query->execute(['installation'=>$installation,'profile'=>$profile,'playthrough'=>$playthrough]);$row=$query->fetch();
         return$row?$this->ownerRow($row):null;
     }
 
@@ -182,12 +182,12 @@ final class RelationshipConversionRepository
             'identity'=>json_decode($row['actor_identity'],true,32,JSON_THROW_ON_ERROR),'relationship_text'=>$text];
     }
 
-    private function candidates(string $installation):array
+    private function candidates(string $installation,string $playthrough):array
     {
-        $query=$this->db->prepare("SELECT profile_id,current_revision,name,actor_identity FROM profiles
-            WHERE installation_id=:installation AND deleted_at IS NULL
+        $query=$this->db->prepare("SELECT profile_id,current_revision,name,actor_identity FROM profiles p
+            WHERE installation_id=:installation AND deleted_at IS NULL AND ".ProfileScopeSql::matches('p',':playthrough')."
                 AND actor_identity->>'kind' IN ('npc','creature','player') ORDER BY profile_id LIMIT 502");
-        $query->execute(['installation'=>$installation]);$rows=$query->fetchAll();
+        $query->execute(['installation'=>$installation,'playthrough'=>$playthrough]);$rows=$query->fetchAll();
         if(count($rows)>501)throw new \InvalidArgumentException('relationship_conversion_too_many_candidates');
         return array_map(static function(array$row):array{$row['identity']=json_decode($row['actor_identity'],true,32,JSON_THROW_ON_ERROR);return$row;},$rows);
     }
@@ -225,9 +225,9 @@ final class RelationshipConversionRepository
     {
         $targets=[];
         foreach($payload['targets']as$key=>$target){
-            $query=$this->db->prepare('SELECT current_revision,actor_identity FROM profiles
-                WHERE installation_id=:installation AND profile_id=:profile AND deleted_at IS NULL FOR SHARE');
-            $query->execute(['installation'=>$payload['installation_id'],'profile'=>$target['profile_id']]);$row=$query->fetch();
+            $query=$this->db->prepare('SELECT current_revision,actor_identity FROM profiles p
+                WHERE installation_id=:installation AND profile_id=:profile AND deleted_at IS NULL AND '.ProfileScopeSql::matches('p',':playthrough').' FOR SHARE');
+            $query->execute(['installation'=>$payload['installation_id'],'profile'=>$target['profile_id'],'playthrough'=>$payload['playthrough_id']]);$row=$query->fetch();
             if(!$row||(int)$row['current_revision']!==$target['profile_revision'])return null;
             $identity=json_decode($row['actor_identity'],true,32,JSON_THROW_ON_ERROR);
             if((new ProductRepository($this->db))->actorKey($identity)!==$key||$identity!=$target['identity'])return null;

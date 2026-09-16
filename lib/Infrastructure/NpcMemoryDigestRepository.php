@@ -30,7 +30,7 @@ final class NpcMemoryDigestRepository
         $sources=json_decode($provenance,true,32,JSON_THROW_ON_ERROR)['source_event_ids']??[];
         if(!is_array($sources)||!array_is_list($sources)||count($sources)>64||$sources===[])return;
         foreach($sources as$id)if(!is_string($id)||!Uuid::isValid($id))return;
-        $q=$this->db->prepare("SELECT DISTINCT b.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.installation_id=b.installation_id AND p.deleted_at IS NULL
+        $q=$this->db->prepare("SELECT DISTINCT b.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.installation_id=b.installation_id AND p.deleted_at IS NULL AND ".ProfileScopeSql::matches('p','b.playthrough_id')."
             CROSS JOIN LATERAL (SELECT jsonb_strip_nulls(jsonb_build_object('kind',b.actor_identity->'kind','record_id',b.actor_identity->'record_id','content_file',b.actor_identity->'content_file','refnum',b.actor_identity->'refnum')) AS actor) k
             JOIN eventlog_metadata m ON m.installation_id=b.installation_id AND m.playthrough_id=b.playthrough_id AND m.source_event_id=ANY(CAST(:sources AS uuid[])) AND m.suppressed_at IS NULL
                 AND (m.speaker @> k.actor OR m.target @> k.actor OR m.audience @> jsonb_build_array(k.actor))
@@ -132,6 +132,8 @@ final class NpcMemoryDigestRepository
         $q=$this->db->prepare("SELECT payload FROM durable_jobs WHERE job_id=:job AND job_type='memory.digest' AND state='leased' AND lease_token=:lease AND attempt_count=:attempt AND lease_expires_at>clock_timestamp()");
         $q->execute(['job'=>$job['job_id']??null,'lease'=>$job['lease_token']??null,'attempt'=>$job['attempt']??0]);$stored=$q->fetchColumn();
         if($stored===false||json_decode($stored,true,64,JSON_THROW_ON_ERROR)!=$frozen)return null;
+        $owner=$this->db->prepare('SELECT 1 FROM profiles p WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL AND '.ProfileScopeSql::matches('p',':playthrough'));
+        $owner->execute($scope);if(!$owner->fetchColumn())return null;
         $products=new ProductRepository($this->db);$globals=$products->globalSettingsForInstallation($scope['installation'])['content']??[];
         if(($globals['task_availability']['background_memory']??true)!==true||empty($globals['system_routing']['background_memory_configuration_id']))return null;
         if($this->revision($scope)!==($payload['base_revision']??null))return null;
@@ -178,7 +180,7 @@ final class NpcMemoryDigestRepository
 
     private function lockProfile(array $scope):array
     {
-        $q=$this->db->prepare("SELECT p.name FROM profiles p JOIN playthroughs t ON t.installation_id=p.installation_id WHERE p.profile_id=:profile AND p.installation_id=:installation AND t.playthrough_id=:playthrough AND p.deleted_at IS NULL AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('narrator','player') FOR UPDATE OF p");
+        $q=$this->db->prepare("SELECT p.name FROM profiles p JOIN playthroughs t ON t.installation_id=p.installation_id WHERE p.profile_id=:profile AND p.installation_id=:installation AND t.playthrough_id=:playthrough AND ".ProfileScopeSql::matches('p','t.playthrough_id')." AND p.deleted_at IS NULL AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('narrator','player') FOR UPDATE OF p");
         $q->execute($scope);return $q->fetch()?:throw new RuntimeException('digest_profile_unavailable');
     }
 

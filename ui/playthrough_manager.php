@@ -25,10 +25,12 @@ $installations=$uiRepository->rows('installations');
 $installationIds=array_column($installations,'installation_id');
 $installationId=(string)($_GET['installation_id']??($installationIds[0]??''));
 if(!in_array($installationId,$installationIds,true))$installationId=(string)($installationIds[0]??'');
+$characterState=$installationId===''?['bindings'=>[],'current'=>null]:(new \LorkhanServer\Infrastructure\CharacterPlaythroughRepository($database))->state($installationId);
+$activePlaythroughId=$characterState['current']['playthrough_id']??null;
 $page=max(1,min(100000,(int)($_GET['page']??1)));
 $rows=$installationId===''?[]:$uiRepository->rows('playthroughs',null,['installation_id'=>$installationId,'page'=>$page]);
 $hasNextPage=count($rows)>100;$rows=array_slice($rows,0,100);
-$selected=null;$playthroughId=(string)($_GET['playthrough_id']??'');
+$selected=null;$playthroughId=(string)($_GET['playthrough_id']??$activePlaythroughId??'');
 foreach($rows as$row)if($row['playthrough_id']===$playthroughId){$selected=$row;break;}
 if($selected===null&&\LorkhanServer\Infrastructure\Uuid::isValid($playthroughId)) {
     $selected=$uiRepository->rows('playthroughs',null,['installation_id'=>$installationId,'selected_id'=>$playthroughId])[0]??null;

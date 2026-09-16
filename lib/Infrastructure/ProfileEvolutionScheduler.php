@@ -84,6 +84,15 @@ final class ProfileEvolutionScheduler
     {
         $profile=(new ProductRepository($this->db))->getRevisioned('profile',$payload['profile_id']);
         (new Repository($this->db))->assertAiEnabled((string)$profile['installation_id']);
+        if(isset($payload['playthrough_id'])){
+            $owner=$this->db->prepare('SELECT 1 FROM profiles p WHERE p.profile_id=:profile AND '
+                .ProfileScopeSql::matches('p',':playthrough',true)
+                ." AND (NOT EXISTS(SELECT 1 FROM character_playthrough_bindings b WHERE b.installation_id=p.installation_id) "
+                ."OR EXISTS(SELECT 1 FROM sessions s WHERE s.installation_id=p.installation_id "
+                ."AND s.playthrough_id=:playthrough AND s.state='active'))");
+            $owner->execute(['profile'=>$payload['profile_id'],'playthrough'=>$payload['playthrough_id']]);
+            if(!$owner->fetchColumn())return false;
+        }
         if(!isset($payload['evolution_schedule']))return true;
         $query=$this->db->prepare('SELECT 1 FROM lorkhan_internal.profile_evolution_progress p JOIN profiles profile USING(profile_id)
             JOIN lorkhan_internal.profile_evolution_clocks c ON c.installation_id=profile.installation_id AND c.playthrough_id=p.playthrough_id
@@ -110,7 +119,7 @@ final class ProfileEvolutionScheduler
             JOIN sessions s ON s.installation_id=p.installation_id AND s.state='active'
             JOIN lorkhan_internal.profile_evolution_clocks c ON c.installation_id=p.installation_id AND c.playthrough_id=s.playthrough_id
             LEFT JOIN lorkhan_internal.profile_evolution_progress progress ON progress.profile_id=p.profile_id AND progress.playthrough_id=s.playthrough_id
-            WHERE p.deleted_at IS NULL AND r.content->>'dynamic_profile'='true' AND COALESCE(r.content#>>'{management,locked}','false')<>'true'
+            WHERE p.deleted_at IS NULL AND ".ProfileScopeSql::matches('p','s.playthrough_id',true)." AND r.content->>'dynamic_profile'='true' AND COALESCE(r.content#>>'{management,locked}','false')<>'true'
             AND (p.actor_identity->>'kind'='narrator' OR EXISTS(SELECT 1 FROM actor_profile_bindings b WHERE b.profile_id=p.profile_id AND b.playthrough_id=s.playthrough_id))
             ORDER BY progress.manual_requested DESC NULLS LAST,progress.checked_at ASC NULLS FIRST,p.profile_id LIMIT 32");
         $repository=new ProductRepository($this->db);

@@ -74,10 +74,16 @@ final class ProductRepository
                     // Explicit NPC/template choices win; subsequent Core Profile edits do not rewrite NPCs.
                     $input['content'] += ['dynamic_profile'=>$defaults['enabled'],'dynamic_profile_fields'=>$defaults['fields']];
                 }
-                $this->db->prepare('INSERT INTO profiles (profile_id,installation_id,name,actor_identity,core_profile_id,created_at) VALUES (:id,:installation,:name,CAST(:identity AS jsonb),:core_profile,:now)')
-                    ->execute(['id'=>$id,'installation'=>$input['installation_id'],'name'=>$input['name'],'identity'=>$this->encode($input['actor_identity'] ?? []),'core_profile'=>$coreProfileId,'now'=>$now]);
+                $this->db->prepare('INSERT INTO profiles (profile_id,installation_id,playthrough_id,name,actor_identity,core_profile_id,created_at) VALUES (:id,:installation,:playthrough,:name,CAST(:identity AS jsonb),:core_profile,:now)')
+                    ->execute(['id'=>$id,'installation'=>$input['installation_id'],'name'=>$input['name'],'identity'=>$this->encode($input['actor_identity'] ?? []),'core_profile'=>$coreProfileId,'now'=>$now,
+                        'playthrough'=>in_array($input['actor_identity']['kind']??'actor',['narrator','template'],true)?null:
+                            ((new ProfileOwnershipRepository($this->db))->activePlaythrough((string)$input['installation_id'])===null?null:
+                                ($input['playthrough_id']??(new ProfileOwnershipRepository($this->db))->activePlaythrough((string)$input['installation_id'])))]);
                 $this->revision('profile_revisions', 'profile_id', $id, 1, $input['content'], $reason, $now);
             } elseif ($kind === 'playthrough') {
+                $owner=$this->db->prepare('SELECT 1 FROM profiles WHERE profile_id=:profile AND installation_id=:installation AND deleted_at IS NULL AND playthrough_id IS NULL AND NOT EXISTS(SELECT 1 FROM character_playthrough_bindings b WHERE b.installation_id=profiles.installation_id) FOR SHARE');
+                $owner->execute(['profile'=>$input['profile_id'],'installation'=>$input['installation_id']]);
+                if(!$owner->fetchColumn())throw new InvalidArgumentException('scope_mismatch');
                 $this->db->prepare('INSERT INTO playthroughs (playthrough_id, installation_id, profile_id, name, content_fingerprint, created_at) VALUES (:id,:installation,:profile,:name,:fingerprint,:now)')
                     ->execute(['id'=>$id,'installation'=>$input['installation_id'],'profile'=>$input['profile_id'],'name'=>$input['name'],'fingerprint'=>$input['content_fingerprint'] ?? null,'now'=>$now]);
                 $this->revision('playthrough_revisions', 'playthrough_id', $id, 1, $input['content'], $reason, $now);
@@ -362,7 +368,7 @@ final class ProductRepository
     /** Assign one same-installation Core Profile to an NPC/persona profile. */
     public function assignCoreProfile(string $profileId,string $coreProfileId):void
     {
-        $statement=$this->db->prepare('UPDATE profiles p SET core_profile_id=:core FROM core_profiles c WHERE p.profile_id=:profile AND p.installation_id=c.installation_id AND c.core_profile_id=:core AND p.deleted_at IS NULL AND c.deleted_at IS NULL');
+        $statement=$this->db->prepare('UPDATE profiles p SET core_profile_id=:core FROM core_profiles c WHERE p.profile_id=:profile AND p.installation_id=c.installation_id AND c.core_profile_id=:core AND p.deleted_at IS NULL AND '.ProfileScopeSql::current('p').' AND c.deleted_at IS NULL');
         $statement->execute(['profile'=>$profileId,'core'=>$coreProfileId]);if($statement->rowCount()!==1)throw new \InvalidArgumentException('core_profile_scope_mismatch');
     }
 
@@ -382,7 +388,7 @@ final class ProductRepository
     public function renamePlayer(string $installation,string $name,int $expectedRevision,string $now):array
     {
         return $this->transaction(function()use($installation,$name,$expectedRevision,$now):array{
-            $statement=$this->db->prepare("SELECT profile_id,current_revision,name FROM profiles WHERE installation_id=:installation AND deleted_at IS NULL AND actor_identity->>'kind'='player' ORDER BY created_at,profile_id LIMIT 1 FOR UPDATE");
+            $statement=$this->db->prepare("SELECT profile_id,current_revision,name FROM profiles WHERE installation_id=:installation AND deleted_at IS NULL AND ".ProfileScopeSql::current('profiles')." AND actor_identity->>'kind'='player' ORDER BY created_at,profile_id LIMIT 1 FOR UPDATE");
             $statement->execute(['installation'=>$installation]);$row=$statement->fetch();
             if(!$row)throw new RuntimeException('not_found');
             if((int)$row['current_revision']!==$expectedRevision)throw new RuntimeException('revision_conflict');
@@ -398,7 +404,7 @@ final class ProductRepository
     public function revisePlayer(string $installation,string $id,string $name,array $content,string $reason,int $expectedRevision,string $now):array
     {
         try{return $this->transaction(function()use($installation,$id,$name,$content,$reason,$expectedRevision,$now):array{
-            $query=$this->db->prepare("SELECT current_revision FROM profiles WHERE profile_id=:id AND installation_id=:installation AND deleted_at IS NULL AND actor_identity->>'kind'='player' FOR UPDATE");
+            $query=$this->db->prepare("SELECT current_revision FROM profiles WHERE profile_id=:id AND installation_id=:installation AND deleted_at IS NULL AND ".ProfileScopeSql::current('profiles')." AND actor_identity->>'kind'='player' FOR UPDATE");
             $query->execute(['id'=>$id,'installation'=>$installation]);$revision=$query->fetchColumn();
             if($revision===false)throw new RuntimeException('not_found');
             if((int)$revision!==$expectedRevision)throw new RuntimeException('revision_conflict');
@@ -424,11 +430,11 @@ final class ProductRepository
     }
 
     /** Materialize the installation-scoped player profile before the first game turn needs it. */
-    public function ensurePlayerProfile(string $installationId,string $now):array
+    public function ensurePlayerProfile(string $installationId,string $now,?string $playthroughId=null):array
     {
-        return$this->transaction(function()use($installationId,$now):array{$existing=$this->playerProfileForInstallation($installationId);if($existing!==null)return$existing;
-            $id=Uuid::v4();$this->db->prepare('INSERT INTO profiles (profile_id,installation_id,name,actor_identity,created_at) VALUES (:id,:installation,:name,CAST(:identity AS jsonb),:now)')->execute([
-                'id'=>$id,'installation'=>$installationId,'name'=>'Player','identity'=>$this->encode(['kind'=>'player','display_name'=>'Player']),'now'=>$now]);
+        return$this->transaction(function()use($installationId,$now,$playthroughId):array{$active=(new ProfileOwnershipRepository($this->db))->activePlaythrough($installationId);$playthroughId=$active===null?null:($playthroughId??$active);$existing=$this->playerProfileForInstallation($installationId,$playthroughId);if($existing!==null)return$existing;
+            $id=Uuid::v4();$this->db->prepare('INSERT INTO profiles (profile_id,installation_id,playthrough_id,name,actor_identity,created_at) VALUES (:id,:installation,:playthrough,:name,CAST(:identity AS jsonb),:now)')->execute([
+                'id'=>$id,'installation'=>$installationId,'playthrough'=>$playthroughId,'name'=>'Player','identity'=>$this->encode(['kind'=>'player','display_name'=>'Player']),'now'=>$now]);
             $this->revision('profile_revisions','profile_id',$id,1,['biography'=>'','appearance'=>'','personality'=>'','speech_style'=>'','goals'=>'','notes'=>''],'created automatically on session start',$now);
             return$this->getRevisioned('profile',$id);});
     }
@@ -483,7 +489,7 @@ final class ProductRepository
         return $this->transaction(function () use ($kind,$id,$content,$reason,$now,$expectedRevision): array {
             if($kind==='global_settings')$this->db->query("SELECT pg_advisory_xact_lock(7514,120)");
             [$table,$key,$revisions] = $this->revisionMeta($kind);
-            $stmt = $this->db->prepare("SELECT current_revision FROM {$table} WHERE {$key}=:id AND deleted_at IS NULL FOR UPDATE");
+            $stmt = $this->db->prepare("SELECT current_revision FROM {$table} WHERE {$key}=:id AND deleted_at IS NULL".($kind==='profile'?' AND '.ProfileScopeSql::current('profiles'):'')." FOR UPDATE");
             $stmt->execute(['id'=>$id]);
             $current = $stmt->fetchColumn();
             if ($current === false) throw new RuntimeException('not_found');
@@ -638,9 +644,10 @@ final class ProductRepository
     {
         [$table,$key,$revisions] = $this->revisionMeta($kind);
         $kindFilter=$table==='configuration_sets'?' AND b.kind=:kind':'';
+        $profileFilter=$kind==='profile'?' AND '.ProfileScopeSql::current('b'):'';
         $nameField=$kind==='core_profile'?'label':'name';
-        $stmt=$this->db->prepare("SELECT b.{$key} AS id,b.{$nameField} AS name,b.current_revision,b.created_at,r.content FROM {$table} b JOIN {$revisions} r ON r.{$key}=b.{$key} AND r.revision=b.current_revision WHERE b.installation_id=:installation{$kindFilter} AND b.deleted_at IS NULL ORDER BY b.{$nameField} LIMIT 100");
-        $parameters=['installation'=>$installationId];if($kindFilter!=='')$parameters['kind']=$kind;
+        $stmt=$this->db->prepare("SELECT b.{$key} AS id,b.{$nameField} AS name,b.current_revision,b.created_at,r.content FROM {$table} b JOIN {$revisions} r ON r.{$key}=b.{$key} AND r.revision=b.current_revision WHERE b.installation_id=:installation{$kindFilter}{$profileFilter} AND b.deleted_at IS NULL ORDER BY b.{$nameField} LIMIT 100");
+        $parameters=['installation'=>$installationId];if($table==='configuration_sets')$parameters['kind']=$kind;
         $stmt->execute($parameters);
         return array_map(fn(array $r):array=>$r+['content'=>$this->json($r['content'])],$stmt->fetchAll());
     }
@@ -791,7 +798,7 @@ final class ProductRepository
                 'priority'=>(int)$row['priority'],'enabled'=>filter_var($row['enabled'],FILTER_VALIDATE_BOOL),'match'=>$match];}
         $profiles=$this->db->prepare('SELECT p.name,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r '
             .'ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation '
-            ."AND p.deleted_at IS NULL AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator','template') LIMIT 1000");
+            ."AND p.deleted_at IS NULL AND ".ProfileScopeSql::current('p')." AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator','template') LIMIT 1000");
         $profiles->execute(['installation'=>$installationId]);
         foreach($profiles->fetchAll()as$row){$identity=$this->json($row['actor_identity']);$content=$this->json($row['content']);
             $this->addProfileRuleOption($options['names'],$identity['display_name']??$row['name']??null);
@@ -800,7 +807,7 @@ final class ProductRepository
             $this->addProfileRuleOption($options['genders'],$content['gender']??null);
             $this->addProfileRuleOption($options['content_files'],$identity['content_file']??null);}
         $turns=$this->db->prepare('SELECT t.target,t.context FROM active_turns t JOIN sessions s ON s.session_id=t.session_id '
-            .'WHERE s.installation_id=:installation ORDER BY t.accepted_at DESC LIMIT 1000');
+            .'WHERE s.installation_id=:installation AND (NOT EXISTS(SELECT 1 FROM character_playthrough_bindings cb WHERE cb.installation_id=s.installation_id) OR s.playthrough_id=(SELECT latest_scope.playthrough_id FROM sessions latest_scope WHERE latest_scope.installation_id=s.installation_id AND latest_scope.character_id IS NOT NULL ORDER BY latest_scope.generation DESC LIMIT 1)) ORDER BY t.accepted_at DESC LIMIT 1000');
         $turns->execute(['installation'=>$installationId]);
         foreach($turns->fetchAll()as$row){$target=$this->json($row['target']);$context=$this->json($row['context']);
             $observed=$this->profileRuleActorValues($target,$context);
@@ -859,7 +866,7 @@ final class ProductRepository
     public function enqueueProfileGeneration(string $profileId):array
     {
         return$this->transaction(function()use($profileId):array{
-            $select=$this->db->prepare('SELECT p.installation_id,p.current_revision,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:id AND p.deleted_at IS NULL FOR UPDATE OF p');
+            $select=$this->db->prepare('SELECT p.installation_id,p.current_revision,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:id AND p.deleted_at IS NULL AND '.ProfileScopeSql::current('p').' FOR UPDATE OF p');
             $select->execute(['id'=>$profileId]);$row=$select->fetch();if(!$row)throw new RuntimeException('not_found');
             $identity=$this->json($row['actor_identity']);if(in_array($identity['kind']??'actor',['player','narrator'],true))throw new RuntimeException('profile_not_generatable');
             $content=$this->json($row['content']);$management=is_array($content['management']??null)?$content['management']:[];
@@ -877,7 +884,7 @@ final class ProductRepository
     {
         $select=$this->db->prepare("SELECT p.profile_id,count(*) OVER() AS eligible FROM profiles p "
             ."JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision "
-            ."WHERE p.installation_id=:installation AND p.deleted_at IS NULL "
+            ."WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND ".ProfileScopeSql::current('p')." "
             ."AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator','template') "
             ."AND COALESCE(r.content->'management'->>'locked','false')<>'true' "
             ."ORDER BY p.created_at,p.profile_id LIMIT 100");
@@ -909,7 +916,7 @@ final class ProductRepository
             $select=$this->db->prepare('SELECT p.installation_id,p.current_revision,p.actor_identity,r.content '
                 .'FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision '
                 .'JOIN playthroughs pt ON pt.playthrough_id=:playthrough AND pt.installation_id=p.installation_id '
-                .'WHERE p.profile_id=:profile AND p.deleted_at IS NULL FOR UPDATE OF p');
+                .'WHERE p.profile_id=:profile AND p.deleted_at IS NULL AND '.ProfileScopeSql::matches('p','pt.playthrough_id').' FOR UPDATE OF p');
             $select->execute(['profile'=>$profileId,'playthrough'=>$playthroughId]);$row=$select->fetch();
             if(!$row)throw new RuntimeException('not_found');
             if(!$this->profileTasksEnabled((string)$row['installation_id']))return['queued'=>false,'reason'=>'profile_tasks_disabled','observed'=>0,'required'=>0];
@@ -953,8 +960,8 @@ final class ProductRepository
         return$this->transaction(function()use($profileId,$playthroughId,$sessionId,$manual):array{
             $select=$this->db->prepare('SELECT p.installation_id,p.current_revision,p.actor_identity,r.content,s.created_at AS session_created_at '
                 .'FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision '
-                .'JOIN sessions s ON s.session_id=:session AND s.installation_id=p.installation_id AND s.playthrough_id=:playthrough '
-                .'WHERE p.profile_id=:profile AND p.deleted_at IS NULL FOR UPDATE OF p');
+                .'JOIN sessions s ON s.session_id=:session AND s.installation_id=p.installation_id AND s.playthrough_id=:playthrough AND s.state=\'active\' '
+                .'WHERE p.profile_id=:profile AND p.deleted_at IS NULL AND '.ProfileScopeSql::matches('p','s.playthrough_id',true).' FOR UPDATE OF p');
             $select->execute(['profile'=>$profileId,'playthrough'=>$playthroughId,'session'=>$sessionId]);$row=$select->fetch();
             if(!$row)throw new RuntimeException('not_found');
             if(!$this->profileTasksEnabled((string)$row['installation_id']))return['queued'=>false,'reason'=>'profile_tasks_disabled','observed'=>0,'required'=>0];
@@ -1028,7 +1035,7 @@ final class ProductRepository
         if($currentStyle!==null&&(!is_string($currentStyle)||strlen($currentStyle)>8192||!mb_check_encoding($currentStyle,'UTF-8')))throw new InvalidArgumentException('invalid_current_speech_style');
         if($requestId!==null&&(!is_string($requestId)||!Uuid::isValid($requestId)))throw new InvalidArgumentException('invalid_generation_request_id');
         return$this->transaction(function()use($profileId,$guidance,$currentStyle,$requestId):array{
-            $select=$this->db->prepare('SELECT p.installation_id,p.current_revision,p.actor_identity FROM profiles p WHERE p.profile_id=:id AND p.deleted_at IS NULL FOR UPDATE');
+            $select=$this->db->prepare('SELECT p.installation_id,p.current_revision,p.actor_identity FROM profiles p WHERE p.profile_id=:id AND p.deleted_at IS NULL AND '.ProfileScopeSql::current('p').' FOR UPDATE');
             $select->execute(['id'=>$profileId]);$row=$select->fetch();if(!$row)throw new RuntimeException('not_found');
             $identity=$this->json($row['actor_identity']);if(($identity['kind']??null)!=='player')throw new \InvalidArgumentException('profile_not_player');
             if($this->recentPlayerInputs((string)$row['installation_id'],1)===[])throw new \InvalidArgumentException('player_inputs_unavailable');
@@ -1055,7 +1062,7 @@ final class ProductRepository
             WHERE j.job_id=:job AND j.state='leased' AND j.attempt_count=:attempt AND j.lease_expires_at>clock_timestamp()
             AND j.payload->>'profile_id'=p.profile_id::text AND j.payload->>'mode'='player_speech_style'
             AND (j.payload->>'base_revision')::integer=:base_revision
-            AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='player'
+            AND p.deleted_at IS NULL AND ".ProfileScopeSql::current('p')." AND p.actor_identity->>'kind'='player'
             ON CONFLICT(job_id) DO UPDATE SET speech_style=EXCLUDED.speech_style");
         $query->execute(['revision'=>$baseRevision,'base_revision'=>$baseRevision,'style'=>$speechStyle,'profile'=>$profileId,'job'=>$jobId,'attempt'=>$attempt]);
         if($query->rowCount()!==1)throw new RuntimeException('lease_lost');
@@ -1069,7 +1076,7 @@ final class ProductRepository
             FROM durable_jobs j JOIN profiles p ON p.profile_id::text=j.payload->>'profile_id'
             LEFT JOIN lorkhan_internal.player_speech_style_drafts d ON d.job_id=j.job_id AND d.profile_id=p.profile_id
             WHERE j.job_id=:job AND j.job_type='profile.generate' AND j.payload->>'mode'='player_speech_style'
-            AND p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='player'");
+            AND p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL AND ".ProfileScopeSql::current('p')." AND p.actor_identity->>'kind'='player'");
         $query->execute(['job'=>$jobId,'profile'=>$profileId,'installation'=>$installationId]);$row=$query->fetch();
         if(!$row)throw new RuntimeException('not_found');
         $state=(int)$row['base_revision']!==(int)$row['current_revision']?'stale':(string)$row['state'];
@@ -1195,8 +1202,8 @@ final class ProductRepository
                     'provider_revision'=>$payload['provider_revision'],'source_count'=>count($payload['source_turn_ids']??[])];}
             $profileStatement=$this->db->prepare('SELECT p.current_revision,r.content,p.actor_identity,p.name FROM profiles p '
                 .'JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision '
-                .'WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL FOR SHARE OF p');
-            $profileStatement->execute(['profile'=>$scope['profile_id'],'installation'=>$scope['installation_id']]);$profile=$profileStatement->fetch();
+                .'WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL AND '.ProfileScopeSql::matches('p',':owner_playthrough',true).' FOR SHARE OF p');
+            $profileStatement->execute(['owner_playthrough'=>$scope['playthrough_id'],'profile'=>$scope['profile_id'],'installation'=>$scope['installation_id']]);$profile=$profileStatement->fetch();
             if(!$profile)throw new \InvalidArgumentException('invalid_diary_generation_scope');
             $playthroughStatement=$this->db->prepare('SELECT playthrough_id FROM playthroughs WHERE playthrough_id=:playthrough '
                 .'AND installation_id=:installation AND deleted_at IS NULL FOR SHARE');
@@ -1281,7 +1288,7 @@ final class ProductRepository
             ||!is_array($actors)||!array_is_list($actors)||count($actors)>12)
             throw new \InvalidArgumentException('invalid_automatic_diary_scope');
         $profileIds=[];
-        foreach([$this->playerProfileForInstallation($message['installation_id']),
+        foreach([$this->playerProfileForInstallation($message['installation_id'],$message['playthrough_id']),
             $this->narratorProfileForInstallation($message['installation_id'])]as$profile)
             if(is_array($profile)&&is_string($profile['profile_id']??null))$profileIds[$profile['profile_id']]=true;
         foreach($actors as$identity){if(!is_array($identity)||array_is_list($identity))continue;
@@ -1332,7 +1339,7 @@ final class ProductRepository
                 $payload=$this->json($stored);
                 if(($payload['profile_id']??null)!==$profileId||($payload['base_revision']??null)!==$baseRevision)return false;
                 if(!(new ProfileEvolutionScheduler($this->db))->active($payload))return false;
-                if(in_array($payload['mode']??null,['npc_profile_backfill','profile_evolution'],true)){
+                if(in_array($payload['mode']??null,['npc_profile_backfill','profile_evolution','narrator_profile_evolution'],true)){
                     $sources=$payload['source_turn_ids']??[];$playthrough=$payload['playthrough_id']??null;
                     if(!is_string($playthrough)||!Uuid::isValid($playthrough)||$sources!==$sourceTurnIds
                         ||!(new LoadedSaveTimeline($this->db))->sourcesBelongTo($sources,(string)$installationId,$playthrough))return false;
@@ -1341,7 +1348,7 @@ final class ProductRepository
                 }
             }
             if (!(new LoadedSaveTimeline($this->db))->sourcesActive($sourceTurnIds)) return false;
-            $select=$this->db->prepare('SELECT current_revision FROM profiles WHERE profile_id=:id AND deleted_at IS NULL FOR UPDATE');
+            $select=$this->db->prepare('SELECT current_revision FROM profiles WHERE profile_id=:id AND deleted_at IS NULL AND '.ProfileScopeSql::current('profiles').' FOR UPDATE');
             $select->execute(['id'=>$profileId]);$current=$select->fetchColumn();if($current===false||(int)$current!==$baseRevision)return false;
             $next=$baseRevision+1;
             $insert=$this->db->prepare('INSERT INTO profile_revisions(profile_id,revision,content,change_reason,created_at,provenance)
@@ -1360,7 +1367,7 @@ final class ProductRepository
         return$this->transaction(function()use($installationId,$now):int{
             $select=$this->db->prepare("SELECT p.profile_id,p.current_revision,r.content FROM profiles p "
                 ."JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision "
-                ."WHERE p.installation_id=:installation AND p.deleted_at IS NULL "
+                ."WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND ".ProfileScopeSql::current('p')." "
                 ."AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator','template') "
                 ."AND r.content->'management'->>'locked'='true' FOR UPDATE OF p");
             $select->execute(['installation'=>$installationId]);$rows=$select->fetchAll();
@@ -1458,7 +1465,7 @@ final class ProductRepository
         return$this->transaction(function()use($installationId,$now):int{
             $select=$this->db->prepare("SELECT p.profile_id FROM profiles p JOIN profile_revisions r "
                 ."ON r.profile_id=p.profile_id AND r.revision=p.current_revision "
-                ."WHERE p.installation_id=:installation AND p.deleted_at IS NULL "
+                ."WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND ".ProfileScopeSql::current('p')." "
                 ."AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator','template') "
                 ."AND COALESCE(r.content->'management'->>'locked','false')<>'true' FOR UPDATE OF p");
             $select->execute(['installation'=>$installationId]);$ids=array_column($select->fetchAll(),'profile_id');
@@ -1481,7 +1488,7 @@ final class ProductRepository
             if(count($cores->fetchAll())!==2)throw new \InvalidArgumentException('core_profile_scope_mismatch');
             $select=$this->db->prepare("SELECT p.profile_id,r.content FROM profiles p JOIN profile_revisions r "
                 ."ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation "
-                ."AND (p.core_profile_id=:source".($includeUnassigned?' OR p.core_profile_id IS NULL':'').") AND p.deleted_at IS NULL "
+                ."AND (p.core_profile_id=:source".($includeUnassigned?' OR p.core_profile_id IS NULL':'').") AND p.deleted_at IS NULL AND ".ProfileScopeSql::current('p')." "
                 ."AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator','template') "
                 ."ORDER BY p.profile_id FOR UPDATE OF p");
             $select->execute(['installation'=>$installationId,'source'=>$sourceProfileId]);$rows=$select->fetchAll();
@@ -1500,6 +1507,10 @@ final class ProductRepository
     {
         $this->transaction(function()use($kind,$id,$now):void{
             [$table,$key]=$this->revisionMeta($kind);
+            if($kind==='profile'){
+                $owned=$this->db->prepare('SELECT 1 FROM profiles WHERE profile_id=:id AND '.ProfileScopeSql::current('profiles').' FOR UPDATE');
+                $owned->execute(['id'=>$id]);if(!$owned->fetchColumn())throw new RuntimeException('not_found');
+            }
             if($kind==='profile')$this->db->prepare('DELETE FROM actor_profile_bindings WHERE profile_id=:id')->execute(['id'=>$id]);
             if($kind==='core_profile'){
                 $usage=$this->db->prepare('SELECT c.default_npc,'
@@ -1616,7 +1627,7 @@ final class ProductRepository
     public function effectiveSettingsForActor(string $installationId,string $playthroughId,array $identity):array
     {
         $profileId=match($identity['kind']??null){
-            'player'=>$this->playerProfileForInstallation($installationId)['profile_id']??null,
+            'player'=>$this->playerProfileForInstallation($installationId,$playthroughId)['profile_id']??null,
             'narrator'=>$this->narratorProfileForInstallation($installationId)['profile_id']??null,
             default=>$this->selectedActorProfileId($installationId,$playthroughId,$identity),
         };
@@ -1677,12 +1688,14 @@ SQL);
     /** Read the latest exact-actor observation; never substitute player inventory or raw context. */
     public function npcObservedState(string $installationId, string $profileId): array
     {
+        $profileScope=ProfileScopeSql::current('p').' AND '.ProfileScopeSql::matches('p','s.playthrough_id');
         $statement=$this->db->prepare(<<<SQL
 SELECT t.context->'targetState' AS state,t.accepted_at,s.playthrough_id,pt.name AS playthrough_name
 FROM profiles p JOIN sessions s ON s.installation_id=p.installation_id
 JOIN active_turns t ON t.session_id=s.session_id
 JOIN playthroughs pt ON pt.playthrough_id=s.playthrough_id AND pt.installation_id=s.installation_id
 WHERE p.installation_id=:installation AND p.profile_id=:profile AND p.deleted_at IS NULL
+  AND {$profileScope}
   AND p.actor_identity->>'kind' IN ('actor','npc','creature')
   AND t.target->>'kind'=CASE WHEN p.actor_identity->>'kind'='actor' THEN 'npc' ELSE p.actor_identity->>'kind' END
   AND t.target->>'record_id'=p.actor_identity->>'record_id'
@@ -1695,7 +1708,7 @@ SQL);
         $active=$this->db->prepare("SELECT p.actor_identity,s.session_id,s.generation,s.playthrough_id,pt.name AS playthrough_name "
             ."FROM profiles p JOIN sessions s ON s.installation_id=p.installation_id AND s.state='active' "
             ."JOIN playthroughs pt ON pt.playthrough_id=s.playthrough_id AND pt.installation_id=s.installation_id "
-            ."WHERE p.installation_id=:installation AND p.profile_id=:profile AND p.deleted_at IS NULL");
+            ."WHERE p.installation_id=:installation AND p.profile_id=:profile AND p.deleted_at IS NULL AND ".$profileScope);
         $active->execute(['installation'=>$installationId,'profile'=>$profileId]);$activeSession=$active->fetch();
         $inventory=$activeSession?$this->latestInventoryObservation($activeSession+['installation_id'=>$installationId],$this->json($activeSession['actor_identity'])):null;
         if(!$row&&$inventory===null)return [];
@@ -1827,10 +1840,11 @@ SQL);
     }
 
     /** Return a newest-first bounded sample of typed or transcribed player turns for style analysis. */
-    public function recentPlayerInputs(string $installationId,int $limit=200):array
+    public function recentPlayerInputs(string $installationId,int $limit=200,?string $playthroughId=null):array
     {
-        $limit=max(1,min(200,$limit));$statement=$this->db->prepare("SELECT t.input_text FROM active_turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation AND t.speaker->>'kind'='player' AND btrim(t.input_text)<>'' AND NOT jsonb_exists(t.context,'director') AND NOT EXISTS (SELECT 1 FROM source_events e WHERE e.turn_id=t.turn_id AND (e.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat','director') OR e.payload#>>'{payload,ui_source}' IN ('lorkhan_rpg_event','lorkhan_quest_event','lorkhan_rechat','lorkhan_action_followup','lorkhan_director_child') OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_auto_%' OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_narrator_%')) ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT :limit");
-        $statement->bindValue(':installation',$installationId);$statement->bindValue(':limit',$limit,\PDO::PARAM_INT);$statement->execute();
+        $playthroughId??=(new ProfileOwnershipRepository($this->db))->activePlaythrough($installationId);
+        $limit=max(1,min(200,$limit));$statement=$this->db->prepare("SELECT t.input_text FROM active_turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation AND (CAST(:playthrough AS uuid) IS NULL OR s.playthrough_id=CAST(:playthrough AS uuid)) AND t.speaker->>'kind'='player' AND btrim(t.input_text)<>'' AND NOT jsonb_exists(t.context,'director') AND NOT EXISTS (SELECT 1 FROM source_events e WHERE e.turn_id=t.turn_id AND (e.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat','director') OR e.payload#>>'{payload,ui_source}' IN ('lorkhan_rpg_event','lorkhan_quest_event','lorkhan_rechat','lorkhan_action_followup','lorkhan_director_child') OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_auto_%' OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_narrator_%')) ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT :limit");
+        $statement->bindValue(':installation',$installationId);$statement->bindValue(':playthrough',$playthroughId);$statement->bindValue(':limit',$limit,\PDO::PARAM_INT);$statement->execute();
         return array_map(static fn(array$row):string=>(string)$row['input_text'],$statement->fetchAll());
     }
 
@@ -1838,7 +1852,7 @@ SQL);
     public function speechContext(string $installationId,string $playthroughId,array $identity,?array $connector=null):array
     {
         $profileId=match($identity['kind']??null){
-            'player'=>$this->playerProfileForInstallation($installationId)['profile_id']??null,
+            'player'=>$this->playerProfileForInstallation($installationId,$playthroughId)['profile_id']??null,
             'narrator'=>$this->narratorProfileForInstallation($installationId)['profile_id']??null,
             default=>$this->selectedActorProfileId($installationId,$playthroughId,$identity),
         };
@@ -1897,7 +1911,7 @@ SQL);
         $scope=['npc_name'=>trim((string)($identity['display_name']??$identity['record_id']??'')),
             'race'=>trim((string)($identity['race']??'')),'oghma_tags'=>[]];
         $profileId=match($identity['kind']??null){
-            'player'=>$this->playerProfileForInstallation($installationId)['profile_id']??null,
+            'player'=>$this->playerProfileForInstallation($installationId,$playthroughId)['profile_id']??null,
             'narrator'=>$this->narratorProfileForInstallation($installationId)['profile_id']??null,
             default=>$this->selectedActorProfileId($installationId,$playthroughId,$identity),
         };
@@ -1958,10 +1972,10 @@ SQL);
             if($profileId===null){
                 $refnum=is_array($target['refnum']??null)?$target['refnum']:[];
                 $existing=$this->db->prepare("SELECT profile_id FROM profiles WHERE installation_id=:installation AND deleted_at IS NULL "
-                    ."AND lower(actor_identity->>'record_id')=lower(:record) AND lower(COALESCE(actor_identity->>'content_file',''))=lower(:content) "
+                    ."AND ".ProfileScopeSql::matches('profiles',':playthrough')." AND lower(actor_identity->>'record_id')=lower(:record) AND lower(COALESCE(actor_identity->>'content_file',''))=lower(:content) "
                     ."AND actor_identity->'refnum'->>'index'=:ref_index AND actor_identity->'refnum'->>'content_file'=:ref_content "
                     ."AND COALESCE(actor_identity->>'kind','actor') NOT IN ('player','narrator','template') ORDER BY created_at,profile_id LIMIT 2");
-                $existing->execute(['installation'=>$turn['installation_id'],'record'=>$target['record_id']??'',
+                $existing->execute(['playthrough'=>$turn['playthrough_id'],'installation'=>$turn['installation_id'],'record'=>$target['record_id']??'',
                     'content'=>$target['content_file']??'','ref_index'=>(string)($refnum['index']??''),
                     'ref_content'=>(string)($refnum['content_file']??'')]);$matches=$existing->fetchAll();
                 if(count($matches)===1)$profileId=(string)$matches[0]['profile_id'];
@@ -1977,14 +1991,14 @@ SQL);
                     $seed['management']=['locked'=>false,'favorite'=>false];
                     $name=trim((string)($target['display_name']??$target['record_id']??'Morrowind NPC'));
                     $name=$name===''?'Morrowind NPC':mb_substr($name,0,256);
-                    $nameExists=$this->db->prepare('SELECT 1 FROM profiles WHERE installation_id=:installation AND name=:name AND deleted_at IS NULL');
-                    $nameExists->execute(['installation'=>$turn['installation_id'],'name'=>$name]);
+                    $nameExists=$this->db->prepare('SELECT 1 FROM profiles WHERE installation_id=:installation AND name=:name AND deleted_at IS NULL AND '.ProfileScopeSql::matches('profiles',':playthrough'));
+                    $nameExists->execute(['playthrough'=>$turn['playthrough_id'],'installation'=>$turn['installation_id'],'name'=>$name]);
                     if($nameExists->fetchColumn()){$suffix=' [Ref '.(string)($refnum['content_file']??'?').':'.(string)($refnum['index']??'?').']';
                         $name=mb_substr($name,0,max(0,256-mb_strlen($suffix))).$suffix;}
                     $assignment=$this->matchingProfileRulesForTurn($turn,$target);
                     $coreProfileId=$assignment['core_profile_id'];
                     foreach($assignment['actions']as$action)$seed=ProfileAssignmentRule::apply($seed,$action);
-                    $createInput=['installation_id'=>$turn['installation_id'],'name'=>$name,'actor_identity'=>$target,
+                    $createInput=['installation_id'=>$turn['installation_id'],'playthrough_id'=>$turn['playthrough_id'],'name'=>$name,'actor_identity'=>$target,
                         'content'=>$seed,'change_reason'=>'automatic Morrowind actor discovery'];
                     if($coreProfileId!==null)$createInput['core_profile_id']=$coreProfileId;
                     $created=$this->createRevisioned('profile',$createInput,$now);$profileId=(string)$created['profile_id'];}
@@ -2145,7 +2159,7 @@ SQL);
     public function backfillMorrowindCatalogVoices(MorrowindVoiceCatalog $catalog,string $now):array
     {
         $rows=$this->db->query("SELECT p.profile_id,p.installation_id,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r "
-            ."ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL "
+            ."ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND ".ProfileScopeSql::current('p')." "
             ."AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator','template') ORDER BY p.profile_id")->fetchAll();
         $updated=0;$resolved=0;
         foreach($rows as$row){$identity=$this->json($row['actor_identity']);$content=$this->json($row['content']);
@@ -2160,7 +2174,7 @@ SQL);
     /** Add deterministic home locality only to unlocked automatically managed Morrowind actor profiles. */
     public function backfillMorrowindCatalogLocalities(string $now):array
     {
-        $rows=$this->db->query("SELECT profile_id,installation_id,actor_identity FROM profiles WHERE deleted_at IS NULL "
+        $rows=$this->db->query("SELECT profile_id,installation_id,actor_identity FROM profiles WHERE deleted_at IS NULL AND ".ProfileScopeSql::current('profiles')." "
             ."AND COALESCE(actor_identity->>'kind','actor') NOT IN ('player','narrator','template') ORDER BY profile_id")->fetchAll();
         $updated=0;
         foreach($rows as$row){$identity=$this->json($row['actor_identity']);
@@ -2172,7 +2186,7 @@ SQL);
     private function applyMorrowindCatalogLocality(string $profileId,array $identity,string $installationId,string $now):bool
     {
         $select=$this->db->prepare('SELECT p.current_revision,r.content,r.change_reason FROM profiles p JOIN profile_revisions r '
-            .'ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:profile AND p.deleted_at IS NULL FOR UPDATE OF p');
+            .'ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:profile AND p.deleted_at IS NULL AND '.ProfileScopeSql::current('p').' FOR UPDATE OF p');
         $select->execute(['profile'=>$profileId]);$row=$select->fetch();if(!$row)return false;
         $content=$this->json($row['content']);
         if((bool)($content['management']['locked']??false)||isset($content['oghma_locality'])
@@ -2231,7 +2245,7 @@ SQL);
     private function applyMorrowindCatalogVoice(string $profileId,array $identity,array $voice,string $now,bool $allowLegacyLocked):bool
     {
         $select=$this->db->prepare('SELECT p.current_revision,r.content FROM profiles p JOIN profile_revisions r '
-            .'ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:profile AND p.deleted_at IS NULL FOR UPDATE OF p');
+            .'ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:profile AND p.deleted_at IS NULL AND '.ProfileScopeSql::current('p').' FOR UPDATE OF p');
         $select->execute(['profile'=>$profileId]);$row=$select->fetch();if(!$row)return false;$content=$this->json($row['content']);
         $current=$content['voice']??[];if(is_string($current))$current=['id'=>$current];if(!is_array($current))$current=[];
         $currentId=trim((string)($current['id']??$current['voice_id']??''));$recordId=trim((string)($identity['record_id']??''));
@@ -2355,7 +2369,7 @@ SQL);
                 AND (SELECT count(*) FROM actor_profile_bindings all_b WHERE all_b.installation_id=p.installation_id AND all_b.playthrough_id=t.playthrough_id AND all_b.profile_id=p.profile_id)=1),p.actor_identity) AS actor_identity
             FROM profiles p JOIN playthroughs t ON t.installation_id=p.installation_id
             WHERE p.profile_id=:profile AND p.installation_id=:installation AND t.playthrough_id=:playthrough
-            AND p.deleted_at IS NULL");
+            AND p.deleted_at IS NULL AND ".ProfileScopeSql::matches('p','t.playthrough_id')."");
         $q->execute(['profile'=>$profile,'installation'=>$installation,'playthrough'=>$playthrough]);$identity=$q->fetchColumn();
         if($identity===false)return [];$actor=$this->json($identity);$key=[];
         if(!in_array($actor['kind']??'', ['actor','npc','creature'],true))return [];
@@ -2505,11 +2519,15 @@ SQL);
     /** Return the complete effective Oghma catalog visible to one NPC profile. */
     public function oghmaKnowledgeForProfile(string $installationId,string $profileId,array $filters=[]):array
     {
-        $profileStatement=$this->db->prepare('SELECT p.name,p.actor_identity FROM profiles p WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL');
+        $profileStatement=$this->db->prepare('SELECT p.name,p.actor_identity,p.playthrough_id FROM profiles p WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL AND '.ProfileScopeSql::current('p'));
         $profileStatement->execute(['profile'=>$profileId,'installation'=>$installationId]);$profile=$profileStatement->fetch();if(!$profile)throw new RuntimeException('not_found');
         $effective=$this->effectiveSettingsForProfile($installationId,$profileId);$tags=$this->knowledgeValues((string)($effective['settings']['memory']['oghma_knowledge_tags']??''));
         $profile['actor_identity']=$this->json($profile['actor_identity']);
         $playthroughId=trim((string)($filters['playthrough_id']??''));
+        if($profile['playthrough_id']!==null){
+            if($playthroughId!==''&&$playthroughId!==$profile['playthrough_id'])throw new RuntimeException('not_found');
+            $playthroughId=(string)$profile['playthrough_id'];
+        }
         if($playthroughId!==''){
             if(!Uuid::isValid($playthroughId))throw new RuntimeException('not_found');
             $story=$this->db->prepare('SELECT playthrough_id,name FROM playthroughs WHERE installation_id=:installation AND playthrough_id=:playthrough AND deleted_at IS NULL');
@@ -2581,7 +2599,7 @@ SQL);
         return $this->transaction(function()use($input,$now):array{
             $scope=$this->scopeParams($input);
             $owner=$this->db->prepare('SELECT 1 FROM profiles p JOIN playthroughs t ON t.installation_id=p.installation_id '
-                .'WHERE p.profile_id=:profile AND p.installation_id=:installation AND t.playthrough_id=:playthrough AND p.deleted_at IS NULL AND t.deleted_at IS NULL');
+                .'WHERE p.profile_id=:profile AND p.installation_id=:installation AND t.playthrough_id=:playthrough AND p.deleted_at IS NULL AND '.ProfileScopeSql::matches('p','t.playthrough_id').' AND t.deleted_at IS NULL');
             $owner->execute($scope);if(!$owner->fetchColumn())throw new \InvalidArgumentException('invalid_relationship_scope');
             if(isset($input['source_event_id'])){
                 $source=$this->db->prepare('SELECT 1 FROM source_events e JOIN sessions s ON s.session_id=e.session_id '
@@ -2712,7 +2730,10 @@ SQL);
     }
     public function restoreScope(array $document,string $now):array
     {
-        return$this->transaction(function()use($document,$now):array{$counts=['memories'=>0,'relationships'=>0,'narratives'=>0];$scope=$document['scope'];$key=hash('sha256',$this->encode($document));
+        return$this->transaction(function()use($document,$now):array{$counts=['memories'=>0,'relationships'=>0,'narratives'=>0];$scope=$document['scope'];
+            $owner=$this->db->prepare('SELECT 1 FROM profiles p JOIN playthroughs t ON t.installation_id=p.installation_id WHERE p.profile_id=:profile AND p.installation_id=:installation AND t.playthrough_id=:playthrough AND p.deleted_at IS NULL AND t.deleted_at IS NULL AND '.ProfileScopeSql::matches('p','t.playthrough_id').' FOR SHARE OF p,t');
+            $owner->execute($this->scopeParams($scope));if(!$owner->fetchColumn())throw new RuntimeException('backup_scope_conflict');
+            $key=hash('sha256',$this->encode($document));
             foreach($document['data']['memories'] as$i=>$r){$id=$this->deterministicUuid('restore:memory:'.$key.':'.$i);$s=$this->db->prepare('SELECT 1 FROM memory_records WHERE memory_id=:id');$s->execute(['id'=>$id]);if(!$s->fetchColumn()){$this->db->prepare('INSERT INTO memory_records(memory_id,installation_id,profile_id,playthrough_id,tier,content,lexical_terms,fake_vector,source_event_id,provenance,occurred_at,expires_at,created_at,updated_at) VALUES(:id,:installation,:profile,:playthrough,:tier,:content,CAST(:terms AS text[]),CAST(:vector AS jsonb),:source,CAST(:provenance AS jsonb),:occurred,:expires,:now,:now)')->execute($this->scopeParams($scope)+['id'=>$id,'tier'=>$r['tier'],'content'=>$r['content'],'terms'=>$this->pgArray($r['lexical_terms']),'vector'=>$this->encode(\LorkhanServer\Application\DeterministicRetrieval::fakeVector($r['content'])),'source'=>$r['source_event_id']??null,'provenance'=>$this->encode($r['provenance']??['source'=>'restore','key'=>$key]),'occurred'=>$r['occurred_at'],'expires'=>$r['expires_at']??null,'now'=>$now]);}$counts['memories']++;}
             $relationships=$document['data']['relationships'];
             usort($relationships,fn(array$a,array$b):int=>$this->restoreRelationshipKey($a)<=>$this->restoreRelationshipKey($b));
@@ -2786,9 +2807,9 @@ SQL);
     public function sessionControls(array $session, array $target): array
     {
         $profiles=$this->db->prepare("SELECT profile_id,name,current_revision FROM profiles "
-            ."WHERE installation_id=:installation AND deleted_at IS NULL "
+            ."WHERE installation_id=:installation AND deleted_at IS NULL AND ".ProfileScopeSql::visible('profiles',':profile_playthrough')." "
             ."AND COALESCE(actor_identity->>'kind','actor') NOT IN ('player','narrator','template') ORDER BY name,profile_id LIMIT 100");
-        $profiles->execute(['installation'=>$session['installation_id']]);
+        $profiles->execute(['installation'=>$session['installation_id'],'profile_playthrough'=>$session['playthrough_id']]);
         $profileRows=array_map(static fn(array$row):array=>['profile_id'=>(string)$row['profile_id'],
             'name'=>(string)$row['name'],'revision'=>(int)$row['current_revision']],$profiles->fetchAll());
         $narrator=$this->narratorProfileForInstallation((string)$session['installation_id']);
@@ -2884,7 +2905,7 @@ SQL);
             if((int)$lock->fetchColumn()!==(int)$session['generation'])throw new \DomainException('stale_generation');
             $slotSelection=($selection['scope']??'')==='npc'&&($selection['key']??'')==='management.core_profile_slot';
             if($slotSelection){
-                $binding=$this->db->prepare('SELECT p.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:key AND p.deleted_at IS NULL FOR UPDATE OF b,p');
+                $binding=$this->db->prepare('SELECT p.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:key AND p.deleted_at IS NULL AND '.ProfileScopeSql::matches('p','b.playthrough_id').' FOR UPDATE OF b,p');
                 $binding->execute(['installation'=>$session['installation_id'],'playthrough'=>$session['playthrough_id'],'key'=>$this->actorKey($target)]);
                 if(!$binding->fetchColumn())throw new \InvalidArgumentException('invalid_settings_scope');
             }
@@ -2931,12 +2952,12 @@ SQL);
             'default_npc'=>in_array($row['default_npc'],[true,1,'1','t','true'],true),'slot'=>$row['slot']===null?null:(int)$row['slot'],
             'content'=>$this->withoutSecrets($this->json($row['content']))];
 
-        $profiles=$this->db->prepare('SELECT p.profile_id,p.core_profile_id,p.name,p.actor_identity,r.content FROM profiles p '
+        $profiles=$this->db->prepare('SELECT p.profile_id,p.playthrough_id,p.core_profile_id,p.name,p.actor_identity,r.content FROM profiles p '
             .'JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision '
             .'WHERE p.installation_id=:installation AND p.deleted_at IS NULL ORDER BY p.name,p.profile_id LIMIT 2000');
         $profiles->execute(['installation'=>$installationId]);$profileRows=[];
         foreach($profiles->fetchAll() as$row){$content=$this->json($row['content']);unset($content['portrait']);$profileRows[]=[
-            'profile_id'=>(string)$row['profile_id'],'core_profile_id'=>$row['core_profile_id']===null?null:(string)$row['core_profile_id'],
+            'profile_id'=>(string)$row['profile_id'],'playthrough_id'=>$row['playthrough_id'],'core_profile_id'=>$row['core_profile_id']===null?null:(string)$row['core_profile_id'],
             'name'=>(string)$row['name'],'actor_identity'=>$this->json($row['actor_identity']),
             'content'=>$this->withoutSecrets($content)];}
 
@@ -3000,14 +3021,27 @@ SQL);
 
             foreach($document['data']['profiles'] as$row){$id=(string)$row['profile_id'];
                 $coreProfileId=$row['core_profile_id']??($legacyDefault['core_profile_id']??null);
-                $find=$this->db->prepare('SELECT installation_id,current_revision FROM profiles WHERE profile_id=:id FOR UPDATE');
+                $find=$this->db->prepare('SELECT installation_id,playthrough_id,current_revision FROM profiles WHERE profile_id=:id FOR UPDATE');
                 $find->execute(['id'=>$id]);$existing=$find->fetch();
                 if($existing&&$existing['installation_id']!==$installation)throw new RuntimeException('backup_scope_conflict');
+                $playthrough=$row['playthrough_id']??($existing['playthrough_id']??null);
+                if($existing&&array_key_exists('playthrough_id',$row)&&$row['playthrough_id']!==$existing['playthrough_id'])throw new RuntimeException('backup_scope_conflict');
+                $shared=in_array($row['actor_identity']['kind']??'actor',['narrator','template'],true);
+                if($shared&&$playthrough!==null)throw new RuntimeException('backup_scope_conflict');
+                if($playthrough!==null){
+                    $scope=$this->db->prepare('SELECT 1 FROM playthroughs WHERE playthrough_id=:playthrough AND installation_id=:installation AND deleted_at IS NULL FOR SHARE');
+                    $scope->execute(['playthrough'=>$playthrough,'installation'=>$installation]);
+                    if(!$scope->fetchColumn())throw new RuntimeException('backup_scope_conflict');
+                }elseif(!$shared&&!$existing){
+                    $scoped=$this->db->prepare('SELECT 1 FROM character_playthrough_bindings WHERE installation_id=:installation LIMIT 1');
+                    $scoped->execute(['installation'=>$installation]);
+                    if($scoped->fetchColumn())throw new RuntimeException('backup_scope_conflict');
+                }
                 if($existing){$next=(int)$existing['current_revision']+1;
                     $this->db->prepare('UPDATE profiles SET core_profile_id=:core,name=:name,actor_identity=CAST(:identity AS jsonb),current_revision=:revision,deleted_at=NULL WHERE profile_id=:id')
                         ->execute(['core'=>$coreProfileId,'name'=>$row['name'],'identity'=>$this->encode($row['actor_identity']),'revision'=>$next,'id'=>$id]);
-                }else{$next=1;$this->db->prepare('INSERT INTO profiles(profile_id,installation_id,core_profile_id,name,actor_identity,current_revision,created_at) '
-                    .'VALUES(:id,:installation,:core,:name,CAST(:identity AS jsonb),1,:now)')->execute(['id'=>$id,'installation'=>$installation,
+                }else{$next=1;$this->db->prepare('INSERT INTO profiles(profile_id,installation_id,playthrough_id,core_profile_id,name,actor_identity,current_revision,created_at) '
+                    .'VALUES(:id,:installation,:playthrough,:core,:name,CAST(:identity AS jsonb),1,:now)')->execute(['id'=>$id,'installation'=>$installation,'playthrough'=>$playthrough,
                         'core'=>$coreProfileId,'name'=>$row['name'],'identity'=>$this->encode($row['actor_identity']),'now'=>$now]);}
                 $this->revision('profile_revisions','profile_id',$id,$next,$row['content'],'configuration backup restore',$now);$counts['profiles']++;}
 
@@ -3055,8 +3089,8 @@ SQL);
             if($profileId===null){$delete=$this->db->prepare('DELETE FROM actor_profile_bindings WHERE installation_id=:installation '
                 .'AND playthrough_id=:playthrough AND actor_key=:key');$delete->execute(['installation'=>$session['installation_id'],
                     'playthrough'=>$session['playthrough_id'],'key'=>$key]);return;}
-            $profile=$this->db->prepare('SELECT 1 FROM profiles WHERE profile_id=:profile AND installation_id=:installation AND deleted_at IS NULL');
-            $profile->execute(['profile'=>$profileId,'installation'=>$session['installation_id']]);
+            $profile=$this->db->prepare('SELECT 1 FROM profiles WHERE profile_id=:profile AND installation_id=:installation AND deleted_at IS NULL AND '.ProfileScopeSql::matches('profiles',':playthrough'));
+            $profile->execute(['playthrough'=>$session['playthrough_id'],'profile'=>$profileId,'installation'=>$session['installation_id']]);
             if(!$profile->fetchColumn())throw new \OutOfBoundsException('not_found');
             $upsert=$this->db->prepare('INSERT INTO actor_profile_bindings '
                 .'(installation_id,playthrough_id,actor_key,actor_identity,profile_id,created_at,updated_at) '
@@ -3448,7 +3482,7 @@ SQL);
             'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources'],'context'=>$contextPolicy,'prompt'=>$effective['prompt'],
                 'settings'=>array_intersect_key($effective['settings'], ['memory'=>true,'response'=>true])],
             'scene_classification'=>$contextSections['world']?(new SceneClassificationRepository($this->db))->context($turn['installation_id'],$turn['playthrough_id'],$activeProfileId):null,
-            'player_profile'=>$this->playerProfileForInstallation($turn['installation_id']),
+            'player_profile'=>$this->playerProfileForInstallation($turn['installation_id'],$turn['playthrough_id']),
             'narrator_profile'=>$narratorProfile,
             'narrator_event_prompts'=>$promptKeys===[]?[]:$this->narratorEventPromptTexts($turn['installation_id'],$promptKeys),
             'nearby_actor_profiles'=>$contextSections['nearby_actors']?$this->nearbyActorProfilesForTurn($turn):[],
@@ -3777,7 +3811,7 @@ SQL);
         }
         if($keys===[])return[];
         $statement=$this->db->prepare('SELECT b.actor_key,p.profile_id,p.name,p.actor_identity,p.current_revision AS revision,r.content '
-            .'FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.deleted_at IS NULL '
+            .'FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.deleted_at IS NULL AND '.ProfileScopeSql::matches('p','b.playthrough_id').' '
             .'JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision '
             .'WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough '
             .'AND b.actor_key=ANY(CAST(:keys AS text[])) ORDER BY p.name,p.profile_id LIMIT 12');
@@ -3789,13 +3823,14 @@ SQL);
     }
 
     /** Return the single current player roleplay profile for an installation, if configured. */
-    public function playerProfileForInstallation(string $installationId): ?array
+    public function playerProfileForInstallation(string $installationId,?string $playthroughId=null): ?array
     {
+        $playthroughId??=(new ProfileOwnershipRepository($this->db))->activePlaythrough($installationId);
         $statement=$this->db->prepare("SELECT p.profile_id,p.name,p.actor_identity,p.current_revision AS revision,r.content "
             ."FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision "
             ."WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='player' "
-            ."ORDER BY p.created_at,p.profile_id LIMIT 1");
-        $statement->execute(['installation'=>$installationId]);$row=$statement->fetch();
+            ."AND ".ProfileScopeSql::matches('p',':playthrough')." ORDER BY p.created_at,p.profile_id LIMIT 1");
+        $statement->execute(['installation'=>$installationId,'playthrough'=>$playthroughId]);$row=$statement->fetch();
         if(!$row)return null;
         $row['revision']=(int)$row['revision'];$row['actor_identity']=$this->json($row['actor_identity']);
         $row['content']=$this->json($row['content']);
@@ -3859,7 +3894,7 @@ SQL);
             $defaultCore=(string)($this->defaultCoreProfileForInstallation($installationId,$now,true)['core_profile_id']
                 ??throw new RuntimeException('default_core_profile_required'));
             $find=$this->db->prepare("SELECT p.profile_id,p.current_revision,p.name,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='template' AND lower(COALESCE(p.actor_identity->>'content_file',''))=lower(:content_file) AND lower(COALESCE(p.actor_identity->>'record_id',''))=lower(:record_id) ORDER BY p.created_at,p.profile_id FOR UPDATE OF p");
-            $nameConflict=$this->db->prepare('SELECT profile_id FROM profiles WHERE installation_id=:installation AND name=:name AND deleted_at IS NULL FOR UPDATE');
+            $nameConflict=$this->db->prepare('SELECT profile_id FROM profiles WHERE installation_id=:installation AND name=:name AND deleted_at IS NULL AND playthrough_id IS NULL FOR UPDATE');
             $saved=[];$portable=['core','biography','appearance','personality','relationships','occupation','skills','speech_style','goals','oghma_tags','oghma_knowledge_tags','gender','race','voice'];
             foreach($inputs as$input){
                 $find->execute(['installation'=>$installationId,'content_file'=>$input['content_file'],'record_id'=>$input['record_id']]);
@@ -4131,7 +4166,7 @@ SQL);
     /** Resolve only the edited profile's own actor in the currently loaded playthrough. */
     private function npcManagerScope(string $profileId,bool $lock=false):array
     {
-        $query=$this->db->prepare('SELECT installation_id,actor_identity FROM profiles WHERE profile_id=:profile AND deleted_at IS NULL');
+        $query=$this->db->prepare('SELECT installation_id,actor_identity FROM profiles WHERE profile_id=:profile AND deleted_at IS NULL AND '.ProfileScopeSql::current('profiles').'');
         $query->execute(['profile'=>$profileId]);$profile=$query->fetch();
         if(!$profile)throw new \OutOfBoundsException('not_found');
         $scope=['profile_id'=>$profileId,'supported'=>false,'reason_code'=>null,'session_id'=>null,'generation'=>null,'actor'=>null];
@@ -4144,7 +4179,7 @@ SQL);
         $query->execute(['installation'=>$profile['installation_id']]);$sessions=$query->fetchAll();
         if(count($sessions)!==1){$scope['reason_code']=count($sessions)===0?'npc_manager_no_active_session':'npc_manager_ambiguous_session';return$scope;}
         if($lock){
-            $query=$this->db->prepare('SELECT actor_identity FROM profiles WHERE profile_id=:profile AND deleted_at IS NULL FOR SHARE');
+            $query=$this->db->prepare('SELECT actor_identity FROM profiles WHERE profile_id=:profile AND deleted_at IS NULL AND '.ProfileScopeSql::current('profiles').' FOR SHARE');
             $query->execute(['profile'=>$profileId]);$locked=$query->fetchColumn();
             if($locked===false||$this->json($locked)!=$identity)throw new InvalidArgumentException('npc_manager_profile_changed');
         }
@@ -4409,7 +4444,7 @@ SQL);
 
     public function transaction(callable $callback):mixed{$owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();try{$v=$callback();if($owns)$this->db->commit();return$v;}catch(Throwable $e){if($owns&&$this->db->inTransaction())$this->db->rollBack();throw$e;}}
     private function deterministicUuid(string $value):string{$h=md5($value);return substr($h,0,8).'-'.substr($h,8,4).'-4'.substr($h,13,3).'-8'.substr($h,17,3).'-'.substr($h,20,12);}
-    private function selectedActorProfileId(string $installation,string $playthrough,array $identity):?string{$s=$this->db->prepare('SELECT b.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.installation_id=b.installation_id AND p.deleted_at IS NULL WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:key');$s->execute(['installation'=>$installation,'playthrough'=>$playthrough,'key'=>$this->actorKey($identity)]);$value=$s->fetchColumn();return$value===false?null:(string)$value;}
+    private function selectedActorProfileId(string $installation,string $playthrough,array $identity):?string{$s=$this->db->prepare('SELECT b.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.installation_id=b.installation_id AND p.deleted_at IS NULL WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:key AND '.ProfileScopeSql::matches('p','b.playthrough_id'));$s->execute(['installation'=>$installation,'playthrough'=>$playthrough,'key'=>$this->actorKey($identity)]);$value=$s->fetchColumn();return$value===false?null:(string)$value;}
     public function actorKey(array $identity):string{return hash('sha256',$this->encodeCanonical(['kind'=>$identity['kind']??null,'record_id'=>$identity['record_id']??null,'content_file'=>$identity['content_file']??null,'refnum'=>$identity['refnum']??null]));}
     private function encodeCanonical(mixed $value):string{$sort=static function(mixed $item)use(&$sort):mixed{if(!is_array($item))return$item;if(array_is_list($item))return array_map($sort,$item);ksort($item,SORT_STRING);foreach($item as&$child)$child=$sort($child);return$item;};return json_encode($sort($value),JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);}
     private function withoutSecrets(array $value):array{foreach($value as$key=>&$item){if(is_string($key)&&preg_match('/(?:api[_-]?key|secret|password|authorization|access[_-]?token|refresh[_-]?token)/i',$key)===1){unset($value[$key]);continue;}if(is_array($item))$item=$this->withoutSecrets($item);}unset($item);return$value;}

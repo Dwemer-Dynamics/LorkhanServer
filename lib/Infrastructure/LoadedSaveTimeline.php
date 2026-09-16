@@ -113,10 +113,10 @@ final class LoadedSaveTimeline
         $counts=['profiles'=>0,'profile_restore_skipped'=>0];
         $profiles=$this->db->prepare("SELECT p.profile_id,p.current_revision,r.content,r.provenance FROM profiles p
             JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision
-            WHERE p.installation_id=:installation AND p.deleted_at IS NULL
+            WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND ".ProfileScopeSql::matches('p',':playthrough')."
             AND p.actor_identity->>'kind' IN ('npc','creature')
             AND COALESCE(r.content#>>'{management,locked}','false')<>'true'
-            AND r.provenance->>'playthrough_id'=:playthrough
+            AND r.provenance->>'playthrough_id'=CAST(:playthrough AS text)
             AND r.provenance->>'kind' IN ('automatic_profile','loaded_save_restore') FOR UPDATE OF p");
         $profiles->execute($scope);
         $revision=$this->db->prepare('SELECT content,provenance FROM profile_revisions WHERE profile_id=:profile AND revision=:revision');

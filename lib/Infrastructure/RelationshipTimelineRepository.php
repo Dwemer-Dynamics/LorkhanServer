@@ -57,7 +57,7 @@ final class RelationshipTimelineRepository
             JOIN profiles p ON p.profile_id=r.profile_id AND p.installation_id=r.installation_id
             JOIN profile_revisions pr ON pr.profile_id=p.profile_id AND pr.revision=p.current_revision
             WHERE r.installation_id=:installation AND r.playthrough_id=:playthrough AND r.deleted_at IS NULL
-                AND p.deleted_at IS NULL AND p.actor_identity->>'kind' IN ('npc','creature')
+                AND p.deleted_at IS NULL AND ".ProfileScopeSql::matches('p','r.playthrough_id')." AND p.actor_identity->>'kind' IN ('npc','creature')
                 AND COALESCE(pr.content#>>'{management,locked}','false')<>'true'
                 AND v.provenance->>'kind' IN ('automatic_relationship','loaded_save_relationship_restore')
             ORDER BY r.relationship_id FOR UPDATE OF r FOR SHARE OF p");

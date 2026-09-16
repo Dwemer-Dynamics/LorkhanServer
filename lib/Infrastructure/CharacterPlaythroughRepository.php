@@ -36,13 +36,9 @@ final class CharacterPlaythroughRepository
             // A requested character already bound elsewhere produced a different row above and fails closed.
             $character=$bindings[0]['character_id'];
         }
-        $query=$this->db->prepare('SELECT playthrough_id FROM sessions WHERE installation_id=:installation ORDER BY generation DESC LIMIT 1');
-        $query->execute(['installation'=>$installation]);$previous=$query->fetchColumn();
-        // NPC and Player profiles are not yet scoped. Reject switches rather than mixing their revisions.
-        if($previous!==false&&$previous!==$message['playthrough_id'])throw new DomainException('playthrough_isolation_required');
         $query=$this->db->prepare('SELECT installation_id,profile_id,deleted_at FROM playthroughs WHERE playthrough_id=:playthrough');
         $query->execute(['playthrough'=>$message['playthrough_id']]);$owner=$query->fetch();
-        if($owner&&($owner['installation_id']!==$installation||$owner['profile_id']!==$message['profile_id']||$owner['deleted_at']!==null))
+        if($owner&&($owner['installation_id']!==$installation||$owner['deleted_at']!==null))
             throw new DomainException('character_binding_conflict');
         if($bindings!==[])return $character;
         if($mode==='existing'){
@@ -50,9 +46,6 @@ final class CharacterPlaythroughRepository
             return $character;
         }
         if($owner)throw new DomainException('character_binding_conflict');
-        $query=$this->db->prepare('SELECT 1 FROM playthroughs WHERE installation_id=:installation LIMIT 1');
-        $query->execute(['installation'=>$installation]);
-        if($query->fetchColumn())throw new DomainException('playthrough_isolation_required');
         return $character;
     }
 
@@ -67,7 +60,7 @@ final class CharacterPlaythroughRepository
                 'playthrough'=>$message['playthrough_id'],'mode'=>$message['character_binding']]);
     }
 
-    /** Read-only management state: no switch control is offered until mutable profiles are scoped. */
+    /** Read-only management state; the selected save remains the authority for switching. */
     public function state(string $installation):array
     {
         if(!Uuid::isValid($installation))throw new \InvalidArgumentException('invalid_installation_id');
@@ -75,9 +68,9 @@ final class CharacterPlaythroughRepository
             FROM character_playthrough_bindings b JOIN playthroughs p USING(playthrough_id)
             WHERE b.installation_id=:installation ORDER BY b.created_at,b.character_id LIMIT 100');
         $query->execute(['installation'=>$installation]);$bindings=$query->fetchAll();
-        $query=$this->db->prepare('SELECT session_id,playthrough_id,character_id,generation,state FROM sessions
+        $query=$this->db->prepare('SELECT session_id,profile_id,playthrough_id,character_id,generation,state FROM sessions
             WHERE installation_id=:installation ORDER BY generation DESC LIMIT 1');
         $query->execute(['installation'=>$installation]);$current=$query->fetch()?:null;
-        return ['bindings'=>$bindings,'current'=>$current,'switch_available'=>false,'blocked_reason'=>'playthrough_isolation_required'];
+        return ['bindings'=>$bindings,'current'=>$current,'switch_available'=>true,'blocked_reason'=>null];
     }
 }

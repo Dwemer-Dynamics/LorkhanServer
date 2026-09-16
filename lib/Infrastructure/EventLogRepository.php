@@ -196,10 +196,10 @@ final class EventLogRepository
             . implode(' AND ', $typeWhere) . ' ORDER BY e.type');
         $typeStatement->execute($typeParameters);
 
-        $recipients = $this->db->prepare("SELECT profile_id,name,actor_identity FROM profiles WHERE installation_id=:installation "
+        $recipients = $this->db->prepare("SELECT profile_id,name,actor_identity FROM profiles p WHERE installation_id=:installation AND ".ProfileScopeSql::matches('p',':playthrough')." "
             . "AND deleted_at IS NULL AND profile_id<>:profile AND COALESCE(actor_identity->>'kind','npc') NOT IN ('player','narrator','template') "
             . 'ORDER BY lower(name),profile_id LIMIT 500');
-        $recipients->execute(['installation'=>$scope['installation_id'],'profile'=>$profileId]);
+        $recipients->execute(['installation'=>$scope['installation_id'],'profile'=>$profileId,'playthrough'=>$playthroughId]);
         $recipientProfiles = [];
         foreach ($recipients->fetchAll() as $row) {
             try {
@@ -238,13 +238,13 @@ final class EventLogRepository
         if (count($profileIds) > 12) throw new InvalidArgumentException('invalid_event_recipients');
 
         $placeholders = [];
-        $parameters = ['installation'=>$scope['installation_id']];
+        $parameters = ['installation'=>$scope['installation_id'],'playthrough'=>$playthroughId];
         foreach ($profileIds as $index => $id) {
             $key = 'profile_' . $index;
             $placeholders[] = ':' . $key;
             $parameters[$key] = $id;
         }
-        $profiles = $this->db->prepare("SELECT profile_id,name,actor_identity FROM profiles WHERE installation_id=:installation "
+        $profiles = $this->db->prepare("SELECT profile_id,name,actor_identity FROM profiles p WHERE installation_id=:installation AND ".ProfileScopeSql::matches('p',':playthrough')." "
             . 'AND deleted_at IS NULL AND profile_id IN (' . implode(',', $placeholders) . ") "
             . "AND COALESCE(actor_identity->>'kind','npc') NOT IN ('player','narrator','template')");
         $profiles->execute($parameters);
@@ -640,7 +640,7 @@ final class EventLogRepository
         }
         $statement = $this->db->prepare("SELECT p.installation_id,p.name,p.actor_identity FROM profiles p "
             . 'JOIN playthroughs t ON t.playthrough_id=:playthrough AND t.installation_id=p.installation_id AND t.deleted_at IS NULL '
-            . "WHERE p.profile_id=:profile AND p.deleted_at IS NULL AND COALESCE(p.actor_identity->>'kind','npc') NOT IN ('player','narrator','template')");
+            . "WHERE p.profile_id=:profile AND p.deleted_at IS NULL AND ".ProfileScopeSql::matches('p','t.playthrough_id')." AND COALESCE(p.actor_identity->>'kind','npc') NOT IN ('player','narrator','template')");
         $statement->execute(['profile'=>$profileId,'playthrough'=>$playthroughId]);
         $row = $statement->fetch();
         if (!$row) throw new InvalidArgumentException('invalid_eventlog_scope');

@@ -120,15 +120,15 @@ final class Router
         return $this->repository->serializedIdempotency($m['installation_id'], $m['message_id'], '/sessions', function () use ($m): Response {
             return $this->idempotent($m['installation_id'], $m['message_id'], '/sessions', $m, function () use ($m): array {
                 $sessionId = Uuid::v4();
-                $beforeReplace=isset($m['loaded_save'])?fn()=>(new \LorkhanServer\Infrastructure\DragonBreakSnapshot($this->providerConfig))->capture($m):null;
+                $beforeReplace=isset($m['loaded_save'])?fn(array $resolved)=>(new \LorkhanServer\Infrastructure\DragonBreakSnapshot($this->providerConfig))->capture($resolved):null;
                 $session = $this->repository->createSession($m,$sessionId,$this->pairingTokenHash,$this->bootstrapMacKey(),$beforeReplace);
                 // The installation is materialized by createSession, so the player profile can now satisfy its foreign key.
-                $this->products?->ensurePlayerProfile((string)$m['installation_id'],(string)$m['created_at']);
+                $this->products?->ensurePlayerProfile((string)$m['installation_id'],(string)$m['created_at'],(string)$m['playthrough_id']);
                 $settings=$this->clientSettings((string)$m['installation_id']);
                 return [201, ['schema' => 'lorkhan.session.accepted.v1', 'message_id' => $m['message_id'],
                     'session_id' => $sessionId, 'generation' => $session['generation'],
                     'capabilities' => $session['capabilities'], 'config_revision' => $settings['revision'],
-                    'client_settings'=>$settings['content'],'event_cursor' => 0]+(isset($session['character_id'])?['character_id'=>$session['character_id']]:[])];
+                    'client_settings'=>$settings['content'],'event_cursor' => 0]+(isset($session['character_id'])?['character_id'=>$session['character_id'],'profile_id'=>$session['profile_id']]:[])];
             });
         });
     }
@@ -657,12 +657,12 @@ final class Router
             function()use($installation,$message,$session):Response{
                 return $this->idempotent($installation,$message['message_id'],'/player-autochat',$message,
                     function()use($installation,$message,$session):array{
-                        $player=(array)$message['player'];$profile=$this->products?->playerProfileForInstallation($installation);
+                        $player=(array)$message['player'];$profile=$this->products?->playerProfileForInstallation($installation,(string)$session['playthrough_id']);
                         if($profile===null)throw new ApiException(503,'provider_unavailable','Player profile unavailable.',false);
                         $slot=$this->products?->connectorForActor($installation,(string)$session['playthrough_id'],$player,
                             'provider','player_autochat_configuration_id');
                         if($slot===null)throw new ApiException(503,'provider_unavailable','Player Auto Chat is disabled.',false);
-                        $recent=array_reverse($this->products?->recentPlayerInputs($installation,20)??[]);
+                        $recent=array_reverse($this->products?->recentPlayerInputs($installation,20,(string)$session['playthrough_id'])??[]);
                         $input=['generation_mode'=>'player_autochat','intent'=>trim((string)$message['intent']),
                             'player'=>['name'=>(string)$profile['name'],'identity'=>$player,
                                 'profile'=>array_intersect_key((array)$profile['content'],array_fill_keys([

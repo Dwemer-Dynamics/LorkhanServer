@@ -37,7 +37,7 @@ final class SceneClassificationRepository
         $lines=array_slice($lines,-SceneClassificationPolicy::HISTORY_LINES);if($lines===[])return ['queued'=>false,'reason'=>'history_unavailable'];
         $this->db->beginTransaction();
         try{
-            $q=$this->db->prepare("SELECT t.completed_at FROM active_turns t JOIN sessions s ON s.session_id=t.session_id JOIN profiles p ON p.profile_id=:profile AND p.installation_id=s.installation_id AND p.deleted_at IS NULL WHERE t.turn_id=:turn AND t.state='complete' AND s.installation_id=:installation AND s.playthrough_id=:playthrough FOR SHARE OF t");
+            $q=$this->db->prepare("SELECT t.completed_at FROM active_turns t JOIN sessions s ON s.session_id=t.session_id JOIN profiles p ON p.profile_id=:profile AND p.installation_id=s.installation_id AND p.deleted_at IS NULL WHERE t.turn_id=:turn AND t.state='complete' AND s.installation_id=:installation AND s.playthrough_id=:playthrough AND ".ProfileScopeSql::matches('p','s.playthrough_id',true)." FOR SHARE OF t");
             $scope=['profile'=>$profile,'turn'=>$turn['turn_id'],'installation'=>$installation,'playthrough'=>$turn['playthrough_id']];$q->execute($scope);$observed=$q->fetchColumn();
             if(!$observed)throw new RuntimeException('scene_scope_unavailable');
             $key='scene:'.$turn['turn_id'];$job=Uuid::v4();$payload=['installation_id'=>$installation,'profile_id'=>$profile,'provider_configuration_id'=>$route['configuration_id'],'provider_revision'=>(int)$route['current_revision']];
@@ -53,7 +53,7 @@ final class SceneClassificationRepository
 
     public function input(string $installation,string $profile,string $job):array
     {
-        $q=$this->db->prepare('SELECT history FROM scene_classifications WHERE installation_id=:installation AND profile_id=:profile AND job_id=:job');
+        $q=$this->db->prepare('SELECT c.history FROM scene_classifications c JOIN profiles p ON p.profile_id=c.profile_id AND p.installation_id=c.installation_id WHERE c.installation_id=:installation AND c.profile_id=:profile AND c.job_id=:job AND p.deleted_at IS NULL AND '.ProfileScopeSql::matches('p','c.playthrough_id',true));
         $q->execute(['installation'=>$installation,'profile'=>$profile,'job'=>$job]);$value=$q->fetchColumn();if($value===false)throw new RuntimeException('scene_scope_unavailable');
         return ['dialogue'=>json_decode($value,true,32,JSON_THROW_ON_ERROR)];
     }
@@ -61,7 +61,7 @@ final class SceneClassificationRepository
     public function save(string $job,int $attempt,string $lease,string $genre):void
     {
         $genre=SceneClassificationPolicy::output(['genre'=>$genre])['genre'];
-        $q=$this->db->prepare("UPDATE scene_classifications c SET genre=:genre,classified_at=clock_timestamp() FROM durable_jobs j WHERE c.job_id=:job AND j.job_id=c.job_id AND j.job_type='scene.classify' AND j.state='leased' AND j.attempt_count=:attempt AND j.lease_token=:lease AND j.lease_expires_at>clock_timestamp()");
+        $q=$this->db->prepare("UPDATE scene_classifications c SET genre=:genre,classified_at=clock_timestamp() FROM durable_jobs j,profiles p WHERE p.profile_id=c.profile_id AND p.installation_id=c.installation_id AND p.deleted_at IS NULL AND ".ProfileScopeSql::matches('p','c.playthrough_id',true)." AND c.job_id=:job AND j.job_id=c.job_id AND j.job_type='scene.classify' AND j.state='leased' AND j.attempt_count=:attempt AND j.lease_token=:lease AND j.lease_expires_at>clock_timestamp()");
         $q->execute(['genre'=>$genre,'job'=>$job,'attempt'=>$attempt,'lease'=>$lease]);if($q->rowCount()!==1)throw new RuntimeException('lease_lost');
     }
 

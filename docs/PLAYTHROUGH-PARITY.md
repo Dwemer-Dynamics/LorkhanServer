@@ -44,13 +44,18 @@ Existing partial profile JSON exports are also not complete portable playthrough
 6. **Optional retention.** Keep automatic deletion off. Provide a dependency-aware preview and
    explicit confirmation before any cleanup. Do not revive excluded game features.
 
-## Foundation rollout gate
+## Development rollout gate
 
-The identity foundation is not full playthrough parity. Until stage 2 is complete, the server
-must reject an identity-aware request that would cross into another playthrough, before replacing
-the current session or writing gameplay data. Keep the existing deployed client/server unchanged
-while these stages are integrated. Do not advertise isolated new characters based only on separate
-history IDs.
+Stages 1-3 now have source/build/database coverage, including isolated NPC/Player ownership
+and canonical session-owner handoff. The management UI follows the loaded save; it does not
+pretend that selecting a web row loads a different game character. Full SQL recovery remains
+separate. Keep the deployed client/server unchanged until a paired deployment is authorized.
+Browser screenshots and two-save in-game acceptance remain outstanding.
+
+Legacy adoption is deliberately conservative: one existing legacy playthrough may be adopted
+explicitly without rewriting its history anchor. If an installation contains multiple worlds,
+unowned legacy profiles cannot be assigned safely and admission rejects without replacing the
+current session. An explicit provenance migration for that case is still future work.
 
 ## Acceptance
 
@@ -86,3 +91,27 @@ resolve those ownership gaps.
   also passes official Draft 2020-12 checks, including rejection of either missing pair member.
 - This is a development checkpoint, not a deployed switching feature. The live installation
   is unchanged; NPC/Player ownership and the remaining stages above are still outstanding.
+
+## Ownership checkpoint (2026-09-16)
+
+- Migration 122 adds installation-checked playthrough ownership and per-world profile names.
+  It does not automatically assign legacy data. Rollback refuses to discard populated ownership.
+- Fresh characters receive separate Player/NPC profiles; returning to a saved character uses
+  its canonical owner. The native client adopts that owner only after session acceptance.
+- Discovery, bindings, prompt lookup, management lists and edits, evolution, diary, memory and
+  relationship paths preserve the owning scope. Narrator and shared configuration remain global.
+- The disposable PostgreSQL suite covers new/switch/return, legacy preservation, ambiguous
+  adoption rejection without side effects, cross-scope guards, and six management selectors. Real discovery of the same TES3 NPC in two worlds
+  verifies separate persona edits and return-to-save behavior, not just separate session IDs.
+- Remaining plan: browser/in-game acceptance, explicit multi-world legacy migration, configurable
+  recovery and portable transfer (stage 5), and optional retention (stage 6). No automatic cleanup.
+
+Shared biography templates already present before migration are preserved: older versions did
+not record whether each custom template was explicitly edited or projected from a live NPC.
+The ownership migration must not guess and delete those records. New scoped NPC edits must not
+write into the global template catalogue.
+
+Checkpoint validation: 1,512 server checks, 99 Lua tests, native bridge and Beast transport
+suites, OpenMW Release build, protocol parity, and client provenance/source-tree audits pass.
+The older structural Python fallback still has its 10 baseline failures; it is not reported as
+passing. Browser tooling was unavailable, so template render/lint is not visual acceptance.

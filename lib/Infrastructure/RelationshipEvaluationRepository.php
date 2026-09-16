@@ -126,6 +126,8 @@ final class RelationshipEvaluationRepository
             FROM dialogue_delivery_results d JOIN dialogue_utterances delivered ON delivered.dialogue_message_id=d.dialogue_message_id
             JOIN active_turns t ON t.turn_id=d.turn_id JOIN sessions s ON s.session_id=t.session_id
             JOIN prompt_traces trace ON trace.turn_id=t.turn_id
+            JOIN profiles owner ON owner.profile_id=trace.selected_profile_id AND owner.installation_id=s.installation_id
+                AND owner.deleted_at IS NULL AND ".ProfileScopeSql::matches('owner','s.playthrough_id')."
             JOIN eventlog_metadata input_event ON input_event.projection_key='turn:'||t.turn_id::text
                 AND input_event.projection_kind='turn' AND input_event.suppressed_at IS NULL
             WHERE d.source_event_id=:source AND d.status='played' AND s.generation=t.generation {$liveGuard}

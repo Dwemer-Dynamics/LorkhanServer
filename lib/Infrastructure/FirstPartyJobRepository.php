@@ -299,9 +299,15 @@ final class FirstPartyJobRepository
     }
 
     /** A queued diary with retired source turns must not start another provider request. */
-    public function narrativeSourcesActive(array $turnIds): bool
+    public function narrativeSourcesActive(array $turnIds,?array $scope=null): bool
     {
-        return (new LoadedSaveTimeline($this->db))->sourcesActive($turnIds);
+        $timeline=new LoadedSaveTimeline($this->db);
+        if($scope!==null){
+            $owner=$this->db->prepare('SELECT 1 FROM profiles p WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL AND '.ProfileScopeSql::matches('p',':playthrough',true));
+            $owner->execute($this->scope($scope));
+            if(!$owner->fetchColumn()||!$timeline->sourcesBelongTo($turnIds,$scope['installation_id'],$scope['playthrough_id']))return false;
+        }
+        return $timeline->sourcesActive($turnIds);
     }
 
     /** Job replays preserve soft deletion; they are not restoration requests. */

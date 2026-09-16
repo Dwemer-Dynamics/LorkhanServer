@@ -69,7 +69,7 @@ final class DiaryGenerateJobHandler implements JobHandler
             ||!is_string($job['lease_token']??null)||!Uuid::isValid($job['lease_token'])
             ||!is_int($job['attempt']??null)||$job['attempt']<1)throw new InvalidArgumentException('invalid_job_fence');
         if(!$heartbeat())throw new OperationCancelled('lease_lost');
-        if (!$this->narratives->narrativeSourcesActive($payload['source_turn_ids'])) return;
+        if (!$this->narratives->narrativeSourcesActive($payload['source_turn_ids'],$payload)) return;
         $slot=$this->products->providerRevisionForInstallation($payload['installation_id'],
             $payload['provider_configuration_id'],$payload['provider_revision']);
         $provider=$this->testProvider??ProviderFactory::profileGenerationForSlot($this->providerConfig,$slot);
@@ -85,6 +85,7 @@ final class DiaryGenerateJobHandler implements JobHandler
                 'profile_revision'=>$payload['profile_revision'],'provider_configuration_id'=>$payload['provider_configuration_id']]);
         try{
             $output=DiaryGenerationPolicy::output($provider->generate($input,$token));$token->throwIfCancellationRequested();
+            if(!$this->narratives->narrativeSourcesActive($payload['source_turn_ids'],$payload))throw new OperationCancelled('diary_scope_changed');
             $this->narratives->upsertNarrative($payload['narrative_id'],[
                 'installation_id'=>$payload['installation_id'],'profile_id'=>$payload['profile_id'],
                 'playthrough_id'=>$payload['playthrough_id'],'kind'=>'diary','title'=>$output['title'],'content'=>$output['content'],

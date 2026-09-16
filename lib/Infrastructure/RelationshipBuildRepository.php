@@ -175,7 +175,7 @@ final class RelationshipBuildRepository
             JOIN playthroughs t ON t.playthrough_id=CAST(j.payload->>'playthrough_id' AS uuid) AND t.deleted_at IS NULL
             WHERE j.job_id=:job AND j.job_type='relationship.build' AND r.draft IS NOT NULL
                 AND j.payload->>'installation_id'=:installation_id AND j.payload->>'profile_id'=:profile_id
-                AND j.payload->>'playthrough_id'=:playthrough_id");
+                AND j.payload->>'playthrough_id'=:playthrough_id AND ".ProfileScopeSql::matches('p','t.playthrough_id')."");
         $query->execute(['job'=>$jobId]+array_intersect_key($scope,array_fill_keys(['installation_id','profile_id','playthrough_id'],true)));
         $row=$query->fetch();
         if(!$row)return null;
@@ -238,7 +238,7 @@ final class RelationshipBuildRepository
         $query->execute(['installation'=>$scope['installation_id']]);$session=$query->fetch()?:[];
         $query=$this->db->prepare('SELECT t.current_revision FROM playthroughs t JOIN profiles p ON p.installation_id=t.installation_id
             WHERE t.playthrough_id=:playthrough_id AND p.profile_id=:profile_id AND t.installation_id=:installation_id
-                AND t.deleted_at IS NULL AND p.deleted_at IS NULL FOR SHARE OF t,p');
+                AND t.deleted_at IS NULL AND p.deleted_at IS NULL AND '.ProfileScopeSql::matches('p','t.playthrough_id').' FOR SHARE OF t,p');
         $query->execute(array_intersect_key($scope,array_fill_keys(['installation_id','profile_id','playthrough_id'],true)));
         $revision=$query->fetchColumn();if($revision===false)throw new \InvalidArgumentException('invalid_relationship_scope');
         return ['playthrough_revision'=>(int)$revision,'lifecycle_fence'=>hash('sha256',json_encode($session,JSON_THROW_ON_ERROR))];
