@@ -22,6 +22,9 @@ $overrideLabels = [
     'diary.prompt'=>'Diary Prompt', 'diary.automatic_interval_seconds'=>'Diary Cooldown',
     'diary.context_turn_limit'=>'Context History Diary Event Count',
     'profile_evolution.history_limit'=>'Context History Dynamic Profile Event Count',
+    'profile_evolution.interval_days'=>'Dynamic Profile Interval (Game Days)',
+    'profile_evolution.min_events'=>'Dynamic Profile Minimum Events',
+    'profile_evolution.cooldown_minutes'=>'Dynamic Profile Cooldown (Real Minutes)',
     'behavior.rechat_mode'=>'Rechat Mode', 'relationship.enabled'=>'Relationship System Enabled',
     'behavior.rechat_strict_targeting'=>'Strict Rechat Targeting','behavior.open_rechat'=>'Open Rechat',
     'behavior.end_conversation_cooldown_seconds'=>'End Conversation Cooldown',
@@ -64,6 +67,9 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
         if($path==='diary.automatic_interval_seconds')$range=[10,86400];
         if($path==='diary.context_turn_limit')$range=[0,400];
         if($path==='profile_evolution.history_limit')$range=[0,400];
+        if($path==='profile_evolution.interval_days')$range=[1/24,365];
+        if($path==='profile_evolution.min_events')$range=[1,10000];
+        if($path==='profile_evolution.cooldown_minutes')$range=[1,1440];
         if($path==='profile_management.autofill_custom_profiles_trigger')$range=[10,100];
         if($section==='oghma')$range=match($key){'topic_count'=>[1,3],'result_limit'=>[1,5],'extractor_timeout_ms'=>[250,3000],default=>null};
         $default=$effectiveSettings['settings'][$section][$key]
@@ -71,6 +77,7 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
         if($path==='response.core_lang')$default=$effectiveSettings['settings']['response']['core_lang']??'';
         if($path==='response.lang_llm_xtts')$default=$effectiveSettings['settings']['response']['lang_llm_xtts']??false;
         $overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>$range?'integer':'boolean','range'=>$range,'value'=>$default];
+        if($path==='profile_evolution.interval_days')$overrideCatalog[$path]['type']='number';
         if($path==='quest_comments.chance_percent')$overrideCatalog[$path]=[
             'label'=>$overrideLabels[$path],'type'=>'choice','choices'=>[10,25,50,75,100],'suffix'=>'%','value'=>$default];
         if($path==='response.core_lang')$overrideCatalog[$path]=[

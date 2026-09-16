@@ -88,7 +88,7 @@
                 }
             } else if (isText) { text.required = !definition.allowEmpty; text.maxLength = definition.maxBytes; text.value = definition.type === 'textlist' ? current.join('\n') : current; text.setCustomValidity(''); }
             else if (isBoolean || isChoice) boolean.value = String(current);
-            else { number.required = true; number.min = definition.range[0]; number.max = definition.range[1]; number.value = current; }
+            else { number.required = true; number.min = definition.range[0]; number.max = definition.range[1]; number.step = definition.type === 'number' ? 'any' : '1'; number.value = current; }
             root.querySelector('[data-npc-override-help]').textContent = isMap ? 'Select optional context. Remove the override to inherit.' : isText ? 'Enter instructions. Removing this override restores inheritance.' : isBoolean ? 'An explicit On or Off overrides the inherited setting.' : isChoice ? 'Choose one of the listed values. Removing this override restores inheritance.' : 'Allowed range: ' + definition.range.join('–') + '. Removing this override restores inheritance.';
             if (definition.help) root.querySelector('[data-npc-override-help]').textContent = definition.help;
         };
@@ -128,7 +128,7 @@
         dialog.addEventListener('close', () => opener?.focus());
         save.addEventListener('click', () => {
             const definition = catalog[selected], [section,key] = selected.split('.');
-            if (definition.type === 'integer' && !number.reportValidity()) return;
+            if (['integer','number'].includes(definition.type) && !number.reportValidity()) return;
             if (definition.type === 'string') {
                 text.setCustomValidity((!definition.allowEmpty && !text.value.trim()) || new TextEncoder().encode(text.value).length > definition.maxBytes
                     ? 'Enter between ' + (definition.allowEmpty ? '0' : '1') + ' and ' + definition.maxBytes + ' UTF-8 bytes.' : '');

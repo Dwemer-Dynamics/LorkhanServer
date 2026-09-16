@@ -13,6 +13,7 @@ final class SettingsCatalog
     private const CLIENT_DEFAULTS = [
         'schema' => self::CLIENT_SCHEMA,
         'behavior' => [
+            'ai_enabled' => true,
             'auto_greeting' => false,
             'rechat' => false,
             'rechat_delay_seconds' => 45,
@@ -326,7 +327,7 @@ final class SettingsCatalog
             'memory' => ['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled', 'short_term_max_summaries'],
             'response' => ['max_words', 'core_lang', 'lang_llm_xtts'],
             'diary' => ['prompt', 'automatic_interval_seconds', 'context_turn_limit'],
-            'profile_evolution' => ['history_limit'],
+            'profile_evolution' => ['history_limit','interval_days','min_events','cooldown_minutes'],
             'profile_management' => ['autofill_custom_profiles','autofill_custom_profiles_trigger'],
             'context' => ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','transformation_detection','short_term_in_compact_chat','hide_ambient_combat','detect_magic_events','item_pickup_min_value','location_blacklist','item_blacklist','magic_effects_blacklist','event_types','sections','details'],
             'prompt' => ['prompt_head','emote_moods'],

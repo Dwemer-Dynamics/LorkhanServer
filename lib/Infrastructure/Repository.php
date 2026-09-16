@@ -293,6 +293,7 @@ final class Repository
                 'content_fingerprint' => 'content_fingerprint'] as $request => $stored) {
                 if ((string) $m[$request] !== (string) $session[$stored]) throw new \UnexpectedValueException('stale_generation');
             }
+            $this->assertAiEnabled($m['installation_id']);
             $p = $m['payload'];
             if(($p['ui_source']??null)==='lorkhan_auto_combat_bark'){
                 // Match Herika's shared bark cooldown; local scheduling cannot bypass the actor's effective floor.
@@ -839,22 +840,34 @@ final class Repository
     public function claimDialogueForSpeech(string $dialogueId, array $fence): ?array
     {
         return $this->transaction(function () use ($dialogueId, $fence): ?array {
+            // Take the session before the utterance, matching global cancellation and event publication.
+            $scope=$this->db->prepare('SELECT s.session_id FROM sessions s JOIN dialogue_utterances u ON u.session_id=s.session_id WHERE u.dialogue_message_id=:id FOR UPDATE OF s');
+            $scope->execute(['id'=>$dialogueId]);
+            if(!$scope->fetchColumn())throw new \OutOfBoundsException('dialogue_not_found');
             $lease=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_id=:job AND state='leased' AND lease_token=:token "
                 . 'AND attempt_count=:attempt AND lease_expires_at>clock_timestamp() FOR UPDATE');
             $lease->execute(['job'=>$fence['job_id'],'token'=>$fence['lease_token'],'attempt'=>$fence['attempt']]);
             if(!$lease->fetchColumn()) throw new \RuntimeException('lease_lost');
-            $statement=$this->db->prepare('SELECT u.*,s.installation_id,s.playthrough_id,s.state AS session_state '
+            $statement=$this->db->prepare('SELECT u.*,s.installation_id,s.playthrough_id,s.generation AS session_generation,s.state AS session_state '
                 . 'FROM dialogue_utterances u JOIN sessions s ON s.session_id=u.session_id '
                 . 'WHERE u.dialogue_message_id=:id FOR UPDATE OF u');
             $statement->execute(['id'=>$dialogueId]);$row=$statement->fetch();
             if(!$row) throw new \OutOfBoundsException('dialogue_not_found');
             $existing=$this->db->prepare('SELECT 1 FROM media_objects WHERE dialogue_message_id=:id');
             $existing->execute(['id'=>$dialogueId]);
-            if($existing->fetchColumn()||$row['session_state']!=='active') return null;
+            if($existing->fetchColumn()||$row['session_state']!=='active'||(int)$row['session_generation']!==(int)$row['generation']||$row['delivery_state']!=='pending') return null;
+            try{$this->assertAiEnabled($row['installation_id']);}catch(\DomainException){return null;}
             foreach(['speaker','addressee','audience'] as$field)$row[$field]=$this->json($row[$field]);
             $row['generation']=(int)$row['generation'];
             return $row;
         });
+    }
+
+    /** Observe durable cancellation while a speech provider is still generating audio. */
+    public function isDialogueCancellationRequested(string $dialogue):bool
+    {
+        $q=$this->db->prepare("SELECT 1 FROM dialogue_utterances u JOIN sessions s USING(session_id) WHERE u.dialogue_message_id=:id AND u.delivery_state='pending' AND s.state='active' AND s.generation=u.generation");
+        $q->execute(['id'=>$dialogue]);return !$q->fetchColumn();
     }
 
     public function completeDialogueSpeech(array $dialogue, array $speech, array $fence): array
@@ -1171,7 +1184,7 @@ final class Repository
                 ->execute(['action' => $m['action_id'], 'source' => $m['message_id'], 'message' => $m['message_id'], 'request' => $m['request_id'],
                     'status' => $m['status'], 'reason' => $m['reason_code'], 'observed' => $this->encode($m['observed']), 'completed' => $m['completed_at']]);
             $this->db->prepare("UPDATE action_intents SET state = 'terminal' WHERE action_id = :id AND state <> 'terminal'")->execute(['id' => $m['action_id']]);
-            $this->db->prepare("UPDATE action_delivery d SET terminal_at=:completed,continuation_state=CASE WHEN a.followup_enabled AND d.continuation_state='none' THEN 'eligible' ELSE 'none' END,updated_at=clock_timestamp() FROM action_intents a WHERE d.action_id=:id AND a.action_id=d.action_id")
+            $this->db->prepare("UPDATE action_delivery d SET terminal_at=:completed,continuation_state=CASE WHEN d.continuation_state='expired' THEN 'expired' WHEN a.followup_enabled AND d.continuation_state='none' THEN 'eligible' ELSE 'none' END,updated_at=clock_timestamp() FROM action_intents a WHERE d.action_id=:id AND a.action_id=d.action_id")
                 ->execute(['completed' => $m['completed_at'], 'id' => $m['action_id']]);
             return ['duplicate' => false];
         });
@@ -1314,6 +1327,11 @@ final class Repository
             try{$frozen=$this->turnMessage($m['turn_id']);}
             catch(\OutOfBoundsException){$frozen=['payload'=>['execution_mode'=>'standard']];}
             $narratorMode=\LorkhanServer\Application\ExecutionModePolicy::mode($frozen['payload'])==='narrator';
+            if(isset($frozen['payload']['director_instruction_id'])){
+                $effective=(new ProductRepository($this->db))->effectiveSettingsForActor($loaded['session']['installation_id'],
+                    $loaded['session']['playthrough_id'],$frozen['payload']['target']);
+                $loaded['policy']=$this->actionCatalog->currentPolicy($loaded['session']['installation_id'],$effective['npc_profile']['profile_id']??null);
+            }
             if(in_array($frozen['payload']['execution_mode']??'standard',['injection_log','injection_chat'],true))throw new \DomainException('provider_action_not_allowed');
             $worldAction=in_array($action['name']??null,\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true);
             if($worldAction){
@@ -1364,6 +1382,29 @@ final class Repository
             throw new \DomainException('provider_action_not_allowed');
         }
         return$result;
+    }
+
+    /** Global AI Off retires output without replacing sessions or touching STT and observations. */
+    public function cancelAiOutput(string $installation):void
+    {
+        $this->transaction(function()use($installation):void{
+            $q=$this->db->prepare("SELECT session_id FROM sessions WHERE installation_id=:installation AND state='active' ORDER BY session_id FOR UPDATE");
+            $q->execute(['installation'=>$installation]);
+            foreach($q->fetchAll(PDO::FETCH_COLUMN) as $session){
+                $this->cancelOutstandingTurns($session,'ai_disabled');
+                $this->db->prepare("UPDATE media_objects SET expires_at=LEAST(expires_at,clock_timestamp()) WHERE session_id=:session AND deleted_at IS NULL")->execute(['session'=>$session]);
+                $this->db->prepare("UPDATE action_delivery d SET terminal_at=COALESCE(terminal_at,clock_timestamp()),continuation_state='expired',updated_at=clock_timestamp() FROM action_intents a WHERE a.session_id=:session AND d.action_id=a.action_id AND d.continuation_state<>'consumed'")->execute(['session'=>$session]);
+                $this->db->prepare("UPDATE dialogue_utterances SET delivery_state='interrupted',delivered_at=clock_timestamp() WHERE session_id=:session AND delivery_state='pending'")->execute(['session'=>$session]);
+                $this->db->prepare("UPDATE action_intents SET state='terminal' WHERE session_id=:session AND state<>'terminal'")->execute(['session'=>$session]);
+                $this->db->prepare("UPDATE rechat_chains SET state='cancelled',cancellation_reason='ai_disabled',updated_at=clock_timestamp() WHERE session_id=:session AND state IN ('open','awaiting_playback','request_in_flight')")->execute(['session'=>$session]);
+            }
+        });
+    }
+
+    public function assertAiEnabled(string $installation):void
+    {
+        $settings=(new ProductRepository($this->db))->globalSettingsForInstallation($installation);
+        if(($settings['content']['client']['behavior']['ai_enabled']??true)===false)throw new \DomainException('ai_disabled');
     }
 
     private function cancelOutstandingTurns(string $sessionId,string $reason):void
@@ -1450,6 +1491,7 @@ final class Repository
             'occurred' => $occurred, 'schema' => $schema, 'request' => $request, 'turn' => $turn, 'action' => $action, 'payload' => $this->encode($payload)]);
         $this->eventLog()->projectSource($id, $installation, $session, $kind, $occurred, $request, $turn, $action, $payload,
             $projectionContext);
+        (new ProfileEvolutionScheduler($this->db))->observe($installation,$session,$kind,$payload);
     }
 
     private function eventLog(): EventLogRepository

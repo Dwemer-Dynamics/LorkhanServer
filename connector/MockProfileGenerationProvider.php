@@ -14,7 +14,7 @@ final class MockProfileGenerationProvider implements ProfileGenerationProvider
             foreach($profile['actors']??[] as $selector=>$actor){
                 if(in_array($actor['kind']??null,['npc','creature'],true)&&isset($profile['actors']['player']))
                     return DirectorPolicy::output(['instructions'=>[['actor_id'=>$selector,'recipient_id'=>'player',
-                        'instruction'=>'Greet the player briefly in character.','scene_note'=>'A greeting is being arranged.']]],$profile['actors']);
+                        'instruction'=>'Greetings, traveller.','scene_note'=>'','action'=>null]]],$profile['actors']);
             }
             throw new \RuntimeException('director_no_actors');
         }

@@ -183,7 +183,7 @@ final class ConnectorCatalog
             ['apply_text_normalization','Apply Text Normalization','select',['auto','on','off']],
             ['apply_language_text_normalization','Apply Language Text Normalization','boolean'],
             ['v3_audio_tags','V3 Audio Tags','longstring',1024]],
-        'cartesia'=>[['speed','Speed','select',['slowest','slow','normal','fast','fastest']]],
+        'cartesia'=>[['speed','Speed','select',['slowest','slow','normal','fast','fastest']],['accent','Accent (Sonic 3.6)','string']],
         'coqui-ai'=>[['speed','Speed','number',0.25,4.0]],
         'inworld'=>[['workspace','Workspace','string'],['temperature','Temperature','number',0.0,2.0],['speed','Speed','number',0.5,1.5]],
         'zonos_gradio'=>[['dynamic_tones','Dynamic Tones','boolean'],['pitch_std','Pitch standard deviation','number',0.0,300.0],['speaking_rate','Speaking rate','number',1.0,40.0],['cfg_scale','CFG scale','number',0.0,20.0]],
@@ -282,7 +282,7 @@ final class ConnectorCatalog
         $typedFields = $kind === 'tts_provider' ? match ($driver) {
             'openai'=>['instructions'], 'kokoro'=>['speed'],
             'azure'=>['fixedMood','region','volume','rate','countour','validMoods'],
-            'deepgram'=>['bitrate'],
+            'deepgram'=>['bitrate'], 'cartesia'=>['speed','accent'],
             'chatterbox','xtts-fastapi'=>['paralinguistic_tags_enabled','paralinguistic_tags_prompt','paralinguistic_tags_list'],
             '11labs'=>['optimize_streaming_latency','speed','apply_text_normalization','apply_language_text_normalization','v3_audio_tags'],
             default=>[],
@@ -303,6 +303,9 @@ final class ConnectorCatalog
             };
             if (!$valid) throw new InvalidArgumentException('invalid_connector_option_' . $name);
         }
+        if ($kind === 'tts_provider' && $driver === 'cartesia' && isset($options['accent'])
+            && (strlen($options['accent'])>128 || preg_match('/[\x00-\x1f\x7f]/',$options['accent'])))
+            throw new InvalidArgumentException('invalid_connector_option_accent');
         if ($kind === 'tts_provider' && $driver === 'deepgram' && isset($options['bitrate'])
             && !in_array($options['bitrate'], [8000,16000,24000,32000,48000], true)) throw new InvalidArgumentException('invalid_connector_option_bitrate');
         if ($kind === 'tts_provider' && $driver === 'azure' && trim($options['region'] ?? '') !== '') {

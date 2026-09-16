@@ -163,6 +163,7 @@ final class Router
             $cached = $this->repository->idempotent($m['installation_id'], $m['message_id'], '/turns', $hash);
             if ($cached !== null) return Response::json($cached['status'], $cached['body']);
 
+            $this->repository->assertAiEnabled($m['installation_id']);
             \LorkhanServer\Application\ExecutionModePolicy::mode($m['payload']);
             if(isset($m['payload']['director_instruction_id'])){
                 $trusted=$this->repository->directorChildInput($m);
@@ -182,6 +183,12 @@ final class Router
                     || !in_array($m['payload']['ui_source']??null,['lorkhan_text','lorkhan_voice','lorkhan_open_mic'],true))
                     throw new DomainException('director_route_invalid');
                 $scene=$this->products?->promptContext($m,gmdate('Y-m-d\TH:i:s\Z'))??[];
+                $scene['_director_actions']=[];
+                foreach(\LorkhanServer\Application\DirectorPolicy::actors($m['payload']) as $selector=>$actor){
+                    if(!in_array($actor['kind'],['npc','creature'],true))continue;
+                    $scene['_director_actions'][$selector]=$this->repository->allowedPromptActions($m['session_id'],$m['generation'],
+                        array_replace($m['payload'],['target'=>$actor,'execution_mode'=>'standard','director_instruction_id'=>'planning']));
+                }
                 $body=['schema'=>'lorkhan.turn.accepted.v1','message_id'=>$m['message_id'],'turn_id'=>$m['turn_id'],
                     'request_id'=>$m['request_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation']];
                 $accepted=$this->repository->acceptTurn($m,null,null,$hash,$body,null,[],$scene);
@@ -216,6 +223,7 @@ final class Router
             $knowledgeTurn=$m+['_dynamic_oghma_plan'=>$dynamicPlan];
             $directAction = $m['payload']['action_request'] ?? null;
             $providerInput = $directAction === null ? $m : null;
+            if($providerInput!==null&&isset($trusted['authored_response']))$providerInput['_director_response']=$trusted['authored_response'];
             if ($providerInput !== null) {
                 $source=$m['payload']['ui_source']??null;
                 $rechatActions=$source==='lorkhan_rechat'
@@ -242,7 +250,7 @@ final class Router
                 if(in_array($target['kind']??null,['creature','npc'],true)){
                     $this->repository->session((string)$m['session_id'],(int)$m['generation']);
                     $this->products->ensureMorrowindActorProfile($m,$resolvedVoice,gmdate('Y-m-d\TH:i:s\Z'));}
-                $oghmaExtraction=$this->oghmaExtraction($knowledgeTurn);$semanticMemory=$this->semanticMemory($m);
+                $oghmaExtraction=isset($trusted['authored_response'])?[]:$this->oghmaExtraction($knowledgeTurn);$semanticMemory=isset($trusted['authored_response'])?[]:$this->semanticMemory($m);
                 $selection = $this->products->promptContext($knowledgeTurn,gmdate('Y-m-d\TH:i:s\Z'),$oghmaExtraction,$semanticMemory);
                 $providerInput['_selected_profile_id']=$selection['selected_profile_id'];
                 if(is_array($selection['player_profile']??null))$providerInput['_player_profile']=$selection['player_profile'];
@@ -285,14 +293,6 @@ final class Router
                         if($message['type']==='automatic_diary')$this->products?->enqueueAutomaticDiaries($message);
                         if($profileId!==null)$this->products?->maybeEnqueueAutomaticProfileBackfill(
                             $profileId,(string)$message['playthrough_id']);
-                        if($profileId!==null){
-                            $this->products?->maybeEnqueueDynamicProfileEvolution($profileId,
-                                (string)$message['playthrough_id'],(string)$message['session_id']);
-                            $narrator=$this->products?->narratorProfileForInstallation((string)$message['installation_id']);
-                            if(is_array($narrator)&&is_string($narrator['profile_id']??null))
-                                $this->products?->maybeEnqueueDynamicProfileEvolution((string)$narrator['profile_id'],
-                                    (string)$message['playthrough_id'],(string)$message['session_id']);
-                        }
                         $extra=[];
                         if(in_array($message['type'],['bored_event','quest_event'],true)){
                             if($this->products===null)throw new ApiException(503,'provider_unavailable','Profile policy unavailable.',true);
@@ -613,10 +613,11 @@ final class Router
                             $ttsText=\LorkhanServer\Application\NarrationTextPolicy::spoken($ttsText);
                             if($ttsText==='')throw new ApiException(422,'invalid_schema','No spoken text remains after narration filtering.',false);
                         }
-                        $providerName=match(true){$provider instanceof \LorkhanServer\Application\PocketTtsSpeechProvider=>'pockettts',
-                            $provider instanceof \LorkhanServer\Application\XttsCompatibleSpeechProvider=>'xtts-compatible',
-                            $provider instanceof \LorkhanServer\Application\CloudSpeechConnectorProvider=>'cloud-speech',
-                            $provider instanceof \LorkhanServer\Application\OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
+                        $providerIdentity=$provider instanceof \LorkhanServer\Application\FilteredSpeechProvider?$provider->inner:$provider;
+                        $providerName=match(true){$providerIdentity instanceof \LorkhanServer\Application\PocketTtsSpeechProvider=>'pockettts',
+                            $providerIdentity instanceof \LorkhanServer\Application\XttsCompatibleSpeechProvider=>'xtts-compatible',
+                            $providerIdentity instanceof \LorkhanServer\Application\CloudSpeechConnectorProvider=>'cloud-speech',
+                            $providerIdentity instanceof \LorkhanServer\Application\OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
                         $attemptId=Uuid::v4();$mediaId=null;
                         $this->providerAttempts?->start($attemptId,'tts',$providerName,'synthesize',1,
                             (string)$message['request_id'],null,inputBytes:strlen($ttsText),
@@ -650,6 +651,7 @@ final class Router
         $message=$this->json($request,'lorkhan.player-autochat.v1');
         $session=$this->repository->session((string)$message['session_id'],(int)$message['generation']);
         $installation=(string)$session['installation_id'];$this->assertPrincipal($installation);
+        $this->repository->assertAiEnabled($installation);
         $this->requireIdempotency($request,$message['message_id']);
         return $this->repository->serializedIdempotency($installation,$message['message_id'],'/player-autochat',
             function()use($installation,$message,$session):Response{
@@ -675,7 +677,11 @@ final class Router
                                 'profile_revision'=>$profile['revision']]);
                         try{
                             $provider=ProviderFactory::profileGenerationForSlot($this->providerConfig,$slot);
-                            $generated=$provider->generate($input,new NeverCancelledToken());
+                            $generated=$provider->generate($input,new \LorkhanServer\Application\CallbackCancellationToken(function()use($installation):bool{
+                                try{$this->repository->assertAiEnabled($installation);return false;}
+                                catch(DomainException){return true;}
+                            }));
+                            $this->repository->assertAiEnabled($installation);
                             $text=trim((string)($generated['text']??''));
                             if(($this->products?->narratorProfileForInstallation($installation)['content']['narration_filters']['remove_player_autochat_asterisks']??false))
                                 $text=\LorkhanServer\Application\NarrationTextPolicy::spoken($text);
@@ -687,6 +693,11 @@ final class Router
                                 'request_id'=>$message['request_id'],'session_id'=>$message['session_id'],
                                 'generation'=>$message['generation'],'text'=>$text]];
                         }catch(Throwable $error){
+                            // Preserve the master-switch reason rather than reporting a provider outage.
+                            if($error instanceof \LorkhanServer\Application\OperationCancelled){
+                                try{$this->providerAttempts?->finish($attemptId,'cancelled',errorCode:'operation_cancelled');}catch(Throwable){}
+                                $this->repository->assertAiEnabled($installation);
+                            }
                             try{$this->providerAttempts?->finish($attemptId,'failed',errorCode:
                                 $error instanceof DomainException?'provider_invalid_output':'provider_unavailable');}catch(Throwable){}
                             if($error instanceof DomainException)throw $error;
@@ -866,7 +877,7 @@ final class Router
     {
         $aliases=['diary_books_unsupported'=>'invalid_schema','diary_book_not_found'=>'not_found','diary_book_mismatch'=>'request_mismatch',
             'diary_book_terminal'=>'duplicate_conflict','diary_book_superseded'=>'request_mismatch','revision_conflict'=>'request_mismatch','dialogue_result_mismatch'=>'request_mismatch','dialogue_result_time_invalid'=>'invalid_schema','unknown_dialogue'=>'not_found'];if(isset($aliases[$code]))return$aliases[$code];
-        $allowed=['action_disabled','action_parameters_invalid','action_result_expired','action_result_mismatch','invalid_audio',
+        $allowed=['ai_disabled','action_disabled','action_parameters_invalid','action_result_expired','action_result_mismatch','invalid_audio',
             'action_target_invalid','action_tier_mismatch','cursor_expired','duplicate_conflict','invalid_idempotency_key',
             'invalid_schema','media_unavailable','not_found','provider_action_not_allowed','provider_invalid_action',
             'provider_invalid_output','provider_timeout','provider_unavailable','rate_limited','request_mismatch',

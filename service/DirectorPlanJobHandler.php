@@ -60,7 +60,7 @@ final class DirectorPlanJobHandler implements JobHandler
             $output=$provider->generate(['generation_mode'=>'director_plan']+$input,$token);$token->throwIfCancellationRequested();
             $route=$this->routes->route($payload['installation_id']);
             if(!$route||$route['configuration_id']!==$payload['provider_configuration_id'])throw new OperationCancelled('director_connector_disabled');
-            $this->plans->deliver($job['job_id'],$job['attempt'],$job['lease_token'],DirectorPolicy::output($output,$input['actors']));
+            $this->plans->deliver($job['job_id'],$job['attempt'],$job['lease_token'],DirectorPolicy::output($output,$input['actors'],$input['actions']??[]));
             $this->attempts->finish($attempt,'succeeded',strlen(json_encode($output,JSON_THROW_ON_ERROR)));
         }catch(\Throwable $error){
             try{$this->attempts->finish($attempt,'failed',errorCode:$error instanceof OperationCancelled?'operation_cancelled':'provider_unavailable');}catch(\Throwable){}

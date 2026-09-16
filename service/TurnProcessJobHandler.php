@@ -84,7 +84,9 @@ final class TurnProcessJobHandler implements JobHandler
                 }
                 $this->repository->queueStreamedDialogueSpeech($message,$dialogue,$fence);
             };
-            $result = (new InlineNarrationRouter())->route($message,$this->completeWithFallback($message,$job,$token,$progress));
+            // Director authored lines use normal speech/action validation, without another dialogue model call.
+            $result = isset($message['_director_response']) ? $message['_director_response']
+                : (new InlineNarrationRouter())->route($message,$this->completeWithFallback($message,$job,$token,$progress));
             if($pendingInlineSpeech!==null)$this->repository->queueStreamedDialogueSpeech($message,$pendingInlineSpeech,$fence);
             $token->throwIfCancellationRequested();
             $result=$this->translateResult($message,$result,$policy,$job,$token);
@@ -153,10 +155,11 @@ final class TurnProcessJobHandler implements JobHandler
             $pronunciationContext=$this->products?->ttsPronunciationContext((string)$message['installation_id'],
                 (string)$message['playthrough_id'],(array)$dialogue['speaker'])??[];
             $ttsText=$this->products?->applyTtsPronunciation((string)$dialogue['text'],$pronunciationContext)??(string)$dialogue['text'];
-            $providerName=match(true){$provider instanceof PocketTtsSpeechProvider=>'pockettts',
-                $provider instanceof XttsCompatibleSpeechProvider=>'xtts-compatible',
-                $provider instanceof CloudSpeechConnectorProvider=>'cloud-speech',
-                $provider instanceof OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
+            $providerIdentity=$provider instanceof \LorkhanServer\Application\FilteredSpeechProvider?$provider->inner:$provider;
+        $providerName=match(true){$providerIdentity instanceof PocketTtsSpeechProvider=>'pockettts',
+                $providerIdentity instanceof XttsCompatibleSpeechProvider=>'xtts-compatible',
+                $providerIdentity instanceof CloudSpeechConnectorProvider=>'cloud-speech',
+                $providerIdentity instanceof OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
             $this->attempts?->start($attemptId,'tts',$providerName,'synthesize_streamed',(int)$dialogue['utterance_index'],
                 $message['request_id'],$message['turn_id'],$job['job_id'],inputBytes:strlen($ttsText),
                 metadata:['job'=>true,'streamed'=>true,'utterance_index'=>$dialogue['utterance_index'],

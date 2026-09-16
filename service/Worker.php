@@ -21,6 +21,7 @@ final class Worker
         private readonly int $maxRuntimeSeconds = 300,
         private readonly ?array $types = null,
         private readonly mixed $sleep = null,
+        private readonly mixed $maintenance = null,
     ) {}
 
     /** @return array{claimed:int,succeeded:int,retried:int,dead:int} */
@@ -29,6 +30,7 @@ final class Worker
         $stats = ['claimed' => 0, 'succeeded' => 0, 'retried' => 0, 'dead' => 0];
         $started = hrtime(true);
         $lastWork = $started;
+        $lastMaintenance=0;
         while ($stats['claimed'] < $this->maxJobs && $this->secondsSince($started) < $this->maxRuntimeSeconds) {
             if(!$this->jobs->enterRuntime()){
                 // Avoid rapidly restarting the daemon while another worker restores the database.
@@ -38,6 +40,9 @@ final class Worker
             }
             $runtimeGate=true;
             try{
+                if($this->maintenance!==null&&hrtime(true)-$lastMaintenance>=5_000_000_000){
+                    $lastMaintenance=hrtime(true);($this->maintenance)();
+                }
                 // Claim just in time so queued work cannot expire while an earlier batch member runs.
                 $claimed = $this->jobs->claim($this->workerId, 1, $this->leaseSeconds, $this->types);
                 if ($claimed === []) {

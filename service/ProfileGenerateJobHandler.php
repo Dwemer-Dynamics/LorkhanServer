@@ -36,6 +36,7 @@ final class ProfileGenerateJobHandler implements JobHandler
         if($currentStyle!==null&&(!is_string($currentStyle)||strlen($currentStyle)>8192||!mb_check_encoding($currentStyle,'UTF-8')||$mode!=='player_speech_style'))throw new \InvalidArgumentException('invalid_current_speech_style');
         if(!is_array($job)||!is_string($job['job_id']??null)||!is_int($job['attempt']??null))throw new \InvalidArgumentException('invalid_job_fence');
         if(!$heartbeat())throw new RuntimeException('lease_lost');
+        if(!$this->repository->evolutionScheduleActive($payload))return;
         $profile=$this->repository->getRevisioned('profile',$profileId);if((int)$profile['current_revision']!==$baseRevision)return;
         if(!$this->repository->profileTasksEnabled((string)$profile['installation_id']))throw new RuntimeException('profile_tasks_disabled');
         $currentContent=is_array($profile['content']??null)?$profile['content']:[];

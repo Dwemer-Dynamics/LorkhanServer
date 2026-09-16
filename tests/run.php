@@ -620,7 +620,7 @@ foreach ([['openai','instructions',str_repeat('x',4097)],['openai','instructions
 $check(new OpenAiCompatibleSpeechToTextProvider('https://api.openai.com/v1/audio/transcriptions', ['api.openai.com'], 'stt-test') instanceof OpenAiCompatibleSpeechToTextProvider,
     'OpenAI-compatible STT accepts a vetted HTTPS endpoint');
 $check(ProviderFactory::dialogue([]) instanceof \LorkhanServer\Application\MockProvider
-    && ProviderFactory::speech([]) instanceof MockSpeechProvider
+    && ProviderFactory::speech([])->inner instanceof MockSpeechProvider
     && ProviderFactory::speechToText([]) instanceof \LorkhanServer\Application\MockSpeechToTextProvider,
     'shared provider factory gives HTTP and worker the same safe defaults');
 $mockExtractor=new MockOghmaTopicExtractor();
@@ -1136,14 +1136,21 @@ foreach ([['autofill_custom_profiles'=>'false'],['autofill_custom_profiles_trigg
     catch (InvalidArgumentException) { $check(true,'invalid backfill override rejected'); }
 }
 $evolutionResolved=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['profile_evolution'=>$evolutionDefaults]],[]);
+$scheduleOverride=['interval_days'=>1/24,'min_events'=>30,'cooldown_minutes'=>5];
+$scheduleResolved=(new EffectiveSettingsResolver())->resolve([],[],['settings_overrides'=>['profile_evolution'=>$scheduleOverride]]);
+$check(array_intersect_key($scheduleResolved['settings']['profile_evolution'],$scheduleOverride)===$scheduleOverride,'fractional game-day schedule overrides preserve types');
+foreach([['interval_days'=>0],['interval_days'=>366],['min_events'=>0],['min_events'=>'30'],['cooldown_minutes'=>0],['cooldown_minutes'=>1441]] as $badSchedule){
+    try{EffectiveSettingsResolver::validateSettingsOverrides(['profile_evolution'=>$badSchedule],true);$check(false,'invalid evolution schedule rejected');}
+    catch(InvalidArgumentException){$check(true,'invalid evolution schedule rejected');}
+}
 $check(EffectiveSettingsResolver::validateSettingsOverrides(['profile_evolution'=>$evolutionDefaults])['profile_evolution']===$evolutionDefaults
-    &&$evolutionResolved['settings']['profile_evolution']===['history_limit'=>$evolutionDefaults['history_limit']]
+    &&$evolutionResolved['settings']['profile_evolution']===['history_limit'=>$evolutionDefaults['history_limit'],'interval_days'=>1,'min_events'=>30,'cooldown_minutes'=>5]
     &&!isset(EffectiveSettingsResolver::controlsProjection($evolutionResolved)['settings']['profile_evolution']),
     'Core Profile evolution defaults retain all five fields without leaking into the client contract');
 foreach ([0,2,400] as $historyLimit) {
     $npcEvolution=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['profile_evolution'=>$evolutionDefaults]],
         ['settings_overrides'=>['profile_evolution'=>['history_limit'=>$historyLimit]]]);
-    $check($npcEvolution['settings']['profile_evolution']===['history_limit'=>$historyLimit]
+    $check($npcEvolution['settings']['profile_evolution']===['history_limit'=>$historyLimit,'interval_days'=>1,'min_events'=>30,'cooldown_minutes'=>5]
         &&$npcEvolution['sources']['settings.profile_evolution.history_limit']==='npc',
         'NPC evolution history is a typed server override without discovery switches');
 }
@@ -2142,8 +2149,8 @@ $preset=ConnectorCatalog::validate('tts_provider',['driver'=>'pockettts','endpoi
 $check($preset['driver']==='pockettts' && $preset['timeout_ms']===30000, 'speech connector preset validation is strict and normalized');
 $pocketPreset=static fn(string$endpoint):array=>['kind'=>'tts_provider','content'=>['driver'=>'pockettts','endpoint'=>$endpoint,
     'model'=>'pocket-tts','voice'=>'default','language'=>'en','timeout_ms'=>30000,'options'=>[]]];
-$check(ProviderFactory::speechForPreset([],$pocketPreset('http://127.0.0.1:8024')) instanceof PocketTtsSpeechProvider
-    &&ProviderFactory::speechForPreset([],$pocketPreset('http://127.0.0.1:8086')) instanceof PocketTtsSpeechProvider,
+$check(ProviderFactory::speechForPreset([],$pocketPreset('http://127.0.0.1:8024'))->inner instanceof PocketTtsSpeechProvider
+    &&ProviderFactory::speechForPreset([],$pocketPreset('http://127.0.0.1:8086'))->inner instanceof PocketTtsSpeechProvider,
     'PocketTTS selected connectors use one runtime-compatible adapter for both API families');
 $pocketAttempts=[];$pocketDetections=[];
 $unavailableProvider=new class implements \LorkhanServer\Application\SpeechProvider {
@@ -2180,13 +2187,13 @@ catch(RuntimeException$error){$check($error->getMessage()==='provider_unavailabl
 $localPreset=static fn(string $driver):array=>['kind'=>'tts_provider','content'=>['driver'=>$driver,
     'endpoint'=>'http://127.0.0.1:8999','model'=>'default','voice'=>'default','language'=>'en','timeout_ms'=>30000,'options'=>[]]];
 foreach(['melotts','mimic3','piper-tts','stylettsv2'] as $driver){
-    $check(ProviderFactory::speechForPreset([], $localPreset($driver)) instanceof LocalSpeechConnectorProvider,
+    $check(ProviderFactory::speechForPreset([], $localPreset($driver))->inner instanceof LocalSpeechConnectorProvider,
         $driver . ' selected connector builds a bounded local WAV adapter');
 }
 $cloudPreset=static fn(string $driver):array=>['kind'=>'tts_provider','content'=>['driver'=>$driver,
     'endpoint'=>'https://example.com','model'=>'default','voice'=>'default','language'=>'en-US','timeout_ms'=>30000,'options'=>[]]];
 foreach(['11labs','azure','cartesia','convai','coqui-ai','deepgram','gcp','inworld'] as $driver){
-    $check(ProviderFactory::speechForPreset([], $cloudPreset($driver)) instanceof CloudSpeechConnectorProvider,
+    $check(ProviderFactory::speechForPreset([], $cloudPreset($driver))->inner instanceof CloudSpeechConnectorProvider,
         $driver . ' selected connector builds a credential-isolated cloud WAV adapter');
 }
 // Inworld follows the local sample name through discovery, cloning and credential-scoped reuse.
@@ -2388,7 +2395,7 @@ foreach(['openai','11labs','azure','cartesia','convai','coqui-ai','deepgram','gc
     $badgeContent['voice']='fixture-voice';
     $badgeContent['endpoint']='https://93.184.216.34/fixture'; // Constructor only; no request or DNS dependency.
     $badgeProvider=ProviderFactory::speechForPreset(['credential_storage_path'=>$inworldRoot.'/keys.json','voice_storage_path'=>$inworldRoot],['kind'=>'tts_provider','content'=>$badgeContent]);
-    $check((new \ReflectionProperty($badgeProvider,'apiKey'))->getValue($badgeProvider)==='selected-tts-fixture-key',$badgeDriver.' synthesis resolves the chosen private TTS badge');
+    $check((new \ReflectionProperty($badgeProvider->inner,'apiKey'))->getValue($badgeProvider->inner)==='selected-tts-fixture-key',$badgeDriver.' synthesis resolves the chosen private TTS badge');
 }
 try{ConnectorCatalog::validate('tts_provider',ConnectorCatalog::defaults('tts_provider','inworld')+['driver'=>'inworld','credential'=>'DATABASE_PASSWORD']);$check(false,'unrelated environment credential rejected');}
 catch(InvalidArgumentException){$check(true,'TTS badge cannot name an unrelated environment secret');}
@@ -2493,14 +2500,14 @@ unlink($multipartPath);
 $voiceRoot=sys_get_temp_dir().'/lorkhan-zonos-'.bin2hex(random_bytes(4));mkdir($voiceRoot);
 $zonosPreset=['kind'=>'tts_provider','content'=>['driver'=>'zonos_gradio','endpoint'=>'http://127.0.0.1:8999',
     'model'=>'Zyphra/Zonos-v0.1-hybrid','voice'=>'default','language'=>'en-US','timeout_ms'=>30000,'options'=>[]]];
-$check(ProviderFactory::speechForPreset(['voice_storage_path'=>$voiceRoot],$zonosPreset) instanceof ZonosGradioSpeechProvider,
+$check(ProviderFactory::speechForPreset(['voice_storage_path'=>$voiceRoot],$zonosPreset)->inner instanceof ZonosGradioSpeechProvider,
     'Zonos selected connector builds its bounded Gradio job adapter');
 $zonosDefaults=ConnectorCatalog::defaults('tts_provider','zonos_gradio');
 $check($zonosDefaults['model']==='Zyphra/Zonos-v0.1-hybrid'&&$zonosDefaults['language']==='en-us',
     'New Zonos connectors use the reference model and language instead of placeholder IDs');
 $zonosPitch=array_column(ConnectorCatalog::optionFields('tts_provider','zonos_gradio'),null,'name')['pitch_std'];
 $zonosPreset['content']['options']=['pitch_std'=>300];
-$zonosAdapter=ProviderFactory::speechForPreset(['voice_storage_path'=>$voiceRoot],$zonosPreset);
+$zonosAdapter=ProviderFactory::speechForPreset(['voice_storage_path'=>$voiceRoot],$zonosPreset)->inner;
 $check($zonosPitch['maximum']===300.0
     &&(new ReflectionMethod($zonosAdapter,'number'))->invoke($zonosAdapter,'pitch_std',45,0,300)===300,
     'Zonos catalog and generation accept the reference upper pitch limit');
@@ -2565,7 +2572,7 @@ $check(ZonosGradioSpeechProvider::cachedVoicePath($voiceRoot,'http://127.0.0.1:8
 unlink($cachePath);rmdir(dirname($cachePath));unlink($cacheSample);rmdir($voiceRoot);
 $xvaPreset=['kind'=>'tts_provider','content'=>['driver'=>'xvasynth','endpoint'=>'http://127.0.0.1:8999',
     'model'=>'default','voice'=>'default','language'=>'en-US','timeout_ms'=>30000,'options'=>[]]];
-$check(ProviderFactory::speechForPreset([],$xvaPreset) instanceof XvaSynthSpeechProvider,
+$check(ProviderFactory::speechForPreset([],$xvaPreset)->inner instanceof XvaSynthSpeechProvider,
     'xVASynth selected connector builds its bounded WSL shared-file adapter');
 
 try {
@@ -3642,6 +3649,59 @@ foreach(['injection_log','injection_chat']as$injectionMode){
         catch(DomainException){$check(true,'injection rejects indirect/command input');}
     }
 }
+// Request-shape parity uses reflection only: never contact or bill a speech provider.
+$cloudRequest=new ReflectionMethod(CloudSpeechConnectorProvider::class,'request');
+foreach(['sonic-3.5','sonic-3.6','sonic-3.6-2026-08-27']as$model){
+    $adapter=new CloudSpeechConnectorProvider('https://93.184.216.34','cartesia',$model,'fixture','en',['speed'=>'fast','accent'=>'British'],'fixture-key');
+    [$url,$body,$headers]=$cloudRequest->invoke($adapter,'Hello','fixture','en');$body=json_decode($body,true);
+    $check($body['voice']==='fixture'&&$body['generation_config']['speed']===1.2&&!isset($body['speed'])
+        &&in_array('Authorization: Bearer fixture-key',$headers,true)&&in_array('Cartesia-Version: 2026-08-14',$headers,true)
+        &&isset($body['accent'])===str_starts_with($model,'sonic-3.6'),'Modern Cartesia auth, speed, voice and accent match CHIM '.$model);
+}
+$adapter=new CloudSpeechConnectorProvider('https://93.184.216.34','cartesia','sonic-3','fixture','en',['speed'=>'slow','accent'=>'British'],'fixture-key');
+[, $body,$headers]=$cloudRequest->invoke($adapter,'Hello','fixture','en');$body=json_decode($body,true);
+$check($body['voice']===['mode'=>'id','id'=>'fixture']&&$body['speed']==='slow'&&!isset($body['accent'])&&in_array('X-API-Key: fixture-key',$headers,true),'Legacy Cartesia retains its original request contract');
+$adapter=new CloudSpeechConnectorProvider('https://93.184.216.34','inworld','inworld-tts-2-flash','fixture','en',[],'fixture-key');
+[, $body,$headers]=$cloudRequest->invoke($adapter,'Hello','fixture','en');
+$check(json_decode($body,true)['modelId']==='inworld-tts-2-flash'&&in_array('Authorization: Basic fixture-key',$headers,true),'Inworld TTS 2 Flash retains the CHIM Basic auth and model contract');
+$filtered=new \LorkhanServer\Application\FilteredSpeechProvider(new MockSpeechProvider());
+try{$filtered->synthesize('Hello',new NeverCancelledToken(),['tts_filter_preset'=>'warm;touch /tmp/unsafe']);$check(false,'untrusted filter rejected');}
+catch(InvalidArgumentException){$check(true,'Untrusted FFmpeg graphs and internal presets cannot be supplied by a profile');}
+$plain=$filtered->synthesize('Hello',new NeverCancelledToken());
+$check($plain===(new MockSpeechProvider())->synthesize('Hello',new NeverCancelledToken()),'None filter preserves exact provider bytes');
+$filterFixture=new \LorkhanServer\Application\FilteredSpeechProvider(new class implements \LorkhanServer\Application\SpeechProvider {
+    public function synthesize(string $text,\LorkhanServer\Application\CancellationToken $token,array $context=[]):array {
+        $audio=(new MockSpeechProvider())->synthesize($text,$token);
+        $samples=str_repeat(substr($audio['bytes'],44),64);
+        $audio['bytes']=substr_replace(substr_replace(substr($audio['bytes'],0,44),pack('V',36+strlen($samples)),4,4),pack('V',strlen($samples)),40,4).$samples;
+        $audio['duration_ms']=1280;return $audio;
+    }
+});
+if(is_executable('/usr/bin/ffmpeg'))foreach(\LorkhanServer\Application\TtsFilterPresets::catalog()as$id=>$preset){
+    if(!$preset['exposed']||$id==='none')continue;
+    $audio=$filterFixture->synthesize('Hello',new NeverCancelledToken(),['tts_filter_preset'=>$id]);
+    $check($audio['duration_ms']>0&&$audio['codec']==='wav'&&$audio['filter_identity']===$id.':2'
+        &&hash('sha256',$audio['bytes'])!==hash('sha256',$plain['bytes']),'Real FFmpeg applies bounded preset '.$id.' with separate media identity');
+}
+
+// Authored scenes may reuse speakers, but must yield as soon as the player is addressed.
+$sceneActor=$modeTurn['payload']['target'];
+$sceneOther=$sceneActor;$sceneOther['record_id']='scene_other';$sceneOther['refnum']['index']=999;
+$sceneActors=['one'=>$sceneActor,'two'=>$sceneOther,'player'=>$modeTurn['payload']['speaker']];
+$sceneLine=['actor_id'=>'one','recipient_id'=>'two','instruction'=>'The city is quiet.','scene_note'=>'','action'=>null];
+$sceneLines=array_fill(0,12,$sceneLine);
+$check(count(\LorkhanServer\Application\DirectorPolicy::output(['instructions'=>$sceneLines],$sceneActors)['instructions'])===12,'Director accepts repeated NPC speakers in a bounded authored scene');
+$sceneLines[2]['recipient_id']='player';
+$check(count(\LorkhanServer\Application\DirectorPolicy::output(['instructions'=>$sceneLines],$sceneActors)['instructions'])===3,'Director ends after first line addressed to player');
+try{\LorkhanServer\Application\DirectorPolicy::output(['instructions'=>array_fill(0,13,$sceneLine)],$sceneActors);$check(false,'Director scene limit enforced');}
+catch(RuntimeException){$check(true,'Director scene limit enforced');}
+$sceneLine['action']=['name'=>'arbitrary.script','parameters'=>[]];
+try{\LorkhanServer\Application\DirectorPolicy::output(['instructions'=>[$sceneLine]],$sceneActors);$check(false,'Director rejects actions outside speaker policy');}
+catch(RuntimeException $error){$check($error->getMessage()==='provider_action_not_allowed','Director rejects actions outside speaker policy');}
+$sceneLine['action']=['name'=>'ai.wait','parameters'=>['duration_seconds'=>90]];
+$sceneActions=['one'=>[['name'=>'ai.wait','tier'=>1,'parameter_schema'=>['type'=>'object','properties'=>[]]]]];
+$check(\LorkhanServer\Application\DirectorPolicy::output(['instructions'=>[$sceneLine]],$sceneActors,$sceneActions)['instructions'][0]['action']===$sceneLine['action'],'Director retains only catalog-backed typed action for fresh child validation');
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

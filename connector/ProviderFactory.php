@@ -105,6 +105,12 @@ final class ProviderFactory
     /** Build optional text-to-speech service configuration. */
     public static function speech(array $config): ?SpeechProvider
     {
+        $provider=self::unfilteredSpeech($config);
+        return $provider===null?null:new FilteredSpeechProvider($provider);
+    }
+
+    private static function unfilteredSpeech(array $config): ?SpeechProvider
+    {
         $provider = self::section($config, 'speech_provider');
         return match ((string) ($provider['driver'] ?? 'mock')) {
             'disabled' => null,
@@ -150,6 +156,11 @@ final class ProviderFactory
 
     /** Build an installation-selected TTS preset with a private, allowlisted credential reference. */
     public static function speechForPreset(array $config,array $preset):SpeechProvider
+    {
+        return new FilteredSpeechProvider(self::unfilteredSpeechForPreset($config,$preset));
+    }
+
+    private static function unfilteredSpeechForPreset(array $config,array $preset):SpeechProvider
     {
         $content=self::preset($preset,'tts_provider');$definition=ConnectorCatalog::definition('tts_provider',(string)$content['driver']);
         $endpoint=(string)$content['endpoint'];$driver=(string)$content['driver'];$parts=parse_url($endpoint);

@@ -48,10 +48,10 @@ final class SpeechSynthesizeJobHandler implements JobHandler
 
         $deadline=hrtime(true)+max(1,$this->timeoutMs)*1_000_000;
         $lastCheck=0;$cancelled=false;
-        $token=new CallbackCancellationToken(static function()use(&$lastCheck,&$cancelled,$deadline,$heartbeat):bool{
+        $token=new CallbackCancellationToken(function()use(&$lastCheck,&$cancelled,$deadline,$heartbeat,$dialogueId):bool{
             $now=hrtime(true);if($cancelled||$now>=$deadline)return true;
             if($now-$lastCheck<100_000_000)return false;$lastCheck=$now;
-            return $cancelled=!$heartbeat();
+            return $cancelled=!$heartbeat()||$this->repository->isDialogueCancellationRequested($dialogueId);
         });
         $preset=$this->products?->connectorForActor((string)$dialogue['installation_id'],
             (string)$dialogue['playthrough_id'],(array)$dialogue['speaker'],'tts_provider');
@@ -59,10 +59,11 @@ final class SpeechSynthesizeJobHandler implements JobHandler
         $provider=$preset===null?$this->defaultProvider:ProviderFactory::speechForPreset($this->providerConfig,$preset);
         if($provider===null)return;
 
-        $providerName=match(true){$provider instanceof PocketTtsSpeechProvider=>'pockettts',
-            $provider instanceof XttsCompatibleSpeechProvider=>'xtts-compatible',
-            $provider instanceof CloudSpeechConnectorProvider=>'cloud-speech',
-            $provider instanceof OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
+        $providerIdentity=$provider instanceof \LorkhanServer\Application\FilteredSpeechProvider?$provider->inner:$provider;
+        $providerName=match(true){$providerIdentity instanceof PocketTtsSpeechProvider=>'pockettts',
+            $providerIdentity instanceof XttsCompatibleSpeechProvider=>'xtts-compatible',
+            $providerIdentity instanceof CloudSpeechConnectorProvider=>'cloud-speech',
+            $providerIdentity instanceof OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
         $context=$this->products?->speechContext((string)$dialogue['installation_id'],
             (string)$dialogue['playthrough_id'],(array)$dialogue['speaker'],$preset)??[];
         if (isset($payload['mood'])) {

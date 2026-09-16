@@ -1180,10 +1180,13 @@ $products->revise('core_profile',$evolutionCore['core_profile_id'],$evolutionHis
 $db->prepare('UPDATE profiles SET core_profile_id=:core WHERE profile_id IN (:npc,:narrator)')->execute([
     'core'=>$evolutionCore['core_profile_id'],'npc'=>$dynamicProfile['profile_id'],'narrator'=>$narratorProfile['profile_id']]);
 $products->revise('global_settings',$backfillGlobal['configuration_id'],$unassignedProfileTasks,'unassigned evolution route fixture',$now);
-$unassignedEvolution=$products->maybeEnqueueDynamicProfileEvolution($dynamicProfile['profile_id'],$session['playthrough_id'],$sessionId);
+$db->prepare('INSERT INTO lorkhan_internal.profile_evolution_clocks(installation_id,playthrough_id,epoch,game_minute,started_minute)
+    VALUES(:installation,:playthrough,:epoch,10000,10000) ON CONFLICT(installation_id,playthrough_id) DO UPDATE SET game_minute=10000,started_minute=10000')
+    ->execute(['installation'=>$session['installation_id'],'playthrough'=>$session['playthrough_id'],'epoch'=>\LorkhanServer\Infrastructure\Uuid::v4()]);
+$unassignedEvolution=$products->maybeEnqueueDynamicProfileEvolution($dynamicProfile['profile_id'],$session['playthrough_id'],$sessionId,true);
 $assert($unassignedEvolution['queued']===false&&$unassignedEvolution['reason']==='profile_generation_connector_unavailable','unassigned evolution did not skip');
 $products->revise('global_settings',$backfillGlobal['configuration_id'],$backfillSettings,'restore evolution route',$now);
-$dynamicQueued=$products->maybeEnqueueDynamicProfileEvolution($dynamicProfile['profile_id'],$session['playthrough_id'],$sessionId);
+$dynamicQueued=$products->maybeEnqueueDynamicProfileEvolution($dynamicProfile['profile_id'],$session['playthrough_id'],$sessionId,true);
 $dynamicJob=$db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='profile.generate' "
     ."AND payload->>'profile_id'=:profile AND payload->>'mode'='profile_evolution'");
 $dynamicJob->execute(['profile'=>$dynamicProfile['profile_id']]);$dynamicJobRow=$dynamicJob->fetch();
@@ -1193,6 +1196,40 @@ $assert(($dynamicQueued['queued']??false)===true&&$dynamicJobRow&&$dynamicJobRow
     &&count($dynamicPayload['source_turn_ids']??[])===2&&count($dynamicPayload['recent_events']??[])===2,
     'dynamic NPC profile evolution did not freeze its selected fields and NPC-limited witnessed history');
 // Exercise the UI's full 400-turn evolution range and byte-truncated provenance together.
+$scheduleOwns=!$db->inTransaction();if($scheduleOwns)$db->beginTransaction();$db->exec('SAVEPOINT evolution_schedule_probe');
+try{
+    $scheduler=new \LorkhanServer\Infrastructure\ProfileEvolutionScheduler($db);
+    $scheduleIdentity=['kind'=>'actor','record_id'=>'evolution_inherited'];
+    $schedulePolicy=['interval_days'=>1,'min_events'=>2,'cooldown_minutes'=>5];
+    $probe=fn()=>$scheduler->prepare($installationId,$inheritedNpc['profile_id'],$session['playthrough_id'],$scheduleIdentity,$schedulePolicy);
+    $assert(!$probe()['due'],'fresh game clock bypassed elapsed-day gate');
+    $db->prepare('UPDATE lorkhan_internal.profile_evolution_clocks SET game_minute=started_minute+1440 WHERE installation_id=:installation AND playthrough_id=:playthrough')
+        ->execute(['installation'=>$installationId,'playthrough'=>$session['playthrough_id']]);
+    foreach(['spoken','pending','combatbark'] as $state){
+        $q=$db->prepare("INSERT INTO eventlog(type,data,localts,gamets,utterance_id,delivery_state) VALUES(:type,'evolution fixture',0,0,:utterance,:state) RETURNING rowid");
+        $q->execute(['type'=>$state==='combatbark'?'combatbark':'chat','utterance'=>\LorkhanServer\Infrastructure\Uuid::v4(),'state'=>$state==='combatbark'?'spoken':$state]);$rowid=$q->fetchColumn();
+        $db->prepare("INSERT INTO eventlog_metadata(rowid,installation_id,playthrough_id,projection_kind,projection_key,speaker)
+            VALUES(:row,:installation,:playthrough,'evolution_probe',:key,CAST(:identity AS jsonb))")
+            ->execute(['row'=>$rowid,'installation'=>$installationId,'playthrough'=>$session['playthrough_id'],'key'=>'evolution:'.$rowid,'identity'=>json_encode($scheduleIdentity)]);
+        if($state==='pending')$pendingEvolutionRow=$rowid;
+    }
+    $progress=$probe();$assert(!$progress['due']&&$progress['observed']===1,'pending speech or combat bark counted as delivered evolution event');
+    $db->prepare("UPDATE eventlog SET delivery_state='spoken' WHERE rowid=:row")->execute(['row'=>$pendingEvolutionRow]);
+    $progress=$probe();$assert($progress['due']&&$progress['observed']===2,'late delivery acknowledgement was skipped');
+    $assert($probe()['observed']===2,'repeated scheduler scan counted events twice');
+    $scheduler->attempted($inheritedNpc['profile_id'],$session['playthrough_id']);
+    $assert(!$probe()['due'],'real-time attempt cooldown was bypassed');
+    $assert($scheduler->prepare($installationId,$inheritedNpc['profile_id'],$session['playthrough_id'],$scheduleIdentity,$schedulePolicy,true)['due'],'manual evolution failed to bypass schedule');
+    $scheduler->complete(['profile_id'=>$inheritedNpc['profile_id'],'playthrough_id'=>$session['playthrough_id'],'evolution_schedule'=>$progress]);
+    $assert($probe()['observed']===0,'successful evolution failed to consume frozen events');
+    $oldPayload=['profile_id'=>$inheritedNpc['profile_id'],'playthrough_id'=>$session['playthrough_id'],'evolution_schedule'=>$progress];
+    $oldCalendar=['year'=>1,'month'=>0,'day'=>7,'hour'=>0];
+    $scheduler->observe($installationId,$sessionId,'gamedata.context',['context'=>['world'=>['calendar'=>$oldCalendar]]]);
+    $assert($scheduler->active($oldPayload),'delayed older calendar observation rewound the timeline');
+    $scheduler->observe($installationId,$sessionId,'session.init',['loaded_save'=>$oldCalendar]);
+    $assert(!$scheduler->active($oldPayload),'older-save epoch accepted stale queued profile work');
+    $reset=$probe();$assert(!$reset['due']&&$reset['observed']===0,'older-save epoch reused prior timeline progress');
+}finally{$db->exec('ROLLBACK TO SAVEPOINT evolution_schedule_probe');if($scheduleOwns)$db->rollBack();}
 $historyOwns=!$db->inTransaction();if($historyOwns)$db->beginTransaction();$db->exec('SAVEPOINT profile_history_limits_probe');
 try{
     for($index=0;$index<400;$index++)$insertBackfillTurn->execute([
@@ -1206,7 +1243,7 @@ try{
         $largeIdentity=$case==='narrator'?['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN']:$backfillTarget;
         $largeProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'History limit '.$case,
             'actor_identity'=>$largeIdentity,'core_profile_id'=>$evolutionCore['core_profile_id'],'content'=>$largeContent],$now);
-        $queued=$products->maybeEnqueueDynamicProfileEvolution($largeProfile['profile_id'],$session['playthrough_id'],$sessionId);
+        $queued=$products->maybeEnqueueDynamicProfileEvolution($largeProfile['profile_id'],$session['playthrough_id'],$sessionId,true);
         $assert(($queued['queued']??false)===true,'history range fixture did not queue');
         $q=$db->prepare('SELECT payload FROM durable_jobs WHERE job_id=:id');$q->execute(['id'=>$queued['job_id']]);$largePayload=json_decode($q->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
         $events=$largePayload['recent_events'];$sources=$largePayload['source_turn_ids'];
@@ -1248,7 +1285,7 @@ $inheritedHistoryCore=$products->getRevisioned('core_profile',$evolutionCore['co
 $inheritedHistoryContent=$inheritedHistoryCore['content'];$inheritedHistoryContent['settings_overrides']['profile_evolution']['history_limit']=0;
 $inheritedHistoryContent['settings_overrides']['memory']['recent_turn_limit']=3;
 $products->revise('core_profile',$evolutionCore['core_profile_id'],$inheritedHistoryContent,'zero inherits regular history fixture',$now);
-$narratorEvolution=$products->maybeEnqueueDynamicProfileEvolution($narratorDynamic['profile_id'],$session['playthrough_id'],$sessionId);
+$narratorEvolution=$products->maybeEnqueueDynamicProfileEvolution($narratorDynamic['profile_id'],$session['playthrough_id'],$sessionId,true);
 $narratorEvolutionJob=$db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='profile.generate' "
     ."AND payload->>'profile_id'=:profile AND payload->>'mode'='narrator_profile_evolution'");
 $narratorEvolutionJob->execute(['profile'=>$narratorDynamic['profile_id']]);$narratorEvolutionRow=$narratorEvolutionJob->fetch();
@@ -3779,6 +3816,7 @@ try{
     if($directorGlobal)$products->revise('global_settings',$directorGlobal['configuration_id'],$directorContent,'Director test',gmdate('Y-m-d\TH:i:s\Z'));
     else $products->createRevisioned('global_settings',['installation_id'=>$installationId,'name'=>'Director test','content'=>$directorContent],gmdate('Y-m-d\TH:i:s\Z'));
     $directorRequest=$transferTurn();$directorRequest['payload']['execution_mode']='director';
+    $directorRequest['payload']['input']['text']='Arrange a uniquely authored Balmora conversation.';
     $directorRequest['payload']['ui_source']='lorkhan_text';
     $directorRequest['payload']['context']['nearbyActors']=['items'=>[$turn['payload']['target'],$transferRecipient]];
     [$directorStatus,$directorAccepted]=$call($transferRouter,'POST',$base.'/turns',$headers($directorRequest['message_id']),[],$directorRequest);
@@ -3792,8 +3830,10 @@ try{
     $leaseDirector=$db->prepare("UPDATE durable_jobs SET state='leased',attempt_count=1,lease_token=:lease,lease_owner='director-integration',leased_at=clock_timestamp(),heartbeat_at=clock_timestamp(),lease_expires_at=clock_timestamp()+interval '60 seconds' WHERE job_id=:job");
     $leaseDirector->execute(['lease'=>$directorLease,'job'=>$directorId]);
     $directorOutput=['instructions'=>[
-        ['actor_id'=>'nearby:1','recipient_id'=>'player','instruction'=>'Explain the local history.','scene_note'=>'A discussion about Balmora.'],
-        ['actor_id'=>'nearby:2','recipient_id'=>'player','instruction'=>'Offer a different opinion.','scene_note'=>'']]];
+        ['actor_id'=>'nearby:1','recipient_id'=>'nearby:2','instruction'=>'Balmora has a long history.','scene_note'=>'A discussion about Balmora.',
+            'action'=>['name'=>'ai.wait','parameters'=>['duration_seconds'=>3600]]],
+        ['actor_id'=>'nearby:2','recipient_id'=>'player','instruction'=>'What do you think, traveller?','scene_note'=>''],
+        ['actor_id'=>'nearby:1','recipient_id'=>'nearby:2','instruction'=>'This must not play after the player is addressed.','scene_note'=>'']]];
     try{$director->deliver($directorId,1,Uuid::v4(),$directorOutput);$assert(false,'stale Director lease delivered');}
     catch(RuntimeException $error){$assert($error->getMessage()==='director_cancelled','wrong Director lease error');}
     $director->deliver($directorId,1,$directorLease,$directorOutput);
@@ -3810,18 +3850,54 @@ try{
     try{$director->prepareChild($directorChild);$assert(false,'Director allowed out-of-order child');}
     catch(RuntimeException $error){$assert($error->getMessage()==='director_previous_child_pending','wrong Director sequence error');}
     $directorChild['payload']['director_instruction_id']=$directorInstructions[0];$directorChild['payload']['target']=$turn['payload']['target'];
+    $directorChild['payload']['speaker']=$transferRecipient;
     $directorChild['payload']['input']['text']='Client-substituted planner instructions';
     [$childStatus,$childAccepted]=$call($transferRouter,'POST',$base.'/turns',$headers($directorChild['message_id']),[],$directorChild);
     $assert($childStatus===202,'Director child rejected: '.json_encode($childAccepted));
     $childText=$db->prepare('SELECT input_text FROM turns WHERE turn_id=:turn');$childText->execute(['turn'=>$directorChild['turn_id']]);
-    $assert($childText->fetchColumn()==='Explain the local history.','Director trusted substituted child instruction text');
+    $assert($childText->fetchColumn()==='Balmora has a long history.','Director trusted substituted child instruction text');
     $duplicateChild=$directorChild;$duplicateChild['turn_id']=Uuid::v4();
     try{$director->prepareChild($duplicateChild);$assert(false,'Director instruction reused by another turn');}
     catch(RuntimeException $error){$assert($error->getMessage()==='director_instruction_unavailable','wrong Director single-consumption error');}
-    $runTurnWorker(new MockProvider());
+    $authored=$director->prepareChild($directorChild)['authored_response'];
+    $assert($authored['utterances'][0]['text']==='Balmora has a long history.'&&$authored['utterances'][0]['addressee']==$transferRecipient,'Director lost its trusted authored response');
+    (new ReflectionMethod($repo,'validateProviderResult'))->invoke($repo,$authored,$repo->session($sessionId,$directorChild['generation']),$repo->turnMessage($directorChild['turn_id']));
+    $db->exec('SAVEPOINT director_policy_revocation');
+    try{
+        $directorActorProfile=$products->effectiveSettingsForActor($installationId,$session['playthrough_id'],$directorChild['payload']['target'])['npc_profile']['profile_id']??null;
+        $assert(is_string($directorActorProfile),'Director actor policy fixture has no bound profile');
+        $products->createRevisioned('action_policy',['installation_id'=>$installationId,'profile_id'=>$directorActorProfile,
+            'name'=>'Director policy revocation fixture','content'=>['enabled'=>true,'denied_actions'=>['ai.wait']]],$now);
+        try{(new ReflectionMethod($repo,'validateProviderResult'))->invoke($repo,$authored,$repo->session($sessionId,$directorChild['generation']),$repo->turnMessage($directorChild['turn_id']));$assert(false,'Director executed an NPC action revoked after scene planning');}
+        catch(DomainException $error){$assert($error->getMessage()==='action_disabled','Director fresh actor policy returned unexpected error');}
+    }finally{$db->exec('ROLLBACK TO SAVEPOINT director_policy_revocation');}
+    $directorNoModel=new class implements Provider {
+        public int $calls=0;
+        public function complete(array $message,\LorkhanServer\Application\CancellationToken $token):array {++$this->calls;throw new RuntimeException('Director child must not call a dialogue model');}
+    };
+    $runTurnWorker($directorNoModel);
+    $assert($directorNoModel->calls===0,'Director child asked another model to rewrite authored speech');
+    $authoredText=$db->prepare('SELECT text FROM dialogue_utterances WHERE turn_id=:turn ORDER BY utterance_index');
+    $authoredText->execute(['turn'=>$directorChild['turn_id']]);
+    $directorFailure=$db->prepare("SELECT payload FROM response_events WHERE turn_id=:turn AND event_type='turn.failed'");$directorFailure->execute(['turn'=>$directorChild['turn_id']]);
+    $assert($authoredText->fetchColumn()==='Balmora has a long history.','Director child did not publish its exact authored line: '.(string)$directorFailure->fetchColumn());
+    $authoredAction=$db->prepare("SELECT payload FROM response_events WHERE turn_id=:turn AND event_type='action.intent'");
+    $authoredAction->execute(['turn'=>$directorChild['turn_id']]);$authoredActionPayload=json_decode((string)$authoredAction->fetchColumn(),true);
+    $assert(($authoredActionPayload['name']??null)==='ai.wait'&&($authoredActionPayload['parameters']??null)===['duration_seconds'=>3600]
+        &&\LorkhanServer\Application\TransferActionPolicy::sameIdentity($authoredActionPayload['target']??null,$transferRecipient),'Director action lost its parameters or spoken recipient target');
+    $falseInput=$db->prepare("SELECT count(*) FROM eventlog e JOIN eventlog_metadata m USING(rowid) WHERE m.turn_id=:turn AND e.type='inputtext'");
+    $falseInput->execute(['turn'=>$directorChild['turn_id']]);$assert((int)$falseInput->fetchColumn()===0,'Director authored words were projected as listener input');
+    foreach(['profileBackfillHistory','narratorEvolutionHistory'] as $historyMethod){
+        $historyArgs=[$installationId,$session['playthrough_id']];if($historyMethod==='profileBackfillHistory')$historyArgs[]=$directorChild['payload']['target'];$historyArgs[]=400;
+        $history=(new ReflectionMethod($products,$historyMethod))->invokeArgs($products,$historyArgs);
+        $directorHistory=array_values(array_filter($history['recent_events'],static fn(array $event):bool=>$event['turn_id']===$directorChild['turn_id']));
+        $assert(count($directorHistory)===1&&!isset($directorHistory[0]['player_input'])&&$directorHistory[0]['scene_event']===''
+            &&str_contains(implode(' ',$directorHistory[0]['npc_responses']),'Balmora has a long history.'),'Director history invented player speech or removed genuine NPC dialogue');
+    }
+    $assert(!in_array($directorRequest['payload']['input']['text'],$products->recentPlayerInputs($installationId,200),true),'Director off-stage direction contaminated player speech-style samples');
     $nextChild=$transferTurn();$nextChild['payload']['execution_mode']='standard';
     $nextChild['payload']['director_instruction_id']=$directorInstructions[1];$nextChild['payload']['target']=$transferRecipient;
-    $assert($director->prepareChild($nextChild)['instruction']==='Offer a different opinion.','Director second child remained blocked after terminal first child');
+    $assert($director->prepareChild($nextChild)['instruction']==='What do you think, traveller?','Director second child remained blocked after terminal first child');
     $wrongChild=$nextChild;$wrongChild['payload']['target']=$turn['payload']['target'];
     try{$director->prepareChild($wrongChild);$assert(false,'Director substituted actor accepted');}
     catch(RuntimeException $error){$assert($error->getMessage()==='director_actor_mismatch','wrong Director actor error');}
@@ -4461,8 +4537,9 @@ $db->prepare('UPDATE profiles SET deleted_at=clock_timestamp() WHERE profile_id=
 [$status,$configuredAccepted]=$call($router,'POST',$base.'/sessions',$headers($configuredSession['message_id']),[],$configuredSession);
 $restoredSessionProfile=$db->prepare('SELECT deleted_at IS NULL FROM profiles WHERE profile_id=:profile');
 $restoredSessionProfile->execute(['profile'=>$configuredSession['profile_id']]);
+$settingsHandshakeExpected=$settingsDocument;$settingsHandshakeExpected['behavior']['ai_enabled']=true;
 $assert($status===201&&$configuredAccepted['config_revision']===$configuredRevision
-    &&$configuredAccepted['client_settings']==$settingsDocument&&filter_var($restoredSessionProfile->fetchColumn(),FILTER_VALIDATE_BOOL),
+    &&$configuredAccepted['client_settings']==$settingsHandshakeExpected&&filter_var($restoredSessionProfile->fetchColumn(),FILTER_VALIDATE_BOOL),
     'revisioned installation settings were not returned by the next OpenMW session handshake');
 $configuredDeleteKey=$newUuid(305);
 [$status,$configuredEnded]=$call($router,'DELETE',$base.'/sessions/'.$configuredAccepted['session_id'],['Idempotency-Key'=>$configuredDeleteKey]);
@@ -4478,7 +4555,7 @@ foreach([$legacyClientSettings,$legacyGlobalSettings]as$index=>$legacySettings){
     $legacySession=$session;$legacySession['message_id']=$newUuid(306+$index*2);$legacySession['generation']=9+$index;
     [$status,$legacyAccepted]=$call($router,'POST',$base.'/sessions',$headers($legacySession['message_id']),[],$legacySession);
     $unchangedSettings=$products->globalSettingsForInstallation($installationId);
-    $assert($status===201&&$legacyAccepted['client_settings']==$settingsDocument
+    $assert($status===201&&$legacyAccepted['client_settings']==$settingsHandshakeExpected
         &&$legacyAccepted['config_revision']==='global-settings-r'.$legacyRevision['current_revision']
         &&$unchangedSettings['content']==$legacySettings,
         'legacy session settings must gain missing defaults without changing saved values or revisions');
@@ -5199,5 +5276,40 @@ $assert($reportStatus['state']==='succeeded'&&str_contains($reportStatus['report
 $assert($reportProducts->getRevisioned('profile',$reportNpcId)['current_revision']===4,'report changed NPC profile');
 try{$reports->save($claimed['job_id'],1,$claimed['lease_token'],'late result');$assert(false,'expired report lease wrote');}catch(RuntimeException $e){$assert($e->getMessage()==='lease_lost','wrong report fence error');}
 try{$reports->status('00000000-0000-4000-8000-000000000001',$reportNpcId,$claimed['job_id']);$assert(false,'cross-installation report exposed');}catch(RuntimeException){$assert(true,'report scope rejection');}
+
+// Master AI Off retires output, not the session, STT or passive game observations.
+$aiQuery=$db->prepare("SELECT * FROM sessions WHERE installation_id=:installation AND state='active' ORDER BY created_at DESC LIMIT 1");
+$aiQuery->execute(['installation'=>$installationId]);$aiSession=$aiQuery->fetch();$assert((bool)$aiSession,'AI fixture needs active session');
+$aiTurn=$fixture('turn');foreach(['installation_id','profile_id','playthrough_id','content_fingerprint','session_id']as$key)$aiTurn[$key]=$aiSession[$key];
+$aiTurn['generation']=(int)$aiSession['generation'];foreach(['message_id','request_id','turn_id']as$key)$aiTurn[$key]=Uuid::v4();
+$repo->acceptTurn($aiTurn);
+$aiDialogue=Uuid::v4();
+$db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,response_line_id,utterance_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:id,:id,:id,:session,:turn,:request,:generation,1,1,CAST(:speaker AS jsonb),CAST(:addressee AS jsonb),'[]','Cancelled fixture speech',clock_timestamp(),clock_timestamp()+interval '5 minutes')")
+ ->execute(['id'=>$aiDialogue,'session'=>$aiTurn['session_id'],'turn'=>$aiTurn['turn_id'],'request'=>$aiTurn['request_id'],'generation'=>$aiTurn['generation'],'speaker'=>json_encode($aiTurn['payload']['target']),'addressee'=>json_encode($aiTurn['payload']['speaker'])]);
+$aiStt=['message_id'=>Uuid::v4(),'request_id'=>Uuid::v4(),'turn_id'=>Uuid::v4(),'session_id'=>$aiTurn['session_id'],'generation'=>$aiTurn['generation'],'codec'=>'wav','language'=>'en-US','audio_bytes'=>64,'sha256'=>str_repeat('a',64),'created_at'=>gmdate('Y-m-d\TH:i:s\Z')];
+$repo->acceptStt($aiStt,Uuid::v4(),str_repeat('b',64));
+$aiGlobal=$products->globalSettingsForInstallation($installationId);$aiOff=$aiGlobal['content'];$aiOff['client']['behavior']['ai_enabled']=false;
+$products->revise('global_settings',$aiGlobal['configuration_id'],$aiOff,'master off regression',gmdate('Y-m-d\TH:i:s\Z'));
+$assert($repo->isDialogueCancellationRequested($aiDialogue),'AI off left speech usable');
+$aiSpeechJob=Uuid::v4();$aiLease=Uuid::v4();
+$db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,state,lease_owner,lease_token,leased_at,lease_expires_at,heartbeat_at,attempt_count) VALUES(:id,'speech.synthesize',1,:key,'{}','leased','master-test',:token,clock_timestamp(),clock_timestamp()+interval '5 minutes',clock_timestamp(),1)")
+ ->execute(['id'=>$aiSpeechJob,'key'=>'master-speech:'.$aiDialogue,'token'=>$aiLease]);
+$aiFence=['job_id'=>$aiSpeechJob,'lease_token'=>$aiLease,'attempt'=>1];
+$assert($repo->claimDialogueForSpeech($aiDialogue,$aiFence)===null,'cancelled speech was claimed');
+$assert($repo->completeDialogueSpeech(['dialogue_message_id'=>$aiDialogue],[],$aiFence)===[],'late speech published after AI off');
+
+$aiQuery=$db->prepare('SELECT state FROM turns WHERE turn_id=:turn');$aiQuery->execute(['turn'=>$aiTurn['turn_id']]);$assert($aiQuery->fetchColumn()==='cancelled','AI off left accepted turn');
+$aiQuery=$db->prepare('SELECT state,generation FROM sessions WHERE session_id=:session');$aiQuery->execute(['session'=>$aiTurn['session_id']]);$aiStill=$aiQuery->fetch();
+$assert($aiStill['state']==='active'&&(int)$aiStill['generation']===$aiTurn['generation'],'AI off invalidated session');
+$aiQuery=$db->prepare('SELECT state FROM stt_requests WHERE message_id=:id');$aiQuery->execute(['id'=>$aiStt['message_id']]);$assert($aiQuery->fetchColumn()==='accepted','AI off cancelled STT');
+foreach(['message_id','request_id','turn_id']as$key)$aiStt[$key]=Uuid::v4();$repo->acceptStt($aiStt,Uuid::v4(),str_repeat('c',64));
+$aiObservation=$resurrected;$aiObservation['request_id']=Uuid::v4();
+foreach(['installation_id','playthrough_id','session_id','generation']as$key)$aiObservation[$key]=$aiTurn[$key];
+$repo->acceptGameData($aiObservation);
+$aiQuery=$db->prepare('SELECT 1 FROM source_events WHERE source_event_id=:id');$aiQuery->execute(['id'=>$aiObservation['request_id']]);$assert((bool)$aiQuery->fetchColumn(),'AI off blocked passive observation');
+foreach(['message_id','request_id','turn_id']as$key)$aiTurn[$key]=Uuid::v4();
+try{$repo->acceptTurn($aiTurn);$assert(false,'AI off accepted turn');}catch(DomainException$error){$assert($error->getMessage()==='ai_disabled','wrong disabled reason');}
+$products->revise('global_settings',$aiGlobal['configuration_id'],$aiGlobal['content'],'restore master',gmdate('Y-m-d\TH:i:s\Z'));
+$assert($repo->isDialogueCancellationRequested($aiDialogue),'AI on revived cancelled speech');
 
 fwrite(STDOUT, "integration vertical slice passed\n");

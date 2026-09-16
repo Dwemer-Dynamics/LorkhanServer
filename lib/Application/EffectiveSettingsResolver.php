@@ -16,15 +16,26 @@ final class EffectiveSettingsResolver
     {
         if ($value === null) return ['enabled'=>false, 'fields'=>['personality','speech_style','goals']];
         if (!is_array($value)) throw new InvalidArgumentException('invalid_profile_evolution_defaults');
-        $keys=array_keys($value);sort($keys);
-        if (!in_array($keys,[['enabled','fields'],['enabled','fields','history_limit']],true) || !is_bool($value['enabled']) || !is_array($value['fields'])
+        $keys=array_keys($value);
+        if (array_diff($keys,['enabled','fields','history_limit','interval_days','min_events','cooldown_minutes'])!==[] || !is_bool($value['enabled']??null) || !is_array($value['fields']??null)
             || !array_is_list($value['fields']) || $value['fields']===[] || count($value['fields'])>5)
             throw new InvalidArgumentException('invalid_profile_evolution_defaults');
         foreach ($value['fields'] as $field) if (!is_string($field) || !in_array($field,self::DYNAMIC_PROFILE_FIELDS,true))
             throw new InvalidArgumentException('invalid_profile_evolution_defaults');
         if (count(array_unique($value['fields']))!==count($value['fields'])) throw new InvalidArgumentException('invalid_profile_evolution_defaults');
         if(array_key_exists('history_limit',$value)&&(!is_int($value['history_limit'])||$value['history_limit']<0||$value['history_limit']>400))throw new InvalidArgumentException('invalid_profile_evolution_defaults');
+        self::validateEvolutionSchedule($value);
         return $value;
+    }
+
+    /** Validate server scheduling leaves shared by Core, NPC and Narrator overrides. */
+    public static function validateEvolutionSchedule(array $value):void
+    {
+        foreach(['interval_days'=>[1/24,365],'min_events'=>[1,10000],'cooldown_minutes'=>[1,1440]] as $key=>[$min,$max]){
+            if(!array_key_exists($key,$value))continue;
+            if((!is_int($value[$key])&&($key!=='interval_days'||!is_float($value[$key])))||!is_finite((float)$value[$key])||$value[$key]<$min||$value[$key]>$max)
+                throw new InvalidArgumentException('invalid_profile_evolution_defaults');
+        }
     }
 
     /** @return array<string,mixed> */
@@ -84,7 +95,7 @@ final class EffectiveSettingsResolver
         $settings['narrator'] = SettingsCatalog::clientDefaults()['narrator'];
         $settings['diary'] = DiaryGenerationPolicy::defaults();
         $settings['response'] = ['max_words' => 0];
-        $settings['profile_evolution'] = ['history_limit' => 50];
+        $settings['profile_evolution'] = ['history_limit' => 50,'interval_days'=>1,'min_events'=>30,'cooldown_minutes'=>5];
         $settings['profile_management'] = array_intersect_key($global['profile_management'],
             array_flip(['autofill_custom_profiles','autofill_custom_profiles_trigger']));
         $sources = [];
@@ -149,8 +160,8 @@ final class EffectiveSettingsResolver
         if (isset($coreOverrides['rpg_comments'])) $allowedOverrides['rpg_comments'] = $coreOverrides['rpg_comments'];
         if (isset($coreOverrides['oghma'])) $allowedOverrides['oghma'] = $coreOverrides['oghma'];
         if (isset($coreOverrides['profile_management'])) $allowedOverrides['profile_management'] = $coreOverrides['profile_management'];
-        if (isset($coreOverrides['profile_evolution']['history_limit']))
-            $allowedOverrides['profile_evolution']['history_limit'] = $coreOverrides['profile_evolution']['history_limit'];
+        foreach(['history_limit','interval_days','min_events','cooldown_minutes'] as $leaf)
+            if (isset($coreOverrides['profile_evolution'][$leaf]))$allowedOverrides['profile_evolution'][$leaf]=$coreOverrides['profile_evolution'][$leaf];
         $this->mergeSettings($settings, $allowedOverrides, 'core_profile', 'settings', $sources);
 
         $coreRouting = self::validateRouting($coreProfileContent['routing'] ?? []);
@@ -293,6 +304,7 @@ final class EffectiveSettingsResolver
             if (is_array($content['narrator'] ?? null) && !array_is_list($content['narrator'])) {
                 $content['narrator'] += SettingsCatalog::clientDefaults()['narrator'];
             }
+            $content['behavior'] += ['ai_enabled'=>true];
             self::validateSettingsShape($content, SettingsCatalog::clientDefaults(), false);
             $migrated = SettingsCatalog::globalDefaults();
             $migrated['client'] = $content;
@@ -311,6 +323,7 @@ final class EffectiveSettingsResolver
         $content += ['task_availability'=>$expected['task_availability']];
         self::assertExactKeys($content, $expected, 'invalid_global_settings');
         if (($content['schema'] ?? null) !== SettingsCatalog::GLOBAL_SCHEMA) throw new InvalidArgumentException('invalid_global_settings');
+        $content['client']['behavior'] += ['ai_enabled'=>true];
         self::validateSettingsShape($content['client'], SettingsCatalog::clientDefaults(), false);
         if(!is_array($content['task_availability'])||array_is_list($content['task_availability']))throw new InvalidArgumentException('invalid_global_settings');
         $content['task_availability'] += ['scene_classifier'=>true,'director'=>true];
@@ -469,9 +482,10 @@ final class EffectiveSettingsResolver
             unset($validation['rpg_comments']);
         }
         if (array_key_exists('profile_evolution', $validation)) {
-            if ($npc && is_array($validation['profile_evolution']) && array_keys($validation['profile_evolution']) === ['history_limit']) {
-                $limit = $validation['profile_evolution']['history_limit'];
+            if ($npc && is_array($validation['profile_evolution']) && array_diff(array_keys($validation['profile_evolution']),['history_limit','interval_days','min_events','cooldown_minutes'])===[]) {
+                $limit = $validation['profile_evolution']['history_limit']??50;
                 if (!is_int($limit) || $limit < 0 || $limit > 400) throw new InvalidArgumentException('invalid_settings_overrides');
+                self::validateEvolutionSchedule($validation['profile_evolution']);
             } else self::profileEvolutionDefaults($validation['profile_evolution']);
             unset($validation['profile_evolution']);
         }

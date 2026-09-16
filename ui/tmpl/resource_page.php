@@ -626,6 +626,8 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
                 ['change_reason','Change reason','text','management edit'],
             ],
         ],$managementBasePath,$csrf);
+        require_once __DIR__.'/tts_filter_field.php';
+        lorkhan_ui_tts_filter_field($content,$profileId,$managementBasePath,$csrf,'management-form-profile-'.$profileId);
         echo '</details>';
         $portraitControl='portrait-'.substr(hash('sha256',$profileId),0,12);
         echo'<details><summary>Manage portrait</summary><form class="management-form portrait-form" method="post" enctype="multipart/form-data" action="'.lorkhan_ui_h($portraitEndpoint).'"><fieldset><legend>Upload NPC portrait</legend>';
@@ -706,7 +708,7 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     $knowledgeTags=$content['oghma_knowledge_tags']??$content['oghma_tags']??'';
     $field('oghma_knowledge_tags','Oghma Tags','text',is_array($knowledgeTags)?implode(', ',array_map('strval',$knowledgeTags)):(string)$knowledgeTags,[],'','Used by Oghma systems for knowledge lookup restrictions.','Comma-separated knowledge tags');
     $field('voice_id','Voice sample','datalist',(string)($voice['id']??''),$voiceOptions);$field('voice_language','Voice Language','text',(string)($voice['language']??'en'));
-    $checkbox('dynamic_profile','♻️Dynamic Profile',$dynamicProfile,'Every 20 minutes, evolve selected fields from witnessed dialogue while this NPC is nearby and unlocked.');
+    $checkbox('dynamic_profile','♻️Dynamic Profile',$dynamicProfile,'Evolve selected fields after the configured game-day interval, delivered event count and real-time cooldown. This NPC must be unlocked, but need not remain nearby.');
     echo'<input type="hidden" name="dynamic_profile_fields_present" form="'.lorkhan_ui_h($formId).'" value="1"><details class="form-item npc-editor-check npc-dynamic-fields"><summary>Dynamic Profile Fields</summary>';
     foreach(['personality'=>'Personality','occupation'=>'Occupation','skills'=>'Skills','speech_style'=>'Speech Style','goals'=>'Goals']as$key=>$label)echo'<label><input name="dynamic_profile_fields[]" form="'.lorkhan_ui_h($formId).'" type="checkbox" value="'.$key.'"'.(in_array($key,$dynamicFields,true)?' checked':'').'> '.$label.'</label>';
     echo'<small class="hint">Choose at least one field when Dynamic Profile is enabled.</small></details>';

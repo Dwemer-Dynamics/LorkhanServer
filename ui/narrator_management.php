@@ -231,6 +231,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                             <span class="narrator-hint">LLM connector profile for The Narrator.</span>
                         <label for="narrator-voice">Voice ID</label>
                         <input id="narrator-voice" name="voice_id" type="text" value="<?php echo lorkhan_ui_h($voice['id'] ?? ''); ?>" placeholder="TheNarrator">
+<?php require_once __DIR__.'/tmpl/tts_filter_field.php'; lorkhan_ui_tts_filter_field($content,(string)($profile['profile_id']??''),$managementBasePath,$csrf); ?>
                         <span class="narrator-hint">TTS voice identifier for the narrator.</span>
                         <label for="narrator-oghma-knowledge">Oghma Knowledge Tags</label>
                         <input type="text" id="narrator-oghma-knowledge" name="oghma_knowledge_tags" maxlength="4096" placeholder="Comma-separated knowledge tags (e.g., knowall, knowsome, knownone)" value="<?php echo lorkhan_ui_h($content['oghma_knowledge_tags'] ?? ''); ?>">
@@ -275,7 +276,12 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <?php $dynamicProfileFields=is_array($content['dynamic_profile_fields']??null)?$content['dynamic_profile_fields']:['personality','speech_style','goals']; ?>
                         <input type="hidden" name="dynamic_profile_fields_present" value="1">
                         <label class="narrator-toggle-row"><span class="narrator-toggle-switch"><input type="checkbox" name="dynamic_profile" value="1" aria-describedby="narrator-dynamic-help"<?php echo ($content['dynamic_profile']??false)===true?' checked':''; ?>><span class="narrator-toggle-slider" aria-hidden="true"></span></span><span class="narrator-toggle-label">Enable Dynamic Profile</span></label>
-                        <span class="narrator-hint" id="narrator-dynamic-help">Every 20 minutes, evolve the selected fields from witnessed dialogue. Locked narrator profiles are never changed.</span>
+                        <span class="narrator-hint" id="narrator-dynamic-help">Evolve after enough game days and delivered events, subject to a real-time cooldown. Locked profiles are never changed. Leave schedule fields blank to inherit the Core Profile.</span>
+                        <input type="hidden" name="evolution_schedule_present" value="1">
+                        <?php foreach(['interval_days'=>['Interval (Game Days)',1/24,365,'any',1],'min_events'=>['Minimum Events',1,10000,1,30],'cooldown_minutes'=>['Cooldown (Real Minutes)',1,1440,1,5]] as $key=>[$label,$min,$max,$step,$default]): ?>
+                        <label for="narrator-evolution-<?php echo $key; ?>"><?php echo lorkhan_ui_h($label); ?></label>
+                        <input id="narrator-evolution-<?php echo $key; ?>" name="evolution_<?php echo $key; ?>" type="number" min="<?php echo $min; ?>" max="<?php echo $max; ?>" step="<?php echo $step; ?>" placeholder="Inherit (default <?php echo $default; ?>)" value="<?php echo lorkhan_ui_h((string)($content['settings_overrides']['profile_evolution'][$key]??'')); ?>">
+                        <?php endforeach; ?>
                         <label class="narrator-field-selection-label" id="narrator-field-selection-label">Field Selection (choose 1-3)</label>
                         <span class="narrator-hint">Select which fields should be dynamically updated:</span>
                         <div class="narrator-field-chips" role="group" aria-labelledby="narrator-field-selection-label"><?php foreach(['personality'=>'Personality','speech_style'=>'Speech Style','goals'=>'Goals']as$key=>$label): ?><label class="narrator-field-chip"><input type="checkbox" name="dynamic_profile_fields[]" value="<?php echo lorkhan_ui_h($key); ?>"<?php echo in_array($key,$dynamicProfileFields,true)?' checked':''; ?>> <span class="chip-text"><?php echo lorkhan_ui_h($label); ?></span></label><?php endforeach; ?></div>

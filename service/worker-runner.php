@@ -61,6 +61,8 @@ try {
         (int) ($worker['idle_exit_seconds'] ?? 30),
         (int) ($worker['max_runtime_seconds'] ?? 300),
         $types,
+        maintenance: $types===null||in_array('profile.generate',$types,true)
+            ?static fn()=>(new \LorkhanServer\Infrastructure\ProfileEvolutionScheduler($database))->run():null,
     );
     $stats = $runner->run();
     fwrite(STDOUT, json_encode(['worker_id' => $workerId] + $stats, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n");

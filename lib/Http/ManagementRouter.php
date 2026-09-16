@@ -434,6 +434,7 @@ final class ManagementRouter
             }
         }
         if($r->method==='POST'&&$path==='/api/v1/diary-audio')return$this->diaryAudio($this->json($r),$browserSession);
+        if($r->method==='POST'&&$path==='/api/v1/profile-voice-preview')return$this->profileVoicePreview($this->json($r),$browserSession);
         if($r->method==='POST'&&$path==='/api/v1/tts-previews')return$this->speechPreview($this->json($r),$browserSession);
         if($r->method==='GET'&&$path==='/api/v1/actions')return Response::json(200,['items'=>$this->actions()]);
         if($r->method==='GET'&&$path==='/api/v1/action-policies/editor')return Response::json(200,$this->actionPolicyEditor($r));
@@ -2579,12 +2580,16 @@ final class ManagementRouter
             EffectiveSettingsResolver::validateSettingsOverrides(['rpg_comments'=>$overrides['rpg_comments']]);
         }
         if (isset($values['profile_evolution_present'])) {
+            if(isset($values['setting_profile_evolution_interval_days'])&&!is_numeric($values['setting_profile_evolution_interval_days']))throw new InvalidArgumentException('invalid_profile_evolution_defaults');
             $fields=$values['profile_evolution_fields']??[];
             if (!is_array($fields)) throw new InvalidArgumentException('invalid_profile_evolution_defaults');
             if ($fields===[] && !isset($values['profile_evolution_enabled'])) $fields=['personality','speech_style','goals'];
             $overrides['profile_evolution']=EffectiveSettingsResolver::profileEvolutionDefaults([
                 'enabled'=>isset($values['profile_evolution_enabled']), 'fields'=>$fields,
-                'history_limit'=>$number($values,'setting_profile_evolution_history_limit',50)]);
+                'history_limit'=>$number($values,'setting_profile_evolution_history_limit',50),
+                'interval_days'=>isset($values['setting_profile_evolution_interval_days'])&&is_numeric($values['setting_profile_evolution_interval_days'])?(float)$values['setting_profile_evolution_interval_days']:1,
+                'min_events'=>$number($values,'setting_profile_evolution_min_events',30),
+                'cooldown_minutes'=>$number($values,'setting_profile_evolution_cooldown_minutes',5)]);
         }
         // Match the reference merge: preserve advanced overrides, with visible controls authoritative.
         if (array_key_exists('core_settings_overrides_json', $values)) {
@@ -2707,6 +2712,8 @@ final class ManagementRouter
     private function profileContent(array $values,bool $allowSpecialTtsRouting=false):array
     {
         $content=isset($values['base_content_json'])?$this->jsonField($values,'base_content_json'):[];
+        if(array_key_exists('tts_filter_preset',$values))$content['tts_filter_preset']=\LorkhanServer\Application\TtsFilterPresets::validate($values['tts_filter_preset']);
+        if(isset($content['tts_filter_preset']))\LorkhanServer\Application\TtsFilterPresets::validate($content['tts_filter_preset']);
         foreach(['prompt_head','core','appearance','biography','personality','speech_style','occupation','skills','goals','relationships','emote_moods','gender','race','tags','notes']as$field){
             if(!array_key_exists($field,$values))continue;
             $value=trim((string)($values[$field]??''));if($value!=='')$content[$field]=$value;else unset($content[$field]);
@@ -2782,6 +2789,18 @@ final class ManagementRouter
             if(isset($values['dynamic_profile'])&&$fields===[])throw new InvalidArgumentException('invalid_dynamic_profile_fields');
             $content['dynamic_profile']=isset($values['dynamic_profile']);
             $content['dynamic_profile_fields']=$fields===[]?['personality','speech_style','goals']:$fields;
+        }
+        if(isset($values['evolution_schedule_present'])){
+            $schedule=$content['settings_overrides']['profile_evolution']??[];
+            foreach(['interval_days','min_events','cooldown_minutes'] as $key){
+                $raw=trim((string)($values['evolution_'.$key]??''));
+                if($raw===''){unset($schedule[$key]);continue;}
+                if(!is_numeric($raw)||($key!=='interval_days'&&!ctype_digit($raw)))throw new InvalidArgumentException('invalid_profile_evolution_defaults');
+                $schedule[$key]=$key==='interval_days'?(float)$raw:(int)$raw;
+            }
+            EffectiveSettingsResolver::validateEvolutionSchedule($schedule);
+            if($schedule===[])unset($content['settings_overrides']['profile_evolution']);
+            else $content['settings_overrides']['profile_evolution']=$schedule;
         }
         return$content;
     }
@@ -3161,6 +3180,27 @@ final class ManagementRouter
      * Nothing is queued, stored, or logged: the audio is streamed straight back to the browser and
      * any provider failure collapses into one opaque code so credentials never reach the page.
      */
+    private function profileVoicePreview(array $values,string $browserSession):Response
+    {
+        if(!$this->management->allowTtsPreview($browserSession))return Response::json(429,['error'=>'tts_preview_rate_limited']);
+        $id=$this->need($values,'profile_id');$this->uuid($id,'profile_id');
+        $profile=$this->repository->getRevisioned('profile',$id);
+        $installation=(string)$profile['installation_id'];
+        $filter=\LorkhanServer\Application\TtsFilterPresets::validate($values['tts_filter_preset']??$profile['content']['tts_filter_preset']??'none');
+        $effective=$this->repository->effectiveSettingsForProfile($installation,$id);
+        $configuration=(string)($effective['routing']['tts_configuration_id']??'');
+        $preset=$configuration!==''?$this->repository->getRevisioned('tts_provider',$configuration):$this->repository->connectorForInstallation($installation,'tts_provider');
+        if($preset===null||($preset['installation_id']??null)!==$installation)throw new InvalidArgumentException('invalid_tts_preview_connector');
+        $context=$this->repository->speechContextFromProfile($profile,(array)$profile['actor_identity'],$preset);
+        $context['tts_filter_preset']=$filter;
+        try {
+            $audio=ProviderFactory::speechForPreset($this->providerConfig,$preset)->synthesize('Welcome to Morrowind. This is a preview of my voice.',new NeverCancelledToken(),$context);
+            $bytes=(string)($audio['bytes']??'');
+            if($bytes===''||strlen($bytes)>self::MAX_PREVIEW_AUDIO_BYTES)throw new RuntimeException('tts_preview_failed');
+        }catch(Throwable){return Response::json(502,['error'=>'tts_preview_failed']);}
+        return new Response(200,$bytes,['Content-Type'=>'audio/wav','Content-Disposition'=>'inline','Cache-Control'=>'no-store','X-Content-Type-Options'=>'nosniff']);
+    }
+
     private function speechPreview(array $values,string $browserSession):Response
     {
         if(!$this->management->allowTtsPreview($browserSession))return Response::json(429,['error'=>'tts_preview_rate_limited']);
@@ -3178,7 +3218,7 @@ final class ManagementRouter
         if(!in_array($voice,$offered[$configuration],true))throw new InvalidArgumentException('invalid_tts_preview_voice');
         $preset=$this->repository->getRevisioned('tts_provider',$configuration);
         if(($preset['installation_id']??null)!==$installation)throw new InvalidArgumentException('invalid_provider_scope');
-        $context=['voice'=>$voice];
+        $context=['voice'=>$voice,'tts_filter_preset'=>\LorkhanServer\Application\TtsFilterPresets::validate($values['tts_filter_preset']??'none')];
         if(($preset['content']['driver']??'')==='omnivoice'&&isset($values['language'])){
             $language=strtolower(trim((string)$values['language']));
             if(preg_match('/^[a-z]{2,3}(?:-[a-z0-9]{2,8})?$/D',$language)!==1)throw new InvalidArgumentException('invalid_voice_language');

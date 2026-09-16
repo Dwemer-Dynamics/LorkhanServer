@@ -37,6 +37,7 @@ final class ProductRepository
     public function createRevisioned(string $kind, array $input, string $now, bool $inheritCoreDefaults = true): array
     {
         return $this->transaction(function () use ($kind, $input, $now, $inheritCoreDefaults): array {
+            if($kind==='global_settings')$this->db->query("SELECT pg_advisory_xact_lock(7514,120)");
             if(in_array($kind,['memory_policy','memory_embedding_policy','translation_policy'],true)){
                 if(isset($input['profile_id']))throw new \InvalidArgumentException($kind.'_is_installation_scoped');
             }
@@ -85,6 +86,8 @@ final class ProductRepository
                     ->execute(['id'=>$id,'installation'=>$input['installation_id'],'profile'=>$input['profile_id'] ?? null,'kind'=>$configKind,'name'=>$input['name'],'now'=>$now]);
                 $this->revision('configuration_revisions', 'configuration_id', $id, 1, $input['content'], $reason, $now);
                 if($configKind==='prompt')$this->syncPrompt($id,$input['content'],1,$now);
+                if($configKind==='global_settings'&&($input['content']['client']['behavior']['ai_enabled']??true)===false)
+                    (new Repository($this->db))->cancelAiOutput($input['installation_id']);
             }
             return $this->getRevisioned($kind, $id);
         });
@@ -473,6 +476,7 @@ final class ProductRepository
     public function revise(string $kind, string $id, array $content, string $reason, string $now, ?int $expectedRevision = null): array
     {
         return $this->transaction(function () use ($kind,$id,$content,$reason,$now,$expectedRevision): array {
+            if($kind==='global_settings')$this->db->query("SELECT pg_advisory_xact_lock(7514,120)");
             [$table,$key,$revisions] = $this->revisionMeta($kind);
             $stmt = $this->db->prepare("SELECT current_revision FROM {$table} WHERE {$key}=:id AND deleted_at IS NULL FOR UPDATE");
             $stmt->execute(['id'=>$id]);
@@ -491,6 +495,8 @@ final class ProductRepository
             $this->revision($revisions, $key, $id, $next, $content, $reason, $now);
             $this->db->prepare("UPDATE {$table} SET current_revision=:revision WHERE {$key}=:id")->execute(['revision'=>$next,'id'=>$id]);
             if($kind==='prompt')$this->syncPrompt($id,$content,$next,$now);
+            if($kind==='global_settings'&&($content['client']['behavior']['ai_enabled']??true)===false)
+                (new Repository($this->db))->cancelAiOutput($this->getRevisioned($kind,$id)['installation_id']);
             return $this->getRevisioned($kind,$id);
         });
     }
@@ -521,7 +527,7 @@ final class ProductRepository
         $setting = $input['setting'] ?? null;
         $revision = $input['revision'] ?? null;
         $allowed = ['quest_comments.enabled', 'quest_comments.chance_percent', 'bored_event.chance_percent', 'response.max_words', 'response.core_lang', 'response.lang_llm_xtts', 'behavior.rechat_max_depth', 'behavior.rechat_probability_percent',
-            'profile_evolution.history_limit', 'behavior.rechat_allow_actions', 'behavior.combat_bark_period_seconds', 'memory.recent_turn_limit', 'diary.context_turn_limit',
+            'profile_evolution.history_limit','profile_evolution.interval_days','profile_evolution.min_events','profile_evolution.cooldown_minutes', 'behavior.rechat_allow_actions', 'behavior.combat_bark_period_seconds', 'memory.recent_turn_limit', 'diary.context_turn_limit',
             'diary.automatic_interval_seconds', 'diary.prompt'];
         if (!is_string($id) || !Uuid::isValid($id) || !is_string($setting) || !in_array($setting, $allowed, true)
             || !is_int($revision) || $revision < 1 || !array_key_exists('value', $input)) throw new InvalidArgumentException('invalid_profile_setting_copy');
@@ -931,10 +937,15 @@ final class ProductRepository
         });
     }
 
-    /** Queue one CHIM-cadence evolution from bounded witnessed history for an opted-in unlocked profile. */
-    public function maybeEnqueueDynamicProfileEvolution(string $profileId,string $playthroughId,string $sessionId):array
+    public function evolutionScheduleActive(array $payload):bool
     {
-        return$this->transaction(function()use($profileId,$playthroughId,$sessionId):array{
+        return (new ProfileEvolutionScheduler($this->db))->active($payload);
+    }
+
+    /** Queue one calendar/event/cooldown-gated evolution for an opted-in unlocked profile. */
+    public function maybeEnqueueDynamicProfileEvolution(string $profileId,string $playthroughId,string $sessionId,bool $manual=false):array
+    {
+        return$this->transaction(function()use($profileId,$playthroughId,$sessionId,$manual):array{
             $select=$this->db->prepare('SELECT p.installation_id,p.current_revision,p.actor_identity,r.content,s.created_at AS session_created_at '
                 .'FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision '
                 .'JOIN sessions s ON s.session_id=:session AND s.installation_id=p.installation_id AND s.playthrough_id=:playthrough '
@@ -942,8 +953,8 @@ final class ProductRepository
             $select->execute(['profile'=>$profileId,'playthrough'=>$playthroughId,'session'=>$sessionId]);$row=$select->fetch();
             if(!$row)throw new RuntimeException('not_found');
             if(!$this->profileTasksEnabled((string)$row['installation_id']))return['queued'=>false,'reason'=>'profile_tasks_disabled','observed'=>0,'required'=>0];
-            $sessionStarted=strtotime((string)$row['session_created_at']);
-            if($sessionStarted===false||time()-$sessionStarted<1200)return['queued'=>false,'reason'=>'interval','observed'=>0];
+            if(($this->globalSettingsForInstallation((string)$row['installation_id'])['content']['client']['behavior']['ai_enabled']??true)!==true)
+                return ['queued'=>false,'reason'=>'ai_disabled','observed'=>0];
             $content=$this->json($row['content']);$management=is_array($content['management']??null)?$content['management']:[];
             if(($management['locked']??false)===true)return['queued'=>false,'reason'=>'profile_locked','observed'=>0];
             if(($content['dynamic_profile']??false)!==true)return['queued'=>false,'reason'=>'disabled','observed'=>0];
@@ -955,12 +966,15 @@ final class ProductRepository
             if(!$narrator&&in_array($identity['kind']??'actor',['player','template'],true))
                 return['queued'=>false,'reason'=>'profile_not_generatable','observed'=>0];
             $mode=$narrator?'narrator_profile_evolution':'profile_evolution';
+            $effective=$this->effectiveSettingsForProfile((string)$row['installation_id'],$profileId);
+            $scheduler=new ProfileEvolutionScheduler($this->db);
+            $schedule=$scheduler->prepare((string)$row['installation_id'],$profileId,$playthroughId,$identity,$effective['settings']['profile_evolution']??[],$manual);
+            if(!$schedule['due'])return ['queued'=>false,'reason'=>$schedule['reason'],'observed'=>$schedule['observed']];
             $pending=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type='profile.generate' "
                 ."AND payload->>'profile_id'=:profile AND payload->>'playthrough_id'=:playthrough "
-                ."AND payload->>'mode'=:mode AND created_at>clock_timestamp()-interval '20 minutes' LIMIT 1");
+                ."AND payload->>'mode'=:mode AND state IN ('queued','leased','retry_wait') LIMIT 1");
             $pending->execute(['profile'=>$profileId,'playthrough'=>$playthroughId,'mode'=>$mode]);
             if($pending->fetchColumn())return['queued'=>false,'reason'=>'interval','observed'=>0];
-            $effective=$this->effectiveSettingsForProfile((string)$row['installation_id'],$profileId);
             if(empty($effective['routing']['profile_generation_configuration_id']))return['queued'=>false,'reason'=>'profile_generation_connector_unavailable','observed'=>0];
             $historyLimit=(int)($effective['settings']['profile_evolution']['history_limit']??50);
             if($historyLimit===0)$historyLimit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
@@ -968,16 +982,17 @@ final class ProductRepository
                 :$this->profileBackfillHistory((string)$row['installation_id'],$playthroughId,$identity,$historyLimit);
             $observed=count($history['source_turn_ids']);
             if($observed===0)return['queued'=>false,'reason'=>'history_unavailable','observed'=>0];
-            $revision=(int)$row['current_revision'];$bucket=(int)floor(time()/1200);
-            $key='profile-evolution:'.$profileId.':'.$playthroughId.':'.$bucket;
+            $revision=(int)$row['current_revision'];
+            $key='profile-evolution:'.$profileId.':'.$playthroughId.':'.Uuid::v4();
             $payload=$this->profileGenerationPayload((string)$row['installation_id'],$profileId,$revision,$mode)+[
                 'playthrough_id'=>$playthroughId,'source_turn_ids'=>$history['source_turn_ids'],
-                'recent_events'=>$history['recent_events'],'dynamic_fields'=>$fields];
-            $jobId=Uuid::v4();$insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),3,45) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
-            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($payload)]);$job=$insert->fetch();
+                'recent_events'=>$history['recent_events'],'dynamic_fields'=>$fields,'evolution_schedule'=>$schedule];
+            $jobId=Uuid::v4();$insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),3,:priority) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
+            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($payload),'priority'=>$manual?60:45]);$job=$insert->fetch();
             if(!$job){$existing=$this->db->prepare("SELECT job_id,state FROM durable_jobs WHERE job_type='profile.generate' AND idempotency_key=:key");
                 $existing->execute(['key'=>$key]);$job=$existing->fetch();}
             if(!$job)throw new RuntimeException('profile_generation_queue_failed');
+            $scheduler->attempted($profileId,$playthroughId);
             return$job+['queued'=>true,'profile_id'=>$profileId,'base_revision'=>$revision,'mode'=>$mode,
                 'observed'=>$observed,'dynamic_fields'=>$fields];
         });
@@ -1096,8 +1111,9 @@ final class ProductRepository
     private function profileBackfillHistory(string $installationId,string $playthroughId,array $identity,int $limit):array
     {
         $stable=array_intersect_key($identity,array_fill_keys(['kind','record_id','content_file','refnum'],true));
-        $statement=$this->db->prepare("SELECT t.turn_id,t.input_text,t.response_payload,EXISTS (SELECT 1 FROM source_events ie WHERE ie.turn_id=t.turn_id "
-            ."AND ie.event_kind='turn.requested' AND ie.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat')) AS injected FROM active_turns t "
+        $statement=$this->db->prepare("SELECT t.turn_id,CASE WHEN jsonb_exists(t.context,'director') THEN '' ELSE t.input_text END AS input_text,t.response_payload,
+            (jsonb_exists(t.context,'director') OR EXISTS (SELECT 1 FROM source_events ie WHERE ie.turn_id=t.turn_id "
+            ."AND ie.event_kind='turn.requested' AND ie.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat'))) AS injected FROM active_turns t "
             .'JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation '
             .'AND s.playthrough_id=:playthrough AND t.state=\'complete\' AND t.target @> CAST(:identity AS jsonb) '
             .'AND EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(t.response_payload->\'lines\',\'[]\'::jsonb)) line '
@@ -1120,10 +1136,11 @@ final class ProductRepository
     /** Freeze recent completed dialogue for narrator evolution without treating one NPC as the owner. */
     private function narratorEvolutionHistory(string $installationId,string $playthroughId,int $limit):array
     {
-        $statement=$this->db->prepare("SELECT t.turn_id,t.input_text,t.response_payload,EXISTS (SELECT 1 FROM source_events ie WHERE ie.turn_id=t.turn_id "
-            ."AND ie.event_kind='turn.requested' AND ie.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat')) AS injected FROM active_turns t "
+        $statement=$this->db->prepare("SELECT t.turn_id,CASE WHEN jsonb_exists(t.context,'director') THEN '' ELSE t.input_text END AS input_text,t.response_payload,
+            (jsonb_exists(t.context,'director') OR EXISTS (SELECT 1 FROM source_events ie WHERE ie.turn_id=t.turn_id "
+            ."AND ie.event_kind='turn.requested' AND ie.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat'))) AS injected FROM active_turns t "
             .'JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation '
-            .'AND s.playthrough_id=:playthrough AND t.state=\'complete\' ORDER BY t.completed_at DESC,t.turn_id DESC LIMIT :limit');
+            .'AND s.playthrough_id=:playthrough AND t.state=\'complete\' AND t.response_payload IS NOT NULL ORDER BY t.completed_at DESC,t.turn_id DESC LIMIT :limit');
         $statement->bindValue(':installation',$installationId);$statement->bindValue(':playthrough',$playthroughId);
         $statement->bindValue(':limit',$limit,PDO::PARAM_INT);$statement->execute();$rows=$statement->fetchAll();
         $turnIds=[];$events=[];$bytes=2;
@@ -1309,6 +1326,7 @@ final class ProductRepository
                 $job->execute(['job'=>$jobId,'attempt'=>$attempt]);$stored=$job->fetchColumn();if($stored===false)return false;
                 $payload=$this->json($stored);
                 if(($payload['profile_id']??null)!==$profileId||($payload['base_revision']??null)!==$baseRevision)return false;
+                if(!(new ProfileEvolutionScheduler($this->db))->active($payload))return false;
                 if(in_array($payload['mode']??null,['npc_profile_backfill','profile_evolution'],true)){
                     $sources=$payload['source_turn_ids']??[];$playthrough=$payload['playthrough_id']??null;
                     if(!is_string($playthrough)||!Uuid::isValid($playthrough)||$sources!==$sourceTurnIds
@@ -1325,7 +1343,9 @@ final class ProductRepository
                 VALUES(:profile,:revision,CAST(:content AS jsonb),:reason,:now,CAST(:provenance AS jsonb))');
             $insert->execute(['profile'=>$profileId,'revision'=>$next,'content'=>json_encode($content,JSON_THROW_ON_ERROR),
                 'reason'=>$reason,'now'=>$now,'provenance'=>json_encode($provenance===[]?(object)[]:$provenance,JSON_THROW_ON_ERROR)]);
-            $this->db->prepare('UPDATE profiles SET current_revision=:revision WHERE profile_id=:id')->execute(['revision'=>$next,'id'=>$profileId]);return true;
+            $this->db->prepare('UPDATE profiles SET current_revision=:revision WHERE profile_id=:id')->execute(['revision'=>$next,'id'=>$profileId]);
+            if(isset($payload))(new ProfileEvolutionScheduler($this->db))->complete($payload);
+            return true;
         });
     }
 
@@ -1804,7 +1824,7 @@ SQL);
     /** Return a newest-first bounded sample of typed or transcribed player turns for style analysis. */
     public function recentPlayerInputs(string $installationId,int $limit=200):array
     {
-        $limit=max(1,min(200,$limit));$statement=$this->db->prepare("SELECT t.input_text FROM active_turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation AND t.speaker->>'kind'='player' AND btrim(t.input_text)<>'' AND NOT EXISTS (SELECT 1 FROM source_events e WHERE e.turn_id=t.turn_id AND (e.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat') OR e.payload#>>'{payload,ui_source}' IN ('lorkhan_rpg_event','lorkhan_quest_event','lorkhan_rechat','lorkhan_action_followup') OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_auto_%' OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_narrator_%')) ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT :limit");
+        $limit=max(1,min(200,$limit));$statement=$this->db->prepare("SELECT t.input_text FROM active_turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation AND t.speaker->>'kind'='player' AND btrim(t.input_text)<>'' AND NOT jsonb_exists(t.context,'director') AND NOT EXISTS (SELECT 1 FROM source_events e WHERE e.turn_id=t.turn_id AND (e.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat','director') OR e.payload#>>'{payload,ui_source}' IN ('lorkhan_rpg_event','lorkhan_quest_event','lorkhan_rechat','lorkhan_action_followup','lorkhan_director_child') OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_auto_%' OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_narrator_%')) ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT :limit");
         $statement->bindValue(':installation',$installationId);$statement->bindValue(':limit',$limit,\PDO::PARAM_INT);$statement->execute();
         return array_map(static fn(array$row):string=>(string)$row['input_text'],$statement->fetchAll());
     }
@@ -1822,12 +1842,14 @@ SQL);
     }
 
     /** Share voice resolution with saved narrative authors without consulting current actor bindings. */
-    private function speechContextFromProfile(?array $profile,array $identity,?array $connector):array
+    public function speechContextFromProfile(?array $profile,array $identity,?array $connector):array
     {
         $content=$profile['content']??[];$voice=$content['voice']??null;
         if($voice===null)$voice=[];elseif(is_string($voice))$voice=['id'=>$voice];
         if(!is_array($voice)||($voice!==[]&&array_is_list($voice)))return[];
-        $result=[];$id=trim((string)($voice['id']??$voice['voice_id']??''));$language=trim((string)($voice['language']??''));
+        $result=[];$filter=\LorkhanServer\Application\TtsFilterPresets::validate($content['tts_filter_preset']??'none');
+        if($filter!=='none'){$result['tts_filter_preset']=$filter;$result['tts_filter_version']=\LorkhanServer\Application\TtsFilterPresets::VERSION;}
+        $id=trim((string)($voice['id']??$voice['voice_id']??''));$language=trim((string)($voice['language']??''));
         if($id!==''&&in_array($connector['content']['driver']??'',['cartesia','inworld'],true)){
             $lookup=$this->db->prepare('SELECT voice_id FROM speech_connector_voices WHERE configuration_id=:configuration AND (voice_id=:voice OR lower(display_name)=lower(:voice)) ORDER BY (voice_id=:voice) DESC LIMIT 2');
             $lookup->execute(['configuration'=>$connector['configuration_id'],'voice'=>$id]);$matches=$lookup->fetchAll(PDO::FETCH_COLUMN);
@@ -2851,6 +2873,7 @@ SQL);
     public function selectInGameSetting(array $session,array $target,array $selection,string $now):void
     {
         $this->transaction(function()use($session,$target,$selection,$now):void{
+            if(($selection['scope']??'')==='global')$this->db->query("SELECT pg_advisory_xact_lock(7514,120)");
             $lock=$this->db->prepare("SELECT generation FROM sessions WHERE session_id=:session AND state='active' FOR UPDATE");
             $lock->execute(['session'=>$session['session_id']]);
             if((int)$lock->fetchColumn()!==(int)$session['generation'])throw new \DomainException('stale_generation');

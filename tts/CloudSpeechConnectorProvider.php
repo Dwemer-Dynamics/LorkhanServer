@@ -170,8 +170,17 @@ final class CloudSpeechConnectorProvider implements SpeechProvider
                 'voice' => ['mode' => 'id', 'id' => $voice], 'language' => strtolower(substr($language, 0, 2)),
                 'output_format' => ['container' => 'wav', 'encoding' => 'pcm_s16le', 'sample_rate' => 22050],
                 'speed' => $speed];
+            $modern = preg_match('/^sonic-3\.[56](?:$|-)/', $payload['model_id']) === 1;
+            if ($modern) {
+                $payload['voice'] = $voice;
+                unset($payload['speed']);
+                $payload['generation_config'] = ['speed' => ['slowest'=>0.6,'slow'=>0.8,'normal'=>1.0,'fast'=>1.2,'fastest'=>1.5][$speed] ?? 1.0];
+                $accent = $this->options['accent'] ?? '';
+                if (!is_string($accent) || strlen($accent)>128 || !mb_check_encoding($accent,'UTF-8')) throw new RuntimeException('provider_invalid_input');
+                if (trim($accent) !== '' && preg_match('/^sonic-3\.6(?:$|-)/', $payload['model_id']) === 1) $payload['accent'] = trim($accent);
+            }
             return [$url, json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                ['X-API-Key: ' . $this->apiKey, 'Cartesia-Version: 2024-11-13',
+                [($modern?'Authorization: Bearer ':'X-API-Key: ') . $this->apiKey, 'Cartesia-Version: '.($modern?'2026-08-14':'2024-11-13'),
                     'Content-Type: application/json', 'Accept: audio/wav']];
         }
         if ($this->driver === 'convai') {

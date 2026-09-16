@@ -9,7 +9,7 @@ $primaryFields = [
     'chatterbox'=>['option__paralinguistic_tags_enabled','option__paralinguistic_tags_prompt','option__paralinguistic_tags_list'],
     'xtts-fastapi'=>['option__paralinguistic_tags_enabled','option__paralinguistic_tags_prompt','option__paralinguistic_tags_list'],
     'inworld'=>['option__workspace','language','model','option__temperature','option__speed'],
-    'cartesia'=>['language','model','option__speed'], 'openai'=>['model','option__instructions'],
+    'cartesia'=>['language','model','option__speed','option__accent'], 'openai'=>['model','option__instructions'],
     '11labs'=>['option__optimize_streaming_latency','model','option__stability','option__similarity_boost','option__style','option__speed',
         'option__use_speaker_boost','option__apply_text_normalization','option__apply_language_text_normalization','option__v3_audio_tags'],
     'melotts'=>['language','option__speed'], 'mimic3'=>['option__rate'],
@@ -33,8 +33,8 @@ $languageChoices = [
         'sv','sw','ta','te','tn','tr','tt','ur','uz','vi','vi-vn-x-central','vi-vn-x-south','yue'],
 ];
 $modelChoices = [
-    'inworld'=>['inworld-tts-1','inworld-tts-1-max','inworld-tts-1.5-mini','inworld-tts-1.5-max','inworld-tts-2'],
-    'cartesia'=>['sonic-3','sonic-english','sonic-multilingual'],
+    'inworld'=>['inworld-tts-1','inworld-tts-1-max','inworld-tts-1.5-mini','inworld-tts-1.5-max','inworld-tts-2','inworld-tts-2-flash'],
+    'cartesia'=>['sonic-3','sonic-3.5','sonic-3.6','sonic-3.5-2026-05-04','sonic-3.6-2026-08-27','sonic-english','sonic-multilingual'],
     'openai'=>['tts-1','tts-1-hd','gpt-4o-mini-tts'],
     'zonos_gradio'=>['Zyphra/Zonos-v0.1-transformer','Zyphra/Zonos-v0.1-hybrid'],
 ];
@@ -42,10 +42,10 @@ $fieldHelp = [
     'pockettts'=>['model'=>'audio.cpp model id. Default: pocket-tts.'],
     'inworld'=>['option__workspace'=>'Inworld workspace ID for voice cloning. Format: workspaces/{workspace} or just the workspace ID. Leave blank to keep account-default routing.',
         'language'=>'Language to use for TTS generation. Uses BCP-47 regional language codes.',
-        'model'=>'Inworld model to use. inworld-tts-2 is the higher quality model.',
+        'model'=>'Inworld model to use. inworld-tts-2 prioritizes quality; inworld-tts-2-flash prioritizes speed.',
         'option__temperature'=>'Sampling temperature (0-2). Higher values make output more random. Default: 1.0',
         'option__speed'=>'Speaking rate/speed (0.5-1.5). Default: 1.0'],
-    'cartesia'=>['language'=>'Language to use for TTS generation. Sonic 3 supports 42 languages.', 'model'=>'Cartesia model to use. sonic-3 is the latest model with 42 languages, volume/speed/emotion controls. Use sonic-3-2025-10-27 to pin a specific snapshot.', 'option__speed'=>'Speaking speed for the voice'],
+    'cartesia'=>['language'=>'Language to use for TTS generation. Sonic 3 supports 42 languages.', 'model'=>'Cartesia model to use. Choose Sonic 3.5 or 3.6, or a dated snapshot to pin a release. Accents apply to Sonic 3.6 only.', 'option__speed'=>'Speaking speed for the voice'],
     'openai'=>['model'=>'Model','option__instructions'=>'Control the voice of your generated audio with additional instructions. Does not work with tts-1 or tts-1-hd.'],
     '11labs'=>[
         'option__optimize_streaming_latency'=>'Reduces response delay at some cost to quality and text handling. Use 0 for default behavior; higher values favor speed more aggressively.',
@@ -152,6 +152,7 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
     if ($providerDriver === '11labs') $fields['option__optimize_streaming_latency']['type'] = 'string';
     if ($providerDriver === 'xvasynth') foreach (['model_type'=>'Modeltype','version'=>'Version','game'=>'Game','waveglow_path'=>'Waveglowpath','distro'=>'Distroname'] as $name=>$label) $fields['option__'.$name]['label']=$label;
     if ($providerDriver === 'piper-tts') foreach (['length_scale'=>'Length Scale','noise_scale'=>'Noise Scale','noise_w_scale'=>'Noise W Scale','speaker_id'=>'Speaker Id'] as $name=>$label) $fields['option__'.$name]['label']=$label;
+    if ($providerDriver === 'cartesia') $fields['option__accent']['maxlength']=128;
     if ($providerDriver === 'zonos_gradio') foreach (['pitch_std'=>'Pitch Std','speaking_rate'=>'Speaking Rate','cfg_scale'=>'Cfg Scale'] as $name=>$label) $fields['option__'.$name]['label']=$label;
     foreach ($fieldHelp[$providerDriver] ?? [] as $name=>$help) $fields[$name]['help']=$help;
     if (in_array($providerDriver,['chatterbox','xtts-fastapi'],true)) {

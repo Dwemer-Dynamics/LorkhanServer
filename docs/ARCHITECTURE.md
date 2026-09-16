@@ -158,6 +158,23 @@ Provider/server failure returns typed status and preserves vanilla game behavior
 output is not a completed utterance. Transaction rollback never attempts to roll back an external
 provider call; reconciliation uses request/idempotency state.
 
+## Dynamic profile scheduling
+
+Migration 119 tracks accepted Morrowind calendar observations per playthrough, a timeline
+epoch, and delivered event progress per NPC/Narrator profile. Explicit older-save loads
+start a fresh epoch; delayed observations cannot rewind it. Queued evolution checks that
+epoch before generation and revision publication. Successful work consumes only its frozen
+event batch, so events arriving during generation remain available for the next update.
+
+The worker checks at most 32 known eligible profiles every five seconds and queues at most
+one update per pass, independently of nearby actor observations. Core Profile defaults are
+one game day, 30 relevant delivered events and five real minutes between attempts. NPC and
+Narrator settings can override these values. Combat barks and undelivered speech do not
+count; repeated scans do not count an event twice. Locked/disabled profiles and the global
+AI switch are respected. Explicit profile regeneration keeps its higher job priority and
+does not wait for automatic scheduling thresholds. This does not start provider work in
+the game-data request handler.
+
 ## Trust boundaries
 
 - Treat all game DTOs as untrusted, even over loopback.
@@ -168,3 +185,25 @@ provider call; reconciliation uses request/idempotency state.
   to provider needs; game API never accepts arbitrary URLs.
 - Apply endpoint and provider rate/size/time/concurrency caps.
 - Return generic errors; store detailed redacted diagnostics through the established logger.
+
+## Authored Director scenes
+
+Director plans up to 12 ordered spoken lines from observed NPCs. Speakers may repeat;
+the first line addressed to the player ends the plan. Migration 120 stores each exact
+line and optional catalog-backed action. Children require fresh actor context, preserve
+single-consumption and session/lease fences, and run normal speech and action validation
+without a second dialogue model call. Director directions and synthetic child inputs
+are not recorded as player speech. Existing pre-upgrade plans retain their original path.
+
+## Audio and interaction parity
+
+Inworld TTS 2 Flash and Cartesia Sonic 3.5/3.6 use the connector's saved model selection;
+Sonic 3.6 can also use an accent. NPC, player and Narrator profiles share trusted FFmpeg
+voice presets and authenticated previews. Effects default to None, never alter voice
+samples, and fall back to original audio if optional effect processing fails.
+
+The global AI interaction switch cancels pending dialogue/actions and prevents new model
+turns without disabling microphone recording, transcription or passive observations.
+Client hearing stays deliberately simple: Targets Only, Nearby or Wide based on existing
+OpenMW distance observations. Explicit targets and groups are preserved; this is not
+physical door or wall occlusion.

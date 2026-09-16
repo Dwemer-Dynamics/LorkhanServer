@@ -20,6 +20,8 @@ spl_autoload_register(static function (string $class): void {
     static $features = [
         'Application\\CanonicalResponseNormalizer' => '/processor/CanonicalResponseNormalizer.php',
         'Application\\CloudSpeechConnectorProvider' => '/tts/CloudSpeechConnectorProvider.php',
+        'Application\\FilteredSpeechProvider' => '/tts/FilteredSpeechProvider.php',
+        'Application\\TtsFilterPresets' => '/tts/TtsFilterPresets.php',
         'Application\\CloudSpeechToTextConnectorProvider' => '/stt/CloudSpeechToTextConnectorProvider.php',
         'Application\\CloudVoiceLibrary' => '/tts/CloudVoiceLibrary.php',
         'Application\\ConnectorCatalog' => '/connector/ConnectorCatalog.php',

@@ -34,7 +34,8 @@ final class DirectorPlanningRepository
             if(($speaker['kind']??null)!=='player')throw new RuntimeException('director_player_required');
             $actors=DirectorPolicy::actors(['speaker'=>$speaker,'context'=>json_decode($row['context'],true,64,JSON_THROW_ON_ERROR)]);
             DirectorPolicy::schema($actors);
-            $input=['actors'=>$actors,'instruction'=>$row['input_text'],'scene'=>$sceneContext];
+            $actions=$sceneContext['_director_actions']??[];unset($sceneContext['_director_actions']);
+            $input=['actors'=>$actors,'actions'=>$actions,'instruction'=>$row['input_text'],'scene'=>$sceneContext];
             $encoded=json_encode($input,JSON_THROW_ON_ERROR);if(strlen($encoded)>100000)throw new RuntimeException('director_input_too_large');
             $job=Uuid::v4();$payload=['installation_id'=>$message['installation_id'],'provider_configuration_id'=>$route['configuration_id'],'provider_revision'=>$route['current_revision']];
             $q=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) VALUES(:job,'director.plan',1,:key,CAST(:payload AS jsonb),1,90) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id");
@@ -59,11 +60,19 @@ final class DirectorPlanningRepository
             $q=$this->db->prepare("SELECT p.*,s.event_sequence FROM director_plans p JOIN sessions s USING(session_id) JOIN durable_jobs j ON j.job_id=p.plan_id JOIN active_turns t ON t.turn_id=p.origin_turn_id WHERE p.plan_id=:job AND s.state='active' AND s.generation=p.generation AND p.expires_at>clock_timestamp() AND t.state NOT IN ('cancelled','failed') AND j.state='leased' AND j.attempt_count=:attempt AND j.lease_token=:lease AND j.lease_expires_at>clock_timestamp() FOR UPDATE OF s,p");
             $q->execute(['job'=>$job,'attempt'=>$attempt,'lease'=>$lease]);$plan=$q->fetch();if(!$plan||$plan['state']==='cancelled')throw new RuntimeException('director_cancelled');
             if($plan['state']==='delivered')return;
-            $input=json_decode($plan['input'],true,64,JSON_THROW_ON_ERROR);$output=DirectorPolicy::output($output,$input['actors']);$instructions=[];
+            $input=json_decode($plan['input'],true,64,JSON_THROW_ON_ERROR);$output=DirectorPolicy::output($output,$input['actors'],$input['actions']??[]);$instructions=[];
             foreach($output['instructions'] as $index=>$row){
                 $item=['instruction_id'=>Uuid::v4(),'actor'=>$input['actors'][$row['actor_id']],'recipient'=>$input['actors'][$row['recipient_id']], 'instruction'=>$row['instruction'],'scene_note'=>$row['scene_note']];
-                $q=$this->db->prepare('INSERT INTO director_instructions(instruction_id,plan_id,ordinal,actor,recipient,instruction,scene_note) VALUES(:id,:plan,:ordinal,CAST(:actor AS jsonb),CAST(:recipient AS jsonb),:instruction,:note)');
-                $q->execute(['id'=>$item['instruction_id'],'plan'=>$job,'ordinal'=>$index+1,'actor'=>json_encode($item['actor'],JSON_THROW_ON_ERROR),'recipient'=>json_encode($item['recipient'],JSON_THROW_ON_ERROR),'instruction'=>$item['instruction'],'note'=>$item['scene_note']]);$instructions[]=$item;
+                $authored=['utterances'=>[['speaker'=>$item['actor'],'addressee'=>$item['recipient'],'text'=>$row['instruction']]],'action'=>null];
+                if(is_array($row['action']??null)){
+                    $chosen=$row['action'];$definition=null;
+                    foreach($input['actions'][$row['actor_id']]??[] as $candidate)if($candidate['name']===$chosen['name'])$definition=$candidate;
+                    if($definition===null)throw new RuntimeException('provider_action_not_allowed');
+                    $authored['action']=['name'=>$chosen['name'],'tier'=>$definition['tier'],'actor'=>$item['actor'],
+                        'target'=>$item['recipient'],'parameters'=>$chosen['parameters']];
+                }
+                $q=$this->db->prepare('INSERT INTO director_instructions(instruction_id,plan_id,ordinal,actor,recipient,instruction,scene_note,authored_response) VALUES(:id,:plan,:ordinal,CAST(:actor AS jsonb),CAST(:recipient AS jsonb),:instruction,:note,CAST(:authored AS jsonb))');
+                $q->execute(['id'=>$item['instruction_id'],'plan'=>$job,'ordinal'=>$index+1,'actor'=>json_encode($item['actor'],JSON_THROW_ON_ERROR),'recipient'=>json_encode($item['recipient'],JSON_THROW_ON_ERROR),'instruction'=>$item['instruction'],'note'=>$item['scene_note'],'authored'=>json_encode($authored,JSON_THROW_ON_ERROR)]);$instructions[]=$item;
             }
             $event=['plan_id'=>$job,'origin_turn_id'=>$plan['origin_turn_id'],'expires_at'=>(new \DateTimeImmutable($plan['expires_at']))->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d\TH:i:s\Z'),'instructions'=>$instructions];
             $q=$this->db->prepare('UPDATE sessions SET event_sequence=event_sequence+1 WHERE session_id=:session RETURNING event_sequence');$q->execute(['session'=>$plan['session_id']]);$sequence=$q->fetchColumn();
@@ -86,13 +95,13 @@ final class DirectorPlanningRepository
         if(!$this->db->inTransaction())throw new RuntimeException('director_claim_requires_transaction');
         $row=$this->child($message,true);
         $q=$this->db->prepare('UPDATE director_instructions SET child_turn_id=:turn WHERE instruction_id=:id');$q->execute(['turn'=>$message['turn_id'],'id'=>$row['instruction_id']]);
-        return array_intersect_key($row,array_flip(['instruction','scene_note','plan_id']));
+        return array_intersect_key($row,array_flip(['instruction','scene_note','plan_id','authored_response']));
     }
 
     /** Read trusted planner text for prompt assembly; acceptance must subsequently claim under lock. */
     public function prepareChild(array $message): array
     {
-        return array_intersect_key($this->child($message,false),array_flip(['instruction','scene_note','plan_id']));
+        return array_intersect_key($this->child($message,false),array_flip(['instruction','scene_note','plan_id','authored_response']));
     }
 
     private function child(array $message,bool $lock): array
@@ -106,6 +115,7 @@ final class DirectorPlanningRepository
         if($prior->fetchColumn())throw new RuntimeException('director_previous_child_pending');
         $actor=json_decode($row['actor'],true,32,JSON_THROW_ON_ERROR);$recipient=json_decode($row['recipient'],true,32,JSON_THROW_ON_ERROR);
         if(!TransferActionPolicy::sameIdentity($actor,$message['payload']['target']??null)||!TransferActionPolicy::sameIdentity($recipient,$message['payload']['speaker']??null))throw new RuntimeException('director_actor_mismatch');
+        if(is_string($row['authored_response']??null))$row['authored_response']=json_decode($row['authored_response'],true,32,JSON_THROW_ON_ERROR);
         return $row;
     }
 

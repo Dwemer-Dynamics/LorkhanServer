@@ -1,0 +1,3 @@
+DROP TABLE lorkhan_internal.profile_evolution_events;
+DROP TABLE lorkhan_internal.profile_evolution_progress;
+DROP TABLE lorkhan_internal.profile_evolution_clocks;

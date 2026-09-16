@@ -11,6 +11,13 @@ Unmodified distributions and their full licenses are in `ui/lib/ui/d3/`.
 
 ## Dwemer Dynamics shared server UI
 
+Dynamic Profile schedule labels and policy defaults follow HerikaServer
+`1d9a3d8ad1157e3fd429f85e3b992efc234dcfea`, `lib/dynamic_profile_scheduler.php`:
+one game day, 30 delivered relevant events and a five-minute real-time cooldown.
+The Lorkhan scheduler is a new implementation for typed Morrowind calendar
+observations, scoped durable jobs, revision fencing and older-save timeline epochs.
+No Skyrim timestamp arithmetic or legacy database helpers were copied.
+
 Default NPC race portraits in `ui/images/races/*.png` are copied unchanged from
 HerikaServer `748f62d48dfcc9519320bcfd9a585cb1cc23a4ab`, `ui/images/races/`.
 The race aliases and square 200/160/140px responsive portrait presentation follow
@@ -377,3 +384,9 @@ Local LLM address classification derives from HerikaServer `lib/core/local_llm_s
 Quickstart Local LLM server choices, defaults and connector options derive from the pinned HerikaServer `lib/core/local_llm_setup.php`. Lorkhan uses an installation-scoped ownership association and revisioned connector records; normalization accepts private credential references only, not secret values.
 
 The shared Core Profile preset field values for Default, Local LLM, Follower and Passive derive from HerikaServer `lib/core/settings_presets.php` at pinned revision `529364c4c12b3a8bd4cc12a481f400ce19b3a344`. Native application preserves prompts, connector bindings and selected evolution fields. This mapping is not the full installation-wide Quickstart preset.
+
+Authored Director scene behavior and the public TTS filter graphs are adapted from
+Dwemer-Dynamics/HerikaServer unstable at `1d9a3d8ad1157e3fd429f85e3b992efc234dcfea`
+(`lib/director_scene_contract.php` and `lib/core/tts_filter_presets.php`). Lorkhan retains
+its typed actor/action contracts, PostgreSQL jobs, bounded FFmpeg execution and private
+media storage rather than importing Skyrim execution or filesystem assumptions.
