@@ -479,6 +479,12 @@ final class EventLogRepository
             $input = $this->object($body['input'] ?? []);
             $text = is_string($input['text'] ?? null) ? trim($input['text']) : '';
             if ($text === '') return;
+            if(in_array($body['execution_mode']??'standard',['injection_log','injection_chat'],true)){
+                $this->insert(array_merge($common,['type'=>'narration','data'=>$text,
+                    'payload'=>['text'=>$text,'execution_mode'=>$body['execution_mode'],'source'=>'player_injection'],
+                    'projection_kind'=>'turn','projection_key'=>'turn:'.($turnId??$sourceId),'delivery_state'=>null,'utterance_id'=>null]));
+                return;
+            }
             $type = $kind === 'rechat' ? 'rechat' : 'inputtext';
             $projectedText=isset($input['resolved_mood_cue'])
                 ?PlayerMoodPolicy::decorateWithCue($text,$input['resolved_mood_cue'])

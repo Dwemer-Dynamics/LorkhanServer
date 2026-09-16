@@ -3626,6 +3626,22 @@ foreach (['Dark Elf'=>'darkelf','Dunmer'=>'darkelf','High Elf'=>'highelf','Altme
     $check(lorkhan_race_portrait($race)===$portrait.'.png', 'Race portrait maps safely: '.$race);
     $check(is_file(dirname(__DIR__).'/ui/images/races/'.lorkhan_race_portrait($race)), 'Bundled race portrait exists: '.$race);
 }
+$injectedTurn=$promptTurn;$injectedTurn['payload']['speaker']=$transferPlayer;$injectedTurn['payload']['execution_mode']='injection_chat';
+$injectedTurn['payload']['ui_source']='lorkhan_text';$injectedTurn['payload']['input']['kind']='text';
+$injectedTurn['payload']['input']['text']='A brass bell rings in the distance.';
+unset($injectedTurn['payload']['director_instruction_id'],$injectedTurn['payload']['action_request']);
+$injectedPrompt=(new PromptAssembler())->assemble($injectedTurn,$promptSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($injectedPrompt,'[Injected scene event] A brass bell rings in the distance.')
+    &&str_contains($injectedPrompt,'not spoken player dialogue'),'injection chat formats scene context instead of player speech');
+foreach(['injection_log','injection_chat']as$injectionMode){
+    $payload=$injectedTurn['payload'];$payload['execution_mode']=$injectionMode;
+    $check(\LorkhanServer\Application\ExecutionModePolicy::mode($payload)===$injectionMode,'typed explicit injection accepted');
+    foreach([['ui_source'=>'lorkhan_open_mic'],['ui_source'=>'lorkhan_rechat'],['action_request'=>['name'=>'actor.kill']],
+        ['input'=>['kind'=>'stt','text'=>'text']],['input'=>['kind'=>'text','text'=>'   ']],['speaker'=>['kind'=>'npc']]]as$change){
+        try{\LorkhanServer\Application\ExecutionModePolicy::mode(array_replace($payload,$change));$check(false,'injection rejects indirect/command input');}
+        catch(DomainException){$check(true,'injection rejects indirect/command input');}
+    }
+}
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

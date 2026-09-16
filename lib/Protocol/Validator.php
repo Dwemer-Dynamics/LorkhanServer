@@ -89,7 +89,7 @@ final class Validator
         if (array_key_exists('director_instruction_id', $payload)) $payloadKeys[] = 'director_instruction_id';
         $this->keys($payload, $payloadKeys);
         if (array_key_exists('execution_mode',$payload)
-            && !in_array($payload['execution_mode'],['standard','narrator','director','cheat'],true))
+            && !in_array($payload['execution_mode'],['standard','narrator','director','cheat','injection_log','injection_chat'],true))
             throw new ValidationException('invalid_schema');
         if (array_key_exists('director_instruction_id',$payload)) {
             $this->uuid($payload['director_instruction_id']);

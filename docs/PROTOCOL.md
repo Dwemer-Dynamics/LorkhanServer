@@ -46,6 +46,15 @@ Background Life have no accepted variants. `lorkhan.events.v1.autonomy` remains 
 compatibility but must always be empty. Rechat is a normal correlated turn. Canonical envelopes require
 both response generation and runtime generation values greater than zero.
 
+## Typed event injection
+
+Explicit typed player turns may select `execution_mode` `injection_log` or `injection_chat`.
+Both require `ui_source=lorkhan_text`, text input, and no action request or Director child ID.
+The input is recorded as a scene event, not spoken player dialogue. `injection_log` persists the
+event and emits `turn.accepted` followed by `turn.complete` without provider, speech, or action jobs.
+`injection_chat` additionally generates a reply to that event through the normal NPC/Narrator lane;
+it never speaks the injected input as the player or enables provider actions.
+
 ## Object identity
 
 TES3/OpenMW object identity is a typed record ID, runtime RefNum/FormId when exposed, source content

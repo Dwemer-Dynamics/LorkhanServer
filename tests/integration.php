@@ -1134,6 +1134,8 @@ $assert($backfillJobRow&&$backfillJobRow['state']==='queued'
     'automatic profile backfill did not freeze bounded actor history or persist its source observation: '.json_encode([
         'status'=>$backfillStatus,'job'=>$backfillJobRow,'payload'=>$backfillPayload],JSON_UNESCAPED_SLASHES));
 $backfillHandlerPayload=$backfillPayload;
+$backfillHandlerPayload['recent_events'][0]['scene_event']='A bell rings.';
+unset($backfillHandlerPayload['recent_events'][0]['player_input']);
 $leaseProfileFixture=$db->prepare("UPDATE durable_jobs SET state='leased',attempt_count=1,lease_owner='profile-fixture',
     lease_token=:token,leased_at=clock_timestamp(),lease_expires_at=clock_timestamp()+interval '5 minutes',heartbeat_at=clock_timestamp() WHERE job_id=:job");
 $leaseProfileFixture->execute(['job'=>$backfillJobRow['job_id'],'token'=>\LorkhanServer\Infrastructure\Uuid::v4()]);
@@ -3545,6 +3547,54 @@ try{
     try{$repo->completeTurn($request,['utterances'=>[],'action'=>['name'=>'spell.cast','tier'=>2,'parameters'=>['spell_id'=>'invented spell'],
         'actor'=>$request['payload']['target'],'target'=>$request['payload']['speaker']]]);$assert(false,'caller substituted known spells');}
     catch(DomainException $error){$assert($error->getMessage()==='action_parameters_invalid','unexpected frozen spell error: '.$error->getMessage());}
+}finally{$db->rollBack();}
+
+// Inject Event logs context without inference; Inject & Chat responds without treating it as speech.
+$db->beginTransaction();
+try{
+    foreach(['injection_log','injection_chat']as$mode){
+        $request=$transferTurn();$request['payload']['execution_mode']=$mode;$request['payload']['ui_source']='lorkhan_text';
+        $request['payload']['input']=['kind'=>'text','language'=>'en','text'=>'A brass bell rings in the distance.'];
+        $injectionRecipient=$request['payload']['target'];
+        if($mode==='injection_log'){
+            $request['payload']['audience']=[$injectionRecipient];
+            $request['payload']['target']=array_replace($injectionRecipient,['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN','display_name'=>'The Narrator']);
+        }
+        $beforeJobs=(int)$db->query('SELECT count(*) FROM durable_jobs')->fetchColumn();
+        [$status,$body]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+        $assert($status===202,'injection rejected: '.json_encode($body));
+        $projection=$db->prepare('SELECT e.type,e.data,m.payload FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.projection_key=:key');
+        $projection->execute(['key'=>'turn:'.$request['turn_id']]);$row=$projection->fetch();
+        $assert($row&&$row['type']==='narration'&&$row['data']===$request['payload']['input']['text']
+            &&json_decode($row['payload'],true)['source']==='player_injection','injection was projected as player speech');
+        $assert(!in_array($request['payload']['input']['text'],$products->recentPlayerInputs($installationId,200),true),'scene injection leaked into player speech history');
+        if($mode==='injection_log'){
+            $assert((int)$db->query('SELECT count(*) FROM durable_jobs')->fetchColumn()===$beforeJobs,'log-only injection queued work');
+            $state=$db->prepare('SELECT state FROM turns WHERE turn_id=:turn');$state->execute(['turn'=>$request['turn_id']]);
+            $assert($state->fetchColumn()==='complete','log-only injection remained in flight');
+            [$again]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+            $projection->execute(['key'=>'turn:'.$request['turn_id']]);
+            $assert($again===202&&count($projection->fetchAll())===1,'injection retry duplicated event');
+            $next=$transferTurn();$next['payload']['target']=$injectionRecipient;
+            $next['payload']['input']['text']='What did you notice?';
+            $selection=$products->promptContext($next,gmdate('Y-m-d\TH:i:s\Z'));
+            $next['_selected_profile_id']=$selection['selected_profile_id'];
+            $contextPrompt=(new PromptAssembler())->assemble($next,$selection)['provider_input']['_assembled_prompt'];
+            $assert(str_contains($contextPrompt,'[Narration] A brass bell rings in the distance.'),
+                'Narrator-target injection was invisible to its observed witness in the next normal prompt');
+        }else{
+            $frozen=$repo->turnMessage($request['turn_id']);
+            $assert($frozen['_allowed_action_definitions']===[],'injection chat exposed actions');
+            try{$repo->completeTurn($request,['utterances'=>[],'action'=>['name'=>'ai.follow','tier'=>1,'parameters'=>[],
+                'actor'=>$request['payload']['target'],'target'=>$request['payload']['speaker']]]);$assert(false,'injected provider action accepted');}
+            catch(DomainException $error){$assert($error->getMessage()==='provider_action_not_allowed','injection action failed at wrong boundary');}
+            $stats=$runTurnWorker(new MockProvider());$assert($stats['succeeded']>0,'injection chat failed to generate response');
+            $history=(new ReflectionMethod($products,'profileBackfillHistory'))->invoke($products,$installationId,$request['playthrough_id'],$request['payload']['target'],100);
+            $injectedHistory=array_values(array_filter($history['recent_events'],fn($e)=>$e['turn_id']===$request['turn_id']));
+            $assert(count($injectedHistory)===1&&isset($injectedHistory[0]['scene_event'])&&!isset($injectedHistory[0]['player_input']),
+                'profile history mislabeled injected context as player speech');
+        }
+    }
 }finally{$db->rollBack();}
 
 // World mutations never inherit ordinary NPC authority or caller-replaced mode/record observations.

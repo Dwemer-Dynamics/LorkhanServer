@@ -295,7 +295,10 @@ final class Repository
             }
             $p = $m['payload'];
             $director=new DirectorPlanningRepository($this->db);
-            $isDirector=($p['execution_mode']??'standard')==='director';
+            $mode=\LorkhanServer\Application\ExecutionModePolicy::mode($p);
+            $isInjectionLog=$mode==='injection_log';
+            if($isInjectionLog&&($providerInput!==null||$directAction!==null))throw new \DomainException('execution_mode_not_allowed');
+            $isDirector=$mode==='director';
             if($isDirector && ($providerInput!==null || $directAction!==null)) throw new \DomainException('director_route_invalid');
             if(!isset($p['director_instruction_id']) && ($p['speaker']['kind']??null)==='player'
                 && in_array($p['ui_source']??null,['lorkhan_text','lorkhan_open_mic','lorkhan_voice','lorkhan_action_menu'],true))
@@ -377,6 +380,10 @@ final class Repository
             $dynamicOghma->apply((string)$m['installation_id'],(string)$m['playthrough_id'],(string)$m['message_id'],$dynamicPlan??$dynamicOghma->plan($m));
             $event = $this->event($m['session_id'], $m['generation'], $m['request_id'], $m['turn_id'], 'turn.accepted', ['status' => 'accepted']);
             if($isDirector)$director->enqueuePlan($m,$directorScene);
+            if($isInjectionLog){
+                $this->db->prepare("UPDATE turns SET state='complete',completed_at=clock_timestamp() WHERE turn_id=:turn")->execute(['turn'=>$m['turn_id']]);
+                $event=$this->event($m['session_id'],$m['generation'],$m['request_id'],$m['turn_id'],'turn.complete',['status'=>'complete']);
+            }
             if ($providerInput !== null) {
                 $providerInput['_negotiated_capabilities']=$session['capabilities'];
                 $jobPayload = ['turn_id' => $m['turn_id'], 'session_id' => $m['session_id'], 'generation' => $m['generation']];
@@ -1294,6 +1301,7 @@ final class Repository
             try{$frozen=$this->turnMessage($m['turn_id']);}
             catch(\OutOfBoundsException){$frozen=['payload'=>['execution_mode'=>'standard']];}
             $narratorMode=\LorkhanServer\Application\ExecutionModePolicy::mode($frozen['payload'])==='narrator';
+            if(in_array($frozen['payload']['execution_mode']??'standard',['injection_log','injection_chat'],true))throw new \DomainException('provider_action_not_allowed');
             $worldAction=in_array($action['name']??null,\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true);
             if($worldAction){
                 $loaded['turn_payload']=$frozen['payload'];

@@ -169,6 +169,13 @@ final class Router
                 $m['payload']['input']['text']=$trusted['instruction'];
                 $m['payload']['context']['director']=['plan_id'=>$trusted['plan_id'],'scene_note'=>$trusted['scene_note']];
             }
+            if(($m['payload']['execution_mode']??'standard')==='injection_log'){
+                $body=['schema'=>'lorkhan.turn.accepted.v1','message_id'=>$m['message_id'],'turn_id'=>$m['turn_id'],
+                    'request_id'=>$m['request_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation']];
+                $accepted=$this->repository->acceptTurn($m,null,null,$hash,$body,null,[]);
+                $body['event_cursor']=$accepted['sequence'];
+                return Response::json(202,$body);
+            }
             if(($m['payload']['execution_mode']??'standard')==='director'){
                 if(($m['payload']['speaker']['kind']??null)!=='player' || isset($m['payload']['action_request'])
                     || isset($m['payload']['director_instruction_id'])
@@ -213,7 +220,8 @@ final class Router
                 $source=$m['payload']['ui_source']??null;
                 $rechatActions=$source==='lorkhan_rechat'
                     &&($m['payload']['context']['rechat']['allow_actions']??false)===true;
-                $providerInput['_allowed_action_definitions'] = ($source==='lorkhan_rechat'&&!$rechatActions)
+                $providerInput['_allowed_action_definitions'] = in_array($m['payload']['execution_mode']??'standard',['injection_log','injection_chat'],true)
+                    ||($source==='lorkhan_rechat'&&!$rechatActions)
                     ||in_array($source,['lorkhan_auto_greeting','lorkhan_auto_boredom','lorkhan_auto_combat_bark','lorkhan_rpg_event','lorkhan_quest_event'],true)
                     ||str_starts_with((string)$source,'lorkhan_narrator_')
                     ||($source==='lorkhan_action_followup'&&!($m['_action_continuation']['allow_action']??false))

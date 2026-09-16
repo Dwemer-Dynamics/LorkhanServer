@@ -75,9 +75,10 @@ final class ProfileGenerateJobHandler implements JobHandler
                 ||strlen(json_encode($events,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>65_536)
                 throw new \InvalidArgumentException('invalid_profile_backfill_context');
             foreach($sources as$index=>$source){$event=$events[$index]??null;$keys=is_array($event)?array_keys($event):[];sort($keys);
-                if(!is_string($source)||!Uuid::isValid($source)||$keys!==['npc_responses','player_input','turn_id']
-                    ||($event['turn_id']??null)!==$source||!is_string($event['player_input']??null)
-                    ||!mb_check_encoding($event['player_input'],'UTF-8')||!is_array($event['npc_responses']??null)
+                $inputKey=is_array($event)&&array_key_exists('scene_event',$event)?'scene_event':'player_input';
+                if(!is_string($source)||!Uuid::isValid($source)||!in_array($keys,[['npc_responses','player_input','turn_id'],['npc_responses','scene_event','turn_id']],true)
+                    ||($event['turn_id']??null)!==$source||!is_string($event[$inputKey]??null)
+                    ||!mb_check_encoding($event[$inputKey],'UTF-8')||!is_array($event['npc_responses']??null)
                     ||!array_is_list($event['npc_responses'])||$event['npc_responses']===[])
                     throw new \InvalidArgumentException('invalid_profile_backfill_context');
                 foreach($event['npc_responses']as$text)if(!is_string($text)||trim($text)===''||!mb_check_encoding($text,'UTF-8'))

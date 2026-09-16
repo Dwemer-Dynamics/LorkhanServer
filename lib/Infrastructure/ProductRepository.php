@@ -1096,7 +1096,8 @@ final class ProductRepository
     private function profileBackfillHistory(string $installationId,string $playthroughId,array $identity,int $limit):array
     {
         $stable=array_intersect_key($identity,array_fill_keys(['kind','record_id','content_file','refnum'],true));
-        $statement=$this->db->prepare('SELECT t.turn_id,t.input_text,t.response_payload FROM active_turns t '
+        $statement=$this->db->prepare("SELECT t.turn_id,t.input_text,t.response_payload,EXISTS (SELECT 1 FROM source_events ie WHERE ie.turn_id=t.turn_id "
+            ."AND ie.event_kind='turn.requested' AND ie.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat')) AS injected FROM active_turns t "
             .'JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation '
             .'AND s.playthrough_id=:playthrough AND t.state=\'complete\' AND t.target @> CAST(:identity AS jsonb) '
             .'AND EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(t.response_payload->\'lines\',\'[]\'::jsonb)) line '
@@ -1110,7 +1111,7 @@ final class ProductRepository
             foreach(($response['lines']??[])as$line)if(is_array($line)&&($line['action']??null)==='say'){
                 $speaker=$line['speaker_identity']??null;if(!is_array($speaker)||$this->actorKey($speaker)!==$targetKey)continue;
                 $text=trim((string)($line['text']??''));if($text!=='')$replies[]=$text;}
-            $event=['turn_id'=>(string)$row['turn_id'],'player_input'=>(string)$row['input_text'],'npc_responses'=>$replies];
+            $event=['turn_id'=>(string)$row['turn_id'],(($row['injected']===true||$row['injected']==='t')?'scene_event':'player_input')=>(string)$row['input_text'],'npc_responses'=>$replies];
             $eventBytes=strlen(json_encode($event,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))+($events===[]?0:1);if($bytes+$eventBytes>65_536)continue;
             $turnIds[]=(string)$row['turn_id'];$events[]=$event;$bytes+=$eventBytes;}
         return['source_turn_ids'=>$turnIds,'recent_events'=>$events];
@@ -1119,7 +1120,8 @@ final class ProductRepository
     /** Freeze recent completed dialogue for narrator evolution without treating one NPC as the owner. */
     private function narratorEvolutionHistory(string $installationId,string $playthroughId,int $limit):array
     {
-        $statement=$this->db->prepare('SELECT t.turn_id,t.input_text,t.response_payload FROM active_turns t '
+        $statement=$this->db->prepare("SELECT t.turn_id,t.input_text,t.response_payload,EXISTS (SELECT 1 FROM source_events ie WHERE ie.turn_id=t.turn_id "
+            ."AND ie.event_kind='turn.requested' AND ie.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat')) AS injected FROM active_turns t "
             .'JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation '
             .'AND s.playthrough_id=:playthrough AND t.state=\'complete\' ORDER BY t.completed_at DESC,t.turn_id DESC LIMIT :limit');
         $statement->bindValue(':installation',$installationId);$statement->bindValue(':playthrough',$playthroughId);
@@ -1131,7 +1133,7 @@ final class ProductRepository
                 $name=trim((string)($speaker['display_name']??$line['speaker']??'NPC'))?:'NPC';
                 $text=trim((string)($line['text']??''));if($text!=='')$lines[]=$name.': '.$text;}
             if($lines===[])continue;$turnId=(string)$row['turn_id'];
-            $event=['turn_id'=>$turnId,'player_input'=>(string)$row['input_text'],'npc_responses'=>$lines];
+            $event=['turn_id'=>$turnId,(($row['injected']===true||$row['injected']==='t')?'scene_event':'player_input')=>(string)$row['input_text'],'npc_responses'=>$lines];
             $eventBytes=strlen(json_encode($event,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))+($events===[]?0:1);if($bytes+$eventBytes>65_536)continue;
             $turnIds[]=$turnId;$events[]=$event;$bytes+=$eventBytes;}
         return['source_turn_ids'=>$turnIds,'recent_events'=>$events];
@@ -1802,7 +1804,7 @@ SQL);
     /** Return a newest-first bounded sample of typed or transcribed player turns for style analysis. */
     public function recentPlayerInputs(string $installationId,int $limit=200):array
     {
-        $limit=max(1,min(200,$limit));$statement=$this->db->prepare("SELECT t.input_text FROM active_turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation AND t.speaker->>'kind'='player' AND btrim(t.input_text)<>'' AND NOT EXISTS (SELECT 1 FROM source_events e WHERE e.turn_id=t.turn_id AND (e.payload#>>'{payload,ui_source}' IN ('lorkhan_rpg_event','lorkhan_quest_event','lorkhan_rechat','lorkhan_action_followup') OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_auto_%' OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_narrator_%')) ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT :limit");
+        $limit=max(1,min(200,$limit));$statement=$this->db->prepare("SELECT t.input_text FROM active_turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation AND t.speaker->>'kind'='player' AND btrim(t.input_text)<>'' AND NOT EXISTS (SELECT 1 FROM source_events e WHERE e.turn_id=t.turn_id AND (e.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat') OR e.payload#>>'{payload,ui_source}' IN ('lorkhan_rpg_event','lorkhan_quest_event','lorkhan_rechat','lorkhan_action_followup') OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_auto_%' OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_narrator_%')) ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT :limit");
         $statement->bindValue(':installation',$installationId);$statement->bindValue(':limit',$limit,\PDO::PARAM_INT);$statement->execute();
         return array_map(static fn(array$row):string=>(string)$row['input_text'],$statement->fetchAll());
     }
