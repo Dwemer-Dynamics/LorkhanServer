@@ -294,6 +294,19 @@ final class Repository
                 if ((string) $m[$request] !== (string) $session[$stored]) throw new \UnexpectedValueException('stale_generation');
             }
             $p = $m['payload'];
+            if(($p['ui_source']??null)==='lorkhan_auto_combat_bark'){
+                // Match Herika's shared bark cooldown; local scheduling cannot bypass the actor's effective floor.
+                $lock=$this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))');
+                $lock->execute(['key'=>'combat-bark:'.$m['installation_id']]);
+                $effective=(new ProductRepository($this->db))->effectiveSettingsForActor($m['installation_id'],$m['playthrough_id'],$p['target']);
+                $period=max(5,min(600,(int)($effective['settings']['behavior']['combat_bark_period_seconds']??20)));
+                $recent=$this->db->prepare("SELECT 1 FROM sessions s JOIN source_events e ON e.session_id=s.session_id "
+                    ."WHERE s.installation_id=:installation "
+                    ."AND e.received_at>clock_timestamp()-make_interval(secs=>:period) "
+                    ."AND e.event_kind='turn.requested' AND e.payload#>>'{payload,ui_source}'='lorkhan_auto_combat_bark' LIMIT 1");
+                $recent->execute(['installation'=>$m['installation_id'],'period'=>$period]);
+                if($recent->fetchColumn()!==false)throw new \DomainException('conversation_cooldown');
+            }
             $director=new DirectorPlanningRepository($this->db);
             $mode=\LorkhanServer\Application\ExecutionModePolicy::mode($p);
             $isInjectionLog=$mode==='injection_log';

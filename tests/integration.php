@@ -3549,6 +3549,34 @@ try{
     catch(DomainException $error){$assert($error->getMessage()==='action_parameters_invalid','unexpected frozen spell error: '.$error->getMessage());}
 }finally{$db->rollBack();}
 
+// The effective bark period is a shared server floor, independent of local enable/interval controls.
+$db->beginTransaction();
+try{
+    $bark=$transferTurn();$bark['payload']['ui_source']='lorkhan_auto_combat_bark';
+    $settings=$products->effectiveSettingsForActor($installationId,$bark['playthrough_id'],$bark['payload']['target']);
+    $barkProfile=$settings['npc_profile'];$barkContent=$barkProfile['content'];
+    $barkContent['settings_overrides']['behavior']['combat_bark_period_seconds']=600;
+    $products->revise('profile',$barkProfile['profile_id'],$barkContent,'combat cooldown fixture',$now);
+    [$status,$body]=$call($transferRouter,'POST',$base.'/turns',$headers($bark['message_id']),[],$bark);
+    $assert($status===202,'first automatic combat bark rejected: '.json_encode($body));
+    [$duplicate]=$call($transferRouter,'POST',$base.'/turns',$headers($bark['message_id']),[],$bark);
+    $assert($duplicate===202,'idempotent combat bark retry incorrectly hit cooldown');
+    $other=$transferTurn();$other['payload']['ui_source']='lorkhan_auto_combat_bark';$other['payload']['target']=$transferRecipient;
+    [$status,$body]=$call($transferRouter,'POST',$base.'/turns',$headers($other['message_id']),[],$other);
+    $assert($status>=400&&($body['code']??null)==='conversation_cooldown','different NPC bypassed global bark cooldown: '.json_encode($body));
+    $db->prepare("UPDATE source_events SET received_at=clock_timestamp()-interval '30 seconds' WHERE source_event_id=:turn")->execute(['turn'=>$bark['message_id']]);
+    $repeat=$transferTurn();$repeat['payload']['ui_source']='lorkhan_auto_combat_bark';
+    [$status]=$call($transferRouter,'POST',$base.'/turns',$headers($repeat['message_id']),[],$repeat);
+    $assert($status>=400,'local 30-second scheduler bypassed effective 600-second NPC floor');
+    $manual=$transferTurn();$manual['payload']['ui_source']='lorkhan_text';
+    [$status]=$call($transferRouter,'POST',$base.'/turns',$headers($manual['message_id']),[],$manual);
+    $assert($status===202,'bark cooldown suppressed explicit player conversation');
+    $db->prepare("UPDATE source_events SET received_at=clock_timestamp()-interval '601 seconds' WHERE source_event_id=:turn")->execute(['turn'=>$bark['message_id']]);
+    $expired=$transferTurn();$expired['payload']['ui_source']='lorkhan_auto_combat_bark';
+    [$status]=$call($transferRouter,'POST',$base.'/turns',$headers($expired['message_id']),[],$expired);
+    $assert($status===202,'expired effective combat bark cooldown did not reopen');
+}finally{$db->rollBack();}
+
 // Inject Event logs context without inference; Inject & Chat responds without treating it as speech.
 $db->beginTransaction();
 try{
