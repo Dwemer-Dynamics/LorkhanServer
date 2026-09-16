@@ -696,6 +696,13 @@ foreach ([
     $check(true, $fixture . ' validates');
 }
 $npcReceipt=json_decode((string)file_get_contents($fixtureRoot.'/debug-command-result.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+$characterSession=json_decode((string)file_get_contents($fixtureRoot.'/session-init.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+foreach([['character_id'=>null],['character_binding'=>null],['character_id'=>'PlayerName'],['character_binding'=>'automatic']] as $invalidCharacter){
+    $invalid=array_replace($characterSession,$invalidCharacter);
+    foreach($invalidCharacter as $key=>$value)if($value===null)unset($invalid[$key]);
+    try{$validator->validate($invalid,'lorkhan.session.init.v1');$check(false,'invalid character handshake rejected');}
+    catch(ValidationException $error){$check($error->getMessage()==='invalid_schema','invalid character handshake rejected');}
+}
 $npcReceipt['observed']=['target'=>'fargoth','actor_available'=>true,'return_available'=>true,'return_cell'=>'Balmora',
     'cell'=>'Seyda Neen','x'=>1,'y'=>2,'z'=>3];
 $validator->validate($npcReceipt,'lorkhan.debug-command-result.v1');

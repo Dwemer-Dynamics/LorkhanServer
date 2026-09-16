@@ -57,6 +57,11 @@ final class Validator
     private function session(array $message): void
     {
         $keys=['schema','message_id','installation_id','profile_id','playthrough_id','generation','created_at','runtime','content_fingerprint'];
+        if(array_key_exists('character_id',$message)||array_key_exists('character_binding',$message)){
+            $keys[]='character_id';$keys[]='character_binding';
+            $this->uuid($message['character_id']??null);
+            if(!in_array($message['character_binding']??null,['new','existing'],true))throw new ValidationException('invalid_schema');
+        }
         if(array_key_exists('loaded_save',$message)){
             $keys[]='loaded_save';$calendar=$message['loaded_save'];
             if($calendar!==null){

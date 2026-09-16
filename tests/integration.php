@@ -312,6 +312,8 @@ $call($limited, 'GET', $base . '/events', [], $limitedQuery);
 $assert($status === 429 && $rateError['retry_after_ms'] === 1000, 'rate retry_after_ms missing');
 
 $session = $fixture('session-init');
+// Preserve legacy-installation coverage; explicit character adoption is tested separately below.
+unset($session['character_id'],$session['character_binding']);
 $session['runtime']['capabilities'][]='debug.commands.v1';
 $session['runtime']['capabilities'][]='debug.npc_manager.v1';
 $session['runtime']['capabilities'][]='speech.browser.v1';
@@ -5311,5 +5313,58 @@ foreach(['message_id','request_id','turn_id']as$key)$aiTurn[$key]=Uuid::v4();
 try{$repo->acceptTurn($aiTurn);$assert(false,'AI off accepted turn');}catch(DomainException$error){$assert($error->getMessage()==='ai_disabled','wrong disabled reason');}
 $products->revise('global_settings',$aiGlobal['configuration_id'],$aiGlobal['content'],'restore master',gmdate('Y-m-d\TH:i:s\Z'));
 $assert($repo->isDialogueCancellationRequested($aiDialogue),'AI on revived cancelled speech');
+
+// Character identity never silently adopts a legacy world or switches unscoped mutable profiles.
+$characterSession=$session;$characterSession['installation_id']=Uuid::v4();$characterSession['profile_id']=Uuid::v4();
+$characterSession['playthrough_id']=Uuid::v4();$characterSession['message_id']=Uuid::v4();$characterSession['generation']=1;
+$characterSession['character_id']=Uuid::v4();$characterSession['character_binding']='new';unset($characterSession['loaded_save']);
+$characterSessionId=Uuid::v4();$repo->createSession($characterSession,$characterSessionId,$tokenHash);
+$characterState=$products->characterPlaythroughState($characterSession['installation_id']);
+$assert(count($characterState['bindings'])===1&&$characterState['current']['character_id']===$characterSession['character_id']
+    &&$characterState['switch_available']===false,'new empty installation did not persist stable character identity');
+$characterTurn=$turn;foreach(['installation_id','profile_id','playthrough_id','generation'] as $key)$characterTurn[$key]=$characterSession[$key];
+$characterTurn['session_id']=$characterSessionId;foreach(['message_id','request_id','turn_id'] as $key)$characterTurn[$key]=Uuid::v4();
+$repo->acceptTurn($characterTurn);
+$characterReload=$characterSession;$characterReload['message_id']=Uuid::v4();$characterReload['generation']=2;
+$characterReloadId=Uuid::v4();$repo->createSession($characterReload,$characterReloadId,$tokenHash);
+$assert(count($products->characterPlaythroughState($characterSession['installation_id'])['bindings'])===1,'same-character load duplicated its binding');
+$oldCharacterTurn=$db->prepare('SELECT state FROM turns WHERE turn_id=:turn');$oldCharacterTurn->execute(['turn'=>$characterTurn['turn_id']]);
+$assert($oldCharacterTurn->fetchColumn()==='cancelled','same-character session replacement did not cancel outgoing work');
+$guardCounts=fn()=>array_map('intval',$db->query('SELECT (SELECT count(*) FROM installations) AS installations,(SELECT count(*) FROM profiles) AS profiles,
+    (SELECT count(*) FROM playthroughs) AS playthroughs,(SELECT count(*) FROM sessions) AS sessions,(SELECT count(*) FROM source_events) AS sources,
+    (SELECT count(*) FROM character_playthrough_bindings) AS bindings')->fetch());
+foreach(['legacy','character_conflict','scope_switch','fresh_unknown_existing'] as $bindingCase){
+    $rejected=$characterReload;$rejected['message_id']=Uuid::v4();$rejected['generation']=3;$expected='character_binding_conflict';
+    if($bindingCase==='legacy'){unset($rejected['character_id'],$rejected['character_binding']);$expected='character_binding_required';}
+    if($bindingCase==='character_conflict')$rejected['character_id']=Uuid::v4();
+    if($bindingCase==='scope_switch'){$rejected['character_id']=Uuid::v4();$rejected['profile_id']=Uuid::v4();$rejected['playthrough_id']=Uuid::v4();$expected='playthrough_isolation_required';}
+    if($bindingCase==='fresh_unknown_existing'){$rejected['installation_id']=Uuid::v4();$rejected['character_id']=Uuid::v4();$rejected['profile_id']=Uuid::v4();$rejected['playthrough_id']=Uuid::v4();$rejected['character_binding']='existing';}
+    $before=$guardCounts();$snapshotCalled=false;
+    try{$repo->createSession($rejected,Uuid::v4(),$tokenHash,null,function()use(&$snapshotCalled):void{$snapshotCalled=true;});$assert(false,'unsafe character admission accepted');}
+    catch(DomainException $error){$assert($error->getMessage()===$expected,'unexpected character admission error: '.$error->getMessage());}
+    $assert($guardCounts()===$before&&!$snapshotCalled&&$repo->session($characterReloadId,2)['state']==='active','rejected admission created data, captured backup or retired the outgoing session');
+}
+$legacyCharacter=$session;$legacyCharacter['installation_id']=Uuid::v4();$legacyCharacter['profile_id']=Uuid::v4();
+$legacyCharacter['playthrough_id']=Uuid::v4();$legacyCharacter['message_id']=Uuid::v4();$legacyCharacter['generation']=1;unset($legacyCharacter['loaded_save']);
+$repo->createSession($legacyCharacter,Uuid::v4(),$tokenHash);
+$legacyCharacter['character_id']=Uuid::v4();$legacyCharacter['character_binding']='existing';$legacyCharacter['generation']=2;$legacyCharacter['message_id']=Uuid::v4();
+$before=$guardCounts();$repo->createSession($legacyCharacter,Uuid::v4(),$tokenHash);$after=$guardCounts();
+$assert($after['profiles']===$before['profiles']&&$after['playthroughs']===$before['playthroughs']
+    &&$products->characterPlaythroughState($legacyCharacter['installation_id'])['bindings'][0]['binding_mode']==='existing','explicit adoption replaced existing profiles or playthrough history');
+$olderUntagged=$legacyCharacter;$olderUntagged['character_id']=Uuid::v4();$olderUntagged['message_id']=Uuid::v4();$olderUntagged['generation']=3;
+$recoveredCharacter=$repo->createSession($olderUntagged,Uuid::v4(),$tokenHash);
+$assert(($recoveredCharacter['character_id']??null)===$legacyCharacter['character_id']
+    &&count($products->characterPlaythroughState($legacyCharacter['installation_id'])['bindings'])===1,
+    'explicit older-save adoption did not reuse the canonical character identity');
+
+// A supplied character already belonging to another world must never be rebound by recovery.
+$foreignPlaythrough=Uuid::v4();$foreignCharacter=Uuid::v4();
+$db->prepare('INSERT INTO playthroughs(playthrough_id,installation_id,profile_id,name,created_at) VALUES(:id,:installation,:profile,:name,clock_timestamp())')
+    ->execute(['id'=>$foreignPlaythrough,'installation'=>$legacyCharacter['installation_id'],'profile'=>$legacyCharacter['profile_id'],'name'=>'Unselected preserved legacy world']);
+$db->prepare("INSERT INTO character_playthrough_bindings(installation_id,character_id,playthrough_id,binding_mode) VALUES(:installation,:character,:playthrough,'existing')")
+    ->execute(['installation'=>$legacyCharacter['installation_id'],'character'=>$foreignCharacter,'playthrough'=>$foreignPlaythrough]);
+$foreignRecovery=$olderUntagged;$foreignRecovery['character_id']=$foreignCharacter;$foreignRecovery['generation']=4;$foreignRecovery['message_id']=Uuid::v4();
+try{$repo->createSession($foreignRecovery,Uuid::v4(),$tokenHash);$assert(false,'older-save recovery reassigned an existing foreign character');}
+catch(DomainException $error){$assert($error->getMessage()==='character_binding_conflict','wrong foreign character recovery error');}
 
 fwrite(STDOUT, "integration vertical slice passed\n");

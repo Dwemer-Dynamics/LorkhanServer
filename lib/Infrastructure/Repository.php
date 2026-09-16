@@ -136,6 +136,8 @@ final class Repository
             $this->ensureInstallation($message['installation_id'], $tokenHash,$macKey);
             $lock = $this->db->prepare('SELECT installation_id FROM installations WHERE installation_id = :id FOR UPDATE');
             $lock->execute(['id' => $message['installation_id']]);
+            $characters=new CharacterPlaythroughRepository($this->db);
+            $characterId=$characters->assertSessionBinding($message);
             $this->ensureSessionOwners($message);
             $latest = $this->db->prepare('SELECT MAX(generation) FROM sessions WHERE installation_id = :id');
             $latest->execute(['id' => $message['installation_id']]);
@@ -143,6 +145,7 @@ final class Repository
             if ($previous !== null && $message['generation'] <= (int) $previous) throw new \UnexpectedValueException('stale_generation');
             // The installation fence and generation checks precede backup capture; no prior session work has been cancelled yet.
             if($beforeReplace!==null)$beforeReplace();
+            $characters->bind($message,$characterId);
             $active=$this->db->prepare("SELECT session_id FROM sessions WHERE installation_id=:id AND state='active' FOR UPDATE");
             $active->execute(['id'=>$message['installation_id']]);$activeSessions=$active->fetchAll(PDO::FETCH_COLUMN);
             foreach($activeSessions as $activeSession)$this->cancelOutstandingTurns((string)$activeSession,'session_replaced');
@@ -157,19 +160,20 @@ final class Repository
             $actions=[];foreach(self::ENABLED_ACTIONS as $action){$capability='action.'.$action;if(in_array($capability,$capabilities,true))$actions[]=$action;}
             $stmt = $this->db->prepare('INSERT INTO sessions '
                 . '(session_id, installation_id, profile_id, playthrough_id, generation, content_fingerprint, openmw_version, '
-                . 'openmw_commit, lua_api_revision, client_version, platform, capabilities, enabled_actions, created_at) VALUES '
+                . 'openmw_commit, lua_api_revision, client_version, platform, capabilities, enabled_actions, created_at,character_id) VALUES '
                 . '(:session, :installation, :profile, :playthrough, :generation, :fingerprint, :version, :commit, :api, '
-                . ':client, :platform, CAST(:capabilities AS text[]), CAST(:actions AS text[]), :created)');
+                . ':client, :platform, CAST(:capabilities AS text[]), CAST(:actions AS text[]), :created,:character)');
             $r = $message['runtime'];
             $stmt->execute(['session' => $sessionId, 'installation' => $message['installation_id'], 'profile' => $message['profile_id'],
                 'playthrough' => $message['playthrough_id'], 'generation' => $message['generation'], 'fingerprint' => $message['content_fingerprint'],
                 'version' => $r['openmw_version'], 'commit' => $r['openmw_commit'], 'api' => $r['lua_api_revision'], 'client' => $r['client_version'],
                 'platform' => $r['platform'], 'capabilities' => $this->pgArray($capabilities), 'actions' => $this->pgArray($actions),
-                'created' => $message['created_at']]);
+                'created' => $message['created_at'],'character'=>$characterId]);
             $this->source($message['message_id'], $message['installation_id'], $sessionId, $message['generation'], 'session.init',
                 $message['created_at'], $message['schema'], null, null, null, $message);
             if (array_key_exists('loaded_save',$message)) (new LoadedSaveTimeline($this->db))->invalidate($message);
-            return ['session_id' => $sessionId, 'generation' => $message['generation'], 'capabilities' => $capabilities];
+            return ['session_id' => $sessionId, 'generation' => $message['generation'], 'capabilities' => $capabilities]
+                +($characterId===null?[]:['character_id'=>$characterId]);
         });
     }
 

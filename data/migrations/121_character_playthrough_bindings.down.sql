@@ -1,0 +1,3 @@
+ALTER TABLE lorkhan_internal.sessions DROP CONSTRAINT sessions_character_binding_fk;
+ALTER TABLE lorkhan_internal.sessions DROP COLUMN character_id;
+DROP TABLE lorkhan_internal.character_playthrough_bindings;

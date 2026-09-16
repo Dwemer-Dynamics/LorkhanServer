@@ -30,6 +30,11 @@ final class ProductRepository
 
     public function __construct(private readonly PDO $db) {}
 
+    public function characterPlaythroughState(string $installation):array
+    {
+        return (new CharacterPlaythroughRepository($this->db))->state($installation);
+    }
+
     public function dynamicOghma():DynamicOghmaRepository{return new DynamicOghmaRepository($this->db);}
     public function player2Routing():Player2RoutingRepository{return new Player2RoutingRepository($this->db);}
 

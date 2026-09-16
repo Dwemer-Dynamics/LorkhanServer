@@ -128,7 +128,7 @@ final class Router
                 return [201, ['schema' => 'lorkhan.session.accepted.v1', 'message_id' => $m['message_id'],
                     'session_id' => $sessionId, 'generation' => $session['generation'],
                     'capabilities' => $session['capabilities'], 'config_revision' => $settings['revision'],
-                    'client_settings'=>$settings['content'],'event_cursor' => 0]];
+                    'client_settings'=>$settings['content'],'event_cursor' => 0]+(isset($session['character_id'])?['character_id'=>$session['character_id']]:[])];
             });
         });
     }
@@ -877,7 +877,7 @@ final class Router
     {
         $aliases=['diary_books_unsupported'=>'invalid_schema','diary_book_not_found'=>'not_found','diary_book_mismatch'=>'request_mismatch',
             'diary_book_terminal'=>'duplicate_conflict','diary_book_superseded'=>'request_mismatch','revision_conflict'=>'request_mismatch','dialogue_result_mismatch'=>'request_mismatch','dialogue_result_time_invalid'=>'invalid_schema','unknown_dialogue'=>'not_found'];if(isset($aliases[$code]))return$aliases[$code];
-        $allowed=['ai_disabled','action_disabled','action_parameters_invalid','action_result_expired','action_result_mismatch','invalid_audio',
+        $allowed=['character_binding_required','character_binding_conflict','playthrough_isolation_required','ai_disabled','action_disabled','action_parameters_invalid','action_result_expired','action_result_mismatch','invalid_audio',
             'action_target_invalid','action_tier_mismatch','cursor_expired','duplicate_conflict','invalid_idempotency_key',
             'invalid_schema','media_unavailable','not_found','provider_action_not_allowed','provider_invalid_action',
             'provider_invalid_output','provider_timeout','provider_unavailable','rate_limited','request_mismatch',

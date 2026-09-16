@@ -177,6 +177,10 @@ final class ManagementRouter
 
     private function api(Request $r,string $path,string $browserSession):Response
     {
+        if($r->method==='GET'&&$path==='/api/v1/playthrough-characters'){
+            if(array_keys($r->query)!==['installation_id']||!is_string($r->query['installation_id']))throw new InvalidArgumentException('invalid_installation_id');
+            return Response::json(200,$this->repository->characterPlaythroughState($r->query['installation_id']));
+        }
         if ($r->method === 'POST' && $path === '/api/v1/llm-groq-models') {
             $body = $this->json($r); $keys = array_keys($body); sort($keys);
             if ($r->query !== [] || $keys !== ['credential','driver'] || !is_string($body['credential'])
