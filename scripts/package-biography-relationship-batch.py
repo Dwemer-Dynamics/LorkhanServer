@@ -136,9 +136,10 @@ def main():
             sql.insert(0, previous_sql.read_text(encoding='utf-8').rstrip()+'\n')
     args.output.mkdir(parents=True)
     (args.output/'biographies.json').write_bytes(encoded)
-    (args.output/'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n', encoding='utf-8')
-    (args.output/'catalog-version.txt').write_text(args.catalog_version+'\n', encoding='utf-8')
-    (args.output/'relationships-backfill.sql').write_text('\n'.join(sql)+'\n', encoding='utf-8')
+    # Catalog hashes must survive Windows generation and Git's LF normalization unchanged.
+    (args.output/'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n', encoding='utf-8', newline='\n')
+    (args.output/'catalog-version.txt').write_text(args.catalog_version+'\n', encoding='utf-8', newline='\n')
+    (args.output/'relationships-backfill.sql').write_text('\n'.join(sql)+'\n', encoding='utf-8', newline='\n')
     print(json.dumps({'validated': len(records), 'changed_rows': len(changes), 'counts': dict(counts),
                       'excluded': len(excluded), 'charged_usd': charged, 'live_import': False}, indent=2))
 
