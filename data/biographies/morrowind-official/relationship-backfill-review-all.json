@@ -1,0 +1,1052 @@
+{
+  "scope": "All 10169 previously unprocessed empty biographies; first 933 processed NPCs excluded",
+  "model": "z-ai/glm-5.2",
+  "processed": 10169,
+  "changed_rows": 33,
+  "charged_or_reserved_usd": 1.89097523826,
+  "review": {
+    "alof_the_easterner": {
+      "reason": "Existing Burub biography explicitly names Alof as a farmer harassed by her gang; narrowed note to this catalog-supported fact, removing unneeded quest-request wording.",
+      "raw": [
+        {
+          "target": "burub_gra_bamog",
+          "aff": -40,
+          "type": "enemy",
+          "relation": "Hostile bandit leader",
+          "note": "Burub and her gang at Ashunartes harass Alof and threaten his farm.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "carnius_magius": {
+      "reason": "Retain only rivalry with deputy Falco, supported by https://en.wikipedia.org/wiki/The_Elder_Scrolls_III%3A_Bloodmoon . Reject Toris: existing bio identifies an unrelated Redoran noble, not a Company auditor. Remove unsupported murder plot against Constans and sabotage-agent claim about Baro.",
+      "raw": [
+        {
+          "target": "falco_galenus",
+          "aff": -35,
+          "type": "enemy",
+          "relation": "Rival deputy",
+          "note": "Carnius and his deputy Falco clash over how to run the Raven Rock colony.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "cunius_pelelius": {
+      "reason": "Donation pledge concerns the Imperial Cult collectively; existing bios do not establish a personal relationship with Lalatia. Do not infer a specific target from faction leadership.",
+      "raw": []
+    },
+    "falco_galenus": {
+      "reason": "Keep reciprocal Carnius rivalry supported by previously checked https://en.wikipedia.org/wiki/The_Elder_Scrolls_III%3A_Bloodmoon . Reduce extreme affinity and remove truncated quest metadata. Drop Gamin claim: current bios do not establish the asserted foreman role or personal supply relationship; shared Company employment alone is insufficient.",
+      "raw": [
+        {
+          "target": "carnius_magius",
+          "aff": -35,
+          "type": "enemy",
+          "relation": "Rival superior",
+          "note": "Falco and his superior Carnius clash over how to run the Raven Rock colony.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "hrondar_highlander": {
+      "reason": "Both bios establish occupancy but explicitly leave the personal connection unknown. Do not turn shared lodging into a professional relationship, willing shelter, or positive affinity. Preserve the pre-existing Fadila row untouched.",
+      "raw": []
+    },
+    "llirala_sendas": {
+      "reason": "Existing Saryoni relationship explicitly names Llirala as entrusted manuscript caretaker, independently supporting Temple duties; keep factual key possession without expanding to inferred intimacy.",
+      "raw": [
+        {
+          "target": "tholer_saryoni",
+          "aff": 40,
+          "type": "professional",
+          "relation": "Temple superior",
+          "note": "Llirala serves the Tribunal Temple and holds a key to Archcanon Saryoni's private quarters.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "processus_vitellius": {
+      "reason": "Socucius bio explicitly identifies Processus as a missing colleague; Foryn bio explicitly states he killed Processus. Keep these base-world facts without quest completion/confession assumptions, with conservative colleague affinity.",
+      "raw": [
+        {
+          "target": "chargen_class",
+          "aff": 20,
+          "type": "professional",
+          "relation": "Census and Excise colleague",
+          "note": "Socucius works at Seyda Neen Census and Excise and investigates the missing tax collector Processus.",
+          "best": "",
+          "worst": ""
+        },
+        {
+          "target": "foryn_gilnith",
+          "aff": -50,
+          "type": "enemy",
+          "relation": "His murderer",
+          "note": "Foryn killed Processus over Imperial taxation in Seyda Neen.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m4_dels_ravyn": {
+      "reason": "Reject unsupported personal connection to Dram Bero. The supplied biography establishes employment by House Hlaalu at Oran Plantation, but neither biography identifies Bero as the employer or connects these two NPCs. Shared faction alone is insufficient; negative affinity is also unsupported.",
+      "raw": []
+    },
+    "tymvaul": {
+      "raw": [
+        {
+          "target": "lassnr",
+          "relation": "Father",
+          "note": "Lassnr of the Skaal village is Tymvaul's father.",
+          "type": "familial",
+          "best": "",
+          "aff": 25,
+          "worst": ""
+        }
+      ],
+      "reason": "Retain documented father-son relationship; remove inaccurate fall/cloak explanation and player quest encounter. Sources: https://www.gamebanshee.com/morrowind/locations/sqmiscbloodmoon.php and https://elderscrolls.fandom.com/wiki/Tymvaul_in_the_Well . Conservative affinity is a seed estimate, not a documented disposition."
+    },
+    "varus_vatinius": {
+      "raw": [],
+      "reason": "Reject inferred personal relationships from general Legion hierarchy and shared council chambers. Notes do not establish directed named interactions or the proposed high affinities. Percius Mercius is a Fighters Guild officer, not a Legion subordinate; the Frald note describes player progression and mislabels direction. Supplied biographies confirm no specific bonds between Varus and these targets."
+    },
+    "yngling_half_troll": {
+      "reason": "Reject unsupported directed personal bonds. The biography describes Temple embezzlement, not a personal relationship or hostility toward Saryoni; shared Hlaalu office and Curio directing the player do not establish reciprocal affinity from Yngling. No player quest progression is assumed.",
+      "raw": []
+    },
+    "barenziah": {
+      "reason": "Helseth biography explicitly identifies Barenziah as his mother. Remove invented Talen-Jei/Talen Vandas family claims and unsupported Almalexia/political links.",
+      "raw": [
+        {
+          "target": "king_hlaalu_helseth",
+          "aff": 40,
+          "type": "familial",
+          "relation": "Son",
+          "note": "Helseth is Barenziah's son, ruling from the Royal Palace in Mournhold.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "dreamer_talker": {
+      "reason": "Dagoth Ur has no target row in this catalog. Preserve the devotional biography but do not fabricate a catalog target.",
+      "raw": []
+    },
+    "fedris_hler": {
+      "reason": "Almalexia has no target row in this catalog. Do not fabricate an NPC key for the requested relationship.",
+      "raw": []
+    },
+    "larrius_varro": {
+      "reason": "Generated targets and positive affinities are not supported by the supplied biography or directed evidence. The response invents a list of named assassination targets from a general Camonna Tong mission; do not import those claims.",
+      "raw": []
+    },
+    "moroni_uvelas": {
+      "reason": "Generated husband Danar Uvelas has no catalog row. The biography only says Danar; do not infer a surname or map him to another Danar.",
+      "raw": []
+    },
+    "tr_m1_arthal_eindari": {
+      "reason": "Both ordinary-state biographies explicitly establish marriage. Resolve ambiguous display name to the ordinary NPC record, not the separate quest vampire variant.",
+      "raw": [
+        {
+          "target": "tr_m1_verana_eindari",
+          "aff": 40,
+          "type": "romantic",
+          "relation": "Wife",
+          "note": "Arthal and his wife Verana Eindari share their home in Ranyon-ruhn.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m1_eranea": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m1_T_Mithras, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m1_t_mithras",
+          "aff": 50,
+          "type": "platonic",
+          "relation": "Friend and benefactor",
+          "note": "Mithras saved Eranea from execution after a false accusation; they have been close friends since.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m1_gilen_indothan": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m1_Verana_Eindari, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m1_verana_eindari",
+          "aff": 0,
+          "type": "professional",
+          "relation": "Customer",
+          "note": "Gilen has sold meat to Verana Eindari in Ranyon-ruhn.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m1_o_uelyna_thenim": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m1_Vycius_Pitio, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m1_vycius_pitio",
+          "aff": 20,
+          "type": "professional",
+          "relation": "Smuggling partner",
+          "note": "Uelyna maintains a smuggling arrangement with Vycius Pitio of the Dustmoth Legion.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m1_q_uneleasrangirth": {
+      "reason": "The unique corpse record explicitly identifies Uneleas as the employer. Relationship describes the established hiring, without assuming Uneleas knows Alvar died.",
+      "raw": [
+        {
+          "target": "tr_m1_dead_alvar_o",
+          "aff": 20,
+          "type": "professional",
+          "relation": "Hired attendant",
+          "note": "Uneleas hired Alvar Omothan to place offerings in his ancestral tomb and worries about his absence.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m1_valvius_matius": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m1_Friela_Antoni, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m1_friela_antoni",
+          "aff": 0,
+          "type": "professional",
+          "relation": "Borrower",
+          "note": "Valvius holds Friela Antoni's candlesticks as collateral until she repays her loan.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m1_vedran_gavonir": {
+      "reason": "Gavis Arantam has no matching catalog identity. Do not invent a target or silently substitute a similarly named NPC.",
+      "raw": []
+    },
+    "tr_m1_verana_eindari": {
+      "reason": "Both ordinary-state biographies explicitly establish marriage. Resolve ambiguous display name to the ordinary NPC record, not the separate quest vampire variant.",
+      "raw": [
+        {
+          "target": "tr_m1_arthal_eindari",
+          "aff": 40,
+          "type": "romantic",
+          "relation": "Husband",
+          "note": "Verana and her husband Arthal Eindari share their home in Ranyon-ruhn.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m2_andreran_morath": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m2_Calaciren, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m2_calaciren",
+          "aff": 20,
+          "type": "professional",
+          "relation": "Hired healer",
+          "note": "Andreran hired Calaciren to deal with a haunted Dwemer shield aboard the Eternal Voyager.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m2_caedan_jorval": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m2_Hofmund, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m2_hofmund",
+          "aff": 0,
+          "type": "professional",
+          "relation": "Betrayed associate",
+          "note": "Caedan supplies intelligence to Greedy Hofmund's gang before betraying them for his own purposes.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m2_cantorius_tramel": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m2_Calaciren, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m2_calaciren",
+          "aff": 10,
+          "type": "professional",
+          "relation": "Prospective recruit",
+          "note": "Cantorius asks Calaciren to join the Imperial Cult congregation in Helnim.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m2_ensalda_lacinius": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m2_Kaishi, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m2_kaishi",
+          "aff": 0,
+          "type": "neutral",
+          "relation": "Investigator",
+          "note": "The Lamp Knight Kaishi monitors Ensalda's suspected Dagon cult activities.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m2_falkoth": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m2_Hofmund, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m2_hofmund",
+          "aff": -20,
+          "type": "professional",
+          "relation": "Unwanted associate",
+          "note": "Falkoth reluctantly shelters Greedy Hofmund and his gang in his basement after a failed heist.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m2_q_26_garo_varsel": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m2_Temis Lorthus, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m2_temis_lorthus",
+          "aff": -40,
+          "type": "enemy",
+          "relation": "Assassination target",
+          "note": "Garo is an assassin sent to kill Temis Lorthus, while posing as a concerned friend.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m2_q_9_nileno": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m2_Mithas_Vemyn, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m2_mithas_vemyn",
+          "aff": 0,
+          "type": "neutral",
+          "relation": "Old acquaintance",
+          "note": "Mithas Vemyn remembers Nileno fondly but has lost track of her.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m3_anara": {
+      "reason": "The proposed target Jebyn is absent under that identity. A similarly named record now displays Jelyn with a generic sailor biography; evidence does not prove the intended personal bond to this catalog identity.",
+      "raw": []
+    },
+    "tr_m3_ivon_seloth": {
+      "reason": "The proposed target Jebyn is absent under that identity. A similarly named record now displays Jelyn with a generic sailor biography; evidence does not prove the intended personal bond to this catalog identity.",
+      "raw": []
+    },
+    "tr_m3_kh_ienni_drothril": {
+      "reason": "The biography refers to male Indoril Dilale; the candidate Dilale Raathim is a female noble with no supporting servant relationship. Do not silently merge uncertain identities.",
+      "raw": []
+    },
+    "tr_m3_nidara_drelvi": {
+      "reason": "Indoril Seras has no matching catalog identity. Do not invent a target or silently substitute a similarly named NPC.",
+      "raw": []
+    },
+    "tr_m3_rald": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m3_Glaucia Rumariil, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m3_glaucia_rumariil",
+          "aff": 20,
+          "type": "professional",
+          "relation": "Superior",
+          "note": "Rald assists Glaucia, the Minister of Hlaalu Affairs, in the Curia offices at Ebon Tower.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m3_rifskald_whaleban": {
+      "reason": "Hhontjulf Fire-Mane has no matching catalog identity. Do not invent a target or silently substitute a similarly named NPC.",
+      "raw": []
+    },
+    "tr_m3_sulerri_tharyon": {
+      "reason": "Gilam Sarlys has no matching catalog identity. Do not invent a target or silently substitute a similarly named NPC.",
+      "raw": []
+    },
+    "tr_m3_varru_envano": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m3_Felvi_Envano, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m3_felvi_envano",
+          "aff": 40,
+          "type": "romantic",
+          "relation": "Wife",
+          "note": "Varru lives in Saveri with his wife, Hetman Felvi Envano.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m4_fjorrod": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m4_Uvisea Athin, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m4_uvisea_athin",
+          "aff": -40,
+          "type": "enemy",
+          "relation": "Former employer",
+          "note": "Fjorrod served as Uvisea Athin's bodyguard until she tried to mug him; he left her paralyzed by her own spell.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m4_honon_falas": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m4_Gavros_Falas, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m4_gavros_falas",
+          "aff": 40,
+          "type": "familial",
+          "relation": "Uncle",
+          "note": "Honon is Gavros Falas's affectionate nephew and fears his uncle was murdered.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m4_ilvys_hleeri": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m4_Gelvu Andas, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m4_gelvu_andas",
+          "aff": -30,
+          "type": "enemy",
+          "relation": "Pursuer",
+          "note": "Gelvu Andas demands Ilvys's execution for stealing ore from the Andas family mine.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m4_iridor": {
+      "reason": "Being a witness regarding Kettigrim does not establish hostility or the proposed personal bond. No specific interpersonal event is supplied.",
+      "raw": []
+    },
+    "tr_m4_lacey": {
+      "reason": "Damilo Borovel has no matching catalog identity. Do not invent a target or silently substitute a similarly named NPC.",
+      "raw": []
+    },
+    "tr_m4_q_arvena": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m4_q_Varzan, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m4_q_varzan",
+          "aff": 50,
+          "type": "platonic",
+          "relation": "Childhood friend",
+          "note": "Arvena and Varzan grew up together in Dragonstar and now adventure together through Roth Roryn.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m4_sathes_barnalo": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m4_Gavros_Falas, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m4_gavros_falas",
+          "aff": 0,
+          "type": "neutral",
+          "relation": "Victim",
+          "note": "Sathes was involved in Gavros Falas's death while under the influence of disturbing dreams.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m4_v_shinammu": {
+      "reason": "The subject biography names no survivor. The two Rels Uvalor records provide only generic warrior biographies. The claim that this specific NPC is the captive remains unsupported.",
+      "raw": []
+    },
+    "tr_m7_ferus_tevothar": {
+      "reason": "Llaritha Tevothar has no matching catalog identity. Do not invent a target or silently substitute a similarly named NPC.",
+      "raw": []
+    },
+    "tr_m7_gidain_llendo": {
+      "reason": "Aldam Soras has no matching catalog identity. Do not invent a target or silently substitute a similarly named NPC.",
+      "raw": []
+    },
+    "tr_m7_goranasamsi": {
+      "reason": "Only common clan membership supports the proposed link to Tarsamat Bekul. Shared faction does not establish a directed personal relationship.",
+      "raw": []
+    },
+    "tr_m7_horatia_statilius": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m7_Vaniken Drath, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m7_vaniken_drath",
+          "aff": 0,
+          "type": "professional",
+          "relation": "Surveillance target",
+          "note": "Horatia secretly tracks Vaniken Drath while posing as a gambler at the Fortuna casino.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m7_long_are_days": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m7_Gweiwen, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m7_gweiwen",
+          "aff": -50,
+          "type": "enemy",
+          "relation": "Slave hunter",
+          "note": "Gweiwen actively hunts Long-Are-Days, an escaped slave hiding south of Stormgate Pass.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m7_mederyl_llendules": {
+      "reason": "Darathes Soril is not a catalog identity. Trilas Soril has a different name and occupation; do not substitute an unrelated NPC.",
+      "raw": []
+    },
+    "tr_m7_o_mulvena_ghost": {
+      "reason": "Subject biography explicitly names the leader. Resolve to the corresponding ghost record, not the separate living priest.",
+      "raw": [
+        {
+          "target": "tr_m7_o_ilvrin_ghost",
+          "aff": 30,
+          "type": "professional",
+          "relation": "Leader of vengeance",
+          "note": "Mulvena joins Ilvrin Hlaalu's ghosts seeking revenge against the Camonna Tong.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m7_paduliusvoltandus": {
+      "reason": "Ossic Malance matches two quest-state ghost records with generic biographies. The available data does not identify which state is intended; retain the haunting in the biography rather than guess a relationship key.",
+      "raw": []
+    },
+    "tr_m7_q_dorlu_helan": {
+      "reason": "Subject biography explicitly describes employment. Select the mainland TR record, not the separate original-game Vodunius with an unrelated Vivec biography.",
+      "raw": [
+        {
+          "target": "tr_m4_vodunius_nuccius",
+          "aff": -10,
+          "type": "professional",
+          "relation": "Hired guar watcher",
+          "note": "Dorlu hired Vodunius Nuccius to watch his pack guar and seeks compensation for its loss.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "ulath_pal": {
+      "reason": "Output infers positive bonds from tribal hierarchy and misidentifies hunter Assaba-Bentus as a Gulakhan. Earlier output also fabricated a player relationship and mismatched Hannat with Han-Ammu. No supported directed personal connection remains.",
+      "raw": []
+    },
+    "yak_gro_skandar": {
+      "reason": "Both biographies explicitly identify the shipment and partner. Select the Lucan record whose biography documents this transaction, not lucan_ostorius2.",
+      "raw": [
+        {
+          "target": "lucan_ostorius",
+          "aff": 20,
+          "type": "professional",
+          "relation": "Weapons supplier",
+          "note": "Yak awaits a weapons shipment from Lucan Ostorius.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    }
+  },
+  "quarantine_resolutions": {
+    "barenziah": {
+      "reason": "Helseth biography explicitly identifies Barenziah as his mother. Remove invented Talen-Jei/Talen Vandas family claims and unsupported Almalexia/political links.",
+      "raw": [
+        {
+          "target": "king_hlaalu_helseth",
+          "aff": 40,
+          "type": "familial",
+          "relation": "Son",
+          "note": "Helseth is Barenziah's son, ruling from the Royal Palace in Mournhold.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "derar_hlervu": {
+      "reason": "Molag Bal is not an NPC target in this catalog. Do not invent a record or convert a deity/statue into an NPC identity.",
+      "raw": []
+    },
+    "dreamer_talker": {
+      "reason": "Dagoth Ur has no target row in this catalog. Preserve the devotional biography but do not fabricate a catalog target.",
+      "raw": []
+    },
+    "dreamer_talker10": {
+      "reason": "Dagoth Ur has no target row in this catalog. Preserve the devotional biography but do not fabricate a catalog target.",
+      "raw": []
+    },
+    "fedris_hler": {
+      "reason": "Almalexia has no target row in this catalog. Do not fabricate an NPC key for the requested relationship.",
+      "raw": []
+    },
+    "ingmar": {
+      "reason": "Output only describes prospective player quest participation. Player relationships are excluded from factory new-game seeds.",
+      "raw": []
+    },
+    "larrius_varro": {
+      "reason": "Generated targets and positive affinities are not supported by the supplied biography or directed evidence. The response invents a list of named assassination targets from a general Camonna Tong mission; do not import those claims.",
+      "raw": []
+    },
+    "moroni_uvelas": {
+      "reason": "Generated husband Danar Uvelas has no catalog row. The biography only says Danar; do not infer a surname or map him to another Danar.",
+      "raw": []
+    },
+    "tr_m1_arthal_eindari": {
+      "reason": "Both ordinary-state biographies explicitly establish marriage. Resolve ambiguous display name to the ordinary NPC record, not the separate quest vampire variant.",
+      "raw": [
+        {
+          "target": "tr_m1_verana_eindari",
+          "aff": 40,
+          "type": "romantic",
+          "relation": "Wife",
+          "note": "Arthal and his wife Verana Eindari share their home in Ranyon-ruhn.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m1_verana_eindari": {
+      "reason": "Both ordinary-state biographies explicitly establish marriage. Resolve ambiguous display name to the ordinary NPC record, not the separate quest vampire variant.",
+      "raw": [
+        {
+          "target": "tr_m1_arthal_eindari",
+          "aff": 40,
+          "type": "romantic",
+          "relation": "Husband",
+          "note": "Verana and her husband Arthal Eindari share their home in Ranyon-ruhn.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m1_eranea": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m1_T_Mithras, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m1_t_mithras",
+          "aff": 50,
+          "type": "platonic",
+          "relation": "Friend and benefactor",
+          "note": "Mithras saved Eranea from execution after a false accusation; they have been close friends since.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m1_gilen_indothan": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m1_Verana_Eindari, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m1_verana_eindari",
+          "aff": 0,
+          "type": "professional",
+          "relation": "Customer",
+          "note": "Gilen has sold meat to Verana Eindari in Ranyon-ruhn.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m1_o_uelyna_thenim": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m1_Vycius_Pitio, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m1_vycius_pitio",
+          "aff": 20,
+          "type": "professional",
+          "relation": "Smuggling partner",
+          "note": "Uelyna maintains a smuggling arrangement with Vycius Pitio of the Dustmoth Legion.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m1_valvius_matius": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m1_Friela_Antoni, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m1_friela_antoni",
+          "aff": 0,
+          "type": "professional",
+          "relation": "Borrower",
+          "note": "Valvius holds Friela Antoni's candlesticks as collateral until she repays her loan.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m2_andreran_morath": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m2_Calaciren, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m2_calaciren",
+          "aff": 20,
+          "type": "professional",
+          "relation": "Hired healer",
+          "note": "Andreran hired Calaciren to deal with a haunted Dwemer shield aboard the Eternal Voyager.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m2_caedan_jorval": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m2_Hofmund, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m2_hofmund",
+          "aff": 0,
+          "type": "professional",
+          "relation": "Betrayed associate",
+          "note": "Caedan supplies intelligence to Greedy Hofmund's gang before betraying them for his own purposes.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m2_cantorius_tramel": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m2_Calaciren, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m2_calaciren",
+          "aff": 10,
+          "type": "professional",
+          "relation": "Prospective recruit",
+          "note": "Cantorius asks Calaciren to join the Imperial Cult congregation in Helnim.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m2_ensalda_lacinius": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m2_Kaishi, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m2_kaishi",
+          "aff": 0,
+          "type": "neutral",
+          "relation": "Investigator",
+          "note": "The Lamp Knight Kaishi monitors Ensalda's suspected Dagon cult activities.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m2_falkoth": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m2_Hofmund, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m2_hofmund",
+          "aff": -20,
+          "type": "professional",
+          "relation": "Unwanted associate",
+          "note": "Falkoth reluctantly shelters Greedy Hofmund and his gang in his basement after a failed heist.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m2_q_26_garo_varsel": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m2_Temis Lorthus, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m2_temis_lorthus",
+          "aff": -40,
+          "type": "enemy",
+          "relation": "Assassination target",
+          "note": "Garo is an assassin sent to kill Temis Lorthus, while posing as a concerned friend.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m2_q_9_nileno": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m2_Mithas_Vemyn, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m2_mithas_vemyn",
+          "aff": 0,
+          "type": "neutral",
+          "relation": "Old acquaintance",
+          "note": "Mithas Vemyn remembers Nileno fondly but has lost track of her.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m3_rald": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m3_Glaucia Rumariil, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m3_glaucia_rumariil",
+          "aff": 20,
+          "type": "professional",
+          "relation": "Superior",
+          "note": "Rald assists Glaucia, the Minister of Hlaalu Affairs, in the Curia offices at Ebon Tower.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m3_varru_envano": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m3_Felvi_Envano, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m3_felvi_envano",
+          "aff": 40,
+          "type": "romantic",
+          "relation": "Wife",
+          "note": "Varru lives in Saveri with his wife, Hetman Felvi Envano.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m4_fjorrod": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m4_Uvisea Athin, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m4_uvisea_athin",
+          "aff": -40,
+          "type": "enemy",
+          "relation": "Former employer",
+          "note": "Fjorrod served as Uvisea Athin's bodyguard until she tried to mug him; he left her paralyzed by her own spell.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m4_honon_falas": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m4_Gavros_Falas, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m4_gavros_falas",
+          "aff": 40,
+          "type": "familial",
+          "relation": "Uncle",
+          "note": "Honon is Gavros Falas's affectionate nephew and fears his uncle was murdered.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m4_ilvys_hleeri": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m4_Gelvu Andas, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m4_gelvu_andas",
+          "aff": -30,
+          "type": "enemy",
+          "relation": "Pursuer",
+          "note": "Gelvu Andas demands Ilvys's execution for stealing ore from the Andas family mine.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m4_q_arvena": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m4_q_Varzan, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m4_q_varzan",
+          "aff": 50,
+          "type": "platonic",
+          "relation": "Childhood friend",
+          "note": "Arvena and Varzan grew up together in Dragonstar and now adventure together through Roth Roryn.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m4_sathes_barnalo": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m4_Gavros_Falas, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m4_gavros_falas",
+          "aff": 0,
+          "type": "neutral",
+          "relation": "Victim",
+          "note": "Sathes was involved in Gavros Falas's death while under the influence of disturbing dreams.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m7_horatia_statilius": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m7_Vaniken Drath, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m7_vaniken_drath",
+          "aff": 0,
+          "type": "professional",
+          "relation": "Surveillance target",
+          "note": "Horatia secretly tracks Vaniken Drath while posing as a gambler at the Fortuna casino.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m7_long_are_days": {
+      "reason": "Supplied subject biography explicitly supports this directed connection. Resolve reviewed target to exact catalog record TR_m7_Gweiwen, avoiding alternate quest-state records. Affinity is a conservative seed estimate; do not assume player quest completion.",
+      "raw": [
+        {
+          "target": "tr_m7_gweiwen",
+          "aff": -50,
+          "type": "enemy",
+          "relation": "Slave hunter",
+          "note": "Gweiwen actively hunts Long-Are-Days, an escaped slave hiding south of Stormgate Pass.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m1_vedran_gavonir": {
+      "reason": "Gavis Arantam has no matching catalog identity. Do not invent a target or silently substitute a similarly named NPC.",
+      "raw": []
+    },
+    "tr_m3_nidara_drelvi": {
+      "reason": "Indoril Seras has no matching catalog identity. Do not invent a target or silently substitute a similarly named NPC.",
+      "raw": []
+    },
+    "tr_m3_rifskald_whaleban": {
+      "reason": "Hhontjulf Fire-Mane has no matching catalog identity. Do not invent a target or silently substitute a similarly named NPC.",
+      "raw": []
+    },
+    "tr_m3_sulerri_tharyon": {
+      "reason": "Gilam Sarlys has no matching catalog identity. Do not invent a target or silently substitute a similarly named NPC.",
+      "raw": []
+    },
+    "tr_m4_lacey": {
+      "reason": "Damilo Borovel has no matching catalog identity. Do not invent a target or silently substitute a similarly named NPC.",
+      "raw": []
+    },
+    "tr_m7_ferus_tevothar": {
+      "reason": "Llaritha Tevothar has no matching catalog identity. Do not invent a target or silently substitute a similarly named NPC.",
+      "raw": []
+    },
+    "tr_m7_gidain_llendo": {
+      "reason": "Aldam Soras has no matching catalog identity. Do not invent a target or silently substitute a similarly named NPC.",
+      "raw": []
+    },
+    "tr_m7_goranasamsi": {
+      "reason": "Only common clan membership supports the proposed link to Tarsamat Bekul. Shared faction does not establish a directed personal relationship.",
+      "raw": []
+    },
+    "tr_m4_iridor": {
+      "reason": "Being a witness regarding Kettigrim does not establish hostility or the proposed personal bond. No specific interpersonal event is supplied.",
+      "raw": []
+    },
+    "tr_m1_q_uneleasrangirth": {
+      "reason": "The unique corpse record explicitly identifies Uneleas as the employer. Relationship describes the established hiring, without assuming Uneleas knows Alvar died.",
+      "raw": [
+        {
+          "target": "tr_m1_dead_alvar_o",
+          "aff": 20,
+          "type": "professional",
+          "relation": "Hired attendant",
+          "note": "Uneleas hired Alvar Omothan to place offerings in his ancestral tomb and worries about his absence.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m3_anara": {
+      "reason": "The proposed target Jebyn is absent under that identity. A similarly named record now displays Jelyn with a generic sailor biography; evidence does not prove the intended personal bond to this catalog identity.",
+      "raw": []
+    },
+    "tr_m3_ivon_seloth": {
+      "reason": "The proposed target Jebyn is absent under that identity. A similarly named record now displays Jelyn with a generic sailor biography; evidence does not prove the intended personal bond to this catalog identity.",
+      "raw": []
+    },
+    "tr_m3_kh_ienni_drothril": {
+      "reason": "The biography refers to male Indoril Dilale; the candidate Dilale Raathim is a female noble with no supporting servant relationship. Do not silently merge uncertain identities.",
+      "raw": []
+    },
+    "tr_m4_v_shinammu": {
+      "reason": "The subject biography names no survivor. The two Rels Uvalor records provide only generic warrior biographies. The claim that this specific NPC is the captive remains unsupported.",
+      "raw": []
+    },
+    "tr_m7_mederyl_llendules": {
+      "reason": "Darathes Soril is not a catalog identity. Trilas Soril has a different name and occupation; do not substitute an unrelated NPC.",
+      "raw": []
+    },
+    "tr_m7_o_mulvena_ghost": {
+      "reason": "Subject biography explicitly names the leader. Resolve to the corresponding ghost record, not the separate living priest.",
+      "raw": [
+        {
+          "target": "tr_m7_o_ilvrin_ghost",
+          "aff": 30,
+          "type": "professional",
+          "relation": "Leader of vengeance",
+          "note": "Mulvena joins Ilvrin Hlaalu's ghosts seeking revenge against the Camonna Tong.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "tr_m7_paduliusvoltandus": {
+      "reason": "Ossic Malance matches two quest-state ghost records with generic biographies. The available data does not identify which state is intended; retain the haunting in the biography rather than guess a relationship key.",
+      "raw": []
+    },
+    "tr_m7_q_dorlu_helan": {
+      "reason": "Subject biography explicitly describes employment. Select the mainland TR record, not the separate original-game Vodunius with an unrelated Vivec biography.",
+      "raw": [
+        {
+          "target": "tr_m4_vodunius_nuccius",
+          "aff": -10,
+          "type": "professional",
+          "relation": "Hired guar watcher",
+          "note": "Dorlu hired Vodunius Nuccius to watch his pack guar and seeks compensation for its loss.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    },
+    "ulath_pal": {
+      "reason": "Output infers positive bonds from tribal hierarchy and misidentifies hunter Assaba-Bentus as a Gulakhan. Earlier output also fabricated a player relationship and mismatched Hannat with Han-Ammu. No supported directed personal connection remains.",
+      "raw": []
+    },
+    "yak_gro_skandar": {
+      "reason": "Both biographies explicitly identify the shipment and partner. Select the Lucan record whose biography documents this transaction, not lucan_ostorius2.",
+      "raw": [
+        {
+          "target": "lucan_ostorius",
+          "aff": 20,
+          "type": "professional",
+          "relation": "Weapons supplier",
+          "note": "Yak awaits a weapons shipment from Lucan Ostorius.",
+          "best": "",
+          "worst": ""
+        }
+      ]
+    }
+  }
+}

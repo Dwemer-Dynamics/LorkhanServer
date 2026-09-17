@@ -23,7 +23,15 @@ def append(path, value):
 def save(path, value):
     temporary = path.with_suffix('.tmp')
     temporary.write_text(json.dumps(value, indent=2), encoding='utf-8')
-    os.replace(temporary, path)
+    # Windows readers can briefly prevent replacing a status file.
+    for attempt in range(20):
+        try:
+            os.replace(temporary, path)
+            break
+        except PermissionError:
+            if attempt == 19:
+                raise
+            time.sleep(0.1)
 
 
 # Resolve the existing private credential directly into memory, never a file or command argument.
@@ -50,6 +58,7 @@ def main():
     p.add_argument('--run-dir', type=Path, required=True)
     p.add_argument('--budget', type=float, default=30)
     p.add_argument('--dry-run', action='store_true')
+    p.add_argument('--remaining-after', type=Path, help='Completed prior run; assess every still-empty NPC not processed there')
     args = p.parse_args()
     if not math.isfinite(args.budget) or not 0 < args.budget <= 30:
         p.error('budget must be positive and no greater than the approved $30')
@@ -59,12 +68,31 @@ def main():
     builder = m.generator()
     evidence = m.load(args.evidence)
     rows = {r['npc_name']: r for r in m.load(m.CATALOG/'biographies.json')}
+    prior_names, prior_cost = set(), 0.0
+    discovery = None
+    if args.remaining_after:
+        previous = m.load(args.remaining_after/'status.json')
+        if previous['status'] != 'complete':
+            p.error('prior run must be complete')
+        prior_records = [json.loads(x) for x in (args.remaining_after/'results.jsonl').read_text(encoding='utf-8').splitlines()]
+        prior_names = {r['npc_name'] for r in prior_records}
+        if len(prior_names) != previous['completed'] or any(r['status']=='quarantined' for r in prior_records):
+            p.error('prior run has missing or unresolved results')
+        previous_ledger = [json.loads(x) for x in (args.remaining_after/'ledger.jsonl').read_text(encoding='utf-8').splitlines()]
+        latest_prior = {r['attempt_id']:r for r in previous_ledger}
+        if any(r['state']=='reserved' for r in latest_prior.values()):
+            p.error('prior run has unresolved billing')
+        prior_cost = sum(r['charged'] for r in latest_prior.values())
+        spec = importlib.util.spec_from_file_location('discovery', Path(__file__).with_name('discover-biography-relationships.py'))
+        discovery = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(discovery)
+        discovery.configure(m, rows)
     jobs = []
     for row in rows.values():
-        if json.loads(row['relationships'] or '{}'):
+        if json.loads(row['relationships'] or '{}') or row['npc_name'] in prior_names:
             continue
         entries = m.evidence_for(row['refid'], evidence, rows)
-        if entries:
+        if entries or discovery:
             jobs.append((row, entries))
     if args.dry_run:
         print(json.dumps({'jobs': len(jobs), 'budget': args.budget, 'model': 'z-ai/glm-5.2', 'paid_calls': 0}))
@@ -86,6 +114,10 @@ def main():
               'tool_sha256': hashlib.sha256(Path(m.__file__).read_bytes()).hexdigest(),
               'runner_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
               'model': 'z-ai/glm-5.2', 'budget': args.budget, 'jobs': len(jobs)}
+    if discovery:
+        pinned.update(discovery_sha256=hashlib.sha256(Path(discovery.__file__).read_bytes()).hexdigest(),
+                      prior_results_sha256=hashlib.sha256((args.remaining_after/'results.jsonl').read_bytes()).hexdigest(),
+                      prior_cost_usd=prior_cost)
     manifest = args.run_dir/'manifest.json'
     if manifest.exists() and m.load(manifest) != pinned:
         raise RuntimeError('pinned_inputs_changed_do_not_resume')
@@ -94,7 +126,7 @@ def main():
     ledger = [json.loads(x) for x in ledger_path.read_text(encoding='utf-8').splitlines()] if ledger_path.exists() else []
     records = [json.loads(x) for x in results_path.read_text(encoding='utf-8').splitlines()] if results_path.exists() else []
     latest = {x['attempt_id']: x for x in ledger}
-    spent = sum(x['charged'] for x in latest.values())
+    spent = prior_cost + sum(x['charged'] for x in latest.values())
     done = {x['npc_name'] for x in records}
     counts = {state: sum(x['status']==state for x in records) for state in ('accepted', 'empty', 'quarantined')}
     state = {'pid': os.getpid(), 'model': pinned['model'], 'total': len(jobs), 'completed': len(done),
@@ -116,6 +148,8 @@ def main():
             if name in done:
                 continue
             body = m.request_body(builder, pinned['model'], row, entries)
+            if discovery:
+                body = discovery.request_body(builder, pinned['model'], row)
             # OpenRouter enforces these per-million-token provider prices; no plugins or tools.
             body['provider'].update(max_price={'prompt': 1.4, 'completion': 4.4, 'request': 0}, allow_fallbacks=False)
             # UTF-8 request bytes conservatively bound text tokens, plus schema/framing headroom.
@@ -143,6 +177,8 @@ def main():
                     if response.status_code in (401, 402, 403):
                         status(failure); return
                     break
+                result = None
+                validation_stage = 'response_json'
                 try:
                     result = response.json()
                     cost = result.get('usage', {}).get('cost')
@@ -152,11 +188,26 @@ def main():
                     spent += charged-reserve
                     if charged > reserve or spent > args.budget:
                         status('stopped_cost_bound_exceeded'); return
+                    validation_stage = 'finish_reason'
                     if result['choices'][0].get('finish_reason') != 'stop':
                         raise ValueError('incomplete_response')
+                    validation_stage = 'relationship_json'
                     raw = builder.extract_json_object(result['choices'][0]['message']['content'])['relationships']
+                    if discovery:
+                        validation_stage = 'target_resolution'
+                        raw, entries = discovery.resolve(raw, name)
+                    validation_stage = 'relationship_schema'
                     normalized = m.normalize(raw, name, entries, builder)
-                except (ValueError, KeyError, TypeError, IndexError):
+                except (ValueError, KeyError, TypeError, IndexError) as error:
+                    # Retain bounded model output for review, never headers, credentials or prompts.
+                    choices = result.get('choices', []) if isinstance(result, dict) else []
+                    choice = choices[0] if choices and isinstance(choices[0], dict) else {}
+                    message = choice.get('message', {})
+                    content = message.get('content', '') if isinstance(message, dict) else ''
+                    append(args.run_dir/'validation-errors.jsonl', {
+                        'attempt_id': attempt_id, 'npc_name': name, 'stage': validation_stage,
+                        'error': str(error)[:300], 'finish_reason': choice.get('finish_reason'),
+                        'content': content[:12000] if isinstance(content, str) else ''})
                     failure = 'invalid_structured_response'
                     if attempt == 0:
                         body['messages'][0]['content'] += ' Previous output failed validation. Respect all text bounds and type/affinity consistency. Prefer empty output to uncertain claims.'
@@ -164,7 +215,8 @@ def main():
                     break
                 outcome = 'accepted' if normalized else 'empty'
                 append(results_path, {'npc_name': name, 'record_id': row['refid'], 'status': outcome,
-                                      'relationships': normalized, 'raw': raw, 'generation_id': result.get('id')})
+                                      'relationships': normalized, 'raw': raw, 'generation_id': result.get('id'),
+                                      **({'discovery_evidence': entries} if discovery else {})})
                 counts[outcome] += 1
                 failure = None
                 break

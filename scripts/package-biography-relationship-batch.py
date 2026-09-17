@@ -16,6 +16,7 @@ def main():
     p.add_argument('--catalog-version', required=True)
     p.add_argument('--exclude', type=Path, help='Reviewed JSON mapping of NPC key to exclusion reason')
     p.add_argument('--review', type=Path, help='Reviewed corrections keyed by NPC, each with reason and raw relationships')
+    p.add_argument('--remaining-after', type=Path, help='Original completed run for an all-remaining discovery batch')
     args = p.parse_args()
     spec = importlib.util.spec_from_file_location('backfill', Path(__file__).with_name('backfill-morrowind-biography-relationships.py'))
     m = importlib.util.module_from_spec(spec)
@@ -38,14 +39,37 @@ def main():
     rows = {r['npc_name']: r for r in biographies}
     evidence = m.load(args.evidence)
     jobs = {r['npc_name'] for r in biographies if not json.loads(r['relationships'] or '{}') and evidence.get(r['refid'])}
+    prior_cost = 0
+    if 'discovery_sha256' in run:
+        if not args.remaining_after:
+            p.error('discovery packaging requires --remaining-after')
+        previous_results = args.remaining_after/'results.jsonl'
+        if hashlib.sha256(previous_results.read_bytes()).hexdigest() != run['prior_results_sha256']:
+            p.error('prior results changed')
+        if hashlib.sha256(Path(__file__).with_name('discover-biography-relationships.py').read_bytes()).hexdigest() != run['discovery_sha256']:
+            p.error('discovery code changed')
+        previous = [json.loads(x) for x in previous_results.read_text(encoding='utf-8').splitlines()]
+        previous_names = {x['npc_name'] for x in previous}
+        jobs = {r['npc_name'] for r in biographies if not json.loads(r['relationships'] or '{}') and r['npc_name'] not in previous_names}
+        prior_ledger = [json.loads(x) for x in (args.remaining_after/'ledger.jsonl').read_text(encoding='utf-8').splitlines()]
+        prior_attempts = {x['attempt_id']:x for x in prior_ledger}
+        if any(x['state']=='reserved' for x in prior_attempts.values()):
+            p.error('unresolved prior billing')
+        prior_cost = sum(x['charged'] for x in prior_attempts.values())
+        if abs(prior_cost-run['prior_cost_usd']) > 0.000001:
+            p.error('prior cost changed')
     records = [json.loads(x) for x in (args.run_dir/'results.jsonl').read_text(encoding='utf-8').splitlines()]
+    if len(jobs) != run['jobs']:
+        p.error('manifest job count does not match catalog scope')
     if len(records) != len(jobs) or {x['npc_name'] for x in records} != jobs:
         p.error('missing, duplicate or unexpected terminal records')
+    if any(x['status']=='quarantined' for x in records):
+        p.error('quarantined results must be resolved before packaging')
     ledger = [json.loads(x) for x in (args.run_dir/'ledger.jsonl').read_text(encoding='utf-8').splitlines()]
     attempts = {x['attempt_id']: x for x in ledger}
     if any(x['state']=='reserved' for x in attempts.values()):
         p.error('unreconciled request reservation')
-    charged = sum(x['charged'] for x in attempts.values())
+    charged = prior_cost + sum(x['charged'] for x in attempts.values())
     if charged > min(30, run['budget']) or abs(charged-status['charged_or_reserved_usd']) > 0.000001:
         p.error('budget accounting mismatch')
     excluded = m.load(args.exclude) if args.exclude else {}
@@ -54,6 +78,8 @@ def main():
     review = m.load(args.review) if args.review else {}
     if not isinstance(review, dict) or not set(review) <= jobs or set(review) & set(excluded):
         p.error('invalid or conflicting review corrections')
+    if 'discovery_sha256' in run and any(x['status']=='accepted' and x['npc_name'] not in review and x['npc_name'] not in excluded for x in records):
+        p.error('every nonempty discovery proposal requires explicit review or exclusion')
     for correction in review.values():
         if not isinstance(correction, dict) or set(correction) != {'reason', 'raw'} or not isinstance(correction['reason'], str) or not correction['reason'].strip():
             p.error('review corrections require a reason and raw relationships')
@@ -65,17 +91,15 @@ def main():
         row = rows[item['npc_name']]
         if item['record_id'] != row['refid'] or json.loads(row['relationships'] or '{}'):
             p.error('nonempty or mismatched source row')
-        if item['status'] == 'quarantined':
-            if item['npc_name'] in review:
-                p.error('quarantined output cannot be corrected without a validated terminal record')
-            continue
         if item['status'] not in ('accepted', 'empty'):
             p.error('unexpected terminal status')
-        normalized = m.normalize(item['raw'], item['npc_name'], evidence[row['refid']], builder)
+        entries = item['discovery_evidence'] if 'discovery_sha256' in run else evidence[row['refid']]
+        m.evidence_for(row['refid'], {row['refid']:entries}, rows)
+        normalized = m.normalize(item['raw'], item['npc_name'], entries, builder)
         if normalized != item['relationships'] or bool(normalized) != (item['status']=='accepted'):
             p.error('stored output does not match validation')
         if item['npc_name'] in review:
-            normalized = m.normalize(review[item['npc_name']]['raw'], item['npc_name'], evidence[row['refid']], builder)
+            normalized = m.normalize(review[item['npc_name']]['raw'], item['npc_name'], entries, builder)
         if not normalized or item['npc_name'] in excluded:
             continue
         row['relationships'] = json.dumps(normalized, ensure_ascii=False, separators=(',', ':'))
@@ -85,6 +109,10 @@ def main():
     encoded = (json.dumps(biographies, ensure_ascii=False, indent=2)+'\n').encode('utf-8')
     manifest['catalog_version'] = args.catalog_version
     manifest['biographies_sha256'] = hashlib.sha256(encoded).hexdigest()
+    if 'discovery_sha256' in run and manifest.get('relationship_backfill'):
+        history = list(manifest.get('relationship_backfill_history', []))
+        history.append(manifest['relationship_backfill'])
+        manifest['relationship_backfill_history'] = history
     manifest['relationship_backfill'] = {'mode': 'empty_factory_only', 'model': run['model'],
         'changed_rows': len(changes), 'input_catalog_sha256': run['catalog_sha256'],
         'results_sha256': hashlib.sha256((args.run_dir/'results.jsonl').read_bytes()).hexdigest(),
@@ -101,6 +129,11 @@ def main():
                    +" AND COALESCE(NULLIF(btrim(b.relationships),''),'{}')::jsonb='{}'::jsonb"
                    +' AND NOT EXISTS (SELECT 1 FROM public.bio_templates_custom c WHERE c.npc_name=b.npc_name);')
     sql.append('COMMIT;')
+    if 'discovery_sha256' in run:
+        # Keep earlier guarded updates available when installing from an older catalog.
+        previous_sql = m.CATALOG/'relationships-backfill.sql'
+        if previous_sql.exists():
+            sql.insert(0, previous_sql.read_text(encoding='utf-8').rstrip()+'\n')
     args.output.mkdir(parents=True)
     (args.output/'biographies.json').write_bytes(encoded)
     (args.output/'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n', encoding='utf-8')
