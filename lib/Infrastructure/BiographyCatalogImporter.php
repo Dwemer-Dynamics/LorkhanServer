@@ -42,7 +42,7 @@ final class BiographyCatalogImporter
         ];
     }
 
-    /** Activate one reviewed factory catalog and replace only CHIM factory biography rows. */
+    /** Activate a reviewed factory catalog, preserving existing data for empty-only backfills. */
     public function apply(string $biographiesPath, string $manifestPath, string $catalogVersion): array
     {
         $package = $this->loadPackage($biographiesPath, $manifestPath, $catalogVersion);
@@ -67,7 +67,7 @@ final class BiographyCatalogImporter
                     ->execute(['now' => $now, 'id' => $active['catalog_id']]);
                 $this->db->prepare("UPDATE biography_catalogs SET state='active',previous_catalog_id=:previous,activated_at=:now,superseded_at=NULL WHERE catalog_id=:id")
                     ->execute(['previous' => $active['catalog_id'], 'now' => $now, 'id' => $existing['catalog_id']]);
-                $this->projectCatalog((string) $existing['catalog_id']);
+                $this->projectCatalog((string) $existing['catalog_id'], $package['relationships_only']);
                 return $plan + ['applied' => true, 'idempotent' => false, 'reactivated' => true,
                     'catalog_id' => $existing['catalog_id']];
             }
@@ -96,7 +96,7 @@ SQL);
                 ->execute(['now' => $now, 'id' => $active['catalog_id']]);
             $this->db->prepare("UPDATE biography_catalogs SET state='active',activated_at=:now,superseded_at=NULL WHERE catalog_id=:id")
                 ->execute(['now' => $now, 'id' => $catalogId]);
-            $this->projectCatalog($catalogId);
+            $this->projectCatalog($catalogId, $package['relationships_only']);
             return $plan + ['applied' => true, 'idempotent' => false, 'catalog_id' => $catalogId];
         });
     }
@@ -303,11 +303,30 @@ SQL);
             'biographies_sha256' => hash('sha256', $biographiesRaw), 'manifest_sha256' => hash('sha256', $manifestRaw),
             'generator_sha256' => $generatorSha === '' ? null : $generatorSha,
             'official_content_sha256' => $contentHashes,
+            'relationships_only' => ($manifest['relationship_backfill']['mode'] ?? null) === 'empty_factory_only',
         ];
     }
 
-    private function projectCatalog(string $catalogId): void
+    private function projectCatalog(string $catalogId, bool $relationshipsOnly = false): void
     {
+        if ($relationshipsOnly) {
+            // Lock both factory/custom surfaces so a concurrent edit cannot be overwritten.
+            $this->db->exec('LOCK TABLE public.bio_templates, public.bio_templates_custom IN SHARE ROW EXCLUSIVE MODE');
+            if ((int) $this->db->query('SELECT count(*) FROM public.bio_templates')->fetchColumn() > 0) {
+                $statement = $this->db->prepare(<<<'SQL'
+UPDATE public.bio_templates AS bio
+SET relationships=entry.relationships
+FROM biography_catalog_entries AS entry
+WHERE entry.catalog_id=:catalog AND entry.npc_name=bio.npc_name
+  AND lower(entry.record_id)=lower(bio.refid)
+  AND COALESCE(NULLIF(btrim(bio.relationships),''),'{}')::jsonb='{}'::jsonb
+  AND entry.relationships::jsonb<>'{}'::jsonb
+  AND NOT EXISTS (SELECT 1 FROM public.bio_templates_custom custom WHERE custom.npc_name=bio.npc_name)
+SQL);
+                $statement->execute(['catalog' => $catalogId]);
+                return;
+            }
+        }
         $this->db->exec('DELETE FROM public.bio_templates');
         $statement = $this->db->prepare(<<<'SQL'
 INSERT INTO public.bio_templates(npc_name,oghma_knowledge_tags,core,npc_static_bio,appearance,personality,

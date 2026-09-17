@@ -1,0 +1,32 @@
+{
+  "backup_comparison_passed": true,
+  "bio_rows": 12674,
+  "changed_relationship_rows": 258,
+  "nonrelationship_fields_preserved": true,
+  "existing_populated_relationships_preserved": true,
+  "protected_tables_verified": [
+    "public.bio_templates_custom",
+    "public.dynamic_bio",
+    "public.npc_profile_backup",
+    "lorkhan_internal.profiles",
+    "lorkhan_internal.profile_revisions",
+    "lorkhan_internal.relationship_records",
+    "lorkhan_internal.relationship_revisions",
+    "lorkhan_internal.relationship_audit",
+    "lorkhan_internal.core_profiles",
+    "public.core_profiles"
+  ],
+  "model": "z-ai/glm-5.2",
+  "candidates": 933,
+  "raw_nonempty": 273,
+  "raw_empty": 660,
+  "unresolved_failures": 0,
+  "reviewed_corrections": 110,
+  "final_nonempty_updates": 258,
+  "budget_usd": 30,
+  "conservative_accounted_usd": 0.8840034405,
+  "reported_successful_request_cost_usd": 0.2839930405,
+  "catalog_version": "morrowind-relationships-2026-09-v2",
+  "source_columns_and_populated_maps_preserved": true,
+  "checks_passed": 1532
+}

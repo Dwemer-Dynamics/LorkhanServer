@@ -1,6 +1,6 @@
 {
   "format": "lorkhan.morrowind-biography-preflight.v1",
-  "catalog_version": "morrowind-official-2026-08-biographies-v6",
+  "catalog_version": "morrowind-relationships-2026-09-v2",
   "selected_count": 12674,
   "completed_count": 12674,
   "failed_count": 0,
@@ -104457,8 +104457,8 @@
       }
     },
     {
-      "record_id": "atúlg gro-largúm",
-      "display_name": "Atúlg gro-Largúm",
+      "record_id": "at\u00falg gro-larg\u00fam",
+      "display_name": "At\u00falg gro-Larg\u00fam",
       "content_file": "Morrowind.esm",
       "race_id": "Orc",
       "class_id": "Barbarian",
@@ -122637,8 +122637,8 @@
       }
     },
     {
-      "record_id": "yatúr gro-shak",
-      "display_name": "Yatúr gro-Shak",
+      "record_id": "yat\u00far gro-shak",
+      "display_name": "Yat\u00far gro-Shak",
       "content_file": "Morrowind.esm",
       "race_id": "Orc",
       "class_id": "Barbarian",
@@ -358461,8 +358461,2273 @@
       }
     }
   ],
-  "biographies_sha256": "5b0383a79d48fb8da5fe2733969bf3524410afa943fc4aa31e452a9db8c0bea0",
+  "biographies_sha256": "f3912b06979f073001590df15c6e8ecb3753b238b82aadf0fd0713582e5687cd",
   "regional_classification": {
     "ruleset": "tr-mainland-esm-regions-v1"
+  },
+  "relationship_backfill": {
+    "mode": "empty_factory_only",
+    "model": "z-ai/glm-5.2",
+    "changed_rows": 258,
+    "input_catalog_sha256": "5b0383a79d48fb8da5fe2733969bf3524410afa943fc4aa31e452a9db8c0bea0",
+    "results_sha256": "73261560475b6486048cd6a5366436a89d39986107d31ff59701d67d8906211a",
+    "charged_or_reserved_usd": 0.8840034405,
+    "review_exclusions": {},
+    "review_corrections": {
+      "aeta_wave_breaker": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "dro_zhirr",
+            "aff": -40,
+            "type": "enemy",
+            "relation": "thief who robbed her",
+            "note": "Identifies Dro'zhirr as leader of the group that stole her jewelry and two family heirlooms.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "ahaz": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "ulath_pal",
+            "aff": 0,
+            "type": "professional",
+            "relation": "bodyguard of the Erabenimsun Ashkhan",
+            "note": "",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "alusannah": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "king_hlaalu_helseth",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Royal Guard serving under",
+            "note": "She serves as a Royal Guard in Mournhold, operating under the authority of King Hlaalu Helseth.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "aurane_frernis": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "galuro_belan",
+            "aff": -40,
+            "type": "rival",
+            "relation": "wronged business rival",
+            "note": "Aurane calls Galuro Belan a 'fetcher' and says she cannot believe Galuro would do this to her, threatening to report the matter to a magistrate.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "bashuk_gra_bat": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "bugrol_gro_bagul",
+            "aff": 20,
+            "type": "platonic",
+            "relation": "Friend",
+            "note": "A friend who wishes to send her a message regarding his current predicament.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "blatta_hateria": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "mehra_milo",
+            "aff": 30,
+            "type": "platonic",
+            "relation": "Boat transport contact for Mehra Milo's associates",
+            "note": "Mehra Milo refers people to Blatta for passage to Holamayan; Blatta calls Mehra her friend.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "bolyn_elval": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "miner_arobar",
+            "aff": 0,
+            "type": "professional",
+            "relation": "House Redoran guard assigned to protect Councilor Miner Aro",
+            "note": "Serves House Redoran as a guard for Councilor Miner Arobar, stationed in the guard quarters of Arobar Manor in Ald'ruhn.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "braynas_hlervu": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "bolvyn_venim",
+            "aff": -25,
+            "type": "fearful",
+            "relation": "tax authority who seized family locket",
+            "note": "His family's treasured locket was taken by Redoran taxmen and held in Venim Manor; he fears Blood Guards may come searching for it.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "dralval_andrano": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "feldrelo_sadri",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Temple colleague",
+            "note": "Dralval Andrano directs people to speak with Feldrelo Sadri at the Balmora Temple.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "dratha": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "aryon",
+            "aff": 0,
+            "type": "professional",
+            "relation": "House Telvanni Master; handles official Archmagiter business",
+            "note": "Dratha directs the Nerevarine to Master Aryon to make the Archmagister appointment official.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "berel_sala",
+            "aff": -40,
+            "type": "contempt",
+            "relation": "Antagonist she mocks; Ordinator leader",
+            "note": "She relishes the thought of Berel Sala's dismay at a female Nerevarine and Archmagister of House Telvanni.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "divayth_fyr",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Fellow Telvanni elder; only Telvanni older than her",
+            "note": "Divayth Fyr is the only Telvanni older than Dratha, who is sustained by necromantic arts.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "gothren",
+            "aff": -30,
+            "type": "professional",
+            "relation": "Fellow Telvanni councilor; she wants him retired",
+            "note": "She doubts Gothren will give his vote and suggests someone ought to retire him quietly.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "neloth",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Fellow Telvanni Master; owns Tel Naga",
+            "note": "She identifies a guard in Master Neloth's tower Tel Naga as holding an amulet she has wanted for fifty years.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "dumbuk_gro_bolak": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "general_darius",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Legion commanding officer",
+            "note": "Serves with the Imperial Legion under General Darius at Gnisis.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "elmussa_damori": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "odral_helvi",
+            "aff": -35,
+            "type": "enemy",
+            "relation": "Thieves Guild contractor who stole his documents",
+            "note": "Elmussa stole contracts under Thieves Guild contract and says Odral has abused his power and is against the Guild.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "orvas_dren_druglord",
+            "aff": -20,
+            "type": "rival",
+            "relation": "Camonna Tong leader she opposes",
+            "note": "Elmussa says Odral Helvi's associates are lackeys for the Camonna Tong and that Orvas Dren runs the show.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "ervis_verano": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "king_hlaalu_helseth",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Royal Guard serving under",
+            "note": "Patrols Mournhold under the authority of King Hlaalu Helseth.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "evo_othreloth": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "king_hlaalu_helseth",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Royal Guard serving under direct authority",
+            "note": "Stationed in Mournhold as a Royal Guard operating under King Hlaalu Helseth's direct authority.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "faral_retheran": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "irer_nervion",
+            "aff": 0,
+            "type": "dismissive",
+            "relation": "deceased House Redoran associate",
+            "note": "Faral acknowledges Irer Nervion's death as a shame, but treats it as secondary to the recovery of the ancestor ring and the killing of Dagoth Tanis.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "raynasa_rethan",
+            "aff": -40,
+            "type": "enemy",
+            "relation": "Hlaalu target",
+            "note": "Faral asks whether the Hlaalu lord Raynasa Rethan is dead, indicating she has tasked someone with killing him.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "reynel_uvirith",
+            "aff": -40,
+            "type": "enemy",
+            "relation": "Telvanni target",
+            "note": "Faral asks whether the Telvanni Reynel Uvirith is dead, indicating she has tasked someone with killing him.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "rothis_nethan",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "duel target",
+            "note": "Faral tasks the player with persuading Rothis Nethan to partake in a duel.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "frald_the_white": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "codus_callonus",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Former Legion Champion",
+            "note": "Frald identifies Codus as a former Legion Champion who runs a bookstore in Ald'ruhn.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "honthjolf",
+            "aff": -80,
+            "type": "nemesis",
+            "relation": "Traitor to the Order of Ebonheart",
+            "note": "Frald calls Honthjolf a traitor who turned his back on the Order and ordered him killed.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "salyn_sarethi",
+            "aff": 10,
+            "type": "professional",
+            "relation": "Buoyant Armiger who insulted the Legion",
+            "note": "Frald sent an agent to best Salyn in a duel of wit and poetry after Salyn claimed the Legion lacks courtesy.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "suryn_athones",
+            "aff": -70,
+            "type": "enemy",
+            "relation": "Ordinator spreading slanders about the Order",
+            "note": "Frald ordered Suryn Athones silenced for spreading lies about the Order of Ebonheart.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "germia": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "raxle_berne",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Berne Vampire Clan leader",
+            "note": "Germia offers thieves' tools to Berne clan members who have completed The Blood of the Quarra quest for Raxle Berne.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "ivulen_irano": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "king_hlaalu_helseth",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Royal Guard serving King Hlaalu Helseth",
+            "note": "Member of the elite protective detail enforcing the monarch's will.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "okan_shei": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "mossanon",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "source of information",
+            "note": "Okan-Shei keeps informed about Mossanon and can share details about him.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "volmyni_dral",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "source of information",
+            "note": "Okan-Shei knows of Volmyni Dral as Mossanon's Telvanni girlfriend and can provide information about her.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "oritius_maro": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "arius_rulician",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Talos Cult contact",
+            "note": "Oritius directs prospective recruits to speak with Arius Rulician in the shrine downstairs for more information about the Talos Cult.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "radd_hard_heart": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "dandsa",
+            "aff": 0,
+            "type": "protective",
+            "relation": "Imperial citizen to be rescued",
+            "note": "Radd orders Dandsa's rescue from Abernanit. He is glad if she is saved and angrily dismisses the player if she dies.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "jocien_ancois",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "Hermit to be rescued",
+            "note": "Radd tasks a ranked Legion member with rescuing the hermit Jocien Ancois.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "rimintil": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "dratha",
+            "aff": -20,
+            "type": "rival",
+            "relation": "object of Dratha's hostility",
+            "note": "Mistress Dratha has a problem with Rimintil, creating ongoing tension at Tel Vos.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "raven_omayn",
+            "aff": 0,
+            "type": "professional",
+            "relation": "involved party in Dratha conflict",
+            "note": "Raven Omayn tasks the player to solve the problem between Dratha and Rimintil.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "artisa_arelas": {
+        "reason": "Manual consistency review: remove a name collision, quest-title mention, or unsupported personal relationship.",
+        "raw": []
+      },
+      "elone": {
+        "reason": "Manual consistency review: remove a name collision, quest-title mention, or unsupported personal relationship.",
+        "raw": [
+          {
+            "target": "arrille",
+            "aff": 0,
+            "type": "professional",
+            "relation": "operates out of Arrille's Tradehouse",
+            "note": "Elone can be found at Arrille's Tradehouse in Seyda Neen and directs travelers to obtain the Guide to Vvardenfell from Arrille.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "darvame_hleran",
+            "aff": 0,
+            "type": "professional",
+            "relation": "travel contact",
+            "note": "Elone directs travelers to speak to Darvame Hleran at the silt strider landing for transport to Balmora or Vivec.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "grey_throat": {
+        "reason": "Manual consistency review: remove a name collision, quest-title mention, or unsupported personal relationship.",
+        "raw": []
+      },
+      "irvama_othrelas": {
+        "reason": "Manual consistency review: remove a name collision, quest-title mention, or unsupported personal relationship.",
+        "raw": [
+          {
+            "target": "gurak_gro_bagrat",
+            "aff": 0,
+            "type": "professional",
+            "relation": "employer",
+            "note": "Gurak gro-Bagrat is her employer, but she is unaware of his unlawful activities.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "llathyno_hlaalu": {
+        "reason": "Manual consistency review: remove a name collision, quest-title mention, or unsupported personal relationship.",
+        "raw": [
+          {
+            "target": "feldrelo_sadri",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Temple superior",
+            "note": "Directs visitors to speak with Feldrelo Sadri at the Balmora Temple.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "mevure_hlen": {
+        "reason": "Manual consistency review: remove a name collision, quest-title mention, or unsupported personal relationship.",
+        "raw": [
+          {
+            "target": "j_zhirr",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "Suspected price-setter for the Company",
+            "note": "Believes much of the Company's pricing goes through J'Zhirr in Ebonheart and seeks information on this.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "ordinator_wander_tvault": {
+        "reason": "Manual consistency review: remove a name collision, quest-title mention, or unsupported personal relationship.",
+        "raw": []
+      },
+      "calvario": {
+        "reason": "Manual consistency review: remove a name collision, quest-title mention, or unsupported personal relationship.",
+        "raw": []
+      },
+      "daldur_sarys": {
+        "reason": "Manual consistency review: remove a name collision, quest-title mention, or unsupported personal relationship.",
+        "raw": []
+      },
+      "nelos_onmar": {
+        "reason": "Manual consistency review: match type and direction to the stated relationship; remove unsupported name matches.",
+        "raw": [
+          {
+            "target": "maurrie_aurmine",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "Traveler he robbed",
+            "note": "Robbed Maurrie Aurmine of her jewels; her interest in him does not establish reciprocal affection.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "shullay_vabdas": {
+        "reason": "Manual consistency review: remove unsupported emotional labels and preserve directed professional/student roles.",
+        "raw": [
+          {
+            "target": "general_darius",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "Imperial general seeking her family's land deed",
+            "note": "General Darius desires a land deed held by the widow of Shullay's deceased miner relative.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "widow_vabdas",
+            "aff": 0,
+            "type": "familial",
+            "relation": "Relative of her deceased miner husband",
+            "note": "Shullay is a relative of the deceased miner and his widow, who holds a land deed desired by General Darius.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "telis_salvani": {
+        "reason": "Manual consistency review: remove unsupported emotional labels and preserve directed professional/student roles.",
+        "raw": [
+          {
+            "target": "feldrelo_sadri",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Temple superior",
+            "note": "Telis directs visitors to Feldrelo Sadri at the Balmora Temple.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_alammu_rindo": {
+        "reason": "Manual consistency review: remove unsupported emotional labels and preserve directed professional/student roles.",
+        "raw": [
+          {
+            "target": "tr_m1_s_mee_sei",
+            "aff": -50,
+            "type": "enemy",
+            "relation": "aggressor pursuing escaped slave",
+            "note": "He accosts those trying to bring Mee-Sei to the abolitionist hideout and cannot be talked out of attacking.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_arelis_lloran": {
+        "reason": "Manual consistency review: remove unsupported emotional labels and preserve directed professional/student roles.",
+        "raw": [
+          {
+            "target": "tr_m1_eranil",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Inquisition partner",
+            "note": "Staying at the Wetstone Tavern in Gah Sadrith, conducting an inquisition together.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_t_eldale",
+            "aff": -20,
+            "type": "suspicious",
+            "relation": "Inquisition target",
+            "note": "Suspects her High Elf companions and students may be involved in a Daedric cult.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_anirwen": {
+        "reason": "Manual consistency review: remove unsupported emotional labels and preserve directed professional/student roles.",
+        "raw": [
+          {
+            "target": "tr_m1_t_eldale",
+            "aff": 60,
+            "type": "student",
+            "relation": "Mentor and liege",
+            "note": "Eldale accepted Anirwen with grace and has been a great mentor; he serves her as a warrior and has made spiritual progress in her service.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_alasha_kori": {
+        "reason": "Manual consistency review: remove unsupported emotional labels and preserve directed professional/student roles.",
+        "raw": [
+          {
+            "target": "tr_m1_hasilius_brahn",
+            "aff": -25,
+            "type": "professional",
+            "relation": "Nuisance patron at her tavern",
+            "note": "She asks the player to help deal with him; he makes running the tavern much harder.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_zuriel_dralor",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "Townsperson she comments on",
+            "note": "Remarks that Colovian Wine would lighten his mood so people would like him more.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_gona_veloth": {
+        "reason": "Manual consistency review: align relationship labels with stated roles; omit indirect quest-object links and post-quest-only employment.",
+        "raw": [
+          {
+            "target": "tr_m1_ansuma_veloth",
+            "aff": 0,
+            "type": "romantic",
+            "relation": "Husband",
+            "note": "Gona Veloth shares a house in Llothanis with her husband Ansuma Veloth.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_hassanda_lendeth": {
+        "reason": "Manual consistency review: align relationship labels with stated roles; omit indirect quest-object links and post-quest-only employment.",
+        "raw": [
+          {
+            "target": "tr_m1_duchess_jandacia",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Guard of the ducal chambers",
+            "note": "Her post guarding the ducal chambers reflects considerable trust from Duchess Perulia Jandacia.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_dunveri_rodran": {
+        "reason": "Manual consistency review: align relationship labels with stated roles; omit indirect quest-object links and post-quest-only employment.",
+        "raw": [
+          {
+            "target": "tr_m1_t_norahin_darys",
+            "aff": 0,
+            "type": "suspicious",
+            "relation": "knows of",
+            "note": "Dunveri Rodran knows Lord Darys is behind a scheme and that his contempt for the Temple is well known in Telvanni territory.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_master_vaerin",
+            "aff": 0,
+            "type": "suspicious",
+            "relation": "knows of",
+            "note": "Dunveri Rodran knows Master Vaerin is behind a scheme and that his contempt for the Temple is well known in Telvanni territory.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_droba": {
+        "reason": "Manual consistency review: align relationship labels with stated roles; omit indirect quest-object links and post-quest-only employment.",
+        "raw": [
+          {
+            "target": "tr_m1_saliraz",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Acquaintance",
+            "note": "Hears about Saliraz and stops wondering what Mist-Eyes has to worry about.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_bakela": {
+        "reason": "Manual consistency review: align relationship labels with stated roles; omit indirect quest-object links and post-quest-only employment.",
+        "raw": [
+          {
+            "target": "tr_m1_duchess_jandacia",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Diplomatic counterpart",
+            "note": "Bakela hopes for a day when shackles will be stricken from his countrymen, while acknowledging the Duchess must keep faith with her Dunmer king.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_darayn_halaran": {
+        "reason": "Manual consistency review: align relationship labels with stated roles; omit indirect quest-object links and post-quest-only employment.",
+        "raw": [
+          {
+            "target": "tr_m1_elsa_ulvi",
+            "aff": 40,
+            "type": "platonic",
+            "relation": "valued friend and companion",
+            "note": "Darayn names Elsa Ulvi among his valued friends and companions at Halaran Camp.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_rolaam_ulvi",
+            "aff": 40,
+            "type": "platonic",
+            "relation": "valued friend and companion",
+            "note": "Darayn names Rolaam among his valued friends and companions at Halaran Camp.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_gavisi_thelas": {
+        "reason": "Manual consistency review: align relationship labels with stated roles; omit indirect quest-object links and post-quest-only employment.",
+        "raw": [
+          {
+            "target": "tr_m1_ilwen",
+            "aff": -40,
+            "type": "fearful",
+            "relation": "Coercer who threatened her with death",
+            "note": "Ilwen paid her to buy an amulet and threatened terrible magic if she spoke of it. She fears she may be hiding a horrible crime.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_ilwen": {
+        "reason": "Manual consistency review: align relationship labels with stated roles; omit indirect quest-object links and post-quest-only employment.",
+        "raw": [
+          {
+            "target": "tr_m1_eranil",
+            "aff": -40,
+            "type": "suspicious",
+            "relation": "Inquisitor investigating him",
+            "note": "Eranil suspects Ilwen of daedric worship and directs investigation into his activities.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_fernil_yantus",
+            "aff": -30,
+            "type": "enemy",
+            "relation": "Accomplice he dealt with",
+            "note": "Ilwen says he 'saw to' Fernil Yantus as he should have to Gavisi, implying he silenced or handled him; Fernil kidnapped a Breton for sacrifice.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_gavisi_thelas",
+            "aff": -50,
+            "type": "suspicious",
+            "relation": "Informant he failed to silence",
+            "note": "Ilwen calls Gavisi an idiot who 'must have talked' and regrets not silencing her as he did Fernil Yantus.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_mjording",
+            "aff": -20,
+            "type": "rival",
+            "relation": "Fiance of kidnap victim",
+            "note": "Ilwen dismisses Mjording as a drunkard who let his fiancee be taken under his nose.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_t_eldale",
+            "aff": 10,
+            "type": "professional",
+            "relation": "Protective authority in Gah Sadrith",
+            "note": "Ilwen acknowledges Mistress Eldale's protection over Gah Sadrith, under which he performed his service to Mehrunes Dagon.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_q_cartil_florius": {
+        "reason": "Manual consistency review: correct friend/fiance/employment labels; omit future rescue outcomes and unsupported nearby-person links.",
+        "raw": [
+          {
+            "target": "tr_m1_brelar_gildaren",
+            "aff": -20,
+            "type": "professional",
+            "relation": "hostile census subject",
+            "note": "Brelar Gildaren refuses to discuss anything with Cartil, calling him a 'filthy n'wah' and chasing him out of his house.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_t_nevrile_omayn",
+            "aff": -10,
+            "type": "fearful",
+            "relation": "fears superior",
+            "note": "Cartil fears Nevrile will punish him for his lateness in delivering the census report.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_mjording": {
+        "reason": "Manual consistency review: correct friend/fiance/employment labels; omit future rescue outcomes and unsupported nearby-person links.",
+        "raw": [
+          {
+            "target": "tr_m1_melie",
+            "aff": 0,
+            "type": "romantic",
+            "relation": "Fiancee",
+            "note": "His Breton fianc\u00e9e, Melie, has disappeared, and he is desperate to find somebody who can help him search for her.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_pontius_golius": {
+        "reason": "Manual consistency review: correct friend/fiance/employment labels; omit future rescue outcomes and unsupported nearby-person links.",
+        "raw": [
+          {
+            "target": "tr_m1_duchess_jandacia",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Appointed steward to Duchess Perulia Jandacia",
+            "note": "Serves as the appointed steward to Duchess Perulia Jandacia and her family within the High Halls of Ember Keep in Firewatch.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_q50_go1_trena": {
+        "reason": "Manual consistency review: correct friend/fiance/employment labels; omit future rescue outcomes and unsupported nearby-person links.",
+        "raw": [
+          {
+            "target": "tr_m1_ansuma_veloth",
+            "aff": -20,
+            "type": "professional",
+            "relation": "Investigation target",
+            "note": "Sent by Master Vaerin to determine whether Ansuma Veloth is spreading Tribunal Temple propaganda in Llothanis.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_master_vaerin",
+            "aff": 40,
+            "type": "professional",
+            "relation": "Retainer and agent of Master Vaerin",
+            "note": "Serves as Master Vaerin's retainer, charged with rooting out Temple propagandists and reporting findings to him at Alt Bosara.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_medenb_khifzah": {
+        "reason": "Manual consistency review: correct friend/fiance/employment labels; omit future rescue outcomes and unsupported nearby-person links.",
+        "raw": [
+          {
+            "target": "tr_m1_varanit_suavyn",
+            "aff": 0,
+            "type": "platonic",
+            "relation": "close friend",
+            "note": "Ilen Midaan stays with his close friend Varanit Suavyn during the assassination threat.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_mirisun_varen": {
+        "reason": "Manual consistency review: correct friend/fiance/employment labels; omit future rescue outcomes and unsupported nearby-person links.",
+        "raw": [
+          {
+            "target": "tr_m1_azariah_thelas",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Reports mine output to",
+            "note": "Azariah enrolls the mine's goods and pays the workers at the end of each day.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_galdasi_thendas",
+            "aff": -60,
+            "type": "enemy",
+            "relation": "Angry at the brat who outwitted him",
+            "note": "He failed to spot her and expressed a desire to kill her.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_irele_nathryon",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Town alchemist",
+            "note": "Identifies Irele Nathryon as the town's alchemist.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_nevusa_lakasyn",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Town healer",
+            "note": "Identifies Nevusa Lakasyn as the town's healer.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_t_mithras",
+            "aff": 20,
+            "type": "professional",
+            "relation": "Telvanni lord who assigned him mine duties",
+            "note": "Master Mithras tasked him with coordination of the Ranyon-ruhn ebony mine.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_melie": {
+        "reason": "Manual consistency review: correct friend/fiance/employment labels; omit future rescue outcomes and unsupported nearby-person links.",
+        "raw": [
+          {
+            "target": "tr_m1_mjording",
+            "aff": 60,
+            "type": "romantic",
+            "relation": "Fiance",
+            "note": "Melie is the fianc\u00e9e of Mjording, a merchant in Gah Sadrith.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_t_nevrile_omayn": {
+        "reason": "Manual consistency review: correct contradictory types; omit proximity-only links, indirect mentions, and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m1_q_cartil_florius",
+            "aff": -35,
+            "type": "professional",
+            "relation": "Imperial retainer assigned to the census",
+            "note": "Assigned Cartil to conduct a census of Ranyon-ruhn; considers him a fool for falling over a week behind schedule.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_ratagos",
+            "aff": 10,
+            "type": "professional",
+            "relation": "Local Temple priest in Ranyon-ruhn",
+            "note": "Ordered a perpetrator who spat at Ratagos to apologize and pay compensation. Though House Telvanni dislikes the Temple, Master Mithras wished to keep the town orderly.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_t_areth_morvayn",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Fellow Telvanni Mouth",
+            "note": "Identified Areth Morvayn as the Mouth who speaks for Mistress Rathra.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_t_eldale",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Mistress represented by fellow Mouth",
+            "note": "Named Mistress Eldale as the master represented by the Mouth Fervas Shulisa.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_t_faruna",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Mistress represented by fellow Mouth",
+            "note": "Named Mistress Faruna as the master represented by the Mouth Nethan Marys.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_t_fervas_shulisa",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Fellow Telvanni Mouth",
+            "note": "Identified Fervas Shulisa as the Mouth who speaks for Mistress Eldale.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m2_dro_shilkar": {
+        "reason": "Manual consistency review: correct contradictory types; omit proximity-only links, indirect mentions, and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m2_rilmas_athyrion",
+            "aff": 20,
+            "type": "servant",
+            "relation": "Master he serves as caretaker",
+            "note": "Dro-Shilkar keeps the tower clean for master Athyrion and takes pride in doing good work.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_simeth": {
+        "reason": "Manual consistency review: correct contradictory types; omit proximity-only links, indirect mentions, and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m1_alasha_kori",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Acquaintance who entrusted Simeth to deliver a gift",
+            "note": "Alasha Kori asked Simeth to give the player a bottle of Cyrodiilic wine as thanks for helping her and her clients.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_galdasi_thendas",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "Townsperson he defends against theft rumors",
+            "note": "Simeth dismisses the rumor that Galdasi stole a guar as laughable and impossible, saying she has not left town and could not steal dirt, let alone a guar.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_irele_nathryon",
+            "aff": 20,
+            "type": "professional",
+            "relation": "Shopkeeper whose lost clients concern him",
+            "note": "Simeth calls Irele and Nevusa poor for losing clients to Sinsal Nedriem's slanders. He directs the player to Irele's shop to have her brew a poison for a scheme against Sinsal.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_mirisun_varen",
+            "aff": 40,
+            "type": "platonic",
+            "relation": "Old friend at the mine",
+            "note": "Simeth calls Mirisun Varen an old friend and says he will help them, directing the player to ask him for a piece of ebony to frame Sinsal Nedriem.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_nataya_radasar",
+            "aff": 50,
+            "type": "crush",
+            "relation": "Woman he admires from his guard post",
+            "note": "Simeth admires Nataya from afar and vows to personally deal with anyone who would hurt her. He believes she is sensitive and romantic beneath her hostile exterior.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_nevusa_lakasyn",
+            "aff": 20,
+            "type": "professional",
+            "relation": "Healer whose lost clients concern him",
+            "note": "Simeth sympathizes with Nevusa and Irele for losing clients to Sinsal's slanders. He arranges for Skingrad wine to arrive at Nevusa's shop as part of a plan to frame Sinsal.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_rarasare_rindo": {
+        "reason": "Manual consistency review: correct contradictory types; omit proximity-only links, indirect mentions, and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m1_melie",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "acquaintance",
+            "note": "Melie visited Rarasare with questions about Ashlanders before disappearing.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_q_sjard": {
+        "reason": "Manual consistency review: correct contradictory types; omit proximity-only links, indirect mentions, and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m1_q_olivie_arche",
+            "aff": -40,
+            "type": "enemy",
+            "relation": "claims she is a witch who cursed and robbed him",
+            "note": "Sjard says she cursed him and stole his clothes and warhammer Woebringer after he bought her to free her.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_rayenaye_hler": {
+        "reason": "Manual consistency review: correct contradictory types; omit proximity-only links, indirect mentions, and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m1_belas_kasihan",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Tax collector for Mistress Eldale",
+            "note": "Rayenaye advises speaking to Belas Kasihan before approaching Mistress Eldale, describing her as Eldale's executive hand for trade organization.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_cabrinth_dven",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Shopkeeper who previously owned the amulet",
+            "note": "Rayenaye recalls seeing the amulet in Cabrinth Dven's shop before he sold it, before she could steal it.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_ferin_gathi",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Healer near the market",
+            "note": "Rayenaye mentions Ferin Gathi as a healer near the market that the player could visit.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_lloryn_llaram",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Trainer of the Telvanni",
+            "note": "Rayenaye mentions Lloryn Llaram as someone who trains the Telvanni.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_s_elegil": {
+        "reason": "Manual consistency review: correct contradictory types; omit proximity-only links, indirect mentions, and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m1_ralnym_alendu",
+            "aff": -70,
+            "type": "contempt",
+            "relation": "enslaved cook and servant to Master Alendu",
+            "note": "Cooks, cleans, shovels sponge muck, and sometimes warms his bed. Hates every part of her enslavement.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m2_atherios_adirion": {
+        "reason": "Manual consistency review: correct contradictory types; omit proximity-only links, indirect mentions, and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m2_master_vaerin",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "expected Indoril opponent",
+            "note": "Moved to Alt Bosara figuring Master Vaerin would be the most likely person to oppose the Indoril.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m2_brenne_smitte": {
+        "reason": "Manual consistency review: correct contradictory types; omit proximity-only links, indirect mentions, and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m2_alenial",
+            "aff": -15,
+            "type": "rival",
+            "relation": "rival alchemist",
+            "note": "Brenne dismisses Alenial as merely a drinks seller, not a true alchemist.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_senar": {
+        "reason": "Manual consistency review: correct contradictory types; omit proximity-only links, indirect mentions, and completed quest assumptions.",
+        "raw": []
+      },
+      "tr_m2_aren_sinn": {
+        "reason": "Manual consistency review: correct contradictory types; omit proximity-only links, indirect mentions, and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m1_t_rathra",
+            "aff": 40,
+            "type": "admirer",
+            "relation": "inspiration and admired role model",
+            "note": "Considers Rathra his greatest inspiration and wishes to be as wise and convincing as she.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_llevari_telsaran",
+            "aff": 50,
+            "type": "professional",
+            "relation": "right hand mer and lawman",
+            "note": "Serves Llevari Telsaran directly, keeping the town orderly and ensuring everyone knows their place.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m1_q_telaras_medreva": {
+        "reason": "Manual consistency review: correct contradictory types; omit proximity-only links, indirect mentions, and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m1_azariah_thelas",
+            "aff": 40,
+            "type": "professional",
+            "relation": "Accomplice in ebony theft",
+            "note": "Azariah Thelas provided help to Telaras in the theft of ebony from the Ranyon-ruhn mine.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_t_mithras",
+            "aff": -60,
+            "type": "rival",
+            "relation": "Target of political undermining",
+            "note": "Telaras orchestrates the ebony theft to weaken Mithras's standing on the Telvanni Council and expects to replace him.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_t_rathra",
+            "aff": 70,
+            "type": "professional",
+            "relation": "Agent of Mistress Rathra",
+            "note": "Telaras is Rathra's favored servant, acting on her instructions to undermine Mithras and expecting her to install him as Master of Ranyon-ruhn.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m2_fedura_sendal": {
+        "reason": "Manual consistency review: correct family, debt and mentor roles; omit quest-title links and completed hearing assumptions.",
+        "raw": [
+          {
+            "target": "tr_m2_master_vaerin",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Mouth and mage serving Master Vaerin",
+            "note": "She serves Master Vaerin as his Mouth in House Telvanni and performs unspecified tasks for him.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_vinryon_sendal",
+            "aff": 0,
+            "type": "romantic",
+            "relation": "Husband",
+            "note": "Vinryon is her husband and serves as Master Vaerin's personal bodyguard.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m2_geroth_enlaris": {
+        "reason": "Manual consistency review: correct family, debt and mentor roles; omit quest-title links and completed hearing assumptions.",
+        "raw": [
+          {
+            "target": "tr_m2_favana_selethi",
+            "aff": 0,
+            "type": "indebted",
+            "relation": "gambling debtor",
+            "note": "Lost a ring to her in a bet and still owes her money.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_felmo_enlaris",
+            "aff": 0,
+            "type": "familial",
+            "relation": "brother",
+            "note": "Geroth asks the player to buy back a lost ring and deliver it to his brother Felmo.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_master_vaerin",
+            "aff": -20,
+            "type": "fearful",
+            "relation": "local Telvanni master",
+            "note": "Fears the preacher's presence will provoke Master Vaerin's ire toward the Temple.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m2_iveru_ramarys": {
+        "reason": "Manual consistency review: correct family, debt and mentor roles; omit quest-title links and completed hearing assumptions.",
+        "raw": [
+          {
+            "target": "tr_m2_adren_alari",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "acquaintance",
+            "note": "Knows Adren's brother Velyn left on pilgrimages and never returned, and that Adren has not taken it well.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_mivas_gols",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "acquaintance",
+            "note": "Identifies Mivas Gols as an Ordinator of Doctrine present in the Necrom library and asks visitors to show him respect.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_vurvan_serothul",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "acquaintance",
+            "note": "Sent an unusual scroll found in the archives to Vurvan Serothul, the Chief Artificer in Necrom, as it was not proper library material.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_vaden_baro",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "acquaintance",
+            "note": "Vaden Baro previously asked her about Khalaan, the traditional pre-Armistice name of Ebonheart.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m2_herea_nerthul": {
+        "reason": "Manual consistency review: correct family, debt and mentor roles; omit quest-title links and completed hearing assumptions.",
+        "raw": [
+          {
+            "target": "tr_m2_dithrasa_nerthul",
+            "aff": 0,
+            "type": "familial",
+            "relation": "sister",
+            "note": "Herea lives in Marog with her sister and sells alchemical ingredients to help them get by.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_dareth_rarales",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "fellow Marog market vendor",
+            "note": "Herea mentions Dareth provides general goods in the same market.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_sevra_andules",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "acquaintance in Marog",
+            "note": "Herea notes Sevra runs the slave market downstairs in Marog.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_tarvel_drenith",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "acquaintance in Marog",
+            "note": "Herea mentions Tarvel Drenith's traders can be found on the cliff's edge.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_arnem_tharonen": {
+        "reason": "Manual consistency review: correct family, debt and mentor roles; omit quest-title links and completed hearing assumptions.",
+        "raw": [
+          {
+            "target": "tr_m3_relmo_tharonen",
+            "aff": 70,
+            "type": "familial",
+            "relation": "Son and heir to the Tharonen family",
+            "note": "Arnem directs mining-town business to his son, calling him exceptionally adept and saying he is very proud of him.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_belisatha_mede": {
+        "reason": "Manual consistency review: correct family, debt and mentor roles; omit quest-title links and completed hearing assumptions.",
+        "raw": [
+          {
+            "target": "tr_m3_casik",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Magistrate handling his treason appeal",
+            "note": "Casik has filed repeated appeals protesting his innocence; Belisatha seeks to have him drop his case.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_alcibius": {
+        "reason": "Manual consistency review: correct family, debt and mentor roles; omit quest-title links and completed hearing assumptions.",
+        "raw": []
+      },
+      "tr_m2_llevari_telsaran": {
+        "reason": "Manual consistency review: correct family, debt and mentor roles; omit quest-title links and completed hearing assumptions.",
+        "raw": [
+          {
+            "target": "tr_m1_t_eldale",
+            "aff": 40,
+            "type": "professional",
+            "relation": "Supporter of Llevari's Telvanni Council bid",
+            "note": "Mistress Eldale supports Llevari's quest for a seat on the Telvanni Council.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m1_t_rathra",
+            "aff": 40,
+            "type": "professional",
+            "relation": "Supporter of Llevari's Telvanni Council bid",
+            "note": "Mistress Rathra supports Llevari's quest for a seat on the Telvanni Council.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_master_vaerin",
+            "aff": -60,
+            "type": "nemesis",
+            "relation": "Principal enemy opposing her Council bid",
+            "note": "Master Vaerin is her principal enemy and opposes her bid for a seat on the Telvanni Council.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m2_llothis_dralor": {
+        "reason": "Manual consistency review: correct family, debt and mentor roles; omit quest-title links and completed hearing assumptions.",
+        "raw": [
+          {
+            "target": "tr_m2_dralothasomothran",
+            "aff": -35,
+            "type": "contempt",
+            "relation": "Telvanni patron of Tel Mothrivra",
+            "note": "Llothis resents Dralothas for taking the old monastery from the Temple without permission, yet calls him 'lord' and credits him with keeping threats at bay.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_drulusa_hlamen",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "Town resident",
+            "note": "Llothis mentions Drelasa Hlamen being 'too tired to move' when offering to sell a restore endurance potion.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_gadave_sethan",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "Town publican",
+            "note": "Llothis directs visitors to Gadave Sethan for food, booze, and beds at The Glass Goblet.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_kammus_uvayn",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "Town resident",
+            "note": "Llothis identifies Kammus Uvayn as the necromancing inhabitant of the southern Telvanni tower.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_seris_athyon",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "Town enchantress",
+            "note": "Llothis directs visitors needing magical supplies to Seris Athyon, describing her as an enchantress.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m2_renilsa_narvul": {
+        "reason": "Manual consistency review: correct family, debt and mentor roles; omit quest-title links and completed hearing assumptions.",
+        "raw": [
+          {
+            "target": "tr_m2_llerav_mernam",
+            "aff": 25,
+            "type": "mentor",
+            "relation": "Seeker of her wisdom",
+            "note": "She happily imparts her wisdom to Llerav, whom she considers part of a lovely couple.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m2_rumare_tervu",
+            "aff": 25,
+            "type": "mentor",
+            "relation": "Seeker of her wisdom",
+            "note": "She happily imparts her wisdom to Rumare, whom she considers part of a lovely couple.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_beru_vesuri": {
+        "reason": "Manual consistency review: correct direction and family/affection labels; remove name collision and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m3_phyrios_mattimus",
+            "aff": -40,
+            "type": "dismissive",
+            "relation": "Duke who loves her; she despairs at his attention",
+            "note": "She was caught stealing from his chambers; he fell in love with her and plies her with gifts, a fact she despairs at.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_raleth",
+            "aff": 30,
+            "type": "platonic",
+            "relation": "Friend in Old Ebonheart",
+            "note": "Raleth is her friend in Old Ebonheart.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_cassynderia_lys": {
+        "reason": "Manual consistency review: correct direction and family/affection labels; remove name collision and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m3_mette_black_briar",
+            "aff": 0,
+            "type": "professional",
+            "relation": "East Empire Company colleague handling mine affairs",
+            "note": "Cassynderia sat in on Mette's bank meetings and calls her a killer negotiator. She directs Redoran mine complainants to Mette upstairs.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_canus",
+            "aff": 0,
+            "type": "professional",
+            "relation": "East Empire Company colleague",
+            "note": "Cassynderia notes she has avoided being roped into whatever Cano is involved with.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_emeni_udani": {
+        "reason": "Manual consistency review: correct direction and family/affection labels; remove name collision and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m2_vorith",
+            "aff": 50,
+            "type": "romantic",
+            "relation": "widow of Vorith Udani",
+            "note": "Vorith Udani was a soldier who died over thirty years ago.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_leius_corsus": {
+        "reason": "Manual consistency review: correct direction and family/affection labels; remove name collision and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m3_washes_their_scal",
+            "aff": -40,
+            "type": "suspicious",
+            "relation": "Suspected body thief in the undercroft",
+            "note": "Accuses Washes-Their-Scales of stealing undercroft bodies and offers to vouch for this claim to Helice Rastin.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_helice_rastin",
+            "aff": 10,
+            "type": "professional",
+            "relation": "Authority to report undercroft crimes to",
+            "note": "Leius offers to vouch to Helice Rastin if the player reports Washes-Their-Scales as responsible for the disappearing bodies.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_jannav_miranus",
+            "aff": 5,
+            "type": "professional",
+            "relation": "Mourner whose son's body vanished",
+            "note": "Leius overheard Jannav Miranus discussing his son's disappearance and calls it a shame, noting Washes-Their-Scales was last to see the body.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_tindalos_miranus",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Deceased whose body disappeared from the undercroft",
+            "note": "Tindalos Miranus is the son of Jannav Miranus whose body vanished; Washes-Their-Scales washed the body and was believed to be the last to see it.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_helice_rastin": {
+        "reason": "Manual consistency review: correct direction and family/affection labels; remove name collision and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m3_galug_the_barber",
+            "aff": -20,
+            "type": "suspicious",
+            "relation": "suspected body thief",
+            "note": "Helice investigates bodies going missing from her mortuary; Galug is implicated in the disappearances.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_jannav_miranus",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "dismissed suspect",
+            "note": "Helice rejects Jannav as a suspect, calling him a grief-stricken father who arrived weeks after the first body vanished.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_leius_corsus",
+            "aff": -30,
+            "type": "suspicious",
+            "relation": "Subject of body-selling allegations",
+            "note": "Demands proof before believing accusations that Leius sells bodies.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_washes_their_scal",
+            "aff": -10,
+            "type": "suspicious",
+            "relation": "suspected body thief",
+            "note": "Helice finds the Argonian a bit odd and considers him a plausible suspect in the missing bodies case.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_fedura": {
+        "reason": "Manual consistency review: correct direction and family/affection labels; remove name collision and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m3_folvalie",
+            "aff": 60,
+            "type": "familial",
+            "relation": "Daughter",
+            "note": "Fedura is worried about her missing daughter Folvalie and asks for help tracking her down.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_elvilde": {
+        "reason": "Manual consistency review: correct direction and family/affection labels; remove name collision and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m3_arquebald_vene",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Guildmate",
+            "note": "Elvilde recounts that Arquebald woke up with a bespelled mop trying to strangle him after Jorli's enchantment attempt.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_jorli",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Guildmate",
+            "note": "Elvilde mentions Jorli tried bespelling mops to clean the Guild, an incident the Guild does not normally condone.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_lancen_pariclopet": {
+        "reason": "Manual consistency review: correct direction and family/affection labels; remove name collision and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m3_cyrtus_clagno",
+            "aff": 0,
+            "type": "suspicious",
+            "relation": "Imperial Cult lay member",
+            "note": "Lancen suspected Cyrtus Clagno, a lay member, might be involved in events at Bthung, though he could not think of a reason why.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_capn_fentus": {
+        "reason": "Manual consistency review: correct direction and family/affection labels; remove name collision and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "big_helende",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Thieves Guild contact in Sadrith Mora",
+            "note": "Directs guild operatives to Big Helende at Dirty Muriel's Cornerclub.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "simine_fralinie",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Thieves Guild contact in Vivec",
+            "note": "Directs operatives to a contact in the basement of Simine Fralinie's bookstore in the Foreign Quarter.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_naamalvu_erendi",
+            "aff": 20,
+            "type": "professional",
+            "relation": "Thieves Guild associate",
+            "note": "Values this guild associate and would react with hostility to anyone responsible for their death.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_otrebus_delagia",
+            "aff": -20,
+            "type": "professional",
+            "relation": "Thieves Guild rival",
+            "note": "Called Otrebus an unhanged bastard who had it coming, but questioned whether the gang war needed bloodshed.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_three_scales",
+            "aff": 20,
+            "type": "professional",
+            "relation": "Thieves Guild associate",
+            "note": "Values this guild associate and would react with hostility to anyone responsible for their death.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_yggulf_the_mute",
+            "aff": 20,
+            "type": "professional",
+            "relation": "Thieves Guild associate",
+            "note": "Values this guild associate and would react with hostility to anyone responsible for their death.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_edryon_rorvan": {
+        "reason": "Manual consistency review: correct direction and family/affection labels; remove name collision and completed quest assumptions.",
+        "raw": [
+          {
+            "target": "tr_m3_folvalie",
+            "aff": 20,
+            "type": "crush",
+            "relation": "Attempted seduction target",
+            "note": "Seeks to seduce Folvalie through poetry, focusing on her foreignness.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_droma_gethre",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Scout who critiqued his poetry",
+            "note": "Droma Gethre noted Edryon's poetry obsesses over Folvalie's foreignness rather than personal qualities he has seen in her.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_entosaro_tanian": {
+        "reason": "Manual consistency review: correct direction and family/affection labels; remove name collision and completed quest assumptions.",
+        "raw": []
+      },
+      "tr_m3_mette_black_briar": {
+        "reason": "Manual consistency review: match friend, spouse, debtor and adversary labels to the described relationship.",
+        "raw": [
+          {
+            "target": "tr_m3_gudrunda",
+            "aff": 0,
+            "type": "platonic",
+            "relation": "Friend at Old Ebonheart Imperial Archaeological Society",
+            "note": "Mette calls Gudrunda a friend and refers players to her for ore-detection help.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_jodald",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Scrib jerky surplus buyer contact",
+            "note": "Mette suggests Jodald may want to buy the Company's scrib jerky surplus.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_ma_shavir",
+            "aff": 0,
+            "type": "professional",
+            "relation": "East Empire Company resident savant",
+            "note": "Mette recommends Ma'Shavir for mercantile training before negotiating with clients.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_mero_maro",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Colleague requesting the Briricca Report",
+            "note": "Mero Maro requested the Briricca Report of 3E 426, which Mette directs the player to deliver.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m4_eraris_verenim",
+            "aff": 0,
+            "type": "professional",
+            "relation": "East Empire Company scout at Anbarsud mine",
+            "note": "Mette directs the player to meet scout Erarius Verenius at the Anbarsud iron mine.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_otrebus_delagia": {
+        "reason": "Manual consistency review: match friend, spouse, debtor and adversary labels to the described relationship.",
+        "raw": [
+          {
+            "target": "tr_m3_capn_fentus",
+            "aff": -60,
+            "type": "enemy",
+            "relation": "Gang war rival",
+            "note": "Otrebus orders Fentus killed and offers 10,000 septims for his death.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_yggulf_the_mute",
+            "aff": -60,
+            "type": "enemy",
+            "relation": "Gang war rival",
+            "note": "Otrebus orders Yggulf killed, identifying him as Fentus's lieutenant.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_gura_gra_lagrob",
+            "aff": 40,
+            "type": "professional",
+            "relation": "Gang underling",
+            "note": "Gura gra-Lagrob is part of Delagia's gang and fights alongside him.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_norri",
+            "aff": 40,
+            "type": "professional",
+            "relation": "Gang underling",
+            "note": "Norri the Crow is part of Delagia's gang and fights alongside him.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_pulso_pollex",
+            "aff": 40,
+            "type": "professional",
+            "relation": "Gang underling",
+            "note": "Pulso Pollex is part of Delagia's gang and fights alongside him.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_rother_nevevyn": {
+        "reason": "Manual consistency review: match friend, spouse, debtor and adversary labels to the described relationship.",
+        "raw": [
+          {
+            "target": "tr_m3_porcilla_dythos",
+            "aff": -40,
+            "type": "contempt",
+            "relation": "Harbor clerk who confiscated his cargo",
+            "note": "Blames her for holding his cargo hostage and believes she has always had it out for House Indoril.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_ragosh_gro_mathog",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Potential contact for disposing of mazte",
+            "note": "Asked whether Ragosh gro-Matog was of any help in making three bottles of mazte disappear.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_urien_poralia": {
+        "reason": "Manual consistency review: match friend, spouse, debtor and adversary labels to the described relationship.",
+        "raw": [
+          {
+            "target": "tr_m3_alcibius",
+            "aff": 0,
+            "type": "neutral",
+            "relation": "Acquaintance",
+            "note": "Urien visited Alcibius and swung on a chandelier there, and asked the player to keep it private.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_ulka_gra_bol",
+            "aff": 10,
+            "type": "platonic",
+            "relation": "Gambling companion",
+            "note": "Urien finds rolling dice with Ulka entertaining and notes she likes her lucky dice.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_valia_vautere",
+            "aff": 0,
+            "type": "indebted",
+            "relation": "Acquaintance",
+            "note": "Urien owed Valia money and asked the player to apologize to her on his behalf.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_urkhu": {
+        "reason": "Manual consistency review: match friend, spouse, debtor and adversary labels to the described relationship.",
+        "raw": [
+          {
+            "target": "tr_m3_ji_morashu_ri",
+            "aff": 40,
+            "type": "professional",
+            "relation": "Warrior serving Prince Ji'Morashu-ri",
+            "note": "Guards the Elsweyr Mission and is dispatched by the Prince for translation and combat support.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_rothur",
+            "aff": -60,
+            "type": "enemy",
+            "relation": "Adversary of S'Khar-ra's abductor",
+            "note": "Identifies Rothur as a villain and abductor; attacks him with lethal intent if given leave.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_velmu",
+            "aff": -60,
+            "type": "enemy",
+            "relation": "Adversary of S'Khar-ra's abductor",
+            "note": "Identifies Velmu as a villain and abductor; attacks him with lethal intent if given leave.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m3_zissicheeiva": {
+        "reason": "Manual consistency review: match friend, spouse, debtor and adversary labels to the described relationship.",
+        "raw": [
+          {
+            "target": "tr_m3_anjzhirra",
+            "aff": 40,
+            "type": "platonic",
+            "relation": "Friend and colleague",
+            "note": "Zissicheeiva considers Anjzhirra a friend and offers free services to those sent by her, asking them to send her regards.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_missa_rhyle",
+            "aff": 30,
+            "type": "professional",
+            "relation": "Deceased acquaintance; soul used in enchantment",
+            "note": "Zissicheeiva knew Missa Rhyle and proposed binding her soul into a silver weapon, saying it is what she would have wanted and calling her 'poor Missa'.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m3_valkreia_krex",
+            "aff": -10,
+            "type": "professional",
+            "relation": "Disagreed with over Missa Rhyle's soul gem",
+            "note": "Zissicheeiva opposed Valkreia's wish to smash Missa Rhyle's soul gem, calling it a terrible waste of the soul.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m4_llaals_sathrobar": {
+        "reason": "Manual consistency review: match friend, spouse, debtor and adversary labels to the described relationship.",
+        "raw": [
+          {
+            "target": "tr_m4_atriban_deras",
+            "aff": 40,
+            "type": "platonic",
+            "relation": "longtime friend",
+            "note": "Atriban once rescued Llaals from the mabrigash Ashvubabi Bishmalkit.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m4_q_mm_ashvubabi",
+            "aff": -20,
+            "type": "fearful",
+            "relation": "former captor",
+            "note": "Ashvubabi once held Llaals in her clutches until Atriban rescued him.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m4_mibdinahaz": {
+        "reason": "Manual consistency review: match friend, spouse, debtor and adversary labels to the described relationship.",
+        "raw": [
+          {
+            "target": "tr_m4_asani",
+            "aff": 0,
+            "type": "romantic",
+            "relation": "Wife",
+            "note": "Wed to Asani, an elder scout of the Ishanuran tribe.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m7_adovan_sathus": {
+        "reason": "Manual consistency review: correct hostility and colleague labels; omit shared-service comparisons, quest-title links and unsupported ownership assumptions.",
+        "raw": [
+          {
+            "target": "tr_m7_kausha_risannu",
+            "aff": -15,
+            "type": "suspicious",
+            "relation": "Suspicious of shift-schedule writer",
+            "note": "Adovan questions how the thief obtained the shift schedule Kausha writes, suggesting she may be responsible.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m7_telaen",
+            "aff": 20,
+            "type": "professional",
+            "relation": "Trusted fellow guard",
+            "note": "Adovan states he believes Telaen when she says she heard something.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m7_bala_elarven": {
+        "reason": "Manual consistency review: correct hostility and colleague labels; omit shared-service comparisons, quest-title links and unsupported ownership assumptions.",
+        "raw": [
+          {
+            "target": "tr_m7_drovas_rethan",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Vault colleague at Mesa Exchange",
+            "note": "Bala directs those running errands for the Sixth Family to Drovas Rethan downstairs in the vaults.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "tr_m7_ramila_verothran",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Colleague handling Cyrodilic imports",
+            "note": "Bala refers deliveries to Ramila Verothran upstairs, who deals with all Cyrodilic imports.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m7_gilimeg": {
+        "reason": "Manual consistency review: correct hostility and colleague labels; omit shared-service comparisons, quest-title links and unsupported ownership assumptions.",
+        "raw": [
+          {
+            "target": "skinkintreesshade",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Fellow Mages Guild vampirism researcher",
+            "note": "Identifies Skink-In-Tree's-Shade as a Master Wizard researching vampirism at the Sadrith Mora guildhall and recommends consulting him.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m4_nassuran_omoril": {
+        "reason": "Manual consistency review: correct hostility and colleague labels; omit shared-service comparisons, quest-title links and unsupported ownership assumptions.",
+        "raw": []
+      },
+      "tr_m7_goler_ralvayn": {
+        "reason": "Manual consistency review: correct hostility and colleague labels; omit shared-service comparisons, quest-title links and unsupported ownership assumptions.",
+        "raw": [
+          {
+            "target": "tr_m7_estoril",
+            "aff": -40,
+            "type": "enemy",
+            "relation": "imprisoned alchemist in her closet",
+            "note": "Goler locked Estoril in her own closet and fraudulently sold her house.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m7_gadrasa_llervu": {
+        "reason": "Manual consistency review: correct hostility and colleague labels; omit shared-service comparisons, quest-title links and unsupported ownership assumptions.",
+        "raw": []
+      },
+      "tr_m4_q_mm_ashvubabi": {
+        "reason": "Manual consistency review: correct hostility and colleague labels; omit shared-service comparisons, quest-title links and unsupported ownership assumptions.",
+        "raw": [
+          {
+            "target": "tr_m4_atriban_deras",
+            "aff": -40,
+            "type": "enemy",
+            "relation": "Cursed victim",
+            "note": "Ashvubabi has placed a curse on Atriban Deras, Arvud's alchemist.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tr_m7_balonas_nothro": {
+        "reason": "Manual consistency review: correct hostility and colleague labels; omit shared-service comparisons, quest-title links and unsupported ownership assumptions.",
+        "raw": []
+      },
+      "tr_m4_seresa_maanith": {
+        "reason": "Manual consistency review: correct hostility and colleague labels; omit shared-service comparisons, quest-title links and unsupported ownership assumptions.",
+        "raw": []
+      },
+      "uvoo_llaren": {
+        "reason": "Manual consistency review: correct hostile labels; omit unverified rumors, saint-name collision, and generic same-faction link.",
+        "raw": [
+          {
+            "target": "assantushansar",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Temple charity mission target",
+            "note": "Uvoo tasks Temple members to find and cure the ill outcast Ashlander at Ahinanapal, south of Ghostgate.",
+            "best": "",
+            "worst": ""
+          },
+          {
+            "target": "mendel_eves",
+            "aff": 0,
+            "type": "professional",
+            "relation": "Fallen Buoyant Armiger who carried the Cleaver of St. Felms",
+            "note": "Uvoo recalls Mendel Eves as a brave and honorable Buoyant Armiger who fell fighting at Tureynulal on Red Mountain.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "tuls_valen": {
+        "reason": "Manual consistency review: correct hostile labels; omit unverified rumors, saint-name collision, and generic same-faction link.",
+        "raw": [
+          {
+            "target": "elvil_vidron",
+            "aff": -40,
+            "type": "enemy",
+            "relation": "False Incarnate heretic",
+            "note": "Tuls Valen identifies Elvil Vidron as a False Incarnate and heretic who falsely claims to be the Nerevarine. He orders him confronted, convinced of his error, or killed if need be.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "twice_bitten": {
+        "reason": "Manual consistency review: correct hostile labels; omit unverified rumors, saint-name collision, and generic same-faction link.",
+        "raw": []
+      },
+      "volrina_quarra": {
+        "reason": "Manual consistency review: correct hostile labels; omit unverified rumors, saint-name collision, and generic same-faction link.",
+        "raw": [
+          {
+            "target": "irarak",
+            "aff": -55,
+            "type": "enemy",
+            "relation": "Quarra Clan matriarch ordering his death",
+            "note": "Volrina demands Irarak be killed for allowing mortals to worship him as a god, calling his conduct a mockery that must not continue.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      },
+      "voruse_bethrimo": {
+        "reason": "Manual consistency review: correct hostile labels; omit unverified rumors, saint-name collision, and generic same-faction link.",
+        "raw": []
+      },
+      "wulf": {
+        "reason": "Remove reversed inference: a prophet identifying Wulf does not establish his protective relationship toward her.",
+        "raw": []
+      },
+      "ygfa": {
+        "reason": "Explicit friend relationship.",
+        "raw": [
+          {
+            "target": "piernette_beluelle",
+            "aff": 40,
+            "type": "platonic",
+            "relation": "Friend",
+            "note": "Ygfa calls Piernette her friend and waives the Imperial Cult joining fee if the stolen silver bowl is returned to her.",
+            "best": "",
+            "worst": ""
+          }
+        ]
+      }
+    }
   }
 }
