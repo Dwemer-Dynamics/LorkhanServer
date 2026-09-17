@@ -30,6 +30,23 @@ final class ManagementRepository
     {return (new PlaythroughArchive($this->db))->inspect($json);}
     public function importPlaythroughArchive(string $installation,string $json):array
     {return (new PlaythroughArchive($this->db))->importCopy($installation,$json);}
+    /** Keep scoped management mutations behind the same guarded character repository. */
+    public function managePlaythrough(string $operation,string $installation,?string $playthrough,string $name,int $revision):array
+    {
+        $characters=new CharacterPlaythroughRepository($this->db);
+        if($operation==='create')return $characters->createEmpty($installation,$name);
+        if($operation==='rename')return $characters->renamePlaythrough($installation,(string)$playthrough,$name,$revision);
+        if($operation==='copy')return $characters->copyPlaythrough($installation,(string)$playthrough);
+        if($operation==='delete'){$characters->deletePlaythrough($installation,(string)$playthrough,$revision);return ['deleted'=>true];}
+        throw new \InvalidArgumentException('invalid_playthrough_operation');
+    }
+
+    /** Queue a saved-character reassignment without changing its running session. */
+    public function queuePlaythroughAssociation(string $installation,string $character,string $expected,string $target):array
+    {return (new CharacterPlaythroughRepository($this->db))->queueAssociation($installation,$character,$expected,$target);}
+    public function cancelPlaythroughAssociation(string $installation,string $association):void
+    {(new CharacterPlaythroughRepository($this->db))->cancelAssociation($installation,$association);}
+
     public function previewBackupFileRetention(int $days,string $cutoff):array
     {return (new BackupFileRetention($this->db))->preview($days,$cutoff);}
     public function confirmBackupFileRetention(int $days,string $cutoff,string $token,array $config):array

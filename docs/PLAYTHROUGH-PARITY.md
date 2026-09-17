@@ -1,10 +1,10 @@
 # Playthrough parity implementation
 
 Reference: `Dwemer-Dynamics/HerikaServer` unstable
-`1d9a3d8ad1157e3fd429f85e3b992efc234dcfea`, especially
+`2080260aa4fb51564029779b24be7bdcad59e0f7`, especially
 `lib/playthrough_policy.php`, `playthrough_switching.php`, and `playthrough_home.php`.
 Client reference: `Dwemer-Dynamics/CHIM` unstable
-`76194ad1d0be2c971ebf02a0ca3c4d6266479acd`, `Plugin/PlaythroughSession.cpp`.
+`f590794f4e69ecc7094d904114bb9a90f160652d`, `Plugin/PlaythroughSession.cpp`.
 These are behavioral references, not a database schema to copy into Lorkhan.
 
 ## Data boundary
@@ -156,3 +156,29 @@ snapshots and backups pending restore are protected by the existing deletion gua
   remains unchanged. Local Apache upload limits permit the 16 MiB archive cap.
 - Browser screenshots, game-save linking for imported copies and in-game acceptance remain outstanding.
 - This checkpoint is source/test evidence only; it has not been deployed to the live database.
+
+## Web association and automatic client checkpoint (2026-09-16)
+
+This checkpoint supersedes the earlier in-game selection and inactive-import limitation above.
+The game no longer asks which playthrough to use: tagged saves reconnect by their stable character
+identity, new games create a world, and untagged older saves attempt conservative existing-world
+adoption. Rejected ambiguous legacy ownership remains untouched; there is no automatic destructive
+migration of mixed historical NPC profiles.
+
+Playthrough Manager now creates, renames, copies, exports/imports and soft-deletes scoped worlds.
+Delete only hides unused worlds and preserves their records; bound, active and pending-link worlds
+cannot be deleted. Shared settings and provider credentials remain outside portable transfers.
+A web character link is queued with an expected-current-world fence, can be cancelled, and applies
+only on the next session admission. Old save files resolve the same character's canonical new world.
+The accepted response supplies canonical character, profile and playthrough IDs before subsequent
+messages; the client persists them only after acceptance. Imported sessions remain inert history.
+
+Migration 125 stores pending/applied/cancelled association records as operational data, excluded
+from portable archives. The reviewed table policy now covers 181 tables, 44 portable. Full SQL
+recovery and profile-only tools remain separate advanced controls. This maps CHIM's user workflow
+onto Lorkhan's scoped database; it does not substitute CHIM SQL tables or load game saves from web.
+
+Validation: Windows Release OpenMW build, native bridge/Beast transport suites, shipped Lua runtime
+(100 tests), protocol manifest parity and patch manifest validation pass. Disposable PostgreSQL
+integration and actual HTTP CRUD/import/association checks pass. Browser tooling was unavailable;
+screenshots and user-controlled two-save gameplay acceptance remain unverified.

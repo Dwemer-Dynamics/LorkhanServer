@@ -137,8 +137,9 @@ final class Repository
             $lock = $this->db->prepare('SELECT installation_id FROM installations WHERE installation_id = :id FOR UPDATE');
             $lock->execute(['id' => $message['installation_id']]);
             $characters=new CharacterPlaythroughRepository($this->db);
-            $characterId=$characters->assertSessionBinding($message);
             $sourceMessage=$message;
+            $message=$characters->resolveSessionMessage($message);
+            $characterId=$characters->assertSessionBinding($message);
             if($characterId===null)$this->ensureSessionOwners($message);
             else $message['profile_id']=(new ProfileOwnershipRepository($this->db))->prepareSessionOwners($message);
             $latest = $this->db->prepare('SELECT MAX(generation) FROM sessions WHERE installation_id = :id AND NOT archived');
@@ -175,7 +176,7 @@ final class Repository
                 $message['created_at'], $message['schema'], null, null, null, $sourceMessage);
             if (array_key_exists('loaded_save',$message)) (new LoadedSaveTimeline($this->db))->invalidate($message);
             return ['session_id' => $sessionId, 'generation' => $message['generation'], 'capabilities' => $capabilities]
-                +($characterId===null?[]:['character_id'=>$characterId,'profile_id'=>$message['profile_id']]);
+                +($characterId===null?[]:['character_id'=>$characterId,'profile_id'=>$message['profile_id'],'playthrough_id'=>$message['playthrough_id']]);
         });
     }
 

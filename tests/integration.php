@@ -5450,15 +5450,14 @@ $assert(($recoveredCharacter['character_id']??null)===$legacyCharacter['characte
     &&count($products->characterPlaythroughState($legacyCharacter['installation_id'])['bindings'])===1,
     'explicit older-save adoption did not reuse the canonical character identity');
 
-// A supplied character already belonging to another world must never be rebound by recovery.
-$foreignPlaythrough=Uuid::v4();$foreignCharacter=Uuid::v4();
-$db->prepare('INSERT INTO playthroughs(playthrough_id,installation_id,profile_id,name,created_at) VALUES(:id,:installation,:profile,:name,clock_timestamp())')
-    ->execute(['id'=>$foreignPlaythrough,'installation'=>$legacyCharacter['installation_id'],'profile'=>$legacyCharacter['profile_id'],'name'=>'Unselected preserved legacy world']);
+// A known saved character remains authoritative even when an older save carries another world hint.
+$foreignWorld=(new \LorkhanServer\Infrastructure\CharacterPlaythroughRepository($db))->createEmpty($legacyCharacter['installation_id'],'Unselected preserved legacy world');
+$foreignPlaythrough=$foreignWorld['playthrough_id'];$foreignCharacter=Uuid::v4();
 $db->prepare("INSERT INTO character_playthrough_bindings(installation_id,character_id,playthrough_id,binding_mode) VALUES(:installation,:character,:playthrough,'existing')")
     ->execute(['installation'=>$legacyCharacter['installation_id'],'character'=>$foreignCharacter,'playthrough'=>$foreignPlaythrough]);
 $foreignRecovery=$olderUntagged;$foreignRecovery['character_id']=$foreignCharacter;$foreignRecovery['generation']=4;$foreignRecovery['message_id']=Uuid::v4();
-try{$repo->createSession($foreignRecovery,Uuid::v4(),$tokenHash);$assert(false,'older-save recovery reassigned an existing foreign character');}
-catch(DomainException $error){$assert($error->getMessage()==='character_binding_conflict','wrong foreign character recovery error');}
+$foreignAccepted=$repo->createSession($foreignRecovery,Uuid::v4(),$tokenHash);
+$assert($foreignAccepted['playthrough_id']===$foreignPlaythrough&&$foreignAccepted['profile_id']===$foreignWorld['profile_id'],'known character was reassigned using an older world hint');
 
 // Multiple unpartitioned legacy worlds cannot be assigned to a character by guessing.
 $ambiguous=$session;unset($ambiguous['loaded_save'],$ambiguous['character_id'],$ambiguous['character_binding']);
@@ -5528,5 +5527,55 @@ $archiveSideEffects=fn()=>$db->query('SELECT (SELECT count(*) FROM source_events
 try{$repo->actionResult(['action_id'=>$archivedAction['action_id']]);$assert(false,'archival action receipt accepted');}catch(OutOfBoundsException $error){$assert($error->getMessage()==='unknown_session','wrong archival action receipt rejection');}
 try{$repo->dialogueDeliveryResult(['dialogue_message_id'=>$archivedDialogue['dialogue_message_id']]);$assert(false,'archival dialogue receipt accepted');}catch(OutOfBoundsException $error){$assert($error->getMessage()==='unknown_session','wrong archival dialogue receipt rejection');}
 $assert($archiveSideEffects()===$beforeReceipts,'archival receipt created source events or work');
+
+// Web lifecycle edits never activate a world; an approved character link applies at the next admission.
+$characters=new \LorkhanServer\Infrastructure\CharacterPlaythroughRepository($db);
+$managed=$characters->createEmpty($characterSession['installation_id'],'Managed empty world');
+$renamed=$characters->renamePlaythrough($characterSession['installation_id'],$managed['playthrough_id'],'Renamed inactive world',1);
+$assert($renamed['current_revision']===2,'rename did not record a revision');
+try{$characters->renamePlaythrough($characterSession['installation_id'],$managed['playthrough_id'],'Stale edit',1);$assert(false,'stale rename accepted');}catch(RuntimeException $error){$assert($error->getMessage()==='revision_conflict','wrong stale rename rejection');}
+$characters->deletePlaythrough($characterSession['installation_id'],$managed['playthrough_id'],2);
+$softDeleted=$db->prepare('SELECT deleted_at IS NOT NULL FROM playthroughs WHERE playthrough_id=:world');$softDeleted->execute(['world'=>$managed['playthrough_id']]);$assert((bool)$softDeleted->fetchColumn(),'delete did not retain a soft-deleted world');
+try{$characters->deletePlaythrough($characterSession['installation_id'],$characterSession['playthrough_id'],1);$assert(false,'bound character world deleted');}catch(RuntimeException $error){$assert($error->getMessage()==='playthrough_in_use','wrong bound world deletion rejection');}
+$pendingLink=$characters->queueAssociation($characterSession['installation_id'],$characterSession['character_id'],$characterSession['playthrough_id'],$archiveCopy['playthrough_id']);
+$assert($characters->state($characterSession['installation_id'])['current']['playthrough_id']===$characterSession['playthrough_id'],'web association switched running game');
+try{$characters->deletePlaythrough($characterSession['installation_id'],$archiveCopy['playthrough_id'],1);$assert(false,'pending association target deleted');}catch(RuntimeException $error){$assert($error->getMessage()==='playthrough_in_use','wrong pending target deletion rejection');}
+$staleLink=$returnCharacter;$staleLink['message_id']=Uuid::v4();
+try{$repo->createSession($staleLink,Uuid::v4(),$tokenHash);$assert(false,'stale session consumed association');}catch(UnexpectedValueException $error){$assert($error->getMessage()==='stale_generation','wrong stale admission rejection');}
+$assert($characters->state($characterSession['installation_id'])['pending_associations'][0]['association_id']===$pendingLink['association_id'],'rejected admission consumed pending association');
+$linkedSession=$returnCharacter;$linkedSession['generation']=5;$linkedSession['message_id']=Uuid::v4();$backupWorld=null;
+$linkedAccepted=$repo->createSession($linkedSession,Uuid::v4(),$tokenHash,null,function(array $resolved)use(&$backupWorld):void{$backupWorld=$resolved['playthrough_id'];});
+$assert($linkedAccepted['playthrough_id']===$archiveCopy['playthrough_id']&&$linkedAccepted['profile_id']===$archiveCopy['profile_id']&&$backupWorld===$archiveCopy['playthrough_id'],'association did not admit canonical imported owners');
+$assert($characters->state($characterSession['installation_id'])['pending_associations']===[],'applied association remained pending');
+$linkedSession['generation']=6;$linkedSession['message_id']=Uuid::v4();$olderLinked=$repo->createSession($linkedSession,Uuid::v4(),$tokenHash);
+$assert($olderLinked['playthrough_id']===$archiveCopy['playthrough_id'],'older save moved linked character back to old world');
+$cancelLink=$characters->queueAssociation($characterSession['installation_id'],$characterSession['character_id'],$archiveCopy['playthrough_id'],$archiveSecondCopy['playthrough_id']);
+$characters->cancelAssociation($characterSession['installation_id'],$cancelLink['association_id']);
+$assert($characters->state($characterSession['installation_id'])['pending_associations']===[],'cancelled association remained queued');
+
+// The wire handshake must return canonical owners before subsequent gameplay requests use them.
+$repo->ensureInstallation($characterSession['installation_id'],$tokenHash,$macKey);
+$linkedApi=function(string $path,array $message)use($router,$macKey,$characterSession,$jsonAuth):array{
+    $body=json_encode($message,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);
+    $requestHeaders=$jsonAuth+['Idempotency-Key'=>$message['message_id']];
+    $request=new Request('POST',$path,$requestHeaders,[],$body);
+    $timestamp=gmdate('Y-m-d\TH:i:s\Z');$nonce=bin2hex(random_bytes(16));$digest=hash('sha256',$body);
+    $requestHeaders+=['X-LORKHAN-Auth'=>RequestMac::ALGORITHM,'X-LORKHAN-Installation-Id'=>$characterSession['installation_id'],
+        'X-LORKHAN-Timestamp'=>$timestamp,'X-LORKHAN-Nonce'=>$nonce,'X-LORKHAN-Content-SHA256'=>$digest,
+        'X-LORKHAN-Signature'=>RequestMac::sign($macKey,$request,$characterSession['installation_id'],$timestamp,$nonce,$requestHeaders['Content-Type'],$digest)];
+    $response=$router->dispatch(new Request('POST',$path,$requestHeaders,[],$body));
+    return[$response->status,json_decode($response->body,true,64,JSON_THROW_ON_ERROR)];
+};
+$linkedSession['generation']=7;$linkedSession['message_id']=Uuid::v4();
+[$linkedStatus,$linkedWire]=$linkedApi($base.'/sessions',$linkedSession);
+$assert($linkedStatus===201&&($linkedWire['playthrough_id']??null)===$archiveCopy['playthrough_id']
+    &&($linkedWire['profile_id']??null)===$archiveCopy['profile_id'],'session API omitted canonical linked owners: '.json_encode($linkedWire));
+$linkedTurn=$characterTurn;foreach(['session_id','generation','playthrough_id','profile_id'] as $key)$linkedTurn[$key]=$linkedWire[$key];
+foreach(['message_id','request_id','turn_id'] as $key)$linkedTurn[$key]=Uuid::v4();
+[$linkedStatus,$linkedTurnWire]=$linkedApi($base.'/turns',$linkedTurn);
+$assert($linkedStatus===202,'canonical linked turn API failed: '.json_encode($linkedTurnWire));
+$linkedStored=$db->prepare('SELECT s.playthrough_id,s.profile_id FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE t.turn_id=:turn');$linkedStored->execute(['turn'=>$linkedTurn['turn_id']]);
+$assert($linkedStored->fetch()===['playthrough_id'=>$archiveCopy['playthrough_id'],'profile_id'=>$archiveCopy['profile_id']],
+    'followup gameplay request persisted in stale save scope');
 
 fwrite(STDOUT, "integration vertical slice passed\n");

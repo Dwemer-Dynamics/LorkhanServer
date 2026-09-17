@@ -3041,7 +3041,7 @@ $check(\LorkhanServer\Application\CoreProfilePreset::capture($coreKnowledge)['se
 // The General editor writes the existing NPC tag document without changing unrelated fields.
 $tagRouter=(new ReflectionClass(\LorkhanServer\Http\ManagementRouter::class))->newInstanceWithoutConstructor();
 $requestFormat=new ReflectionMethod($tagRouter,'htmlRequest');
-foreach(['playthrough-archive','playthrough-backup-settings','backup-file-retention'] as $archiveForm){
+foreach(['playthrough-archive','playthrough-backup-settings','backup-file-retention','playthrough-manage','playthrough-association'] as $archiveForm){
     $check($requestFormat->invoke($tagRouter,new \LorkhanServer\Http\Request('POST','/LorkhanServer/manage/forms/'.$archiveForm,['Accept'=>'application/json']))===false,
         'Archive and backup AJAX errors preserve JSON responses: '.$archiveForm);
 }

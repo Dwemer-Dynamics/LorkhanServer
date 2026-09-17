@@ -122,13 +122,15 @@ final class Router
                 $sessionId = Uuid::v4();
                 $beforeReplace=isset($m['loaded_save'])?fn(array $resolved)=>(new \LorkhanServer\Infrastructure\DragonBreakSnapshot($this->providerConfig))->capture($resolved):null;
                 $session = $this->repository->createSession($m,$sessionId,$this->pairingTokenHash,$this->bootstrapMacKey(),$beforeReplace);
+                if(isset($session['playthrough_id']))$m['playthrough_id']=$session['playthrough_id'];
+                if(isset($session['profile_id']))$m['profile_id']=$session['profile_id'];
                 // The installation is materialized by createSession, so the player profile can now satisfy its foreign key.
                 $this->products?->ensurePlayerProfile((string)$m['installation_id'],(string)$m['created_at'],(string)$m['playthrough_id']);
                 $settings=$this->clientSettings((string)$m['installation_id']);
                 return [201, ['schema' => 'lorkhan.session.accepted.v1', 'message_id' => $m['message_id'],
                     'session_id' => $sessionId, 'generation' => $session['generation'],
                     'capabilities' => $session['capabilities'], 'config_revision' => $settings['revision'],
-                    'client_settings'=>$settings['content'],'event_cursor' => 0]+(isset($session['character_id'])?['character_id'=>$session['character_id'],'profile_id'=>$session['profile_id']]:[])];
+                    'client_settings'=>$settings['content'],'event_cursor' => 0]+(isset($session['character_id'])?['character_id'=>$session['character_id'],'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id']]:[])];
             });
         });
     }

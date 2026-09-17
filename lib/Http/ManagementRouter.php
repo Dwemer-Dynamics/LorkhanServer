@@ -494,6 +494,29 @@ final class ManagementRouter
         }
         if($domain==='global-settings-preset')return $this->namedGlobalSettingsPreset($v,$scope);
         if($domain==='core-profile-preset')return $this->namedCoreProfilePreset($v,$scope);
+        if($domain==='playthrough-manage'){
+            $installation=$this->need($scope,'installation_id');$operation=$this->need($v,'operation');
+            if(!in_array($operation,['create','rename','copy','delete'],true))throw new InvalidArgumentException('invalid_playthrough_operation');
+            $playthrough=$operation==='create'?null:$this->need($v,'playthrough_id');
+            if($playthrough!==null)$this->uuid($playthrough,'playthrough_id');
+            $revision=filter_var($v['expected_revision']??0,FILTER_VALIDATE_INT);
+            if($revision===false||$revision<0)throw new InvalidArgumentException('invalid_revision');
+            if($operation==='delete'&&($v['confirm']??'')!=='Delete')throw new InvalidArgumentException('confirmation_mismatch');
+            $name=in_array($operation,['create','rename'],true)?$this->need($v,'name'):'';
+            return Response::json(200,['result'=>$this->management->managePlaythrough($operation,$installation,$playthrough,$name,$revision)]);
+        }
+        if($domain==='playthrough-association'){
+            $installation=$this->need($scope,'installation_id');$operation=$this->need($v,'operation');
+            if($operation==='cancel'){
+                $id=$this->need($v,'association_id');$this->uuid($id,'association_id');
+                $this->management->cancelPlaythroughAssociation($installation,$id);
+                return Response::json(200,['cancelled'=>true]);
+            }
+            if($operation!=='queue'||($v['confirm']??'')!=='Associate on next load')throw new InvalidArgumentException('confirmation_mismatch');
+            $character=$this->need($v,'character_id');$expected=$this->need($v,'expected_playthrough_id');$target=$this->need($v,'playthrough_id');
+            foreach([$character,$expected,$target] as $id)$this->uuid($id,'playthrough_identity');
+            return Response::json(200,['association'=>$this->management->queuePlaythroughAssociation($installation,$character,$expected,$target)]);
+        }
         if($domain==='playthrough-backup-settings'){
             $installation=$this->need($scope,'installation_id');$days=filter_var($v['dragon_break_days']??null,FILTER_VALIDATE_INT);
             if($days===false||$days<1||$days>365)throw new InvalidArgumentException('invalid_dragon_break_days');
@@ -3466,7 +3489,7 @@ final class ManagementRouter
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/')
-        &&!((str_ends_with($r->path,'/forms/playthrough-archive')||str_ends_with($r->path,'/forms/playthrough-backup-settings')||str_ends_with($r->path,'/forms/backup-file-retention'))&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
+        &&!((str_ends_with($r->path,'/forms/playthrough-association')||str_ends_with($r->path,'/forms/playthrough-manage')||str_ends_with($r->path,'/forms/playthrough-archive')||str_ends_with($r->path,'/forms/playthrough-backup-settings')||str_ends_with($r->path,'/forms/backup-file-retention'))&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/profile-rollback')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/profile-import-to')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/core-profile-import')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))

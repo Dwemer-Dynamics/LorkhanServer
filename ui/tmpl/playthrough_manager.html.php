@@ -7,7 +7,7 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
     <header class="page-header">
         <h1>Playthrough Manager</h1>
         <p class="page-subtitle">Characters and their separate Lorkhan histories.</p>
-        <div class="playthrough-help"><strong>Switch in game:</strong> Load the corresponding game save to switch playthroughs. New games receive their own data scope automatically. Existing saves ask once whether to keep existing Lorkhan data or start a new playthrough.</div>
+        <div class="playthrough-help"><strong>Switch in game:</strong> Load the corresponding game save to switch playthroughs. New games receive their own data scope automatically. Use this page to prepare a new playthrough or associate a copy with a saved character for its next load.</div>
     </header>
     <?php if(isset($_GET['status'])&&$_GET['status']==='saved'): ?><p class="playthrough-notice" role="status">Profile record operation completed.</p><?php endif; ?>
     <form method="get" class="playthrough-scope" aria-label="Playthrough installation">
@@ -34,7 +34,7 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
         <p class="section-note">Viewing records does not switch the active character. Load the corresponding game save to switch.</p>
     </section>
     <section class="content-section selected-playthrough" aria-labelledby="selected-playthrough-title">
-        <div class="selected-title"><span aria-hidden="true">🎮</span><div><h2 id="selected-playthrough-title">Selected Playthrough</h2><p>Read-only overview of the selected Morrowind playthrough.</p></div></div>
+        <div class="selected-title"><span aria-hidden="true">🎮</span><div><h2 id="selected-playthrough-title">Selected Playthrough</h2><p>Manage the selected Morrowind playthrough without replacing shared settings.</p></div></div>
         <?php if($selected): ?>
         <div class="selected-details"><strong class="selected-name">📋 <?= lorkhan_ui_h($selected['playthrough']) ?></strong>
             <span><b>Profile:</b> <?= lorkhan_ui_h($selected['profile']) ?></span><span><b>Game:</b> Morrowind</span>
@@ -44,13 +44,14 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
         <?php else: ?><p class="playthrough-empty">No playthroughs exist for this installation yet.</p><?php endif; ?>
     </section>
     <div class="content-grid">
-        <section class="content-section" aria-labelledby="snapshot-title">
-            <h2 id="snapshot-title">📦 Export Profile Snapshot</h2>
-            <p class="section-note">Download the selected profile's records as JSON. Conversations, source events, knowledge, configuration, credentials and audio are not included.</p>
-            <?php if($selected): ?><dl class="snapshot-scope"><dt>Playthrough</dt><dd><?= lorkhan_ui_h($selected['playthrough']) ?></dd><dt>Profile</dt><dd><?= lorkhan_ui_h($selected['profile']) ?></dd></dl>
-            <div class="button-group"><a class="button" href="<?= lorkhan_ui_h($managementBasePath) ?>/exports/playthroughs/<?= lorkhan_ui_h($selected['playthrough_id']) ?>.json">💾 Download Snapshot</a></div>
-            <?php else: ?><p class="playthrough-empty">Connect a saved character before exporting its records.</p><?php endif; ?>
-            <p class="scope-note">Exports include private Custom Info notes from relationship records. Share these files carefully.</p>
+        <section class="content-section" aria-labelledby="new-playthrough-title">
+            <h2 id="new-playthrough-title">New Playthrough</h2>
+            <p class="section-note">Create a separate, empty playthrough with its own Player and NPC profiles. Shared settings and Narrator configuration stay unchanged. This does not start a new game.</p>
+            <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthrough-manage" data-playthrough-manage>
+                <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="installation_id" value="<?= lorkhan_ui_h($installationId) ?>"><input type="hidden" name="operation" value="create">
+                <label for="new-playthrough-name">Name</label><input id="new-playthrough-name" name="name" maxlength="256" required placeholder="e.g., Balmora adventure">
+                <button type="submit"<?= $installationId===''?' disabled':'' ?>>Create Playthrough</button><p role="status" aria-live="polite"></p>
+            </form>
         </section>
         <section class="content-section" aria-labelledby="playthrough-list-title">
             <h2 id="playthrough-list-title">💾 Playthroughs</h2>
@@ -70,9 +71,41 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
             </div><?php endif; ?>
         </section>
     </div>
+    <?php if($selected):
+        $selectedBound=false;foreach(($characterState['bindings']??[]) as $binding)if($binding['playthrough_id']===$selected['playthrough_id'])$selectedBound=true;
+        $selectedPending=false;foreach(($characterState['pending_associations']??[]) as $association)if(in_array($selected['playthrough_id'],[$association['from_playthrough_id'],$association['to_playthrough_id']],true))$selectedPending=true;
+        $protectedPlaythrough=$selectedBound||$selectedPending||$selected['playthrough_id']===$activePlaythroughId;
+    ?>
+    <section class="content-section" aria-labelledby="manage-playthrough-title">
+        <h2 id="manage-playthrough-title">Manage <?= lorkhan_ui_h($selected['playthrough']) ?></h2>
+        <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthrough-manage" data-playthrough-manage>
+            <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="installation_id" value="<?= lorkhan_ui_h($installationId) ?>"><input type="hidden" name="playthrough_id" value="<?= lorkhan_ui_h($selected['playthrough_id']) ?>"><input type="hidden" name="expected_revision" value="<?= (int)$selected['current_revision'] ?>">
+            <label for="rename-playthrough-name">Name</label><input id="rename-playthrough-name" name="name" value="<?= lorkhan_ui_h($selected['playthrough']) ?>" maxlength="256" required>
+            <div class="button-group"><button type="submit" name="operation" value="rename">Rename</button><button type="submit" name="operation" value="copy" formnovalidate>Copy Playthrough</button><button type="submit" name="operation" value="delete" formnovalidate<?= $protectedPlaythrough?' disabled':'' ?>>Delete</button></div>
+            <p class="scope-note">Copy creates an inactive, independent playthrough. Delete removes only an unbound, inactive playthrough from the list; stored history is retained. Current, linked and pending playthroughs are protected.</p><p role="status" aria-live="polite"></p>
+        </form>
+        <h3>Associate with character</h3>
+        <p class="section-note">Queue this playthrough for a saved character. The change applies only when that character next loads a game save. The running session and previous playthrough are preserved. Choose a game save that matches this copy's progress.</p>
+        <?php if(!$protectedPlaythrough&&($characterState['bindings']??[])!==[]): ?>
+        <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthrough-association" data-playthrough-association>
+            <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="installation_id" value="<?= lorkhan_ui_h($installationId) ?>"><input type="hidden" name="playthrough_id" value="<?= lorkhan_ui_h($selected['playthrough_id']) ?>"><input type="hidden" name="operation" value="queue">
+            <label for="associate-character">Saved character</label><select id="associate-character" name="character_id"><?php foreach($characterState['bindings'] as $binding): ?><option value="<?= lorkhan_ui_h($binding['character_id']) ?>" data-playthrough-id="<?= lorkhan_ui_h($binding['playthrough_id']) ?>"><?= lorkhan_ui_h($binding['name'].' — '.$binding['character_id']) ?></option><?php endforeach; ?></select>
+            <button type="submit">Associate on Next Load</button><p role="status" aria-live="polite"></p>
+        </form>
+        <?php else: ?><p class="scope-note"><?= $protectedPlaythrough?'This playthrough is current, already linked or reserved by a pending association. Select an inactive copy to associate it.':'Connect a saved character before associating a playthrough.' ?></p><?php endif; ?>
+    </section>
+    <?php endif; ?>
+    <?php if(($characterState['pending_associations']??[])!==[]): ?>
+    <section class="content-section" aria-labelledby="pending-associations-title"><h2 id="pending-associations-title">Pending associations</h2><p class="section-note">These changes wait for the matching saved character's next load. Cancel to keep its existing playthrough.</p>
+        <?php foreach($characterState['pending_associations'] as $association): ?>
+        <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthrough-association" data-playthrough-association>
+            <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="installation_id" value="<?= lorkhan_ui_h($installationId) ?>"><input type="hidden" name="association_id" value="<?= lorkhan_ui_h($association['association_id']) ?>"><input type="hidden" name="operation" value="cancel">
+            <p>Character <?= lorkhan_ui_h($association['character_id']) ?> → <?= lorkhan_ui_h($association['to_playthrough_id']) ?></p><button type="submit">Cancel Association</button><p role="status" aria-live="polite"></p>
+        </form><?php endforeach; ?>
+    </section><?php endif; ?>
     <section class="content-section" aria-labelledby="portable-archive-title">
         <h2 id="portable-archive-title">Portable playthrough archive</h2>
-        <p class="section-note">Export this playthrough's supported data without installation-wide settings, credentials, queues or audio files. Import creates an inactive history copy; it never switches your running game or overwrites the original. Imported copies cannot currently be linked to a game save. Archives contain private conversations and profile notes; share carefully.</p>
+        <p class="section-note">Export this playthrough's supported data without installation-wide settings, credentials, queues or audio files. Import creates an inactive history copy; it never switches your running game or overwrites the original. Use Associate with character below to load an imported copy with an existing saved character on its next connection. Archives contain private conversations and profile notes; share carefully.</p>
         <p class="section-note">Hard limits: 16 MiB and 50,000 rows. Oversized exports fail instead of returning partial data. Imports must match the archive format and database schema version.</p>
         <?php if($selected): ?><a class="button" href="<?= lorkhan_ui_h($managementBasePath) ?>/exports/playthrough-archives/<?= lorkhan_ui_h($selected['playthrough_id']) ?>.json?installation_id=<?= lorkhan_ui_h($installationId) ?>">Export Playthrough Archive</a><?php endif; ?>
         <form method="post" enctype="multipart/form-data" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthrough-archive" data-playthrough-archive>
@@ -98,7 +131,16 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
         </form>
     </section>
     <details class="content-section playthrough-tools"><summary>Advanced profile record tools</summary>
-    <p class="section-note">Record import and empty data-scope creation do not start a game or switch saved characters.</p>
+    <p class="section-note">These profile-only tools do not export or restore a full playthrough.</p>
+        <section class="content-section" aria-labelledby="snapshot-title">
+            <h2 id="snapshot-title">📦 Export Profile Snapshot</h2>
+            <p class="section-note">Download the selected profile's records as JSON. Conversations, source events, knowledge, configuration, credentials and audio are not included.</p>
+            <?php if($selected): ?><dl class="snapshot-scope"><dt>Playthrough</dt><dd><?= lorkhan_ui_h($selected['playthrough']) ?></dd><dt>Profile</dt><dd><?= lorkhan_ui_h($selected['profile']) ?></dd></dl>
+            <div class="button-group"><a class="button" href="<?= lorkhan_ui_h($managementBasePath) ?>/exports/playthroughs/<?= lorkhan_ui_h($selected['playthrough_id']) ?>.json">💾 Download Snapshot</a></div>
+            <?php else: ?><p class="playthrough-empty">Connect a saved character before exporting its records.</p><?php endif; ?>
+            <p class="scope-note">Exports include private Custom Info notes from relationship records. Share these files carefully.</p>
+        </section>
+
     <details class="content-section playthrough-tools"><summary>Import profile snapshot</summary>
         <p>Import memories, relationships and narratives into the selected owning profile. Existing conversation history and knowledge are not replaced. Conflicting relationship changes are rejected.</p>
         <?php if($selected): ?>
@@ -109,20 +151,6 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
             <details><summary>Advanced: paste snapshot JSON</summary><label for="playthrough-snapshot-json">Snapshot JSON</label><textarea id="playthrough-snapshot-json" name="playthrough_json" rows="8"></textarea></details>
             <div class="button-group"><button type="submit">Import Snapshot</button></div>
         </form><?php else: ?><p class="playthrough-empty">Connect a saved character before importing its records.</p><?php endif; ?>
-    </details>
-    <details class="content-section playthrough-tools"><summary>Create empty data scope</summary>
-        <?php if(($characterState['bindings']??[])!==[]): ?>
-        <p>Create a playthrough by starting a new game. Load the corresponding game save to return to an existing playthrough.</p>
-        <?php else: ?>
-        <p>Create an empty data scope for an existing legacy profile. This does not start or load a game.</p>
-        <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthroughs">
-            <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="installation_id" value="<?= lorkhan_ui_h($installationId) ?>"><input type="hidden" name="content_json" value="{}">
-            <label for="playthrough-profile">Profile</label><select name="profile_id" id="playthrough-profile"><?php foreach($profiles as$row): ?><option value="<?= lorkhan_ui_h($row['profile_id']) ?>"><?= lorkhan_ui_h($row['name']) ?></option><?php endforeach; ?></select>
-            <label for="playthrough-name">Name</label><input name="name" id="playthrough-name" required maxlength="256" placeholder="e.g., Balmora playthrough">
-            <?php if($profiles===[]): ?><p class="section-note">Create a profile in this installation first.</p><?php endif; ?>
-            <div class="button-group"><button type="submit"<?= $profiles===[]?' disabled':'' ?>>Create Data Scope</button></div>
-        </form>
-        <?php endif; ?>
     </details>
     </details>
     <details class="content-section playthrough-tools"><summary>Full database backups and recovery</summary>

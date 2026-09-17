@@ -122,10 +122,47 @@ for (const form of document.querySelectorAll('[data-playthrough-archive], [data-
                 preview = result;
                 status.textContent = result.files.length ? result.files.map(file => `${file.name} — ${file.byte_count} bytes — ${file.created_at}`).join('\n') + `\nTotal: ${result.files.length} backups, ${result.bytes} recorded bytes.` : 'No eligible backups.';
                 confirmButton.disabled = result.files.length === 0;
-            } else if (operation === 'import') { preview = null; status.textContent = 'Inactive history copy imported. Linking this copy to a game save is not available yet.\n' + JSON.stringify(result.imported, null, 2); }
+            } else if (operation === 'import') { preview = null; status.textContent = 'Inactive copy imported. Refresh this page, select the copy, then use Associate with character to queue it for the next save load.\n' + JSON.stringify(result.imported, null, 2); }
             else if (operation === 'delete') { preview = null; status.textContent = `${result.deleted.length} backups deleted; ${result.skipped.length} skipped after protection checks. No live gameplay records deleted. Preview again before continuing.`; }
             else { status.textContent = 'Threshold saved.'; if (result.revision) form.elements.expected_revision.value = result.revision; }
         } catch (error) { preview = null; status.textContent = String(error.message || 'Request failed.'); }
+        finally { busy = false; }
+    });
+}
+
+// Scoped changes never replace the running game session or shared configuration.
+for (const form of document.querySelectorAll('[data-playthrough-manage], [data-playthrough-association]')) {
+    let busy = false;
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (busy) return;
+        const data = new FormData(form);
+        const operation = event.submitter?.value || data.get('operation');
+        data.set('operation', operation);
+        if (operation === 'delete') {
+            if (prompt('Remove this inactive playthrough from the list? Stored history is retained. Type Delete to confirm.') !== 'Delete') return;
+            data.set('confirm', 'Delete');
+        }
+        if (operation === 'copy' && !confirm('Create an independent copy of this playthrough? The current game and original data will stay unchanged.')) return;
+        if (operation === 'queue') {
+            if (!confirm('Associate this playthrough with the selected saved character on its next load? The current session will not change.')) return;
+            const selected = form.querySelector('select[name="character_id"]').selectedOptions[0];
+            data.set('expected_playthrough_id', selected.dataset.playthroughId);
+            data.set('confirm', 'Associate on next load');
+        }
+        busy = true;
+        const status = form.querySelector('[role="status"]');
+        status.textContent = 'Working…';
+        try {
+            const response = await fetch(form.action, {method: 'POST', body: data, headers: {'Accept': 'application/json'}, credentials: 'same-origin'});
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Request failed');
+            status.textContent = operation === 'queue' ? 'Association queued for the next save load.' : 'Saved. Refreshing…';
+            const destination = new URL(location.href);
+            if (result.result?.playthrough_id) destination.searchParams.set('playthrough_id', result.result.playthrough_id);
+            else if (operation === 'delete') destination.searchParams.delete('playthrough_id');
+            location.assign(destination.href);
+        } catch (error) { status.textContent = String(error.message || 'Request failed'); }
         finally { busy = false; }
     });
 }
