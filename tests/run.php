@@ -3903,6 +3903,24 @@ foreach([0,200] as $eventCount){
 $lockpickSettings=EffectiveSettingsResolver::validateSettingsOverrides(['rpg_comments'=>['events'=>['lockpick']]]);
 $check($lockpickSettings['rpg_comments']['events']===['lockpick'],'successful lockpicking is an eligible RPG comment');
 
+// Review approvals only reference generated candidates and survive a fresh reader.
+$reviewRoot=sys_get_temp_dir().'/lorkhan-voice-review-'.bin2hex(random_bytes(8));mkdir($reviewRoot,0700);
+try{
+    $review=new \LorkhanServer\Application\VoiceDesignReview($reviewRoot);
+    $check($review->document()['characters']===[],'voice review is empty before generation');
+    $fixture=['characters'=>[['key'=>'vivec','candidates'=>[['id'=>'candidate-a'],['id'=>'candidate-b']]]]];
+    \LorkhanServer\Application\VoiceDesignReview::writeJson($reviewRoot.'/candidates.json',$fixture);
+    $review->choose('vivec','candidate-b');
+    $check((new \LorkhanServer\Application\VoiceDesignReview($reviewRoot))->decisions()['vivec']['candidate']==='candidate-b','voice approval persists');
+    foreach([['vivec','forged'],['unknown','candidate-a']] as [$actor,$candidate]){
+        try{$review->choose($actor,$candidate);$check(false,'unknown review choice rejected');}
+        catch(InvalidArgumentException){$check(true,'unknown review choice rejected');}
+    }
+    $review->choose('vivec','none');$check($review->decisions()['vivec']['candidate']==='none','both candidates can be rejected');
+    $review->choose('vivec','pending');$check($review->decisions()['vivec']['candidate']==='pending','review decision can be cleared');
+    $check($review->document()===$fixture,'approvals do not mutate generated voice data');
+}finally{foreach(glob($reviewRoot.'/*') as $file)unlink($file);rmdir($reviewRoot);}
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

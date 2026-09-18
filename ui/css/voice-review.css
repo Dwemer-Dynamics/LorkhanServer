@@ -1,0 +1,17 @@
+.voice-review{max-width:1100px;margin:36px auto;padding:0 22px 60px;color:#e7e4dd}
+.review-intro{padding:28px;border:1px solid #514735;border-radius:12px;background:#22211e}
+.review-eyebrow{letter-spacing:.12em;font-size:.75rem;color:#bc9d5a;font-weight:700}
+.voice-review h1{font-size:2rem;margin:8px 0 16px}.voice-review h2{font-size:1.55rem;color:#d4ba82}
+.review-muted{color:#b3b0a8;font-size:.9rem;max-width:80ch}.review-jump{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0}
+.review-jump a{padding:7px 11px;border:1px solid #48443a;border-radius:20px;color:#dbc494;text-decoration:none}
+.review-character{background:#222;border:1px solid #454139;border-radius:12px;padding:24px;margin:20px 0;scroll-margin-top:120px}
+.review-character details{color:#c7c1b5;font-size:.9rem}.review-character summary{cursor:pointer}
+.review-character blockquote{margin:20px 0;padding:12px 18px;border-left:3px solid #bc9d5a;color:#dbd7ce;background:#1c1c1c;line-height:1.6}
+.review-candidates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.review-candidate{padding:18px;border:1px solid #494949;border-radius:8px;background:#191919}.review-candidate h3{font-size:1.1rem;margin:0 0 14px}
+.review-candidate.is-approved{border-color:#85b69a;background:#1e2b23}.review-candidate audio{width:100%;max-width:100%}
+.voice-review button{padding:9px 16px;background:#bc9d5a;border:1px solid #bc9d5a;color:#18150f;border-radius:6px;font-weight:700;cursor:pointer}
+.voice-review button:disabled{opacity:.65;cursor:default}.voice-review .secondary{background:#303030;color:#ddd;border-color:#626262}
+.review-decisions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px}.review-decisions span{color:#b3b0a8;font-size:.9rem}
+.voice-review a:focus-visible,.voice-review button:focus-visible,.voice-review summary:focus-visible{outline:3px solid #e3c887;outline-offset:3px}
+@media(max-width:650px){.voice-review{padding:0 12px 30px;margin-top:18px}.review-intro,.review-character{padding:18px}.review-candidates{grid-template-columns:1fr}.voice-review h1{font-size:1.6rem}}

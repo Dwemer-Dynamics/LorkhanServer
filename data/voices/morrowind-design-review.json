@@ -1,0 +1,140 @@
+{
+  "characters": [
+    {
+      "key": "vivec",
+      "name": "Vivec",
+      "record_ids": [
+        "vivec_god"
+      ],
+      "character": "Living poet-god; serene, enigmatic authority.",
+      "design_prompt": "An ageless masculine voice, smooth low tenor with an androgynous edge. Cultivated, intimate and precise, quietly divine, patient but not slow. Dry warmth beneath absolute authority. No echo or effects.",
+      "preview_text": "You have crossed a long road to stand before me. Set aside your certainty for a moment. Even a god must choose which truths a mortal is ready to hear."
+    },
+    {
+      "key": "yagrum",
+      "name": "Yagrum Bagarn",
+      "record_ids": [
+        "yagrum bagarn"
+      ],
+      "character": "Ancient Dwemer master craftsman; curious, weary, dryly witty.",
+      "design_prompt": "An elderly male scholar with a rounded resonant baritone, lightly gravelled and breathy at phrase endings. Exact diction, curious energy, dry wit and tired kindness. Natural conversational pace. No caricature.",
+      "preview_text": "A visitor with a question worth answering? How refreshing. Bring that mechanism closer. Its maker understood the problem, but I suspect I can improve the solution."
+    },
+    {
+      "key": "almalexia",
+      "name": "Almalexia",
+      "record_ids": [
+        "almalexia",
+        "Almalexia_warrior"
+      ],
+      "character": "Regal goddess; maternal reassurance masking pride and danger.",
+      "design_prompt": "A mature female contralto, rich, clear and regal. Reassuring maternal warmth with controlled steel underneath, articulate consonants, measured flowing pace. Can turn cold without shouting. Dry studio voice.",
+      "preview_text": "Come closer, my champion. You have carried a heavy burden, and I have not forgotten your service. Trust in me, and I shall show you what must be done."
+    },
+    {
+      "key": "hircine",
+      "name": "Hircine",
+      "record_ids": [
+        "BM_hircine",
+        "BM_hircine2",
+        "BM_hircine_huntaspect",
+        "BM_hircine_straspect",
+        "BM_hircine_spdaspect"
+      ],
+      "character": "Lord of the Hunt; primal, commanding and amused by worthy prey.",
+      "design_prompt": "A powerful male bass-baritone, dark and textured with a restrained animal growl. Crisp intelligible speech, predatory amusement, ritual authority and purposeful pacing. No roaring, whispering or audio effects.",
+      "preview_text": "The tracks are fresh, and the wind has turned. You have proven yourself a worthy hunter. Now show me whether your courage survives when the hunter becomes the prey."
+    },
+    {
+      "key": "dagoth-gares",
+      "name": "Dagoth Gares",
+      "record_ids": [
+        "dagoth gares"
+      ],
+      "character": "Sixth House emissary; diseased, persuasive religious menace.",
+      "design_prompt": "A male low baritone with a hollow nasal resonance and dry rasp. An articulate feverish priest, welcoming yet unsettling, deliberate cadence with sudden intensity. Fully intelligible, no heavy effects.",
+      "preview_text": "You call this place a ruin because you do not understand what sleeps beneath it. Listen carefully, outlander. The old house remembers, and its welcome carries a price."
+    },
+    {
+      "key": "dagoth-ur",
+      "name": "Dagoth Ur",
+      "record_ids": [
+        "dagoth_ur_1",
+        "dagoth_ur_2"
+      ],
+      "character": "Optional alternative; charismatic fallen god with wounded grandeur.",
+      "design_prompt": "A mature male bass-baritone, rich chest resonance and subtle gravel. Charismatic, theatrical but conversational, sardonic warmth turning to imperious anger. Clear diction and confident pacing. Original voice, no imitation.",
+      "preview_text": "At last, you arrive with another impossible story. Come, old friend. Tell me how you intend to save this world, and whether you have remembered to bring a better argument this time."
+    },
+    {
+      "key": "dagoth-odros",
+      "name": "Dagoth Odros",
+      "record_ids": [
+        "dagoth odros"
+      ],
+      "character": "Ash-vampire lord; imagined stern martial delivery.",
+      "design_prompt": "An older male baritone, compact and iron-hard, with a smoky grain. Stern military precision, clipped consonants and a steady unhurried pace. Threatening through restraint, not shouting. Clean dry speech.",
+      "preview_text": "You have passed the lesser guardians. Do not mistake that for permission to continue. Lay down your weapon, speak your purpose, and waste none of my remaining patience."
+    },
+    {
+      "key": "dagoth-vemyn",
+      "name": "Dagoth Vemyn",
+      "record_ids": [
+        "dagoth vemyn"
+      ],
+      "character": "Ash-vampire lord; imagined massive, implacable authority.",
+      "design_prompt": "A mature male bass, broad resonant chest tone with coarse gravel. Implacable and weighty, economical phrasing, calm deliberate cadence with clear consonants. Powerful but not artificially deep or distorted.",
+      "preview_text": "The hammer has rested here longer than your people have remembered its purpose. If you have come to claim it, then let us discover what your conviction is worth."
+    },
+    {
+      "key": "dagoth-endus",
+      "name": "Dagoth Endus",
+      "record_ids": [
+        "dagoth endus"
+      ],
+      "character": "Ash-vampire lord; imagined cultured, calculating scholar.",
+      "design_prompt": "An older male mid-low tenor, dry and slightly reedy with refined diction. Cultured intellectual arrogance, cool curiosity, precise rhythmic phrasing and a faint amused edge. Natural pace, no theatrical effects.",
+      "preview_text": "An interesting conclusion, but your reasoning is incomplete. You have mistaken survival for understanding. Sit, if you dare, and we shall examine the flaw together."
+    },
+    {
+      "key": "dagoth-tureynul",
+      "name": "Dagoth Tureynul",
+      "record_ids": [
+        "dagoth tureynul"
+      ],
+      "character": "Ash-vampire lord; imagined ancient keeper of forbidden learning.",
+      "design_prompt": "An elderly male baritone with papery rasp over a warm dark core. Scholarly, secretive and solemn; softly projected but not whispered, lucid articulation and flowing moderate pace. No wheezing or effects.",
+      "preview_text": "These pages preserve things your masters were eager to forget. Read them before you choose your enemy. Ignorance is a comfortable prison, but it remains a prison."
+    },
+    {
+      "key": "dagoth-gilvoth",
+      "name": "Dagoth Gilvoth",
+      "record_ids": [
+        "dagoth gilvoth"
+      ],
+      "character": "Ash-vampire lord; imagined vigilant, uncompromising sentinel.",
+      "design_prompt": "A mature male low tenor with taut metallic brightness and light gravel. Vigilant, severe, direct; sharp articulation and brisk controlled delivery. Restrained hostility, never a monster growl. Dry studio speech.",
+      "preview_text": "Another step, and there will be no more questions. You stand at the threshold of our lord. Whatever brought you here, be certain you are prepared to finish it."
+    },
+    {
+      "key": "dagoth-araynys",
+      "name": "Dagoth Araynys",
+      "record_ids": [
+        "dagoth araynys"
+      ],
+      "character": "Ash-vampire lord; imagined persuasive, ominously courteous mystic.",
+      "design_prompt": "A mature male baritone, velvety and slightly nasal, with a faint brittle rasp. Courteous, seductive menace and intimate confidence; smoothly connected phrases at a natural pace. Clear, not breathy or whispered.",
+      "preview_text": "There is no shame in doubt. The shame is allowing another to choose what you believe. Tell me what you truly desire, and perhaps we can dispense with this unnecessary struggle."
+    },
+    {
+      "key": "dagoth-uthol",
+      "name": "Dagoth Uthol",
+      "record_ids": [
+        "dagoth uthol"
+      ],
+      "character": "Ash-vampire lord; imagined forceful, embittered zealot.",
+      "design_prompt": "An older male baritone, rough-edged and chesty with a heated rasp. Embittered conviction, forceful stress, restrained anger and energetic measured pacing. Words remain crisp; no shouting or sound effects.",
+      "preview_text": "You walk through our broken halls and call yourself a savior. Where were your gods when these stones fell? Speak plainly. I have endured enough comforting lies."
+    }
+  ]
+}
