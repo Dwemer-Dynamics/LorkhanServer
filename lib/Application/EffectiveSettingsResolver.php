@@ -259,6 +259,10 @@ final class EffectiveSettingsResolver
         }
 
 
+        // Rechat is always available; legacy off flags cannot hide the configured rounds and probability.
+        $settings['behavior']['rechat'] = true;
+        $sources['settings.behavior.rechat'] = 'default';
+
         $context = array_replace($global['context'], $coreOverrides['context'] ?? [], $npcOverrides['context'] ?? []);
         $this->markLeaves($global['context'], $globalSettings === [] ? 'default' : 'global', 'context', $sources);
         $this->markLeaves($coreOverrides['context'] ?? [], 'core_profile', 'context', $sources);

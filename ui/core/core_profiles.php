@@ -36,12 +36,9 @@ $selected = null;
 foreach ($profiles as $profile) {
     if ($selectedId !== '' && hash_equals((string) $profile['core_profile_id'], $selectedId)) $selected = $profile;
 }
-$effectiveCoreSettings = [];
 if ($installationId !== '') {
     $globalSettings = $productRepository->globalSettingsForInstallation($installationId);
     $globalContent = is_array($globalSettings['content'] ?? null) ? $globalSettings['content'] : [];
-    $coreContent = is_array($selected['content'] ?? null) ? $selected['content'] : [];
-    $effectiveCoreSettings = (new EffectiveSettingsResolver())->resolve($globalContent, $coreContent, []);
 }
 $importMode = isset($_GET['import']);
 $showCreate = !$importMode && (isset($_GET['create']) || $profiles === []);
@@ -178,7 +175,6 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 <?php elseif ($showCreate):
                     $content = ['schema' => 'lorkhan.core-profile.v1', 'prompt' => '', 'routing' => [], 'settings_overrides' => []];
                     $content = $productRepository->withCoreCreationDefaults($installationId, $content);
-                    $effectiveCoreSettings = (new EffectiveSettingsResolver())->resolve($globalContent, $content, []);
                     $profileMeta = ['label' => '', 'slot' => null, 'default_npc' => false];
                     $coreProfileMode = 'create';
                 ?>
@@ -202,13 +198,6 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <?php include __DIR__ . '/tmpl/core_profile_fields.php'; ?>
                     </form>
 
-                        <?php lorkhan_ui_effective_settings_summary($effectiveCoreSettings, 'Effective Core Profile settings and sources'); ?>
-                    <details class="connector-card profile-history"><summary>Revision History</summary>
-                        <?php $history = is_array($selected['revisions'] ?? null) ? $selected['revisions'] : []; lorkhan_ui_table($history, 'No revisions.'); ?>
-                        <?php $earlier = array_values(array_filter($history, static fn(array $revision): bool => (int) ($revision['revision'] ?? 0) !== (int) $selected['current_revision'])); if ($earlier !== []): ?>
-                            <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-rollback"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><?php $profileFormContext(); ?><input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($selected['core_profile_id']); ?>"><label>Restore revision<select name="revision"><?php foreach ($earlier as $revision): ?><option value="<?php echo (int) $revision['revision']; ?>">Revision <?php echo (int) $revision['revision']; ?> &mdash; <?php echo lorkhan_ui_h($revision['reason'] ?? ''); ?></option><?php endforeach; ?></select></label><button type="submit" class="btn-save">Restore Earlier Revision</button></form>
-                        <?php endif; ?>
-                    </details>
                     <?php if (!filter_var($selected['default_npc'] ?? false, FILTER_VALIDATE_BOOL)): ?><form class="profile-default-action" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-default"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><?php $profileFormContext(); ?><input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($selected['core_profile_id']); ?>"><button type="submit" class="btn-save">Make Default NPC Profile</button></form><?php endif; ?>
                 <?php else: ?>
                     <div class="connector-placeholder"><div>No profile selected</div><p>Select a profile from the list on the left to view and edit its settings.</p></div>

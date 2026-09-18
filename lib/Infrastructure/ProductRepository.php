@@ -410,6 +410,34 @@ final class ProductRepository
         });
     }
 
+    /** Save the observed game name only to the player belonging to the accepted session. */
+    public function observePlayerName(string $installation,string $session,int $generation,array $identity,string $now):void
+    {
+        $name=$identity['display_name']??null;
+        if(($identity['kind']??null)!=='player'||!is_string($name)||trim($name)===''||mb_strlen($name)>256)return;
+        $name=trim($name);
+        $this->transaction(function()use($installation,$session,$generation,$name,$now):void{
+            $query=$this->db->prepare("SELECT p.profile_id,p.name,p.actor_identity,p.current_revision FROM profiles p JOIN sessions s "
+                ."ON s.installation_id=p.installation_id WHERE s.session_id=:session AND s.installation_id=:installation "
+                ."AND s.generation=:generation AND s.state='active' AND ".ProfileScopeSql::matches('p','s.playthrough_id')
+                ." AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='player' ORDER BY p.created_at,p.profile_id LIMIT 1 FOR UPDATE OF p");
+            $query->execute(['session'=>$session,'installation'=>$installation,'generation'=>$generation]);
+            $row=$query->fetch();
+            if(!$row||($row['name']===$name&&($this->json($row['actor_identity'])['display_name']??null)===$name))return;
+            // A conflicting NPC display name must not abort an otherwise valid game event.
+            $this->db->exec('SAVEPOINT observed_player_name');
+            try{
+                $profile=$this->getRevisioned('profile',$row['profile_id']);
+                $this->db->prepare("UPDATE profiles SET name=:name,actor_identity=jsonb_set(actor_identity,'{display_name}',to_jsonb(CAST(:display AS text))) WHERE profile_id=:id")
+                    ->execute(['name'=>$name,'display'=>$name,'id'=>$row['profile_id']]);
+                $this->revise('profile',$row['profile_id'],$profile['content'],'Player name observed in game',$now,(int)$row['current_revision']);
+            }catch(\PDOException $error){
+                $this->db->exec('ROLLBACK TO SAVEPOINT observed_player_name');
+                if($error->getCode()!=='23505')throw $error;
+            }finally{$this->db->exec('RELEASE SAVEPOINT observed_player_name');}
+        });
+    }
+
     /** Rename only the installation's player persona; recorded source events keep their original identities. */
     public function renamePlayer(string $installation,string $name,int $expectedRevision,string $now):array
     {

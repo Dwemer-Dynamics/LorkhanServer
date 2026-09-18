@@ -2604,8 +2604,8 @@ final class ManagementRouter
         $number=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);
             if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
         $overrides=[
-            'response'=>['max_words'=>$number($values,'setting_response_max_words',0),'core_lang'=>$values['setting_response_core_lang']??'','lang_llm_xtts'=>isset($values['setting_response_lang_llm_xtts'])],
-            'behavior'=>['rechat'=>isset($values['setting_behavior_rechat']),
+            'response'=>['max_words'=>$number($values,'setting_response_max_words',0),'core_lang'=>$values['setting_response_core_lang']??''],
+            'behavior'=>['rechat'=>true,
                 'rechat_max_depth'=>$number($values,'setting_behavior_rechat_max_depth',2),
                 'rechat_probability_percent'=>$number($values,'setting_behavior_rechat_probability_percent',50),
                 'rechat_allow_actions'=>isset($values['setting_behavior_rechat_allow_actions'])]
@@ -2689,31 +2689,25 @@ final class ManagementRouter
     {
         $integer=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
         $content=SettingsCatalog::globalDefaults();$client=&$content['client'];
-        if(isset($values['installation_id']))$content['backup']=$this->repository->globalSettingsForInstallation($values['installation_id'])['content']['backup']??$content['backup'];
+        if(isset($values['installation_id'])){
+            $saved=$this->repository->globalSettingsForInstallation($values['installation_id'])['content'];
+            $content['backup']=$saved['backup']??$content['backup'];
+            // Translation is no longer editable on the Global Settings form.
+            $content['translation']=$this->repository->translationPolicyForInstallation($values['installation_id'])['content'];
+            // RPG Comments are edited in Profiles; unrelated global saves preserve legacy values.
+            $content['rpg_comments']=$saved['rpg_comments']??$content['rpg_comments'];
+            // These controls belong to Profiles or the game, not the Global Settings form.
+            foreach(['auto_greeting','boredom','boredom_delay_seconds','combat_barks','combat_bark_period_seconds','open_rechat','rechat_allow_actions'] as $field)
+                $client['behavior'][$field]=$saved['client']['behavior'][$field]??$client['behavior'][$field];
+        }
         foreach(['prompt_head','emote_moods'] as $field)$content['prompt'][$field]=trim((string)($values[$field]??''));
-        $events=$values['rpg_events']??[];if(!is_array($events))throw new InvalidArgumentException('invalid_rpg_comments');
-        $content['rpg_comments']=['events'=>array_values($events),'chance_percent'=>$integer($values,'rpg_chance',50)];
-        $client['behavior']['auto_greeting']=isset($values['auto_greeting']);
-        $client['behavior']['boredom']=isset($values['boredom']);
-        $client['behavior']['boredom_delay_seconds']=$integer($values,'boredom_delay_seconds',$client['behavior']['boredom_delay_seconds']);
-        $client['behavior']['combat_barks']=isset($values['combat_barks']);
-        $client['behavior']['combat_bark_period_seconds']=$integer($values,'combat_bark_period_seconds',$client['behavior']['combat_bark_period_seconds']);
         $client['behavior']['rechat_mode']=trim((string)($values['rechat_mode']??$client['behavior']['rechat_mode']));
         $client['behavior']['rechat_strict_targeting']=isset($values['rechat_strict_targeting']);
-        $client['behavior']['open_rechat']=isset($values['open_rechat']);
-        $client['behavior']['rechat_allow_actions']=isset($values['rechat_allow_actions']);
         $client['behavior']['end_conversation_cooldown_seconds']=$integer($values,'end_conversation_cooldown_seconds',$client['behavior']['end_conversation_cooldown_seconds']);
         $content['profile_management']['auto_lock_profile']=isset($values['auto_lock_profile']);
         $content['profile_management']['autofill_custom_profiles']=isset($values['autofill_custom_profiles']);
         $content['profile_management']['autofill_custom_profiles_trigger']=$integer($values,
             'autofill_custom_profiles_trigger',$content['profile_management']['autofill_custom_profiles_trigger']);
-        $provider=strtolower(trim((string)($values['translation_provider']??'none')));$active=$provider==='deepl';
-        $content['translation']=TranslationPolicy::validate(['schema'=>'lorkhan.translation-policy.v1','provider'=>$provider,
-            'translate_text'=>$active&&isset($values['translation_text']),'translate_audio'=>$active&&isset($values['translation_audio']),
-            'save_translated_text'=>$active&&isset($values['translation_save_text']),
-            'source_language'=>trim((string)($values['translation_source_language']??'')),
-            'target_language'=>trim((string)($values['translation_target_language']??'')),
-            'endpoint'=>trim((string)($values['translation_endpoint_url']??TranslationPolicy::FREE_ENDPOINT))]);
         $content['oghma']=[
             'enabled'=>isset($values['oghma_enabled']),'topic_count'=>$integer($values,'oghma_topic_count',1),
             'result_limit'=>$integer($values,'oghma_result_limit',3),
@@ -2721,7 +2715,7 @@ final class ManagementRouter
             'location_context_enabled'=>isset($values['oghma_location_context_enabled']),
             'extractor_fallback_enabled'=>isset($values['oghma_extractor_enabled']),
             'extractor_timeout_ms'=>$integer($values,'oghma_extractor_timeout_ms',1500),
-            'knowledge_tags'=>$this->npcKnowledgeTags($values['oghma_knowledge_tags']??''),
+            'knowledge_tags'=>isset($values['installation_id'])?$this->repository->oghmaKnowledgeTags($values['installation_id']):'',
             'extractor_enabled'=>isset($values['oghma_extractor_enabled']),
         ];
         foreach(SettingsCatalog::contextSectionDefaults()as$key=>$default)$content['context']['sections'][$key]=isset($values['context_section_'.$key]);

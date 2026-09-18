@@ -338,6 +338,21 @@ $assert(count($browserCapableSessions)===1&&$browserCapableSessions[0]['browser_
 $playerProfile=$products->playerProfileForInstallation($installationId);
 $assert(($playerProfile['actor_identity']['kind']??null)==='player'&&($playerProfile['revision']??null)===1,
     'session start did not materialize the installation player profile');
+// Observed names update only the current player and do not churn profile revisions.
+$db->beginTransaction();
+try{
+    $observed=['kind'=>'player','display_name'=>'RANGROO','race'=>'argonian','class'=>'crusader'];
+    $products->observePlayerName($installationId,$sessionId,7,$observed,gmdate('c'));
+    $named=$products->playerProfileForInstallation($installationId);
+    $assert($named['name']==='RANGROO'&&$named['actor_identity']['display_name']==='RANGROO'
+        &&$named['content']===$playerProfile['content'],'game player name was not saved without changing content');
+    $products->observePlayerName($installationId,$sessionId,7,$observed,gmdate('c'));
+    $products->observePlayerName($installationId,$sessionId,6,['kind'=>'player','display_name'=>'Wrong session'],gmdate('c'));
+    $products->observePlayerName($installationId,$sessionId,7,['kind'=>'npc','display_name'=>'Caius'],gmdate('c'));
+    $products->observePlayerName($installationId,$sessionId,7,['kind'=>'player','display_name'=>' '],gmdate('c'));
+    $unchanged=$products->playerProfileForInstallation($installationId);
+    $assert($unchanged['name']==='RANGROO'&&$unchanged['revision']===$named['revision'],'invalid or duplicate name observation changed player');
+}finally{$db->rollBack();}
 [$status, $duplicateSession] = $call($router, 'POST', $base . '/sessions', $headers($session['message_id']), [], $session);
 $assert($status === 201 && $duplicateSession == $accepted, 'session duplicate failed');
 $conflict = $session; $conflict['profile_id'] = $newUuid(4);

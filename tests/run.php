@@ -3007,7 +3007,7 @@ $npcExplicit = ['settings_overrides'=>['behavior'=>['rechat'=>false,'rechat_prob
     'memory'=>['recent_turn_limit'=>3,'short_term_enabled'=>false,'short_term_max_summaries'=>2],
     'response'=>['max_words'=>0,'core_lang'=>'fr','lang_llm_xtts'=>true]]];
 $npcResolved=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcExplicit);
-$check($npcResolved['settings']['behavior']['rechat']===false
+$check($npcResolved['settings']['behavior']['rechat']===true
     &&$npcResolved['settings']['behavior']['rechat_probability_percent']===0
     &&$npcResolved['settings']['memory']['recent_turn_limit']===3
     &&$npcResolved['settings']['memory']['short_term_enabled']===false
@@ -3016,7 +3016,7 @@ $check($npcResolved['settings']['behavior']['rechat']===false
     &&$npcResolved['settings']['response']['core_lang']==='fr'
     &&$npcResolved['settings']['response']['lang_llm_xtts']===true
     &&$npcResolved['sources']['settings.response.max_words']==='npc',
-    'NPC false and zero overrides survive typed precedence and report their source');
+    'Rechat ignores legacy off flags while other NPC false and zero overrides survive');
 $npcPromptSelection=$sceneSelection;
 $npcPromptOverrides=$npcExplicit;
 $npcPromptOverrides['settings_overrides']['memory']['short_term_enabled']=true;
@@ -3092,7 +3092,7 @@ $check($narratorEffective['settings']['narrator']['name']==='The Temple Chronicl
 try{(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcLayer,[],false,['random_chance_percent'=>101]);
     $check(false,'Narrator profile event chance above one hundred rejected');}
 catch(InvalidArgumentException){$check(true,'Narrator profile event chance above one hundred rejected');}
-$check(($effective['sources']['settings.behavior.rechat']??null)==='npc'
+$check(($effective['sources']['settings.behavior.rechat']??null)==='default'
     &&($effective['sources']['routing.llm_configuration_id']??null)==='core_profile'
     &&$effective['context']['sections']['nearby_items']===false
     &&$effective['context']['item_blacklist']===['iron dagger']
@@ -3171,7 +3171,7 @@ $projection=EffectiveSettingsResolver::controlsProjection($projectionInput);
 $check($projection['settings']['behavior']['rechat']===true
     &&$projection['settings']['memory']['knowledge_limit']===EffectiveSettingsResolver::defaults()['memory']['knowledge_limit']
     &&$projection['routing']['llm_configuration_id']==='00000000-0000-4000-8000-000000000111'
-    &&$projection['source_map']['settings.behavior.rechat']==='npc'
+    &&$projection['source_map']['settings.behavior.rechat']==='default'
     &&!array_key_exists('settings.memory.knowledge_limit',$projection['source_map'])
     &&$projection['settings']['presentation']===EffectiveSettingsResolver::defaults()['presentation'],
     'controls retain typed overrides while presentation remains inert v1 compatibility data');

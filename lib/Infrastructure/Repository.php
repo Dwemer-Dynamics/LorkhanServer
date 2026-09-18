@@ -1501,6 +1501,10 @@ final class Repository
             'occurred' => $occurred, 'schema' => $schema, 'request' => $request, 'turn' => $turn, 'action' => $action, 'payload' => $this->encode($payload)]);
         $this->eventLog()->projectSource($id, $installation, $session, $kind, $occurred, $request, $turn, $action, $payload,
             $projectionContext);
+        if($session!==null&&$generation!==null&&($kind==='turn.requested'||$kind==='rechat'||str_starts_with($kind,'gamedata.'))){
+            $player=$payload['payload']['context']['player']??$payload['context']['player']??null;
+            if(is_array($player))(new ProductRepository($this->db))->observePlayerName($installation,$session,$generation,$player,$occurred);
+        }
         (new ProfileEvolutionScheduler($this->db))->observe($installation,$session,$kind,$payload);
     }
 

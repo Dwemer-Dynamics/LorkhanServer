@@ -840,11 +840,16 @@ body.profiles-page-shell:has(#profile-copy-dialog[open]) { overflow:hidden; }
 .profiles-page .profile-metadata > summary { cursor:pointer; color:#bc9d5a; font-weight:700; }
 .profiles-page .profile-metadata textarea { width:100%; box-sizing:border-box; resize:vertical; font-family:monospace; line-height:1.5; }
 
-/* Herika Core Profile inline override layout (529364c); native metadata is the draft owner. */
+/* CHIM profile override layout (HerikaServer 68dd8544), with the LORKHAN accent. */
 .profiles-page .core-global-overrides { height:auto; margin-bottom:8px; }
-.core-global-overrides > summary { cursor:pointer; }
+.core-global-overrides > summary { cursor:pointer; list-style:none; margin-bottom:0; }
+.core-global-overrides > summary::-webkit-details-marker { display:none; }
+.core-global-overrides > summary::after { content:'\25B8'; color:rgb(188, 157, 90); font-size:18px; }
+.core-global-overrides[open] > summary { margin-bottom:8px; }
+.core-global-overrides[open] > summary::after { content:'\25BE'; }
 .core-global-overrides .core-override-intro { color:#9fb1c9; display:block; margin-bottom:8px; }
 .core-global-overrides .error {color:#ff9898;}
+.prof-ovr-container { display:flex; flex-direction:column; gap:12px; }
 .prof-ovr-list {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -862,8 +867,8 @@ body.profiles-page-shell:has(#profile-copy-dialog[open]) { overflow:hidden; }
 .prof-ovr-category-title {
     margin: 0 0 8px;
     padding-bottom: 7px;
-    border-bottom: 1px solid rgba(188,157,90,.35);
-    color: #bc9d5a;
+    border-bottom: 1px solid rgba(188, 157, 90, 0.35);
+    color: rgb(188, 157, 90);
     font-size: 14px;
     font-weight: 700;
 }
@@ -942,7 +947,7 @@ body.profiles-page-shell:has(#profile-copy-dialog[open]) { overflow:hidden; }
 
 .prof-ovr-inline-input:focus {
     outline: none;
-    border-color: #bc9d5a;
+    border-color: rgb(188, 157, 90);
 }
 
 .prof-ovr-inline-input:disabled {
@@ -965,7 +970,6 @@ body.profiles-page-shell:has(#profile-copy-dialog[open]) { overflow:hidden; }
         grid-template-columns: 1fr;
     }
 }
-
 
 .profiles-page .profile-history form,
 .profiles-page .profile-default-action {
