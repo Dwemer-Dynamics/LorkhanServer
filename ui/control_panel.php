@@ -9,7 +9,7 @@ require __DIR__ . '/ui_bootstrap.php';
 
 $controlSections = [
     'diagnostics' => ['label' => 'Diagnostics', 'tabs' => [
-        'srvlogs' => ['Server Logs', '&#x1F332;', 'control.logs', $webRoot . '/ui/server_logs.php?embed=1'],
+        'srvlogs' => ['Server Logs', '&#x1F332;', 'control.logs', '/Dwemer-Dashboard/distro_debugger.php?embed=1&tab=lorkhan'],
         'requests' => ['Request Logs', '&#x1F50D;', 'control.requests', $webRoot . '/ui/request_logs.php?embed=1'],
         'oghmaaudit' => ['Oghma Audit', '&#x1F4D6;', 'control.oghma-audit', $webRoot . '/ui/oghma_audit.php?embed=1'],
         'rellogs' => ['Relationship Logs', '&#x1F517;', 'control.relationships', $webRoot . '/ui/relationship_logs.php?embed=1'],
@@ -17,17 +17,14 @@ $controlSections = [
     'monitoring' => ['label' => 'Monitoring', 'tabs' => [
         'audit' => ['Cost Breakdown', '&#x1F4CA;', 'control.usage', $webRoot . '/ui/provider_usage.php?embed=1'],
         'responses' => ['Response Queue', '&#x1F4AC;', 'control.responses', $webRoot . '/ui/response_queue.php?embed=1'],
-        'providers' => ['Provider Attempts', '&#x1F4CA;', 'control.providers', $webRoot . '/ui/provider_attempts.php?embed=1'],
-        'jobs' => ['Workers & Jobs', '&#x1F4E8;', 'control.jobs', $webRoot . '/ui/jobs.php?embed=1'],
     ]],
     'data-tools' => ['label' => 'Data & Tools', 'tabs' => [
-        'game-debug' => ['Game Debug', '&#x1F6E0;&#xFE0F;', 'control.game-debug', $webRoot . '/ui/game_debug.php?embed=1'],
         'cache' => ['Audio Cache', '&#x1F3BC;', 'control.cache', $webRoot . '/ui/cache_browser.php?embed=1'],
         'playthrough' => ['Playthrough Manager', '&#x1F3AE;', 'control.playthroughs', $webRoot . '/ui/playthrough_manager.php?embed=1'],
         'dbmgr' => ['Database Manager', '&#x1F5C4;&#xFE0F;', 'control.database', $webRoot . '/ui/database_manager.php?embed=1'],
     ]],
 ];
-$aliases = ['server-logs-page'=>'srvlogs','requests-page'=>'requests','oghma-audit-page'=>'oghmaaudit','relationships-page'=>'rellogs','usage-page'=>'audit','queue-page'=>'responses','providers-page'=>'providers','jobs-page'=>'jobs','cache-page'=>'cache','playthrough-page'=>'playthrough','database-page'=>'dbmgr','health-page'=>'srvlogs','game-debug-page'=>'game-debug'];
+$aliases = ['server-logs-page'=>'srvlogs','requests-page'=>'requests','oghma-audit-page'=>'oghmaaudit','relationships-page'=>'rellogs','usage-page'=>'audit','queue-page'=>'responses','cache-page'=>'cache','playthrough-page'=>'playthrough','database-page'=>'dbmgr','health-page'=>'srvlogs'];
 $requested = (string)($_GET['tab'] ?? 'srvlogs');
 $requested = $aliases[$requested] ?? $requested;
 $allTabs=[];foreach($controlSections as$section)foreach($section['tabs']as$id=>$tab)$allTabs[$id]=$tab;

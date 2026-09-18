@@ -57,6 +57,30 @@ $check = static function (bool $condition, string $message) use (&$failures, &$c
     }
 };
 
+// Rechat uses the same reference identity as profile routing without needing database access.
+$rechatProducts=(new ReflectionClass(\LorkhanServer\Infrastructure\ProductRepository::class))->newInstanceWithoutConstructor();
+$rechatCoordinator=(new ReflectionClass(\LorkhanServer\Application\RechatCoordinator::class))->newInstanceWithoutConstructor();
+(new ReflectionProperty($rechatCoordinator,'products'))->setValue($rechatCoordinator,$rechatProducts);
+$rechatKey=new ReflectionMethod($rechatCoordinator,'identityKey');
+$rechatActor=['kind'=>'npc','record_id'=>'hlaalu guard_outside','content_file'=>'Morrowind.esm',
+    'refnum'=>['index'=>428719,'content_file'=>0],'display_name'=>'Hlaalu Guard','cell'=>['kind'=>'interior','name'=>'A']];
+$rechatMoved=$rechatActor;
+$rechatMoved['content_file']='morrowind.esm';$rechatMoved['refnum']['content_file']=4;
+$rechatMoved['display_name']='Renamed Guard';$rechatMoved['cell']['name']='B';
+$check($rechatKey->invoke($rechatCoordinator,$rechatActor)===$rechatProducts->actorKey($rechatActor)
+    &&$rechatKey->invoke($rechatCoordinator,$rechatActor)===$rechatKey->invoke($rechatCoordinator,$rechatMoved),
+    'Rechat shares profile identity across movement, renames and load-order changes');
+$rechatOther=$rechatActor;$rechatOther['refnum']['index']++;
+$check($rechatKey->invoke($rechatCoordinator,$rechatActor)!==$rechatKey->invoke($rechatCoordinator,$rechatOther),
+    'Rechat keeps same-name same-base actors separate by placed reference');
+$rechatOther=$rechatActor;$rechatOther['content_file']='Tribunal.esm';
+$check($rechatKey->invoke($rechatCoordinator,$rechatActor)!==$rechatKey->invoke($rechatCoordinator,$rechatOther),
+    'Rechat keeps equal local reference numbers from different mods separate');
+$rechatPlayer=$rechatActor;$rechatPlayer['kind']='player';
+$rechatNarrator=$rechatActor;$rechatNarrator['kind']='narrator';
+$check(count(array_unique(array_map(fn($actor)=>$rechatKey->invoke($rechatCoordinator,$actor),
+    [$rechatActor,$rechatPlayer,$rechatNarrator])))===3,'Rechat keeps Player and Narrator separate from placed NPCs');
+
 $recordedCalendar=\LorkhanServer\Application\MorrowindCalendar::parse(['year'=>427,'month'=>7,'day'=>16,'hour'=>9.5]);
 $check($recordedCalendar['date']==='0427-08-16' && $recordedCalendar['label']==='16 Last Seed, 3E 427 · 09:30', 'Morrowind zero-based calendar month and hour');
 $calendarEnd=\LorkhanServer\Application\MorrowindCalendar::parse(['year'=>427,'month'=>11,'day'=>31,'hour'=>23.5]);
@@ -3755,6 +3779,18 @@ catch(RuntimeException $error){$check($error->getMessage()==='evolution-observed
 $evolutionInput['dynamic_field_prompts']=['occupation'=>'Unrequested field'];
 try{$auditProvider->generate($evolutionInput,new NeverCancelledToken());$check(false,'unselected evolution prompt accepted');}
 catch(InvalidArgumentException $error){$check($error->getMessage()==='invalid_profile_evolution_prompts','unselected evolution prompt rejected before network');}
+
+// NPC profile identity is a scoped physical reference, independent of labels and load order.
+$referenceInstallation='00000000-0000-4000-8000-000000000001';
+$referenceWorld='00000000-0000-4000-8000-000000000002';
+$referenceActor=['kind'=>'npc','record_id'=>'guard','content_file'=>'Morrowind.esm','refnum'=>['index'=>42,'content_file'=>0]];
+$referenceProfile=\LorkhanServer\Domain\ProfileId::forActor($referenceInstallation,$referenceWorld,$referenceActor);
+$check($referenceProfile==='ref:'.$referenceInstallation.':'.$referenceWorld.':morrowind.esm|42','NPC profile uses scoped canonical reference');
+$referenceMoved=$referenceActor;$referenceMoved['refnum']['content_file']=8;$referenceMoved['cell']=['name'=>'Other cell'];$referenceMoved['display_name']='Renamed Guard';
+$check(\LorkhanServer\Domain\ProfileId::forActor($referenceInstallation,$referenceWorld,$referenceMoved)===$referenceProfile,'movement, name and load order do not change profile key');
+$check(\LorkhanServer\Domain\ProfileId::isValid($referenceInstallation),'existing persona UUID remains valid');
+foreach([strtoupper($referenceProfile),$referenceProfile."\n",str_replace('|42','|042',$referenceProfile),str_replace('|42','|4294967296',$referenceProfile),str_replace('morrowind.esm','../morrowind.esm',$referenceProfile)]as$invalidReference)
+    $check(!\LorkhanServer\Domain\ProfileId::isValid($invalidReference),'malformed or ambiguous reference profile is rejected');
 
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");

@@ -23,6 +23,7 @@ use LorkhanServer\Infrastructure\EventLogRepository;
 use LorkhanServer\Infrastructure\OghmaCatalogImporter;
 use LorkhanServer\Infrastructure\ProductRepository;
 use LorkhanServer\Infrastructure\Uuid;
+use LorkhanServer\Domain\ProfileId;
 use LorkhanServer\Security\BrowserSession;
 use InvalidArgumentException;
 use RuntimeException;
@@ -104,12 +105,12 @@ final class ManagementRouter
                 $stream=fopen($file,'rb');if($stream===false)throw new RuntimeException('backup_storage_unavailable');
                 return new Response(200,'',['Content-Type'=>'application/sql','Content-Disposition'=>'attachment; filename="LorkhanServer-'.$m[1].'.sql"'],$stream);
             }
-            if($r->method==='GET'&&preg_match('#^/exports/profiles/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProfile($m[1]);
-            if($r->method==='GET'&&preg_match('#^/api/v1/npc-profile-versions/([0-9a-f-]{36})/([1-9][0-9]{0,8})$#D',$path,$m))return Response::json(200,$this->npcProfileVersion($m[1],(int)$m[2]));
+            if($r->method==='GET'&&preg_match('#^/exports/profiles/([^/]+)\.json$#D',$path,$m))return$this->exportProfile(rawurldecode($m[1]));
+            if($r->method==='GET'&&preg_match('#^/api/v1/npc-profile-versions/([^/]+)/([1-9][0-9]{0,8})$#D',$path,$m))return Response::json(200,$this->npcProfileVersion(rawurldecode($m[1]),(int)$m[2]));
             if($r->method==='GET'&&preg_match('#^/exports/core-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportCoreProfileSettings($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/core-profiles/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportCoreProfileBundle($m[1]);
-            if($r->method==='GET'&&preg_match('#^/exports/player-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportSpecialProfileSettings($m[1],'player');
-            if($r->method==='GET'&&preg_match('#^/exports/narrator-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportSpecialProfileSettings($m[1],'narrator');
+            if($r->method==='GET'&&preg_match('#^/exports/player-profile-settings/([^/]+)\.json$#D',$path,$m))return$this->exportSpecialProfileSettings(rawurldecode($m[1]),'player');
+            if($r->method==='GET'&&preg_match('#^/exports/narrator-profile-settings/([^/]+)\.json$#D',$path,$m))return$this->exportSpecialProfileSettings(rawurldecode($m[1]),'narrator');
             if($r->method==='GET'&&preg_match('#^/exports/global-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportGlobalSettings($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/playthrough-archives/([0-9a-f-]{36})\.json$#D',$path,$m)){
                 $installation=$this->need($r->query,'installation_id');$this->uuid($installation,'installation_id');
@@ -345,7 +346,8 @@ final class ManagementRouter
             return Response::json(200, ['cleared'=>$this->management->clearRoleplayLog(
                 $body['installation_id'], $body['playthrough_id'], $body['kind'])]);
         }
-        if(preg_match('#^/api/v1/profiles/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/eventlog(?:/([1-9][0-9]*))?$#D',$path,$m)){
+        if(preg_match('#^/api/v1/profiles/([^/]+)/eventlog(?:/([1-9][0-9]*))?$#D',$path,$m)){
+            $m[1]=rawurldecode($m[1]);$this->profileId($m[1]);
             $events=$this->eventLogRepository??throw new RuntimeException('not_found');
             if($r->method==='GET'&&!isset($m[2]))return Response::json(200,['data'=>$events->profileHistory(
                 $m[1],$this->queryUuid($r,'playthrough_id'),isset($r->query['type'])?(string)$r->query['type']:null,
@@ -357,11 +359,13 @@ final class ManagementRouter
             }
         }
         if($path==='/api/v1/eventlog'){
+            $m[1]=rawurldecode($m[1]);$this->profileId($m[1]);
             $events=$this->eventLogRepository??throw new RuntimeException('not_found');
             if($r->method==='GET')return Response::json(200,$events->page($r->query));
             if($r->method==='DELETE')return Response::json(200,$events->suppress($this->json($r)));
         }
         if($r->method==='POST'&&$path==='/api/v1/eventlog/hidden-types'){
+            $m[1]=rawurldecode($m[1]);$this->profileId($m[1]);
             $events=$this->eventLogRepository??throw new RuntimeException('not_found');$body=$this->json($r);
             $scope=$events->scope(is_string($body['installation_id']??null)?$body['installation_id']:null,
                 is_string($body['playthrough_id']??null)?$body['playthrough_id']:null);
@@ -401,7 +405,7 @@ final class ManagementRouter
                 $body=$this->json($r);$keys=array_keys($body);sort($keys);
                 if($keys!==['operation','profile_id']||!is_string($body['profile_id'])||!is_string($body['operation']))
                     throw new InvalidArgumentException('invalid_npc_manager_request');
-                $this->uuid($body['profile_id'],'profile_id');
+                $this->profileId($body['profile_id'],'profile_id');
                 return Response::json(202,['command'=>$this->repository->queueNpcManagerCommand($body['profile_id'],$body['operation'])]);
             }
         }
@@ -455,8 +459,8 @@ final class ManagementRouter
             $kind=$this->singular($m[1]);if($r->method==='GET')return Response::json(200,['items'=>$this->repository->listRevisioned($kind,$this->queryUuid($r,'installation_id'))]);
             if($r->method==='POST')return Response::json(201,$this->service->createRevisioned($kind,$this->json($r)));
         }
-        if($r->method==='POST'&&preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([0-9a-f-]{36})/(revisions|rollback)$#D',$path,$m)){$b=$this->json($r);return$m[3]==='revisions'?Response::json(201,$this->service->revise($this->singular($m[1]),$m[2],$b['content']??[],$b['reason']??'updated')):Response::json(200,$this->service->rollback($this->singular($m[1]),$m[2],(int)($b['revision']??0),(string)($b['reason']??'rollback')));}
-        if($r->method==='DELETE'&&preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([0-9a-f-]{36})$#D',$path,$m)){$this->service->deleteRevisioned($this->singular($m[1]),$m[2]);return Response::json(200,['deleted'=>true]);}
+        if($r->method==='POST'&&preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([^/]+)/(revisions|rollback)$#D',$path,$m)){$b=$this->json($r);return$m[3]==='revisions'?Response::json(201,$this->service->revise($this->singular($m[1]),rawurldecode($m[2]),$b['content']??[],$b['reason']??'updated')):Response::json(200,$this->service->rollback($this->singular($m[1]),rawurldecode($m[2]),(int)($b['revision']??0),(string)($b['reason']??'rollback')));}
+        if($r->method==='DELETE'&&preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([^/]+)$#D',$path,$m)){$this->service->deleteRevisioned($this->singular($m[1]),rawurldecode($m[2]));return Response::json(200,['deleted'=>true]);}
         if($path==='/api/v1/connector-selections'){
             if($r->method==='GET')return Response::json(200,['items'=>$this->repository->connectorSelections($this->queryUuid($r,'installation_id'))]);
             if($r->method==='POST')return Response::json(200,$this->service->selectConnector($this->json($r)));
@@ -484,6 +488,17 @@ final class ManagementRouter
     private function submit(string $domain,Request $r):Response
     {
         $v=$this->form($r);$scope=$this->scopeForm($v);
+        if(in_array($domain,['reference-group-save','reference-group-delete'],true)){
+            $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+            if($domain==='reference-group-delete')$this->repository->deleteReferenceGroup($installation,$this->need($v,'group_key'));
+            else $this->repository->saveReferenceGroup($installation,[
+                'group_key'=>$this->need($v,'group_key'),'name'=>$this->need($v,'name'),
+                'enabled'=>in_array($v['enabled']??false,[true,1,'1','on'],true),
+                'canonical_ref'=>$this->need($v,'canonical_ref'),'aliases'=>(string)($v['aliases']??'')]);
+            return$this->redirect($this->uiPath('characters').'?'.http_build_query([
+                'installation_id'=>$installation,'tab'=>'reference-groups','status'=>'saved']));
+        }
+
         if ($domain === 'narrator-prompt-save') {
             $revision = filter_var($v['expected_revision'] ?? null, FILTER_VALIDATE_INT);
             if ($revision === false || !is_string($v['custom_prompt'] ?? null)) throw new InvalidArgumentException('invalid_narrator_prompt');
@@ -1210,8 +1225,9 @@ final class ManagementRouter
     private function json(Request $r):array{if(strlen($r->body)>$this->maxJsonBytes)throw new InvalidArgumentException('payload_too_large');try{$v=json_decode($r->body,true,32,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new InvalidArgumentException('invalid_json');}if(!is_array($v)||array_is_list($v))throw new InvalidArgumentException('invalid_json');return$v;}
     private function form(Request $r):array{if($r->form!==[])return$r->form;if(strlen($r->body)>$this->maxJsonBytes)throw new InvalidArgumentException('payload_too_large');parse_str($r->body,$v);return is_array($v)?$v:[];}
     private function scopeQuery(Request $r):array{return['installation_id'=>$this->queryUuid($r,'installation_id'),'profile_id'=>$this->queryUuid($r,'profile_id'),'playthrough_id'=>$this->queryUuid($r,'playthrough_id')];}
-    private function scopeForm(array $v):array{$out=[];foreach(['installation_id','profile_id','playthrough_id']as$k)if(isset($v[$k])){$value=trim((string)$v[$k]);if($value==='')continue;$this->uuid($value,$k);$out[$k]=$value;}return$out;}
-    private function queryUuid(Request $r,string $k):string{$v=(string)($r->query[$k]??'');$this->uuid($v,$k);return$v;}
+    private function scopeForm(array $v):array{$out=[];foreach(['installation_id','profile_id','playthrough_id']as$k)if(isset($v[$k])){$value=trim((string)$v[$k]);if($value==='')continue;$k==='profile_id'?$this->profileId($value,$k):$this->uuid($value,$k);$out[$k]=$value;}return$out;}
+    private function queryUuid(Request $r,string $k):string{$v=(string)($r->query[$k]??'');$k==='profile_id'?$this->profileId($v,$k):$this->uuid($v,$k);return$v;}
+    private function profileId(string $v,string $k='profile_id'):void{if(!ProfileId::isValid($v))throw new InvalidArgumentException('invalid_'.$k);}
     private function uuid(string $v,string $k):void{if(preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$v)!==1)throw new InvalidArgumentException('invalid_'.$k);}
     /** Accept the legacy deterministic UUID shape used by persisted Core Profiles. */
     private function persistentUuid(string $v,string $k):void{if(preg_match('/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/D',$v)!==1)throw new InvalidArgumentException('invalid_'.$k);}
@@ -1406,7 +1422,7 @@ final class ManagementRouter
     {
         $installation=$this->queryUuid($request,'installation_id');
         $profile=trim((string)($request->query['profile_id']??''));
-        if($profile==='')$profile=null;else$this->uuid($profile,'profile_id');
+        if($profile==='')$profile=null;else$this->profileId($profile,'profile_id');
         return['catalog'=>$this->repository->actionCatalogDefinitions(),
             'policies'=>$this->repository->actionPoliciesForEditor($installation,$profile)];
     }
@@ -1422,7 +1438,7 @@ final class ManagementRouter
             throw new InvalidArgumentException('invalid_action_policy_editor');
         $installation=(string)$values['installation_id'];$this->uuid($installation,'installation_id');
         $profile=$values['profile_id'];
-        if($profile!==null){if(!is_string($profile))throw new InvalidArgumentException('invalid_profile_id');$this->uuid($profile,'profile_id');}
+        if($profile!==null){if(!is_string($profile))throw new InvalidArgumentException('invalid_profile_id');$this->profileId($profile,'profile_id');}
         $configuration=$values['configuration_id'];$revision=$values['expected_revision'];
         if(($configuration===null)!==($revision===null))throw new InvalidArgumentException('invalid_expected_revision');
         $content=['enabled'=>$values['enabled'],'max_tier'=>$values['max_tier'],'actions'=>$values['actions']];
@@ -1455,7 +1471,7 @@ final class ManagementRouter
     /** Download one portable NPC profile without installation IDs, revisions, bindings, or connector secrets. */
     private function exportProfile(string $profileId):Response
     {
-        $this->uuid($profileId,'profile_id');$row=$this->repository->getRevisioned('profile',$profileId);
+        $this->profileId($profileId,'profile_id');$row=$this->repository->getRevisioned('profile',$profileId);
         $identity=$row['actor_identity']??[];
         if(is_string($identity)){
             try{$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new RuntimeException('not_found');}
@@ -1473,7 +1489,7 @@ final class ManagementRouter
     /** Clone an NPC profile in place without copying actor bindings or profile-owned portrait files. */
     private function cloneProfile(array $values):array
     {
-        $profileId=$this->need($values,'profile_id');$this->uuid($profileId,'profile_id');
+        $profileId=$this->need($values,'profile_id');$this->profileId($profileId,'profile_id');
         $row=$this->repository->getRevisioned('profile',$profileId);$identity=$row['actor_identity']??[];
         if(is_string($identity))$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);
         if(!is_array($identity)||array_is_list($identity)||in_array($identity['kind']??'actor',['player','narrator'],true))
@@ -1619,7 +1635,7 @@ final class ManagementRouter
     /** Download the editable, ownership-free portion of the Player or Narrator singleton. */
     private function exportSpecialProfileSettings(string $profileId,string $kind):Response
     {
-        $this->uuid($profileId,'profile_id');$row=$this->repository->getRevisioned('profile',$profileId);
+        $this->profileId($profileId,'profile_id');$row=$this->repository->getRevisioned('profile',$profileId);
         $identity=$row['actor_identity']??[];
         if(is_string($identity)){
             try{$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new RuntimeException('not_found');}
@@ -2142,7 +2158,7 @@ final class ManagementRouter
             if($keys!==$expectedProfileKeys||!is_string($row['profile_id'])||!is_string($row['name'])||trim($row['name'])===''||strlen($row['name'])>256
                 ||($format===2&&($row['core_profile_id']!==null&&(!is_string($row['core_profile_id'])||!isset($coreIds[$row['core_profile_id']]))))
                 ||!$this->objectArray($row['actor_identity'])||!$this->objectArray($row['content'])||array_key_exists('portrait',$row['content']))throw new RuntimeException('backup_integrity_failed');
-            $this->uuid($row['profile_id'],'profile_id');if(isset($profileIds[$row['profile_id']]))throw new RuntimeException('backup_integrity_failed');$profileIds[$row['profile_id']]=true;}
+            $this->profileId($row['profile_id'],'profile_id');if(isset($profileIds[$row['profile_id']]))throw new RuntimeException('backup_integrity_failed');$profileIds[$row['profile_id']]=true;}
 
         $configurationIds=[];$configurationKinds=[];$allowed=['prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'];
         foreach($data['configurations']as$row){if(!$this->objectArray($row)){throw new RuntimeException('backup_integrity_failed');}$keys=array_keys($row);sort($keys);
@@ -2199,7 +2215,7 @@ final class ManagementRouter
     /** Read one NPC snapshot and its predecessor for the version viewer without exposing private credentials. */
     private function npcProfileVersion(string $id,int $revision):array
     {
-        $this->uuid($id,'profile_id');$profile=$this->repository->getRevisioned('profile',$id);
+        $this->profileId($id,'profile_id');$profile=$this->repository->getRevisioned('profile',$id);
         $identity=$profile['actor_identity'];if(is_string($identity))$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);
         if(!is_array($identity)||!in_array($identity['kind']??'actor',['actor','npc','creature'],true))throw new InvalidArgumentException('profile_not_editable');
         $content=$this->repository->revisionContent('profile',$id,$revision);
@@ -2220,7 +2236,7 @@ final class ManagementRouter
     /** Import biography fields into a revision-guarded existing NPC without changing its identity or routing. */
     private function importNpcBiography(array $values):array
     {
-        $id=$this->need($values,'profile_id');$this->uuid($id,'profile_id');
+        $id=$this->need($values,'profile_id');$this->profileId($id,'profile_id');
         $revision=filter_var($values['base_revision']??null,FILTER_VALIDATE_INT);
         if($revision===false||$revision<1)throw new InvalidArgumentException('invalid_expected_revision');
         $import=$this->profileImportDocument($values);
@@ -2938,7 +2954,7 @@ final class ManagementRouter
     /** Explicit template reset is a reversible profile revision, never a save-game reset. */
     private function resetNpcBiography(array $values):array
     {
-        $id=$this->need($values,'profile_id');$this->uuid($id,'profile_id');
+        $id=$this->need($values,'profile_id');$this->profileId($id,'profile_id');
         $expected=filter_var($values['base_revision']??null,FILTER_VALIDATE_INT);
         if($expected===false||$expected<1||($values['confirm_reset']??'')!=='1')throw new InvalidArgumentException('invalid_profile_reset');
         return$this->repository->transaction(function()use($id,$expected):array{
@@ -3256,7 +3272,7 @@ final class ManagementRouter
     private function profileVoicePreview(array $values,string $browserSession):Response
     {
         if(!$this->management->allowTtsPreview($browserSession))return Response::json(429,['error'=>'tts_preview_rate_limited']);
-        $id=$this->need($values,'profile_id');$this->uuid($id,'profile_id');
+        $id=$this->need($values,'profile_id');$this->profileId($id,'profile_id');
         $profile=$this->repository->getRevisioned('profile',$id);
         $installation=(string)$profile['installation_id'];
         $filter=\LorkhanServer\Application\TtsFilterPresets::validate($values['tts_filter_preset']??$profile['content']['tts_filter_preset']??'none');
@@ -3394,7 +3410,7 @@ final class ManagementRouter
             $input['expected_revision']=$this->relationshipRevision($values);
         }else{
             if(isset($values['actor_profile_id'])&&$values['actor_profile_id']!==''){
-                $id=$this->need($values,'actor_profile_id');$this->uuid($id,'actor_profile_id');
+                $id=$this->need($values,'actor_profile_id');$this->profileId($id,'actor_profile_id');
                 $profile=$this->repository->getRevisioned('profile',$id);
                 if($profile['installation_id']!==($scope['installation_id']??null))throw new InvalidArgumentException('invalid_actor_profile');
                 $identity=is_array($profile['actor_identity'])?$profile['actor_identity']:json_decode($profile['actor_identity'],true,32,JSON_THROW_ON_ERROR);
@@ -3409,7 +3425,7 @@ final class ManagementRouter
     {
         if(($values['relationship_page']??null)==='npc'){
             $profile=(string)($values['profile_id']??'');$playthrough=(string)($values['playthrough_id']??'');
-            $this->uuid($profile,'profile_id');$this->uuid($playthrough,'playthrough_id');
+            $this->profileId($profile,'profile_id');$this->uuid($playthrough,'playthrough_id');
             return $this->characterPageLocation($values,$status).'&'.http_build_query(['rel_profile'=>$profile,'rel_playthrough'=>$playthrough]);
         }
         $query=['status'=>$status];

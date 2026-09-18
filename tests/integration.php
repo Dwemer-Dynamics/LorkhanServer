@@ -659,7 +659,7 @@ $secondPlacementProfile=$products->getRevisioned('profile',$secondPlacementProfi
 $assert($secondPlacementProfileId!==$automaticProfileId
     &&str_contains((string)($secondPlacementProfile['content']['oghma_knowledge_tags']??''),'west_gash'),
     'generic NPC bases at different RefNums did not receive independent regional profiles');
-$movedTarget=$automaticTarget;$movedTarget['cell']=['kind'=>'interior','name'=>'Balmora, Guild of Mages'];
+$movedTarget=$automaticTarget;$movedTarget['cell']=['kind'=>'interior','name'=>'Balmora, Guild of Mages'];$movedTarget['refnum']['content_file']=7;
 $movedProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
     'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
     'payload'=>['target'=>$movedTarget]],$automaticVoice,$now);
@@ -668,6 +668,25 @@ $assert($movedProfileId===$automaticProfileId
     &&str_contains((string)($movedProfile['content']['oghma_knowledge_tags']??''),'bitter_coast')
     &&!str_contains((string)($movedProfile['content']['oghma_knowledge_tags']??''),'west_gash'),
     'walking into another region rewrote an NPC immutable home locality');
+$db->exec('SAVEPOINT reference_group_parity');
+$referenceGroup=['group_key'=>'test-ref-alias','name'=>'Test alternate reference','enabled'=>true,
+    'canonical_ref'=>\LorkhanServer\Domain\ProfileId::reference($automaticTarget),
+    'aliases'=>[\LorkhanServer\Domain\ProfileId::reference($secondPlacement)]];
+$products->saveReferenceGroup($installationId,$referenceGroup);
+$groupedPlacementId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'payload'=>['target'=>$secondPlacement]],$automaticVoice,$now);
+$assert($groupedPlacementId===$automaticProfileId,'explicit alternate reference did not share canonical profile');
+try{$products->saveReferenceGroup($installationId,array_replace($referenceGroup,['group_key'=>'test-ref-overlap']));throw new RuntimeException('overlapping reference group accepted');}
+catch(InvalidArgumentException $error){$assert($error->getMessage()==='reference_already_in_group','reference group overlap not rejected');}
+$products->saveReferenceGroup($installationId,array_replace($referenceGroup,['enabled'=>false]));
+$independentPlacementId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'payload'=>['target'=>$secondPlacement]],$automaticVoice,$now);
+$assert($independentPlacementId===$secondPlacementProfileId,'disabled group did not restore independent profile');
+$products->deleteReferenceGroup($installationId,'test-ref-alias');
+$assert(!in_array('test-ref-alias',array_column($products->referenceGroups($installationId),'group_key'),true),'reference group delete failed');
+$db->exec('ROLLBACK TO SAVEPOINT reference_group_parity');
 $legacyLocalityTarget=$automaticTarget;$legacyLocalityTarget['record_id']='legacy_locality_bosmer';
 $legacyLocalityTarget['refnum']['index']=104;$legacyLocalityTarget['cell']=['kind'=>'interior','name'=>'Balmora, Guild of Mages'];
 $legacyLocality=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Legacy Locality Bosmer',
@@ -695,7 +714,7 @@ $rediscoveredProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$se
     'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
     'payload'=>['target'=>$rediscoveredTarget]],$automaticVoice,$now);
 $rediscoveredProfile=$products->getRevisioned('profile',$rediscoveredProfileId);
-$assert($rediscoveredProfileId!==$deletedProfile['profile_id']&&$rediscoveredProfile['name']==='Rediscovered Bosmer',
+$assert($rediscoveredProfileId===$deletedProfile['profile_id']&&$rediscoveredProfile['name']==='Rediscovered Bosmer',
     'soft-deleted NPC name prevented automatic rediscovery');
 $legacyContent=$automaticProfile['content'];$legacyContent['voice']=['id'=>'automatic_bosmer','language'=>'en'];
 $legacyContent['management']['locked']=true;$products->revise('profile',$automaticProfileId,$legacyContent,'legacy automatic voice fixture',$now);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LorkhanServer\Application;
 
 use LorkhanServer\Infrastructure\FirstPartyJobRepository;
+use LorkhanServer\Domain\ProfileId;
 use LorkhanServer\Infrastructure\MediaStore;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -27,9 +28,17 @@ abstract class FirstPartyJobHandler implements JobHandler
     {
         return [
             'installation_id' => $this->uuid($payload, 'installation_id'),
-            'profile_id' => $this->uuid($payload, 'profile_id'),
+            'profile_id' => $this->profileId($payload),
             'playthrough_id' => $this->uuid($payload, 'playthrough_id'),
         ];
+    }
+
+    /** Validate the actor reference key separately from UUID-only job and world identifiers. */
+    protected function profileId(array $payload): string
+    {
+        $value = $payload['profile_id'] ?? null;
+        if (!ProfileId::isValid($value)) throw new InvalidArgumentException('invalid_profile_id');
+        return $value;
     }
 
     /** @param array<string,mixed> $payload */

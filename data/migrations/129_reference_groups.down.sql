@@ -1,0 +1,3 @@
+DROP TRIGGER installations_seed_reference_groups ON lorkhan_internal.installations;
+DROP FUNCTION lorkhan_internal.seed_npc_reference_groups();
+DROP TABLE lorkhan_internal.npc_reference_groups;

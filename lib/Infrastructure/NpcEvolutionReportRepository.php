@@ -14,7 +14,7 @@ final class NpcEvolutionReportRepository
 
     public function profile(string $installation,string $profile):array
     {
-        if(!Uuid::isValid($installation)||!Uuid::isValid($profile))throw new InvalidArgumentException('invalid_report_scope');
+        if(!Uuid::isValid($installation)||!\LorkhanServer\Domain\ProfileId::isValid($profile))throw new InvalidArgumentException('invalid_report_scope');
         $q=$this->db->prepare("SELECT profile_id,name,current_revision FROM profiles WHERE profile_id=:profile AND installation_id=:installation AND deleted_at IS NULL AND COALESCE(actor_identity->>'kind','actor') IN ('actor','npc','creature')");
         $q->execute(['profile'=>$profile,'installation'=>$installation]);return $q->fetch()?:throw new RuntimeException('not_found');
     }

@@ -1008,3 +1008,13 @@ body.view-characters .npc-setting-overrides .npc-ovr-option-category {color:#bc9
 
 .npc-versions-dialog[open]{display:flex;flex-direction:column}.npc-versions-header{flex-shrink:0;flex-wrap:wrap}.npc-versions-body{min-height:0}
 .npc-versions-header a.btn-cancel{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 12px;border:1px solid #555;border-radius:6px;background:#383838;color:#eee;font-size:.82rem;font-weight:700;line-height:1.1;text-decoration:none!important}.npc-versions-header a.btn-cancel:focus-visible{outline:2px solid #bc9d5a;outline-offset:2px}
+
+/* Reference exceptions share the NPC manager's compact form layout. */
+#reference-groups { margin: 14px 0; }
+#reference-groups > p { max-width: 76ch; }
+#reference-groups .management-section { margin: 10px 0; padding: 12px; border: 1px solid var(--border-color, #454545); }
+.npc-reference-form { display: grid; gap: 12px; max-width: 760px; margin: 14px 0; }
+.npc-reference-form label { display: grid; gap: 5px; }
+.npc-reference-form input:not([type=checkbox]), .npc-reference-form textarea { box-sizing: border-box; width: 100%; min-width: 0; }
+.npc-reference-form input[type=checkbox] { width: auto; justify-self: start; }
+.npc-reference-form button { justify-self: start; }

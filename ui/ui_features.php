@@ -129,7 +129,7 @@ function lorkhan_ui_feature_registry(): array
         'roleplay.journal' => ['title' => 'Journal', 'state' => 'live', 'description' => 'Morrowind Journal entries received through bounded typed OpenMW context.'],
         'roleplay.destructive' => ['title' => 'Bulk Roleplay Deletion', 'state' => 'replaced', 'description' => 'LORKHAN preserves typed audit records and uses bounded retention and Database Manager backups instead of destructive browser bulk deletion.'],
 
-        'control.logs' => ['title' => 'Server Logs', 'state' => 'live', 'description' => 'Bounded redacted server logs.'],
+        'control.logs' => ['title' => 'Server Logs', 'state' => 'live', 'description' => 'Bounded redacted Lorkhan service logs in Dwemer Dashboard.'],
         'control.requests' => ['title' => 'Request Logs', 'state' => 'live', 'description' => 'LLM attempts, recorded prompt/result readers, token usage and protected log clearing.'],
         'control.oghma-audit' => ['title' => 'Oghma Audit', 'state' => 'live', 'description' => 'Knowledge retrieval audit records.'],
         'control.relationships' => ['title' => 'Relationship Logs', 'state' => 'live', 'description' => 'Relationship change audit.'],

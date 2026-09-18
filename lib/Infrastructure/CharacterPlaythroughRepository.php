@@ -146,7 +146,13 @@ final class CharacterPlaythroughRepository
             throw new DomainException('character_binding_conflict');
         if($bindings!==[])return $character;
         if($mode==='existing'){
-            if(!$owner)throw new DomainException('character_binding_conflict');
+            if(!$owner){
+                // A gameplay reset keeps pairing but removes every world. Rebuild the first saved
+                // character's server records; never adopt a missing world beside existing history.
+                $query=$this->db->prepare('SELECT 1 WHERE EXISTS(SELECT 1 FROM playthroughs WHERE installation_id=:installation) OR EXISTS(SELECT 1 FROM character_playthrough_bindings WHERE installation_id=:installation)');
+                $query->execute(['installation'=>$installation]);
+                if($query->fetchColumn())throw new DomainException('character_binding_conflict');
+            }
             return $character;
         }
         if($owner)throw new DomainException('character_binding_conflict');

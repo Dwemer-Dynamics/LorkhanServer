@@ -269,12 +269,8 @@ final class RechatCoordinator
 
     private function identityKey(array $identity): string
     {
-        return hash('sha256', json_encode([
-            strtolower((string) ($identity['kind'] ?? '')),
-            strtolower((string) ($identity['record_id'] ?? '')),
-            strtolower((string) ($identity['content_file'] ?? '')),
-            $identity['refnum'] ?? null,
-        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+        // Share profile routing's stable reference key, including its separate persona namespaces.
+        return $this->products->actorKey($identity);
     }
 
     private function uuid(string $value): bool

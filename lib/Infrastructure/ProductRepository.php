@@ -11,6 +11,7 @@ use LorkhanServer\Application\DeterministicRetrieval;
 use LorkhanServer\Application\OghmaGroundedRetriever;
 use LorkhanServer\Application\SettingsCatalog;
 use LorkhanServer\Application\ProfileAssignmentRule;
+use LorkhanServer\Domain\ProfileId;
 use InvalidArgumentException;
 use PDO;
 use RuntimeException;
@@ -34,6 +35,10 @@ final class ProductRepository
     {
         return (new CharacterPlaythroughRepository($this->db))->state($installation);
     }
+
+    public function referenceGroups(string $installation):array{return (new ReferenceGroupRepository($this->db))->list($installation);}
+    public function saveReferenceGroup(string $installation,array $input):array{return (new ReferenceGroupRepository($this->db))->save($installation,$input);}
+    public function deleteReferenceGroup(string $installation,string $group):void{(new ReferenceGroupRepository($this->db))->delete($installation,$group);}
 
     public function dynamicOghma():DynamicOghmaRepository{return new DynamicOghmaRepository($this->db);}
     public function player2Routing():Player2RoutingRepository{return new Player2RoutingRepository($this->db);}
@@ -66,6 +71,14 @@ final class ProductRepository
                         'default_npc'=>$defaultNpc?'true':'false','slot'=>$input['slot']??null,'now'=>$now]);
                 $this->revision('core_profile_revisions', 'core_profile_id', $id, 1, $input['content'], $reason, $now);
             } elseif ($kind === 'profile') {
+                $actorKind=$input['actor_identity']['kind']??'actor';
+                $playthrough=in_array($actorKind,['narrator','template'],true)?null:
+                    ($input['playthrough_id']??(new ProfileOwnershipRepository($this->db))->activePlaythrough((string)$input['installation_id']));
+                if(!in_array($actorKind,['player','narrator','template'],true)){
+                    if($playthrough===null)throw new InvalidArgumentException('active_playthrough_required');
+                    $canonical=(new ReferenceGroupRepository($this->db))->resolve($input['installation_id'],$input['actor_identity']);
+                    $id=ProfileId::forActor($input['installation_id'],$playthrough,$canonical);
+                }
                 $coreProfileId = $input['core_profile_id'] ?? $this->defaultCoreProfileForInstallation((string)$input['installation_id'], $now, true)['core_profile_id'];
                 if (!in_array($input['actor_identity']['kind'] ?? 'actor', ['player','narrator','template'], true)) {
                     $core=$this->getRevisioned('core_profile',(string)$coreProfileId);
@@ -76,9 +89,7 @@ final class ProductRepository
                 }
                 $this->db->prepare('INSERT INTO profiles (profile_id,installation_id,playthrough_id,name,actor_identity,core_profile_id,created_at) VALUES (:id,:installation,:playthrough,:name,CAST(:identity AS jsonb),:core_profile,:now)')
                     ->execute(['id'=>$id,'installation'=>$input['installation_id'],'name'=>$input['name'],'identity'=>$this->encode($input['actor_identity'] ?? []),'core_profile'=>$coreProfileId,'now'=>$now,
-                        'playthrough'=>in_array($input['actor_identity']['kind']??'actor',['narrator','template'],true)?null:
-                            ((new ProfileOwnershipRepository($this->db))->activePlaythrough((string)$input['installation_id'])===null?null:
-                                ($input['playthrough_id']??(new ProfileOwnershipRepository($this->db))->activePlaythrough((string)$input['installation_id'])))]);
+                        'playthrough'=>$playthrough]);
                 $this->revision('profile_revisions', 'profile_id', $id, 1, $input['content'], $reason, $now);
             } elseif ($kind === 'playthrough') {
                 $owner=$this->db->prepare('SELECT 1 FROM profiles WHERE profile_id=:profile AND installation_id=:installation AND deleted_at IS NULL AND playthrough_id IS NULL AND NOT EXISTS(SELECT 1 FROM character_playthrough_bindings b WHERE b.installation_id=profiles.installation_id) FOR SHARE');
@@ -106,7 +117,8 @@ final class ProductRepository
 
     public function resourceKind(string $id):string
     {
-        foreach([['profiles','profile_id','profile'],['core_profiles','core_profile_id','core_profile'],['playthroughs','playthrough_id','playthrough']] as[$table,$key,$kind]){$s=$this->db->prepare("SELECT 1 FROM {$table} WHERE {$key}=:id");$s->execute(['id'=>$id]);if($s->fetchColumn())return$kind;}
+        foreach([['profiles','profile_id','profile'],['core_profiles','core_profile_id','core_profile'],['playthroughs','playthrough_id','playthrough']] as[$table,$key,$kind]){if($kind!=='profile'&&!Uuid::isValid($id))continue;$s=$this->db->prepare("SELECT 1 FROM {$table} WHERE {$key}=:id");$s->execute(['id'=>$id]);if($s->fetchColumn())return$kind;}
+        if(!Uuid::isValid($id))throw new RuntimeException('not_found');
         $s=$this->db->prepare('SELECT kind FROM configuration_sets WHERE configuration_id=:id');$s->execute(['id'=>$id]);$kind=$s->fetchColumn();if($kind===false)throw new RuntimeException('not_found');return$kind==='action_policy'?'action_policy':(string)$kind;
     }
     public function revisionContent(string $kind,string $id,int $revision):array{[, $key,$table]=$this->revisionMeta($kind);$s=$this->db->prepare("SELECT content FROM {$table} WHERE {$key}=:id AND revision=:revision");$s->execute(['id'=>$id,'revision'=>$revision]);$v=$s->fetchColumn();if($v===false)throw new RuntimeException('revision_not_found');return$this->json($v);}
@@ -1166,7 +1178,7 @@ final class ProductRepository
     /** Return only one installation's player draft and safe job status, never raw job payloads. */
     public function playerSpeechStyleDraft(string $installationId,string $profileId,string $jobId):array
     {
-        if(!Uuid::isValid($installationId)||!Uuid::isValid($profileId)||!Uuid::isValid($jobId))throw new InvalidArgumentException('invalid_player_draft_scope');
+        if(!Uuid::isValid($installationId)||!ProfileId::isValid($profileId)||!Uuid::isValid($jobId))throw new InvalidArgumentException('invalid_player_draft_scope');
         $query=$this->db->prepare("SELECT j.state,j.payload->>'base_revision' AS base_revision,p.current_revision,d.speech_style
             FROM durable_jobs j JOIN profiles p ON p.profile_id::text=j.payload->>'profile_id'
             LEFT JOIN lorkhan_internal.player_speech_style_drafts d ON d.job_id=j.job_id AND d.profile_id=p.profile_id
@@ -1304,7 +1316,7 @@ final class ProductRepository
     public function enqueueDiaryGeneration(array $scope):array
     {
         foreach(['installation_id','profile_id','playthrough_id','request_id']as$field)
-            if(!is_string($scope[$field]??null)||!Uuid::isValid($scope[$field]))throw new \InvalidArgumentException('invalid_diary_generation_scope');
+            if(!is_string($scope[$field]??null)||!($field==='profile_id'?ProfileId::isValid($scope[$field]):Uuid::isValid($scope[$field])))throw new \InvalidArgumentException('invalid_diary_generation_scope');
         $automaticTrigger=$scope['automatic_trigger']??null;
         if($automaticTrigger!==null&&(!is_string($automaticTrigger)||!in_array($automaticTrigger,['timer','sleep','wait'],true)
             ||!is_string($scope['automatic_source_request_id']??null)||!Uuid::isValid($scope['automatic_source_request_id'])
@@ -2106,20 +2118,23 @@ SQL);
             $scope->execute(['session'=>$turn['session_id'],'generation'=>$turn['generation'],'installation'=>$turn['installation_id'],
                 'profile'=>$turn['profile_id'],'playthrough'=>$turn['playthrough_id']]);
             if(!$scope->fetchColumn())throw new \OutOfBoundsException('unknown_session');
-            $key=$this->actorKey($target);
-            $this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))')->execute(['key'=>$key]);
-            $profileId=$this->selectedActorProfileId((string)$turn['installation_id'],(string)$turn['playthrough_id'],$target);
-            if($profileId===null){
-                $refnum=is_array($target['refnum']??null)?$target['refnum']:[];
-                $existing=$this->db->prepare("SELECT profile_id FROM profiles WHERE installation_id=:installation AND deleted_at IS NULL "
-                    ."AND ".ProfileScopeSql::matches('profiles',':playthrough')." AND lower(actor_identity->>'record_id')=lower(:record) AND lower(COALESCE(actor_identity->>'content_file',''))=lower(:content) "
-                    ."AND actor_identity->'refnum'->>'index'=:ref_index AND actor_identity->'refnum'->>'content_file'=:ref_content "
-                    ."AND COALESCE(actor_identity->>'kind','actor') NOT IN ('player','narrator','template') ORDER BY created_at,profile_id LIMIT 2");
-                $existing->execute(['playthrough'=>$turn['playthrough_id'],'installation'=>$turn['installation_id'],'record'=>$target['record_id']??'',
-                    'content'=>$target['content_file']??'','ref_index'=>(string)($refnum['index']??''),
-                    'ref_content'=>(string)($refnum['content_file']??'')]);$matches=$existing->fetchAll();
-                if(count($matches)===1)$profileId=(string)$matches[0]['profile_id'];
-                else{$targetIdentity=(array)($turn['payload']['context']['targetState']['identity']??[]);
+            $canonical=(new ReferenceGroupRepository($this->db))->resolve((string)$turn['installation_id'],$target);
+            $profileId=ProfileId::forActor((string)$turn['installation_id'],(string)$turn['playthrough_id'],$canonical);
+            $this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))')->execute(['key'=>$profileId]);
+            $existing=$this->db->prepare('SELECT profile_id,actor_identity,deleted_at FROM profiles WHERE profile_id=:id');
+            $existing->execute(['id'=>$profileId]);
+            $existingProfile=$existing->fetch();
+            if($existingProfile!==false){
+                $known=$this->json($existingProfile['actor_identity']);
+                if(ProfileId::reference($known)===ProfileId::reference($target)
+                    && (strtolower((string)($known['record_id']??''))!==strtolower((string)($target['record_id']??''))
+                        ||($known['kind']??'npc')!==($target['kind']??'npc')))
+                    throw new InvalidArgumentException('actor_reference_mismatch');
+                if($existingProfile['deleted_at']!==null)
+                    $this->db->prepare('UPDATE profiles SET deleted_at=NULL WHERE profile_id=:id')->execute(['id'=>$profileId]);
+            }
+            if($existingProfile===false){
+                $targetIdentity=(array)($turn['payload']['context']['targetState']['identity']??[]);
                     $profileTraits=$resolvedVoice??['race'=>(string)($targetIdentity['race']??''),
                         'gender'=>(string)($targetIdentity['gender']??'')];
                     $template=$this->matchingBiographyTemplate((string)$turn['installation_id'],$target,$profileTraits);
@@ -2131,21 +2146,16 @@ SQL);
                     $seed['management']=['locked'=>false,'favorite'=>false];
                     $name=trim((string)($target['display_name']??$target['record_id']??'Morrowind NPC'));
                     $name=$name===''?'Morrowind NPC':mb_substr($name,0,256);
-                    $nameExists=$this->db->prepare('SELECT 1 FROM profiles WHERE installation_id=:installation AND name=:name AND deleted_at IS NULL AND '.ProfileScopeSql::matches('profiles',':playthrough'));
-                    $nameExists->execute(['playthrough'=>$turn['playthrough_id'],'installation'=>$turn['installation_id'],'name'=>$name]);
-                    if($nameExists->fetchColumn()){$suffix=' [Ref '.(string)($refnum['content_file']??'?').':'.(string)($refnum['index']??'?').']';
-                        $name=mb_substr($name,0,max(0,256-mb_strlen($suffix))).$suffix;}
                     $assignment=$this->matchingProfileRulesForTurn($turn,$target);
                     $coreProfileId=$assignment['core_profile_id'];
                     foreach($assignment['actions']as$action)$seed=ProfileAssignmentRule::apply($seed,$action);
                     $createInput=['installation_id'=>$turn['installation_id'],'playthrough_id'=>$turn['playthrough_id'],'name'=>$name,'actor_identity'=>$target,
                         'content'=>$seed,'change_reason'=>'automatic Morrowind actor discovery'];
                     if($coreProfileId!==null)$createInput['core_profile_id']=$coreProfileId;
-                    $created=$this->createRevisioned('profile',$createInput,$now);$profileId=(string)$created['profile_id'];}
-                $this->bindActorProfile(['installation_id'=>$turn['installation_id'],'playthrough_id'=>$turn['playthrough_id']],
-                    $target,$profileId,$now);
-                $this->applyMorrowindCatalogLocality($profileId,$target,(string)$turn['installation_id'],$now);
+                    $created=$this->createRevisioned('profile',$createInput,$now);$profileId=(string)$created['profile_id'];
             }
+            $this->bindActorProfile(['installation_id'=>$turn['installation_id'],'playthrough_id'=>$turn['playthrough_id']],$target,$profileId,$now);
+            $this->applyMorrowindCatalogLocality($profileId,$target,(string)$turn['installation_id'],$now);
             if($resolvedVoice!==null)$this->applyMorrowindCatalogVoice($profileId,$target,$resolvedVoice,$now,false);
             return$profileId;
         });
@@ -2185,7 +2195,7 @@ SQL);
             if($name===''||strlen($name)>128||str_contains($name,"\0"))throw new RuntimeException('invalid_biography_template_name');
             $profileId=trim((string)($input['profile_id']??''));$profile=null;
             if($profileId!==''){
-                if(!Uuid::isValid($profileId))throw new RuntimeException('invalid_profile_id');
+                if(!ProfileId::isValid($profileId))throw new RuntimeException('invalid_profile_id');
                 $profile=$this->getRevisioned('profile',$profileId);
                 $identity=is_string($profile['actor_identity'])?$this->json($profile['actor_identity']):$profile['actor_identity'];
                 if(($identity['kind']??'')!=='template'||$profile['installation_id']!==($input['installation_id']??'')||$profile['name']!==$name)
@@ -2503,7 +2513,7 @@ SQL);
     /** Reuse prompt privacy/witness checks for a digest, across session profiles in the same playthrough. */
     public function memoryDigestCandidates(string $installation,string $playthrough,string $profile,string $now,?array $memoryIds=null):array
     {
-        foreach([$installation,$playthrough,$profile]as$id)if(!Uuid::isValid($id))throw new \InvalidArgumentException('invalid_digest_scope');
+        if(!Uuid::isValid($installation)||!Uuid::isValid($playthrough)||!ProfileId::isValid($profile))throw new \InvalidArgumentException('invalid_digest_scope');
         $q=$this->db->prepare("SELECT COALESCE((SELECT b.actor_identity FROM actor_profile_bindings b WHERE b.installation_id=p.installation_id
                 AND b.playthrough_id=t.playthrough_id AND b.profile_id=p.profile_id
                 AND (SELECT count(*) FROM actor_profile_bindings all_b WHERE all_b.installation_id=p.installation_id AND all_b.playthrough_id=t.playthrough_id AND all_b.profile_id=p.profile_id)=1),p.actor_identity) AS actor_identity
@@ -2635,7 +2645,7 @@ SQL);
 
     public function createKnowledge(array $input,array $terms,string $now): array
     {
-        $id=Uuid::v4();$sha=hash('sha256',$input['content']);$statement=$this->db->prepare("INSERT INTO knowledge_documents (document_id,installation_id,profile_id,playthrough_id,title,content,content_sha256,lexical_terms,provenance,created_at,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category) VALUES (:id,:installation,:profile,:playthrough,:title,:content,:sha,CAST(:terms AS text[]),CAST(:provenance AS jsonb),:now,:topic,:aliases,:basic,:advanced_class,:basic_class,:tags,:category) ON CONFLICT (installation_id,(COALESCE(profile_id,'00000000-0000-0000-0000-000000000000'::uuid)),(COALESCE(playthrough_id,'00000000-0000-0000-0000-000000000000'::uuid)),(lower(topic))) WHERE deleted_at IS NULL AND provenance->>'source' IS DISTINCT FROM 'factory-oghma' DO UPDATE SET title=EXCLUDED.title,content=EXCLUDED.content,content_sha256=EXCLUDED.content_sha256,lexical_terms=EXCLUDED.lexical_terms,provenance=EXCLUDED.provenance,created_at=EXCLUDED.created_at,aliases=EXCLUDED.aliases,topic_desc_basic=EXCLUDED.topic_desc_basic,knowledge_class=EXCLUDED.knowledge_class,knowledge_class_basic=EXCLUDED.knowledge_class_basic,tags=EXCLUDED.tags,category=EXCLUDED.category RETURNING document_id");$statement->execute(['id'=>$id,'installation'=>$input['installation_id'],'profile'=>$input['profile_id']??null,'playthrough'=>$input['playthrough_id']??null,'title'=>$input['title'],'content'=>$input['content'],'sha'=>$sha,'terms'=>$this->pgArray($terms),'provenance'=>$this->encode($input['provenance']),'now'=>$now,'topic'=>$input['topic'],'aliases'=>$input['aliases'],'basic'=>$input['topic_desc_basic'],'advanced_class'=>$input['knowledge_class'],'basic_class'=>$input['knowledge_class_basic'],'tags'=>$input['tags'],'category'=>$input['category']]);$savedId=$statement->fetchColumn();if(!is_string($savedId)||$savedId==='')throw new RuntimeException('knowledge_save_failed');return $this->knowledge($savedId);
+        $id=Uuid::v4();$sha=hash('sha256',$input['content']);$statement=$this->db->prepare("INSERT INTO knowledge_documents (document_id,installation_id,profile_id,playthrough_id,title,content,content_sha256,lexical_terms,provenance,created_at,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category) VALUES (:id,:installation,:profile,:playthrough,:title,:content,:sha,CAST(:terms AS text[]),CAST(:provenance AS jsonb),:now,:topic,:aliases,:basic,:advanced_class,:basic_class,:tags,:category) ON CONFLICT (installation_id,(COALESCE(profile_id,'00000000-0000-0000-0000-000000000000'::text)),(COALESCE(playthrough_id,'00000000-0000-0000-0000-000000000000'::uuid)),(lower(topic))) WHERE deleted_at IS NULL AND provenance->>'source' IS DISTINCT FROM 'factory-oghma' DO UPDATE SET title=EXCLUDED.title,content=EXCLUDED.content,content_sha256=EXCLUDED.content_sha256,lexical_terms=EXCLUDED.lexical_terms,provenance=EXCLUDED.provenance,created_at=EXCLUDED.created_at,aliases=EXCLUDED.aliases,topic_desc_basic=EXCLUDED.topic_desc_basic,knowledge_class=EXCLUDED.knowledge_class,knowledge_class_basic=EXCLUDED.knowledge_class_basic,tags=EXCLUDED.tags,category=EXCLUDED.category RETURNING document_id");$statement->execute(['id'=>$id,'installation'=>$input['installation_id'],'profile'=>$input['profile_id']??null,'playthrough'=>$input['playthrough_id']??null,'title'=>$input['title'],'content'=>$input['content'],'sha'=>$sha,'terms'=>$this->pgArray($terms),'provenance'=>$this->encode($input['provenance']),'now'=>$now,'topic'=>$input['topic'],'aliases'=>$input['aliases'],'basic'=>$input['topic_desc_basic'],'advanced_class'=>$input['knowledge_class'],'basic_class'=>$input['knowledge_class_basic'],'tags'=>$input['tags'],'category'=>$input['category']]);$savedId=$statement->fetchColumn();if(!is_string($savedId)||$savedId==='')throw new RuntimeException('knowledge_save_failed');return $this->knowledge($savedId);
     }
     /** Insert a fully validated Oghma import as one transaction. */
     public function createKnowledgeBatch(array $prepared,string $now):array
@@ -4343,13 +4353,12 @@ SQL);
         }
         $session=$sessions[0];$scope['session_id']=$session['session_id'];$scope['generation']=(int)$session['generation'];
         // Editable profile labels are not authority to move a game actor. Resolve its verified binding.
-        $profileKey=$this->actorKey($identity);
-        $binding=$this->db->prepare('SELECT actor_key,actor_identity FROM actor_profile_bindings WHERE installation_id=:installation AND playthrough_id=:playthrough AND profile_id=:profile '
-            .'ORDER BY (actor_key=:key) DESC,actor_key LIMIT 2'.($lock?' FOR SHARE':''));
-        $binding->execute(['installation'=>$profile['installation_id'],'playthrough'=>$session['playthrough_id'],'profile'=>$profileId,'key'=>$profileKey]);
+        $binding=$this->db->prepare('SELECT actor_key,actor_identity,updated_at FROM actor_profile_bindings WHERE installation_id=:installation AND playthrough_id=:playthrough AND profile_id=:profile '
+            .'ORDER BY updated_at DESC,actor_key LIMIT 2'.($lock?' FOR SHARE':''));
+        $binding->execute(['installation'=>$profile['installation_id'],'playthrough'=>$session['playthrough_id'],'profile'=>$profileId]);
         $bindings=$binding->fetchAll();
         if($bindings===[]){$scope['reason_code']='npc_manager_profile_not_bound';return$scope;}
-        if(count($bindings)>1&&$bindings[0]['actor_key']!==$profileKey){$scope['reason_code']='npc_manager_ambiguous_actor';return$scope;}
+        if(count($bindings)>1&&$bindings[0]['updated_at']===$bindings[1]['updated_at']){$scope['reason_code']='npc_manager_ambiguous_actor';return$scope;}
         $identity=$this->json($bindings[0]['actor_identity']);
         {
             $observed=$this->db->prepare("SELECT target FROM active_turns WHERE session_id=:session AND generation=:generation AND target->>'record_id'=:record AND target->>'content_file'=:content AND target->'refnum'=CAST(:refnum AS jsonb) AND target->>'kind'=:kind ORDER BY accepted_at DESC,turn_id DESC LIMIT 1");
@@ -4608,8 +4617,24 @@ SQL);
 
     public function transaction(callable $callback):mixed{$owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();try{$v=$callback();if($owns)$this->db->commit();return$v;}catch(Throwable $e){if($owns&&$this->db->inTransaction())$this->db->rollBack();throw$e;}}
     private function deterministicUuid(string $value):string{$h=md5($value);return substr($h,0,8).'-'.substr($h,8,4).'-4'.substr($h,13,3).'-8'.substr($h,17,3).'-'.substr($h,20,12);}
-    private function selectedActorProfileId(string $installation,string $playthrough,array $identity):?string{$s=$this->db->prepare('SELECT b.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.installation_id=b.installation_id AND p.deleted_at IS NULL WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:key AND '.ProfileScopeSql::matches('p','b.playthrough_id'));$s->execute(['installation'=>$installation,'playthrough'=>$playthrough,'key'=>$this->actorKey($identity)]);$value=$s->fetchColumn();return$value===false?null:(string)$value;}
-    public function actorKey(array $identity):string{return hash('sha256',$this->encodeCanonical(['kind'=>$identity['kind']??null,'record_id'=>$identity['record_id']??null,'content_file'=>$identity['content_file']??null,'refnum'=>$identity['refnum']??null]));}
+    private function selectedActorProfileId(string $installation,string $playthrough,array $identity):?string
+    {
+        if(!in_array($identity['kind']??'npc',['player','narrator'],true)){
+            $canonical=(new ReferenceGroupRepository($this->db))->resolve($installation,$identity);
+            $id=ProfileId::forActor($installation,$playthrough,$canonical);
+            $query=$this->db->prepare('SELECT profile_id FROM profiles WHERE profile_id=:id AND deleted_at IS NULL');
+            $query->execute(['id'=>$id]);$value=$query->fetchColumn();
+            return $value===false?null:(string)$value;
+        }
+        $s=$this->db->prepare('SELECT b.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.installation_id=b.installation_id AND p.deleted_at IS NULL WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:key AND '.ProfileScopeSql::matches('p','b.playthrough_id'));
+        $s->execute(['installation'=>$installation,'playthrough'=>$playthrough,'key'=>$this->actorKey($identity)]);$value=$s->fetchColumn();return $value===false?null:(string)$value;
+    }
+    public function actorKey(array $identity):string
+    {
+        $kind=$identity['kind']??'npc';
+        $key=in_array($kind,['player','narrator'],true)?$kind.'|'.strtolower((string)($identity['record_id']??$kind)):ProfileId::reference($identity);
+        return hash('sha256',$key);
+    }
     private function encodeCanonical(mixed $value):string{$sort=static function(mixed $item)use(&$sort):mixed{if(!is_array($item))return$item;if(array_is_list($item))return array_map($sort,$item);ksort($item,SORT_STRING);foreach($item as&$child)$child=$sort($child);return$item;};return json_encode($sort($value),JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);}
     private function withoutSecrets(array $value):array{foreach($value as$key=>&$item){if(is_string($key)&&preg_match('/(?:api[_-]?key|secret|password|authorization|access[_-]?token|refresh[_-]?token)/i',$key)===1){unset($value[$key]);continue;}if(is_array($item))$item=$this->withoutSecrets($item);}unset($item);return$value;}
     private function encode(array $v):string{return json_encode($v===[]?(object)[]:$v,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);}

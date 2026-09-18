@@ -631,7 +631,7 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         lorkhan_ui_management_form(['route'=>'profile-clone','id'=>'profile-clone-'.$profileId,'legend'=>'Create independent profile copy',
             'hidden'=>['profile_id'=>$profileId],'fields'=>[['name','New profile name','text',(string)($row['name']??'').' Copy']]],$managementBasePath,$csrf);
         echo'<p class="management-note">The copy starts at revision 1 with the same roleplay details and voice. Actor bindings and the private portrait file stay with the original.</p></details>';
-        echo '<div class="connector-actions"><a class="btn-base" href="'.lorkhan_ui_h($managementBasePath.'/exports/profiles/'.$profileId.'.json').'">Export profile</a>';
+        echo '<div class="connector-actions"><a class="btn-base" href="'.lorkhan_ui_h($managementBasePath.'/exports/profiles/'.rawurlencode($profileId).'.json').'">Export profile</a>';
         if(!$locked)echo '<form method="post" action="'.lorkhan_ui_h($managementBasePath.'/forms/profile-generate').'"><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'"><input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'"><button class="btn-base btn-primary" type="submit">Generate profile with AI</button></form>';
         echo'</div>';
         echo '<p class="management-note">'.($locked?'This profile is locked. Automatic AI generation cannot replace it; manual edits and relationship updates remain available.':'Generation creates a new revision and preserves the configured voice and custom fields. A later manual edit wins if the job is still running.').'</p>';
@@ -639,6 +639,14 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         echo '</article>';
     }
     echo '</div>';
+}
+
+/** Display the placed reference without confusing it with the shared NPC base record. */
+function lorkhan_ui_npc_refid(array $identity):string
+{
+    $file=trim((string)($identity['content_file']??''));$index=$identity['refnum']['index']??null;
+    if($file===''||!(is_int($index)&&$index>=0||is_string($index)&&ctype_digit($index)))return 'Not observed';
+    return (string)$index;
 }
 
 /** Render one typed NPC revision form inside the tabbed NPC editor. */
@@ -694,8 +702,14 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     else$field('name','NPC Name','text',(string)($row['name']??''),[],'span-2');
     $field('core_profile_id','Profile','select',$coreProfileId,$coreProfileOptions);$checkbox('locked','Lock This NPC',$locked,'Prevents automatic AI profile generation from replacing manual edits.');
     $field('gender','Gender','select',(string)($content['gender']??''),[''=>'Unspecified','Male'=>'Male','Female'=>'Female','Other'=>'Other']);$field('race','Race','text',(string)($content['race']??''));
-    if($creating){$field('content_file','Base / Content File','text','Morrowind.esm');$field('record_id','Ref ID','text','');$field('refnum','Reference Number','text','');}
-    else{$field('record_id','Ref ID','text',(string)($identity['record_id']??''),[],'','Profile record ID. Does not rename the game actor or change existing actor bindings.');}
+    if($creating){$field('content_file','Mod','text','Morrowind.esm');$field('record_id','Base','text','');$field('refnum','Ref ID','text','');}
+    else{$field('record_id','Base','text',(string)($row['base']??$identity['record_id']??''),[],'','In-game NPC base ID. Does not change the placed reference or existing actor bindings.');}
+    if(!$creating){
+        $baseFieldId='npc-base-'.substr(hash('sha256',$profileId),0,14);
+        echo '<div class="form-item"><label for="'.$baseFieldId.'">Mod</label><input id="'.$baseFieldId.'" type="text" readonly value="'.lorkhan_ui_h((string)($identity['content_file']??'Not observed')).'" title="Source mod / content file"></div>';
+        $refFieldId='npc-refid-'.substr(hash('sha256',$profileId),0,14);
+        echo '<div class="form-item"><label for="'.$refFieldId.'">Ref ID</label><input id="'.$refFieldId.'" type="text" readonly value="'.lorkhan_ui_h((string)($row['refid']??lorkhan_ui_npc_refid($identity))).'" title="Placed reference number. Assigned by the game."></div>';
+    }
     $knowledgeTags=$content['oghma_knowledge_tags']??$content['oghma_tags']??'';
     $field('oghma_knowledge_tags','Oghma Tags','text',is_array($knowledgeTags)?implode(', ',array_map('strval',$knowledgeTags)):(string)$knowledgeTags,[],'','Used by Oghma systems for knowledge lookup restrictions.','Comma-separated knowledge tags');
     $field('voice_id','Voice ID','datalist',(string)($voice['id']??''),$voiceOptions);
@@ -820,7 +834,8 @@ function lorkhan_ui_chim_profile_cards(array $rows,array $voiceOptions,array $pr
         echo'<div class="npc-line"><span class="npc-muted">Gender:</span> '.lorkhan_ui_h($gender?:'Unspecified').'</div>';
         echo'<div class="npc-line"><span class="npc-muted">Race:</span> '.lorkhan_ui_h($content['race']??'Unspecified').'</div>';
         echo'<div class="npc-line"><span class="npc-muted">Voice:</span> '.lorkhan_ui_h($voice['id']??'Connector default').'</div>';
-        echo'<div class="npc-line"><span class="npc-muted">RefID:</span> '.lorkhan_ui_h($recordId).'</div>';
+        echo'<div class="npc-line"><span class="npc-muted">Base:</span> '.lorkhan_ui_h((string)($row['base']??$identity['record_id']??'Not observed')).'</div>';
+        echo'<div class="npc-line"><span class="npc-muted">Ref ID:</span> '.lorkhan_ui_h((string)($row['refid']??lorkhan_ui_npc_refid($identity))).'</div>';
         echo'<div class="npc-line"><span class="npc-muted">Oghma Tags:</span> '.lorkhan_ui_h($tags?:'none').'</div>';
         echo'<div class="npc-line"><span class="npc-muted">Profile:</span> '.lorkhan_ui_h($coreProfileLabel).'</div></div><div class="npc-right">';
         $portraitUrl=$portraitEndpoint.'?profile_id='.rawurlencode($profileId).'&revision='.(int)($row['current_revision']??1);
@@ -828,7 +843,7 @@ function lorkhan_ui_chim_profile_cards(array $rows,array $voiceOptions,array $pr
         echo'<img class="npc-race-art" src="'.lorkhan_ui_h($portraitUrl).'" alt="Portrait of '.lorkhan_ui_h($name).'" width="200" height="200" loading="lazy">';
         echo'</div></div></article>';
 
-        $exportUrl=$managementBasePath.'/exports/profiles/'.$profileId.'.json';
+        $exportUrl=$managementBasePath.'/exports/profiles/'.rawurlencode($profileId).'.json';
         $diaryUrl=(preg_replace('#/manage$#','/ui/diary_book.php',$managementBasePath)?:'/LorkhanServer/ui/diary_book.php').'?'.http_build_query(['installation_id'=>(string)$row['installation_id'],'person'=>$profileId]);
         echo'<div class="npc-modal-overlay" id="'.$modalKey.'-edit" data-npc-modal hidden><section class="npc-modal npc-editor-modal" role="dialog" aria-modal="true" aria-labelledby="'.$modalKey.'-edit-title"><header class="npc-editor-header"><h2 id="'.$modalKey.'-edit-title">Edit NPC</h2><div class="npc-modal-actions">';
         echo'<button type="submit" class="btn-save" form="management-form-profile-'.lorkhan_ui_h($profileId).'">Save</button>';
@@ -889,6 +904,7 @@ function lorkhan_ui_character_manager(array $rows,array $observedNpcs,array $pro
     echo'<label><input type="checkbox" name="lock" value="1"'.($lockedOnly?' checked':'').'> &#128274; Locked</label>';
     echo'</form></div><div class="npc-total-pill" title="Total NPC profiles"><span class="npc-total-pill-icon">&#128101;</span><strong class="npc-total-pill-value">'.$totalRows.'</strong></div></div></div></div>';
     echo'<aside class="npc-history-pullback"><strong>History Pullback:</strong> LORKHAN preserves every NPC revision. Loading an older save restores eligible automatic NPC profile changes by adding a new revision; locked profiles and manual edits are preserved.<br><span>Lock a profile (&#128274;) to protect it from automatic AI generation.</span> Use Profile Versions in the edit modal to inspect and restore an earlier version, and the History tab to read recorded narrative events.</aside>';
+    include __DIR__.'/reference_groups.php';
     echo'<div class="npc-profile-results">';lorkhan_ui_chim_profile_cards($pageRows,$voiceOptions,$promptRows,$llmRows,$ttsRows,$coreProfileRows,$effectiveProfileSettings,$managementBasePath,$csrf,$playthroughOptionsByInstallation,$postState);echo'</div>';
 
     $biographiesUrl=preg_replace('#/manage$#','/ui/core/npc_biographies.php',$managementBasePath)?:'/LorkhanServer/ui/core/npc_biographies.php';

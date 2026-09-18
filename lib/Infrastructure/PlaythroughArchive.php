@@ -113,6 +113,13 @@ final class PlaythroughArchive
             if($core===null)throw new RuntimeException('archive_default_core_missing');
             $uuid=[$document['source']['installation_id']=>$installation,$document['source']['playthrough_id']=>Uuid::v4()];$serial=[];
             foreach($document['shared_profiles']as$id=>$kind){$narrator=$products->narratorProfileForInstallation($installation);if($narrator===null)throw new RuntimeException('archive_shared_narrator_missing');$uuid[$id]=$narrator['profile_id'];}
+            // Reference keys are stable within one world, but a copied world owns new scoped keys.
+            foreach($document['tables']['lorkhan_internal.profiles']as$profile){
+                $id=$profile['profile_id'];
+                $uuid[$id]=str_starts_with($id,'ref:')
+                    ?'ref:'.$installation.':'.$uuid[$document['source']['playthrough_id']].':'.explode(':',$id,4)[3]
+                    :Uuid::v4();
+            }
             foreach($document['tables']as$table=>$rows)foreach($rows as$row)foreach($meta[$table]['columns']as$column=>$type){
                 $this->checkBudget();
                 if($row[$column]===null)continue;
@@ -174,7 +181,7 @@ final class PlaythroughArchive
             }if($progress===0)throw new RuntimeException('archive_dependency_incomplete');$pending=$next;}
             $this->db->exec('SET CONSTRAINTS ALL IMMEDIATE');
             foreach($disabled as[$table,$trigger])$this->db->exec('ALTER TABLE '.$table.' ENABLE TRIGGER '.$trigger);
-            foreach($document['tables']['lorkhan_internal.profiles']as$profile){if((((array)$profile['actor_identity'])['kind']??'')==='player')continue;$q=$this->db->prepare('SELECT lorkhan_internal.sync_profile_projection(CAST(:profile AS uuid))');$q->execute(['profile'=>$uuid[$profile['profile_id']]]);}
+            foreach($document['tables']['lorkhan_internal.profiles']as$profile){if((((array)$profile['actor_identity'])['kind']??'')==='player')continue;$q=$this->db->prepare('SELECT lorkhan_internal.sync_profile_projection(CAST(:profile AS text))');$q->execute(['profile'=>$uuid[$profile['profile_id']]]);}
             $this->db->commit();return['playthrough_id'=>$uuid[$document['source']['playthrough_id']],
                 'profile_id'=>$uuid[$document['tables']['lorkhan_internal.playthroughs'][0]['profile_id']],
                 'active'=>false,'row_counts'=>array_map('count',$document['tables']),'limitations'=>$this->limitations()];
@@ -220,7 +227,7 @@ final class PlaythroughArchive
         $meta=$this->metadata();if($document['schema_sha256']!==$this->schemaHash($meta))throw new RuntimeException('archive_schema_mismatch');
         if(!is_array($document['source'])||count($document['source'])!==2||!Uuid::isValid($document['source']['installation_id']??'')||!Uuid::isValid($document['source']['playthrough_id']??''))throw new RuntimeException('invalid_archive_scope');
         if(!is_array($document['tables']))throw new RuntimeException('invalid_archive');
-        if(!is_array($document['shared_profiles']))throw new RuntimeException('invalid_archive');foreach($document['shared_profiles']as$id=>$kind)if(!Uuid::isValid($id)||$kind!=='narrator')throw new RuntimeException('archive_shared_profile');
+        if(!is_array($document['shared_profiles']))throw new RuntimeException('invalid_archive');foreach($document['shared_profiles']as$id=>$kind)if(!\LorkhanServer\Domain\ProfileId::isValid($id)||$kind!=='narrator')throw new RuntimeException('archive_shared_profile');
         $names=array_keys($document['tables']);sort($names);$allowed=self::tableNames();sort($allowed);if($names!==$allowed)throw new RuntimeException('archive_table_mismatch');
         $count=0;$profileIds=[];
         foreach($document['tables']as$table=>$rows){
@@ -233,6 +240,8 @@ final class PlaythroughArchive
                 foreach(['installation_id','playthrough_id']as$scope)if(isset($row[$scope])&&$row[$scope]!==$document['source'][$scope])throw new RuntimeException('archive_scope_mismatch');
                 $key=$this->rowKey($row,$meta[$table]);if(isset($seen[$key]))throw new RuntimeException('archive_duplicate_row');$seen[$key]=true;
                 if($table==='lorkhan_internal.profiles'){
+                    if(!\LorkhanServer\Domain\ProfileId::isValid($row['profile_id']))throw new RuntimeException('archive_profile_key');
+                    if(str_starts_with($row['profile_id'],'ref:')&&!str_starts_with($row['profile_id'],'ref:'.$document['source']['installation_id'].':'.$document['source']['playthrough_id'].':'))throw new RuntimeException('archive_scope_mismatch');
                     if($row['playthrough_id']!==$document['source']['playthrough_id']||in_array(((array)$row['actor_identity'])['kind']??'', ['narrator','template'],true))throw new RuntimeException('archive_shared_profile');
                     $profileIds[$row['profile_id']]=true;
                 }

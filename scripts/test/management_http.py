@@ -389,10 +389,18 @@ assert 'request-log-page game-debug-page' in game_debug_html and 'Created (UTC)'
 assert 'data-debug-table hidden' in game_debug_html and 'data-debug-empty' in game_debug_html
 assert game_debug_html.count('data-debug-command=')==19
 assert 'aria-label="God Mode on"' in game_debug_html and 'Refresh state queues a read-only game snapshot' in game_debug_html
-server_logs,text=parse(request('/LorkhanServer/ui/server_logs.php'))
-assert server_logs.current==1 and '<h1>Server Logs</h1>' in text and 'bounded to 256 KiB and redacted' in text
-assert text.count('class="log-section"')==3 and all(label in text for label in ['Download Logs','Timezone: UTC','Filter by Level:','Search expanded log','data-expand-log'])
-assert '/var/log/' not in text and 'chim.log' not in text
+class LogRedirectOnly(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+log_redirect_opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar),LogRedirectOnly())
+for suffix,target in [('', '?tab=lorkhan'),('?embed=1','?tab=lorkhan&embed=1')]:
+    try:
+        log_redirect_opener.open(base+'/LorkhanServer/ui/server_logs.php'+suffix)
+        raise AssertionError('Legacy log viewer did not redirect')
+    except urllib.error.HTTPError as response:
+        assert response.code==302 and response.headers['Location']=='/Dwemer-Dashboard/distro_debugger.php'+target
+_,log_hub_html=parse(request('/LorkhanServer/ui/control_panel.php?tab=server-logs-page'))
+assert '/Dwemer-Dashboard/distro_debugger.php?embed=1&amp;tab=lorkhan' in log_hub_html
+
 database,text=parse(request('/LorkhanServer/ui/database_manager.php')); assert database.current==1 and '<h1>Database Manager</h1>' in text and 'schema migrations' in text and 'Installation Configuration Backups' in text
 assert 'server-file-list' not in text and 'No configuration backups are available.' in text
 assert 'Database Versioning Manager' in text and 'not a full database backup' in text

@@ -19,6 +19,7 @@
     "lorkhan_internal.installation_profile_preferences",
     "lorkhan_internal.installation_provider_selections",
     "lorkhan_internal.item_descriptions",
+    "lorkhan_internal.npc_reference_groups",
     "lorkhan_internal.oghma_catalog_deletions",
     "lorkhan_internal.oghma_catalog_entries",
     "lorkhan_internal.oghma_catalogs",

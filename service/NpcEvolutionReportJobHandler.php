@@ -22,7 +22,7 @@ final class NpcEvolutionReportJobHandler implements JobHandler
     {
         unset($idempotencyKey);
         foreach(['installation_id','profile_id','provider_configuration_id'] as $key)
-            if(!is_string($payload[$key]??null)||!Uuid::isValid($payload[$key]))throw new InvalidArgumentException('invalid_report_scope');
+            if(!is_string($payload[$key]??null)||!($key === 'profile_id' ? \LorkhanServer\Domain\ProfileId::isValid($payload[$key]) : Uuid::isValid($payload[$key])))throw new InvalidArgumentException('invalid_report_scope');
         $job=$payload['_job']??null;
         if(!is_int($payload['provider_revision']??null)||$payload['provider_revision']<1||!is_array($job)
             ||!is_string($job['job_id']??null)||!Uuid::isValid($job['job_id'])||!is_int($job['attempt']??null)||!is_string($job['lease_token']??null))throw new InvalidArgumentException('invalid_report_job');

@@ -24,7 +24,7 @@ final class ProfileGenerateJobHandler implements JobHandler
     public function handle(array $payload,string $idempotencyKey,callable $heartbeat):void
     {
         unset($idempotencyKey);$profileId=$payload['profile_id']??null;$baseRevision=$payload['base_revision']??null;$job=$payload['_job']??null;$mode=$payload['mode']??'npc_profile';
-        if(!is_string($profileId)||preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$profileId)!==1)
+        if(!\LorkhanServer\Domain\ProfileId::isValid($profileId))
             throw new \InvalidArgumentException('invalid_profile_id');
         if(!is_int($baseRevision)||$baseRevision<1)throw new \InvalidArgumentException('invalid_base_revision');
         if(!in_array($mode,['npc_profile','npc_profile_backfill','profile_evolution','narrator_profile','narrator_profile_evolution','player_speech_style'],true))throw new \InvalidArgumentException('invalid_generation_mode');
