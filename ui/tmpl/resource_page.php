@@ -137,7 +137,7 @@ $forms = match ($view) {
             ['name', 'NPC name'], ['record_id', 'Morrowind record ID', 'text', '', [], false],
             ['content_file', 'Content file', 'text', 'Morrowind.esm', [], false],
             ['refnum', 'Reference number', 'text', '', [], false],
-            ['prompt_head', 'Prompt head (advanced system guidance)', 'textarea', '', [], false],
+            ['prompt_head', 'Prompt Head Override', 'textarea', '', [], false],
             ['core', 'Core identity and boundaries', 'textarea', '', [], false],
             ['appearance', 'Appearance', 'textarea', '', [], false],
             ['gender', 'Gender', 'select', '', [''=>'Unspecified','Male'=>'Male','Female'=>'Female','Other'=>'Other'], false],
@@ -150,7 +150,7 @@ $forms = match ($view) {
             ['goals', 'Goals', 'textarea', '', [], false],
             ['relationships', 'Relationships', 'textarea', '', [], false],
             ['emote_moods', 'Allowed moods and emotes', 'text', '', [], false],
-            ['voice_id', 'Voice sample', 'datalist', '', $voiceOptions, false],
+            ['voice_id', 'Voice ID', 'datalist', '', $voiceOptions, false],
             ['voice_language', 'Voice language', 'text', 'en'],
             ['locked', 'Lock against automatic AI profile generation', 'checkbox', '1', [], false],
             ['favorite', 'Favorite NPC', 'checkbox', '1', [], false],
@@ -177,7 +177,7 @@ $forms = match ($view) {
                 ['name', 'Profile name'], ['record_id', 'Morrowind record ID', 'text', '', [], false],
                 ['content_file', 'Content file', 'text', 'Morrowind.esm', [], false],
                 ['refnum', 'Reference number', 'text', '', [], false],
-                ['prompt_head', 'Prompt head (advanced system guidance)', 'textarea', '', [], false],
+                ['prompt_head', 'Prompt Head Override', 'textarea', '', [], false],
                 ['core', 'Core identity and boundaries', 'textarea', '', [], false],
                 ['appearance', 'Appearance', 'textarea', '', [], false],
                 ['gender', 'Gender', 'select', '', [''=>'Unspecified','Male'=>'Male','Female'=>'Female','Other'=>'Other'], false],
@@ -190,7 +190,7 @@ $forms = match ($view) {
                 ['goals', 'Goals', 'textarea', '', [], false],
                 ['relationships', 'Relationships', 'textarea', '', [], false],
                 ['emote_moods', 'Allowed moods and emotes', 'text', '', [], false],
-                ['voice_id', 'Voice sample', 'datalist', '', $voiceOptions, false],
+                ['voice_id', 'Voice ID', 'datalist', '', $voiceOptions, false],
                 ['voice_language', 'Voice language', 'text', 'en'],
                 ['locked', 'Lock against automatic AI profile generation', 'checkbox', '1', [], false],
                 ['favorite', 'Favorite NPC', 'checkbox', '1', [], false],
@@ -569,7 +569,6 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         $management=is_array($content['management']??null)?$content['management']:[];
         $locked=($management['locked']??false)===true;$favorite=($management['favorite']??false)===true;
         $dynamicProfile=($content['dynamic_profile']??false)===true;
-        $dynamicFields=is_array($content['dynamic_profile_fields']??null)?$content['dynamic_profile_fields']:['personality','speech_style','goals'];
         $portrait=is_array($content['portrait']??null)?$content['portrait']:[];
         $portraitEndpoint=preg_replace('#/manage$#','/ui/core/profile_portrait.php',$managementBasePath)?:'/LorkhanServer/ui/core/profile_portrait.php';
         $coreProfileOptions=[''=>'Use installation default'];
@@ -596,9 +595,9 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         echo '<details class="profile-primary-editor"'.($editorOpen?' open':'').'><summary>Edit roleplay and voice</summary>';
         lorkhan_ui_management_form([
             'route'=>'profile-revise','id'=>'profile-' . $profileId,'legend'=>'Save NPC profile revision',
-            'hidden'=>['profile_id'=>$profileId,'base_content_json'=>json_encode($content===[]?(object)[]:$content,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE),'management_fields'=>'1','dynamic_profile_fields_present'=>'1'],
+            'hidden'=>['profile_id'=>$profileId,'base_content_json'=>json_encode($content===[]?(object)[]:$content,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE),'management_fields'=>'1','dynamic_profile_present'=>'1'],
             'fields'=>[
-                ['prompt_head','Prompt head (advanced system guidance)','textarea',(string)($content['prompt_head']??''),[],false],
+                ['prompt_head','Prompt Head Override','textarea',(string)($content['prompt_head']??''),[],false],
                 ['core','Core identity and boundaries','textarea',(string)($content['core']??''),[],false],
                 ['appearance','Appearance','textarea',(string)($content['appearance']??''),[],false],
                 ['gender','Gender','select',(string)($content['gender']??''),[''=>'Unspecified','Male'=>'Male','Female'=>'Female','Other'=>'Other'],false],
@@ -616,11 +615,6 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
                 ['voice_language','Voice language','text',(string)($voice['language']??'en')],
                 ['locked','Lock against automatic AI profile generation','checkbox','1',[],false,$locked],
                 ['dynamic_profile','Enable Dynamic Profile','checkbox','1',[],false,$dynamicProfile],
-                ['dynamic_profile_personality','Evolve personality','checkbox','1',[],false,in_array('personality',$dynamicFields,true)],
-                ['dynamic_profile_occupation','Evolve occupation','checkbox','1',[],false,in_array('occupation',$dynamicFields,true)],
-                ['dynamic_profile_skills','Evolve skills','checkbox','1',[],false,in_array('skills',$dynamicFields,true)],
-                ['dynamic_profile_speech_style','Evolve speech style','checkbox','1',[],false,in_array('speech_style',$dynamicFields,true)],
-                ['dynamic_profile_goals','Evolve goals','checkbox','1',[],false,in_array('goals',$dynamicFields,true)],
                 ['favorite','Favorite NPC','checkbox','1',[],false,$favorite],
                 ['notes','Notes','textarea',(string)($content['notes']??''),[],false],
                 ['change_reason','Change reason','text','management edit'],
@@ -658,7 +652,6 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     if(is_string($voice))$voice=['id'=>$voice];if(!is_array($voice))$voice=[];
     $locked=($management['locked']??false)===true;$favorite=($management['favorite']??false)===true;
     $dynamicProfile=($content['dynamic_profile']??false)===true;
-    $dynamicFields=is_array($content['dynamic_profile_fields']??null)?$content['dynamic_profile_fields']:['personality','speech_style','goals'];
     $coreProfileOptions=[''=>'Use installation default'];foreach($coreProfileRows as$coreProfileRow){
         if((string)($coreProfileRow['installation_id']??'')!==$installationId)continue;$id=(string)($coreProfileRow['core_profile_id']??'');
         if($id!=='')$coreProfileOptions[$id]=(string)($coreProfileRow['label']??$id);
@@ -707,11 +700,11 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     else{$disabled('Base / Content File','config.npc.identity',(string)($identity['content_file']??''));$disabled('Ref ID','config.npc.identity',(string)($identity['record_id']??''));}
     $knowledgeTags=$content['oghma_knowledge_tags']??$content['oghma_tags']??'';
     $field('oghma_knowledge_tags','Oghma Tags','text',is_array($knowledgeTags)?implode(', ',array_map('strval',$knowledgeTags)):(string)$knowledgeTags,[],'','Used by Oghma systems for knowledge lookup restrictions.','Comma-separated knowledge tags');
-    $field('voice_id','Voice sample','datalist',(string)($voice['id']??''),$voiceOptions);$field('voice_language','Voice Language','text',(string)($voice['language']??'en'));
+    $field('voice_id','Voice ID','datalist',(string)($voice['id']??''),$voiceOptions);$field('voice_language','Voice Language','text',(string)($voice['language']??'en'));
+    require_once __DIR__.'/tts_filter_field.php';
+    lorkhan_ui_tts_filter_field($content,$creating?'':$profileId,$managementBasePath,$csrf,$formId);
     $checkbox('dynamic_profile','♻️Dynamic Profile',$dynamicProfile,'Evolve selected fields after the configured game-day interval, delivered event count and real-time cooldown. This NPC must be unlocked, but need not remain nearby.');
-    echo'<input type="hidden" name="dynamic_profile_fields_present" form="'.lorkhan_ui_h($formId).'" value="1"><details class="form-item npc-editor-check npc-dynamic-fields"><summary>Dynamic Profile Fields</summary>';
-    foreach(['personality'=>'Personality','occupation'=>'Occupation','skills'=>'Skills','speech_style'=>'Speech Style','goals'=>'Goals']as$key=>$label)echo'<label><input name="dynamic_profile_fields[]" form="'.lorkhan_ui_h($formId).'" type="checkbox" value="'.$key.'"'.(in_array($key,$dynamicFields,true)?' checked':'').'> '.$label.'</label>';
-    echo'<small class="hint">Choose at least one field when Dynamic Profile is enabled.</small></details>';
+    echo'<input type="hidden" name="dynamic_profile_present" form="'.lorkhan_ui_h($formId).'" value="1">';
     foreach(['automatic_enabled'=>['📙 Auto Diary','Generate diary entries on the configured timer and sleep events. Requires Diary generation and a Diary LLM in Core Profile.'],
         'automatic_wait_enabled'=>['⏳ Auto Diary Wait','When Auto Diary is enabled, include wait events as well as sleep events.'],
         'materialize_enabled'=>['📕 Physical Diary','Keep one readable diary book in this NPC’s inventory, updated from the latest five saved generated entries.']]as$key=>[$label,$help]){
@@ -728,7 +721,7 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
         echo'<small class="hint">'.lorkhan_ui_h($help).' <strong data-npc-inherited-source>'.($value==='inherit'?'(Inherited from profile)':'(NPC override)').'</strong></small>';
         echo'<button type="button" class="npc-inherit-button" data-npc-inherited-reset'.($value==='inherit'?' disabled':'').'>Use Core Profile</button></div>';
     }
-    $field('prompt_head','Prompt head (advanced system guidance)','textarea',(string)($content['prompt_head']??''),[],'span-2');echo'</section>';
+    $field('prompt_head','Prompt Head Override','textarea',(string)($content['prompt_head']??''),[],'span-2');echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="roleplay" hidden>';
     $field('core','Core','textarea',(string)($content['core']??''),[],'span-2','Core NPC description. 1–2 sentences describing the character.','Unchanging rules, boundaries, and core identity.');
     $field('biography','Backstory','textarea',(string)($content['biography']??''),[],'span-2','Historical facts and background information.','Fixed background, history, and facts.');
@@ -839,7 +832,6 @@ function lorkhan_ui_chim_profile_cards(array $rows,array $voiceOptions,array $pr
 
         $exportUrl=$managementBasePath.'/exports/profiles/'.$profileId.'.json';
         $diaryUrl=(preg_replace('#/manage$#','/ui/diary_book.php',$managementBasePath)?:'/LorkhanServer/ui/diary_book.php').'?'.http_build_query(['installation_id'=>(string)$row['installation_id'],'person'=>$profileId]);
-        $biographiesUrl=preg_replace('#/manage$#','/ui/core/npc_biographies.php',$managementBasePath)?:'/LorkhanServer/ui/core/npc_biographies.php';
         echo'<div class="npc-modal-overlay" id="'.$modalKey.'-edit" data-npc-modal hidden><section class="npc-modal npc-editor-modal" role="dialog" aria-modal="true" aria-labelledby="'.$modalKey.'-edit-title"><header class="npc-editor-header"><h2 id="'.$modalKey.'-edit-title">Edit NPC</h2><div class="npc-modal-actions">';
         echo'<button type="submit" class="btn-save" form="management-form-profile-'.lorkhan_ui_h($profileId).'">Save</button>';
         echo'<a class="btn-cancel" href="'.lorkhan_ui_h($exportUrl).'">Export Bio</a>';
@@ -852,13 +844,6 @@ function lorkhan_ui_chim_profile_cards(array $rows,array $voiceOptions,array $pr
         if(!$locked){echo'<form class="npc-modal-header-form" method="post" action="'.lorkhan_ui_h($managementBasePath.'/forms/profile-generate').'"><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'"><input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'">';lorkhan_ui_hidden_state($listState);echo'<button type="submit" class="btn-cancel">AI Generate Profile</button></form>';}
         echo'<button type="button" class="btn-cancel" data-npc-modal-close>Close</button></div></header><div class="npc-modal-body"><div class="npc-editor-viewport"><div class="npc-editor-content">';
         lorkhan_ui_npc_editor_form($row,$voiceOptions,$promptRows,$llmRows,$ttsRows,$coreProfileRows,$managementBasePath,$csrf,false,[],$effectiveProfileSettings[$profileId]??[],$playthroughOptionsByInstallation,$listState);
-        $portraitControl='npc-editor-portrait-'.preg_replace('/[^a-zA-Z0-9_-]/','-',$profileId);echo'<div class="npc-editor-secondary"><a class="btn-base" target="_blank" rel="noopener" href="'.lorkhan_ui_h((preg_replace('#/manage$#','',$managementBasePath)?:'/LorkhanServer').'/ui/oghma_knowledge.php?installation_id='.rawurlencode((string)$row['installation_id']).'&profile_id='.rawurlencode($profileId)).'">Oghma Knowledge</a><a class="btn-base" href="'.lorkhan_ui_h($biographiesUrl).'">Open NPC Biographies</a><details><summary>Manage portrait</summary><form class="management-form portrait-form" method="post" enctype="multipart/form-data" action="'.lorkhan_ui_h($portraitEndpoint).'"><fieldset><legend>Upload NPC portrait</legend><label for="'.lorkhan_ui_h($portraitControl).'">PNG, JPEG, or WebP (5 MiB and 2048×2048 maximum)</label><input id="'.lorkhan_ui_h($portraitControl).'" name="portrait" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" required><input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'"><input type="hidden" name="action" value="upload"><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'"></fieldset><button class="btn-base btn-primary" type="submit">Upload portrait</button></form>';
-        if($portrait!==[])echo'<form method="post" action="'.lorkhan_ui_h($portraitEndpoint).'"><input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'"><input type="hidden" name="action" value="delete"><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'"><button class="btn-base btn-danger" type="submit">Delete portrait</button></form>';
-        echo'</details>';
-        echo'<details><summary>Clone profile</summary>';
-        lorkhan_ui_management_form(['route'=>'profile-clone','id'=>'npc-profile-clone-'.$profileId,'legend'=>'Create independent profile copy','hidden'=>['profile_id'=>$profileId]+$listState,'fields'=>[['name','New profile name','text',$name.' Copy']]],$managementBasePath,$csrf);
-        echo'<p class="management-note">The copy starts at revision 1 with the same roleplay and connector settings. Actor bindings and the private portrait file stay with the original.</p></details>';
-        echo'</div>';
         include __DIR__.'/npc_profile_versions.php';
         echo'</div></div></div></section></div>';
         echo'<div class="npc-modal-overlay" id="'.$modalKey.'-delete" data-npc-modal hidden><section class="npc-modal npc-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="'.$modalKey.'-delete-title"><header><h2 id="'.$modalKey.'-delete-title">Delete '.lorkhan_ui_h($name).'</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body"><p>This permanently removes the current LORKHAN profile and its OpenMW actor bindings.</p><form method="post" action="'.lorkhan_ui_h($managementBasePath.'/forms/profile-delete').'"><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'"><input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'">';lorkhan_ui_hidden_state($listState);echo'<button class="btn-base btn-danger" type="submit">Delete profile</button></form></div></section></div>';

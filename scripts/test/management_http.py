@@ -968,9 +968,11 @@ for path in [
     response=request(path); assert response.status==200 and '/ui/' in response.geturl(),(path,response.geturl())
 profile,profile_text=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 assert 'data-npc-editor-tab="background-life"' not in profile_text and 'data-npc-editor-panel="background-life"' not in profile_text
-profile_labels=['Voice sample','Core Profile','Profile LLMs','Prompt head (advanced system guidance)','Backstory','Gender','Race','Skills','Emote Moods Override','Lock This NPC','Oghma Tags','Favorite NPC','Auto Diary','Auto Diary Wait','Visit','Teleport']
+profile_labels=['Voice Filter','Voice ID','Core Profile','Profile LLMs','Prompt Head Override','Backstory','Gender','Race','Skills','Emote Moods Override','Lock This NPC','Oghma Tags','Favorite NPC','Auto Diary','Auto Diary Wait','Visit','Teleport']
 missing_profile_labels=[label for label in profile_labels if label not in profile_text]
 assert not missing_profile_labels,missing_profile_labels
+assert 'Dynamic Profile Fields' not in profile_text and 'name="dynamic_profile_fields[]"' not in profile_text
+assert 'name="dynamic_profile_present"' in profile_text
 assert not any('name="'+field+'"' in profile_text for field in ['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','llm_randomizer_enabled','llm_fallback_enabled','tts_configuration_id'])
 characters,_=parse(request('/LorkhanServer/ui/core/character_manager.php'))
 auto_lock=next(f for f in characters.forms if f['action'].endswith('/forms/profile-auto-lock'))
@@ -987,15 +989,19 @@ profile_name='HTTP managed profile '+uuid.uuid4().hex
 valid=dict(form['fields'],_csrf=csrf,name=profile_name,record_id='http_managed_'+uuid.uuid4().hex,content_file='Morrowind.esm',refnum_index='62010',refnum_content_file='0',voice_id=batch_voice,voice_language='en',gender='Female',race='Dunmer',prompt_head='Stay grounded in TES3 lore.',core='A cautious Balmora guide.',biography='Created through the labelled management form.',personality='Preserved personality field.',skills='Local geography and alchemy.',emote_moods='calm, wary',setting_behavior_rechat='1',setting_behavior_rechat_max_depth='4',setting_behavior_auto_greeting='1',setting_behavior_boredom='1',setting_behavior_combat_barks='1',setting_behavior_rechat_delay_seconds='999',setting_presentation_show_status_hud='0')
 valid['installation_id']=auto_lock['fields']['installation_id']
 valid['favorite']='1'
+valid['tts_filter_preset']='warm'
 r=request(form['action'],'POST',valid); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl(),body); assert 'NPC profile change saved.' in body
 profile_match=re.search(re.escape(profile_name)+r'.*?name="profile_id" value="([0-9a-f-]{36})"',body,re.S); assert profile_match,profile_name
 profile_id=profile_match.group(1)
 profile_export=json.loads(request('/LorkhanServer/manage/exports/profiles/'+profile_id+'.json').read().decode())
 assert 'settings_overrides' not in profile_export['content'] and 'routing' not in profile_export['content'],profile_export['content']
+assert profile_export['content']['tts_filter_preset']=='warm'
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'delete','voice_name':batch_voice}); body=r.read().decode()
 assert r.status==200 and 'voice_sample_in_use' in body and 'Profile: '+profile_name in body and batch_voice in body,(r.status,r.geturl(),body)
-managed_for_clone,_=parse(request('/LorkhanServer/ui/core/character_manager.php'))
-clone_form=next(f for f in managed_for_clone.forms if f['action'].endswith('/forms/profile-clone') and f['fields'].get('profile_id')==profile_id)
+managed_for_clone,clone_html=parse(request('/LorkhanServer/ui/core/character_manager.php'))
+assert 'Clone profile' not in clone_html and 'Manage portrait' not in clone_html
+# The editor no longer exposes cloning; retain coverage of the supported backend operation.
+clone_form={'action':'/LorkhanServer/manage/forms/profile-clone','fields':{'profile_id':profile_id}}
 clone_name=profile_name+' clone'
 r=request(clone_form['action'],'POST',dict(clone_form['fields'],_csrf=csrf,name=clone_name)); body=r.read().decode()
 assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved') and clone_name in body,(r.status,r.geturl(),body)
@@ -1178,7 +1184,7 @@ assert filtered.status==200 and profile_name in filtered_body and 'name="state" 
 r=request('/LorkhanServer/manage/forms/profile-generate','POST',{'_csrf':csrf,'profile_id':profile_id}); body=r.read().decode(); assert r.status==422 and 'profile_locked' in body,(r.status,r.geturl(),body)
 portrait_png=bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360f8cff00000040101000db24bc40000000049454e44ae426082')
 r=multipart_request('/LorkhanServer/ui/core/profile_portrait.php',{'_csrf':csrf,'profile_id':profile_id,'action':'upload'},'portrait','portrait.png','image/png',portrait_png)
-body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved') and 'Delete portrait' in body,(r.status,r.geturl(),body)
+body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved') and 'Delete portrait' not in body,(r.status,r.geturl(),body)
 portrait_response=request('/LorkhanServer/ui/core/profile_portrait.php?profile_id='+profile_id); portrait_body=portrait_response.read()
 assert portrait_response.status==200 and portrait_response.headers.get_content_type()=='image/png' and portrait_body==portrait_png,(portrait_response.status,portrait_response.headers.get_content_type(),portrait_response.headers.get('X-LORKHAN-Portrait-Status'),len(portrait_body),portrait_body[:24].hex())
 export_response=request('/LorkhanServer/manage/exports/profiles/'+profile_id+'.json'); exported=json.loads(export_response.read().decode())

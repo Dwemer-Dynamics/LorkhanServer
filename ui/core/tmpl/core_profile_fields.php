@@ -82,7 +82,7 @@ foreach (['mid_term_enabled'=>'Middle Term Memory','short_term_enabled'=>'Short 
 <div class="profile-feature-grid"><div class="provider-card">
     <div class="provider-head"><div class="provider-title"><div class="provider-icon">&#x1F6E0;&#xFE0F;</div><div>Dynamic Profile Fields</div></div></div>
     <div class="provider-body"><div class="setting-row">
-        <div><div class="setting-key" id="dynamic-profile-fields-label"><span class="setting-icon">&#x1F6E0;&#xFE0F;</span> Editable Fields</div><div class="setting-desc">Choose which fields automatic updates may rewrite for newly discovered NPCs. Existing NPC choices are unchanged.</div></div>
+        <div><div class="setting-key" id="dynamic-profile-fields-label"><span class="setting-icon">&#x1F6E0;&#xFE0F;</span> Editable Fields</div><div class="setting-desc">Choose which fields automatic updates may rewrite for NPCs using this profile.</div></div>
         <div class="setting-control setting-control-wide"><div class="profile-setting-chips" role="group" aria-labelledby="dynamic-profile-fields-label">
             <?php foreach(EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS as $field): ?>
             <label class="profile-setting-chip"><input type="checkbox" name="profile_evolution_fields[]" value="<?php echo lorkhan_ui_h($field); ?>"<?php echo in_array($field,$evolution['fields'],true)?' checked':''; ?>><span><?php echo lorkhan_ui_h($field==='speech_style'?'speechstyle':$field); ?></span></label>

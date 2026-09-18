@@ -1,0 +1,22 @@
+/* CHIM NPC voice-filter controls; LORKHAN accent. */
+    .form-item .hint.npc-voice-filter-desc { color:#cfd9ea; }
+    .form-item .hint.npc-voice-filter-desc:empty { display:none; }
+    .npc-voice-filter-row { display:flex; align-items:center; gap:8px; }
+    .npc-voice-filter-row select { flex:1 1 auto; min-width:0; }
+    .npc-voice-filter-play { flex:0 0 auto; align-self:stretch; display:inline-flex; align-items:center; justify-content:center; width:34px; min-height:34px; padding:0; border:1px solid #4a4a4a; border-radius:6px; background:#242424; color:#cfd9ea; cursor:pointer; }
+    .npc-voice-filter-play:hover:not(:disabled) { border-color:rgb(188,157,90); color:rgb(188,157,90); }
+    .npc-voice-filter-play:focus-visible { outline:2px solid rgb(188,157,90); outline-offset:2px; border-color:rgb(188,157,90); }
+    .npc-voice-filter-play:disabled { opacity:.65; cursor:default; }
+    .npc-voice-filter-play svg { display:block; fill:currentColor; }
+    .npc-voice-filter-spinner { display:none; width:13px; height:13px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; animation:npcVoiceFilterSpin .7s linear infinite; }
+    .npc-voice-filter-play.is-loading svg { display:none; }
+    .npc-voice-filter-play.is-loading .npc-voice-filter-spinner { display:block; }
+    @keyframes npcVoiceFilterSpin { to { transform:rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .npc-voice-filter-spinner { animation-duration:2.4s; } }
+    .form-item .hint.npc-voice-filter-status { color:#cfd9ea; }
+    .form-item .hint.npc-voice-filter-status.is-error { color:#ff9c6e; }
+    /* The preview player only takes up layout space once a sample has been generated. */
+    .npc-voice-filter-audio { display:none; width:100%; max-width:320px; height:34px; margin-top:8px; }
+    .npc-voice-filter-audio.is-ready { display:block; }
+    .npc-voice-filter-audio:focus-visible { outline:2px solid rgb(188,157,90); outline-offset:2px; }
+    @media (max-width: 480px) { .npc-voice-filter-audio { max-width:none; } }

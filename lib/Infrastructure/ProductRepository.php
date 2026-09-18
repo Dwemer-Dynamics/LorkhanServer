@@ -970,15 +970,17 @@ final class ProductRepository
             $content=$this->json($row['content']);$management=is_array($content['management']??null)?$content['management']:[];
             if(($management['locked']??false)===true)return['queued'=>false,'reason'=>'profile_locked','observed'=>0];
             if(($content['dynamic_profile']??false)!==true)return['queued'=>false,'reason'=>'disabled','observed'=>0];
-            $fields=is_array($content['dynamic_profile_fields']??null)?array_values($content['dynamic_profile_fields']):[];
-            $fields=array_values(array_unique(array_filter($fields,static fn(mixed$field):bool=>is_string($field)
-                &&in_array($field,EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS,true))));
-            if($fields===[])$fields=['personality','speech_style','goals'];
             $identity=$this->json($row['actor_identity']);$narrator=($identity['kind']??null)==='narrator';
             if(!$narrator&&in_array($identity['kind']??'actor',['player','template'],true))
                 return['queued'=>false,'reason'=>'profile_not_generatable','observed'=>0];
             $mode=$narrator?'narrator_profile_evolution':'profile_evolution';
             $effective=$this->effectiveSettingsForProfile((string)$row['installation_id'],$profileId);
+            // NPC field selection belongs to its assigned Profile; Narrator keeps its own selection.
+            $fields=$narrator?($content['dynamic_profile_fields']??[]):EffectiveSettingsResolver::profileEvolutionDefaults($effective['core_profile']['content']['settings_overrides']['profile_evolution']??null)['fields'];
+            $fields=is_array($fields)?array_values($fields):[];
+            $fields=array_values(array_unique(array_filter($fields,static fn(mixed$field):bool=>is_string($field)
+                &&in_array($field,EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS,true))));
+            if($fields===[])$fields=['personality','speech_style','goals'];
             $scheduler=new ProfileEvolutionScheduler($this->db);
             $schedule=$scheduler->prepare((string)$row['installation_id'],$profileId,$playthroughId,$identity,$effective['settings']['profile_evolution']??[],$manual);
             if(!$schedule['due'])return ['queued'=>false,'reason'=>$schedule['reason'],'observed'=>$schedule['observed']];

@@ -2853,6 +2853,7 @@ final class ManagementRouter
         if(isset($content['oghma_knowledge_tags']))$content['oghma_knowledge_tags']=$this->npcKnowledgeTags($content['oghma_knowledge_tags']);
         if(array_key_exists('management_fields',$values))$content['management']=[
             'locked'=>isset($values['locked']),'favorite'=>isset($values['favorite'])];
+        if(array_key_exists('dynamic_profile_present',$values))$content['dynamic_profile']=isset($values['dynamic_profile']);
         if(array_key_exists('dynamic_profile_fields_present',$values)){
             $requested=$values['dynamic_profile_fields']??[];if(!is_array($requested))throw new InvalidArgumentException('invalid_dynamic_profile_fields');
             foreach(EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS as$field)if(isset($values['dynamic_profile_'.$field]))$requested[]=$field;
@@ -3259,9 +3260,26 @@ final class ManagementRouter
         $installation=(string)$profile['installation_id'];
         $filter=\LorkhanServer\Application\TtsFilterPresets::validate($values['tts_filter_preset']??$profile['content']['tts_filter_preset']??'none');
         $effective=$this->repository->effectiveSettingsForProfile($installation,$id);
+        if(array_key_exists('core_profile_id',$values)){
+            $coreId=$values['core_profile_id'];
+            if(!is_string($coreId))throw new InvalidArgumentException('invalid_tts_preview_connector');
+            if($coreId!=='')$this->uuid($coreId,'core_profile_id');
+            $core=$coreId!==''?$this->repository->getRevisioned('core_profile',$coreId):$this->repository->defaultCoreProfileForInstallation($installation);
+            if($core!==null&&($core['installation_id']??null)!==$installation)throw new InvalidArgumentException('invalid_tts_preview_connector');
+            $effective=(new EffectiveSettingsResolver())->resolve($effective['global_settings']['content']??[],$core['content']??[],$profile['content']);
+        }
         $configuration=(string)($effective['routing']['tts_configuration_id']??'');
         $preset=$configuration!==''?$this->repository->getRevisioned('tts_provider',$configuration):$this->repository->connectorForInstallation($installation,'tts_provider');
         if($preset===null||($preset['installation_id']??null)!==$installation)throw new InvalidArgumentException('invalid_tts_preview_connector');
+        // Preview unsaved Voice ID edits without changing the stored profile.
+        if(array_key_exists('voice_id',$values)){
+            if(!is_string($values['voice_id'])||strlen($values['voice_id'])>512||preg_match('/[\x00-\x1F\x7F]/',$values['voice_id']))
+                throw new InvalidArgumentException('invalid_tts_preview_voice');
+            $voice=$profile['content']['voice']??[];
+            if(!is_array($voice))$voice=[];
+            $voice['id']=trim($values['voice_id']);unset($voice['source']);
+            $profile['content']['voice']=$voice;
+        }
         $context=$this->repository->speechContextFromProfile($profile,(array)$profile['actor_identity'],$preset);
         $context['tts_filter_preset']=$filter;
         try {
