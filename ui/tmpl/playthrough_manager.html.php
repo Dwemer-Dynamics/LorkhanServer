@@ -43,6 +43,7 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
         </div><p class="scope-note">Overview counts cover the whole playthrough. Profile snapshots contain only the owning profile's memories, relationships and narratives.</p>
         <?php else: ?><p class="playthrough-empty">No playthroughs exist for this installation yet.</p><?php endif; ?>
     </section>
+    <?php include __DIR__.'/playthrough_database_snapshots.php'; ?>
     <div class="content-grid">
         <section class="content-section" aria-labelledby="new-playthrough-title">
             <h2 id="new-playthrough-title">New Playthrough</h2>
@@ -123,10 +124,10 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
     </details>
     <section class="content-section" aria-labelledby="dragon-break-title">
         <h2 id="dragon-break-title">Dragon Break protection</h2>
-        <p class="section-note">Create a full database recovery snapshot before loading a save this many game days behind the last recorded state. This does not delete later gameplay history or automatically restore a backup.</p>
+        <p class="section-note">Always save gameplay before rolling back this many in-game days. Shared settings stay unchanged. If the recovery save fails, rollback is skipped and the game connection continues.</p>
         <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthrough-backup-settings" data-backup-settings>
             <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="installation_id" value="<?= lorkhan_ui_h($installationId) ?>"><input type="hidden" name="expected_revision" value="<?= (int)($backupSettings['current_revision']??0) ?>">
-            <label for="dragon-break-days">Rollback threshold (game days)</label><input type="number" id="dragon-break-days" name="dragon_break_days" min="1" max="365" required value="<?= (int)$dragonBreakDays ?>">
+            <label for="dragon-break-days">Rollback threshold (game days)</label><input type="number" id="dragon-break-days" name="dragon_break_days" min="1" max="3650" required value="<?= (int)$dragonBreakDays ?>">
             <button type="submit"<?= $installationId===''?' disabled':'' ?>>Save Threshold</button><p role="status"></p>
         </form>
     </section>
@@ -153,14 +154,10 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
         </form><?php else: ?><p class="playthrough-empty">Connect a saved character before importing its records.</p><?php endif; ?>
     </details>
     </details>
-    <details class="content-section playthrough-tools"><summary>Full database backups and recovery</summary>
-        <p class="section-note">These snapshots contain the whole database, including every character. Restoring one replaces server data and is not a way to switch characters. Game saves and external files are separate.</p>
-        <?php include __DIR__.'/playthrough_database_snapshots.php'; ?>
-    </details>
     <section class="content-section storage-cleanup" id="storage-cleanup" aria-labelledby="storage-cleanup-title">
         <h2 id="storage-cleanup-title">Storage and Cleanup</h2>
         <p class="section-note">Automatic cleanup from this control is off. Existing automatic-backup limits are separate. Review backup files before deleting them. The categories below explain what this control can remove and what stays protected.</p>
-        <details class="ps-cleanup-row" open><summary><strong>Playthrough Saves</strong><span>Manual cleanup</span></summary>
+        <details class="ps-cleanup-row" open><summary><strong>Full Database Backup Files</strong><span>Manual cleanup</span></summary>
         <h3>Backup-file retention</h3>
         <p class="section-note">Automatic cleanup from this control is off. Preview up to 100 old backups, then confirm deletion of each SQL file and its companion dump. This affects full-database backup files for all characters, never live gameplay records. Active, default and pending-restore backups are protected.</p>
         <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/backup-file-retention" data-backup-retention>

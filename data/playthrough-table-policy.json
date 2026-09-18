@@ -112,6 +112,7 @@
     "lorkhan_internal.character_playthrough_bindings",
     "lorkhan_internal.database_backup_settings",
     "lorkhan_internal.database_snapshot_source",
+    "lorkhan_internal.playthrough_saves",
     "lorkhan_internal.debug_commands",
     "lorkhan_internal.director_instructions",
     "lorkhan_internal.director_plans",

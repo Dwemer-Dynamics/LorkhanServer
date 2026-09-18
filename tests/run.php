@@ -1399,10 +1399,10 @@ $backupGlobal=SettingsCatalog::globalDefaults();
 $check($backupGlobal['backup']['dragon_break_days']===3,'Dragon Break default remains three days');
 unset($backupGlobal['backup']);
 $check(EffectiveSettingsResolver::validateGlobalSettings($backupGlobal)['backup']['dragon_break_days']===3,'Legacy settings gain default backup threshold');
-foreach([1,365,0,366,'3'] as $days){
+foreach([1,365,3650,0,3651,'3'] as $days){
     $backupGlobal=SettingsCatalog::globalDefaults();$backupGlobal['backup']['dragon_break_days']=$days;$accepted=true;
     try{EffectiveSettingsResolver::validateGlobalSettings($backupGlobal);}catch(InvalidArgumentException){$accepted=false;}
-    $check($accepted===(is_int($days)&&$days>=1&&$days<=365),'Dragon Break threshold is a bounded integer');
+    $check($accepted===(is_int($days)&&$days>=1&&$days<=3650),'Dragon Break threshold is a bounded integer');
 }
 $ambientGlobal=SettingsCatalog::globalDefaults();
 foreach ([false,true] as $hideAmbient) {

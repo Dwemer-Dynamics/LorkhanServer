@@ -5147,7 +5147,7 @@ $dragonRoot=sys_get_temp_dir().'/lorkhan-dragon-'.bin2hex(random_bytes(8));
 $dragonConfig=['database_dsn'=>$dsn,'database_user'=>getenv('LORKHAN_TEST_DB_USER')?:'',
     'database_password'=>getenv('LORKHAN_TEST_DB_PASSWORD')?:'','backup_storage_path'=>$dragonRoot];
 $dragonCapture=new \LorkhanServer\Infrastructure\DragonBreakSnapshot($dragonConfig);
-$dragonCount=static fn():int=>(int)$db->query("SELECT count(*) FROM backup_records WHERE jsonb_exists(scope,'dragon_break')")->fetchColumn();
+$dragonCount=static fn():int=>(int)$db->query("SELECT count(*) FROM playthrough_saves WHERE kind='dragon_break'")->fetchColumn();
 $dragonBefore=$dragonCount();
 try {
     $under=$dragonMessage;$under['loaded_save']['day']=17;$dragonCapture->capture($under);
@@ -5166,19 +5166,12 @@ try {
     $assert($dragonCount()===$dragonBefore+1,'three-day rollback did not capture a real database snapshot');
     $dragonCapture->capture($dragonMessage);
     $assert($dragonCount()===$dragonBefore+1,'repeated loaded-save snapshot was not deduplicated');
-    $dragonRecord=$db->query("SELECT backup_id,scope FROM backup_records WHERE jsonb_exists(scope,'dragon_break') ORDER BY created_at DESC LIMIT 1")->fetch();
-    $dragonScope=json_decode($dragonRecord['scope'],true,64,JSON_THROW_ON_ERROR);
-    $dragonPath=(new \LorkhanServer\Infrastructure\DatabaseSqlBackup($dragonConfig))->path($dragonRecord['backup_id']);
-    $assert(is_file($dragonPath.'.dump')&&filesize($dragonPath)>0
-        &&str_starts_with($dragonScope['snapshot']['name'],'Dragon Break ('),'automatic snapshot archive or stored presentation missing');
-    $dragonSql=(string)file_get_contents($dragonPath);
-    $assert(preg_match('/COPY lorkhan_internal\.sessions \(([^)]+)\) FROM stdin;\n(.*?)\n\\\\\./s',$dragonSql,$sessionCopy)===1,
-        'snapshot lacks the native session COPY data');
-    $sessionColumns=explode(', ',$sessionCopy[1]);$capturedOldState=null;
-    foreach(explode("\n",$sessionCopy[2]) as $line){
-        $values=explode("\t",$line);
-        if(($values[array_search('session_id',$sessionColumns,true)]??null)===$dragonCurrent)
-            $capturedOldState=$values[array_search('state',$sessionColumns,true)]??null;
+    $dragonRecord=$db->query("SELECT save_id,name,document FROM playthrough_saves WHERE kind='dragon_break' ORDER BY created_at DESC LIMIT 1")->fetch();
+    $document=json_decode($dragonRecord['document'],true,64,JSON_THROW_ON_ERROR);
+    $assert($document['format']==='lorkhan.playthrough-save' && str_starts_with($dragonRecord['name'],'Dragon Break ('),'gameplay save missing');
+    $capturedOldState=null;
+    foreach($document['tables']['lorkhan_internal.sessions'] as $savedSession) {
+        if ($savedSession['session_id']===$dragonCurrent) $capturedOldState=$savedSession['state'];
     }
     $assert($capturedOldState==='active','archive captured the old session after replacement');
     $busyConnection=Connection::open($dragonConfig,false);
@@ -5695,6 +5688,18 @@ $assert($archiveSideEffects()===$beforeReceipts,'archival receipt created source
 
 // Web lifecycle edits never activate a world; an approved character link applies at the next admission.
 $characters=new \LorkhanServer\Infrastructure\CharacterPlaythroughRepository($db);
+$localSaves=new \LorkhanServer\Infrastructure\PlaythroughSaveRepository($db);
+$sharedHash=static fn()=>$db->query("SELECT md5(string_agg(to_jsonb(c)::text,'' ORDER BY configuration_id)) FROM configuration_sets c")->fetchColumn();
+$beforeShared=$sharedHash();
+$localSaveId=$localSaves->capture($characterSession['installation_id'],$characterSession['playthrough_id'],'Gameplay-only regression');
+$localCopy=$localSaves->restore($characterSession['installation_id'],$characterSession['playthrough_id'],$localSaveId);
+$assert($sharedHash()===$beforeShared&&$localCopy['active']===false,'local gameplay restore changed shared settings or activated its copy');
+$coreAssignments=$db->prepare('SELECT core_profile_id,count(*) FROM profiles WHERE playthrough_id=:world GROUP BY core_profile_id ORDER BY core_profile_id');
+$coreAssignments->execute(['world'=>$characterSession['playthrough_id']]);$originalAssignments=$coreAssignments->fetchAll();
+$coreAssignments->execute(['world'=>$localCopy['playthrough_id']]);
+$assert($coreAssignments->fetchAll()===$originalAssignments,'local gameplay restore changed Core Profile assignments');
+$characters->cancelAssociation($characterSession['installation_id'],$localCopy['association']['association_id']);
+$localSaves->delete($characterSession['installation_id'],$localSaveId);
 $managed=$characters->createEmpty($characterSession['installation_id'],'Managed empty world');
 $renamed=$characters->renamePlaythrough($characterSession['installation_id'],$managed['playthrough_id'],'Renamed inactive world',1);
 $assert($renamed['current_revision']===2,'rename did not record a revision');

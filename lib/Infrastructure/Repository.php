@@ -147,7 +147,7 @@ final class Repository
             $previous = $latest->fetchColumn();
             if ($previous !== null && $message['generation'] <= (int) $previous) throw new \UnexpectedValueException('stale_generation');
             // The installation fence and generation checks precede backup capture; no prior session work has been cancelled yet.
-            if($beforeReplace!==null)$beforeReplace($message);
+            $rollbackSafe=$beforeReplace===null || $beforeReplace($message)!==false;
             $characters->bind($message,$characterId);
             $active=$this->db->prepare("SELECT session_id FROM sessions WHERE installation_id=:id AND state='active' FOR UPDATE");
             $active->execute(['id'=>$message['installation_id']]);$activeSessions=$active->fetchAll(PDO::FETCH_COLUMN);
@@ -174,7 +174,8 @@ final class Repository
                 'created' => $message['created_at'],'character'=>$characterId]);
             $this->source($message['message_id'], $message['installation_id'], $sessionId, $message['generation'], 'session.init',
                 $message['created_at'], $message['schema'], null, null, null, $sourceMessage);
-            if (array_key_exists('loaded_save',$message)) (new LoadedSaveTimeline($this->db))->invalidate($message);
+            // CHIM skips destructive rollback when recovery capture fails, but keeps the session usable.
+            if ($rollbackSafe && array_key_exists('loaded_save',$message)) (new LoadedSaveTimeline($this->db))->invalidate($message);
             return ['session_id' => $sessionId, 'generation' => $message['generation'], 'capabilities' => $capabilities]
                 +($characterId===null?[]:['character_id'=>$characterId,'profile_id'=>$message['profile_id'],'playthrough_id'=>$message['playthrough_id']]);
         });

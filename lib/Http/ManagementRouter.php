@@ -534,7 +534,7 @@ final class ManagementRouter
         }
         if($domain==='playthrough-backup-settings'){
             $installation=$this->need($scope,'installation_id');$days=filter_var($v['dragon_break_days']??null,FILTER_VALIDATE_INT);
-            if($days===false||$days<1||$days>365)throw new InvalidArgumentException('invalid_dragon_break_days');
+            if($days===false||$days<1||$days>3650)throw new InvalidArgumentException('invalid_dragon_break_days');
             $existing=$this->repository->globalSettingsForInstallation($installation);
             $revision=filter_var($v['expected_revision']??null,FILTER_VALIDATE_INT);
             if($revision===false||$revision!==(int)($existing['current_revision']??0))throw new RuntimeException('revision_conflict');
@@ -564,18 +564,29 @@ final class ManagementRouter
         }
         if($domain==='playthrough-snapshot'){
             $operation=$this->need($v,'operation');
+            $installation=$this->need($v,'installation_id');$this->uuid($installation,'installation_id');
+            $saves=$this->management->playthroughSaves();
             try{
                 if($operation==='create'){
-                    $this->management->queueDatabaseBackup(false,['name'=>$this->need($v,'name'),'notes'=>$v['notes']??'']);$status='snapshot-save-queued';
+                    $world=$this->need($v,'playthrough_id');$this->uuid($world,'playthrough_id');
+                    $saves->capture($installation,$world,$this->need($v,'name'),$v['notes']??'');$status='snapshot-saved';
                 }elseif(in_array($operation,['copy','delete'],true)){
                     if(($v['confirm']??'')!==($operation==='copy'?'Copy':'Delete'))throw new InvalidArgumentException('confirmation_mismatch');
-                    $id=$this->need($v,'backup_id');$this->uuid($id,'backup_id');$record=$this->repository->configurationBackupRecord($id);
-                    if(!isset($record['scope']['snapshot']))throw new RuntimeException('not_found');
-                    if($operation==='copy'){$this->management->queueDatabaseRestore($id);$status='snapshot-copy-queued';}
-                    else{$this->management->deleteStoredDatabaseBackup($id,$this->providerConfig,'snapshot');$status='snapshot-deleted';}
+                    $id=$this->need($v,'backup_id');$this->uuid($id,'backup_id');
+                    if($operation==='copy'){
+                        $world=$this->need($v,'playthrough_id');$this->uuid($world,'playthrough_id');
+                        $saves->restore($installation,$world,$id);$status='snapshot-copy-queued';
+                    }else{$saves->delete($installation,$id);$status='snapshot-deleted';}
                 }else throw new InvalidArgumentException('invalid_snapshot_operation');
-            }catch(RuntimeException $error){$status=match($error->getMessage()){'maintenance_busy'=>'snapshot-busy','snapshot_name_exists'=>'snapshot-name-exists','backup_restore_pending'=>'snapshot-protected','default_snapshot_protected'=>'snapshot-default-protected','active_snapshot_protected'=>'snapshot-active-protected','backup_delete_failed'=>'snapshot-delete-failed',default=>throw $error};}
-            return $this->redirect($this->webRoot().'/ui/playthrough_manager.php?'.http_build_query(['status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
+            }catch(RuntimeException $error){$status=match($error->getMessage()){
+                'maintenance_busy'=>'snapshot-busy',
+                'association_conflict'=>'snapshot-switch-pending',
+                'character_binding_conflict'=>'snapshot-character-required',
+                'snapshot_protected_or_missing','not_found'=>'snapshot-protected',
+                'archive_schema_mismatch','archive_shared_dependency_missing'=>'snapshot-incompatible',
+                'archive_too_large','archive_timeout'=>'snapshot-limit',
+                default=>throw $error};}
+            return $this->redirect($this->webRoot().'/ui/playthrough_manager.php?'.http_build_query(['installation_id'=>$installation,'playthrough_id'=>$v['playthrough_id']??'','status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
         }
         if($domain==='database-backup-delete'){
             if(($v['confirm']??'')!=='Delete')throw new InvalidArgumentException('confirmation_mismatch');

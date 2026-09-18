@@ -2,25 +2,6 @@
 declare(strict_types=1);
 $pageTitle='Playthrough Manager';$topNavSection='control';$BODY_CLASS='hub-page playthrough-shell';
 require __DIR__.'/ui_bootstrap.php';
-$managementRepository->ensureInitialPlaythroughSnapshot();
-$snapshotSaveJob=$managementRepository->snapshotSaveStatus();
-$snapshotRestoreJob=$managementRepository->databaseMaintenanceStatus('database.restore');
-$snapshotSource=$database->query('SELECT s.backup_id,s.name,s.copied_at,EXISTS(SELECT 1 FROM backup_records b WHERE b.backup_id=s.backup_id) AS stored FROM lorkhan_internal.database_snapshot_source s WHERE singleton')->fetch(PDO::FETCH_ASSOC);
-$snapshotPage=max(1,min(100000,(int)($_GET['snapshot_page']??1)));
-$storedSnapshots=$database->query("SELECT backup_id,byte_count,created_at,scope#>>'{snapshot,name}' AS name,scope#>>'{snapshot,notes}' AS notes,scope->'game_metadata' AS game_metadata,scope->>'rollback_for' AS rollback_for,jsonb_exists(scope,'dragon_break') AS dragon_break FROM backup_records WHERE scope->>'kind'='database_sql' AND jsonb_exists(scope,'snapshot') ORDER BY COALESCE((scope#>>'{game_metadata,calendar,minute}')::bigint,0) DESC,created_at DESC,backup_id DESC LIMIT 26 OFFSET ".(($snapshotPage-1)*25))->fetchAll(PDO::FETCH_ASSOC);
-$snapshotsHasNext=count($storedSnapshots)>25;$storedSnapshots=array_slice($storedSnapshots,0,25);
-$snapshotPageUrl=static fn(int $number):string=>'?'.http_build_query(['snapshot_page'=>$number,'embed'=>$embedded?'1':'0']);
-$liveDatabase=$uiRepository->dashboard();
-$snapshotCounts=$database->query('SELECT (SELECT count(*) FROM public.eventlog) AS events,(SELECT count(*) FROM public.oghma) AS knowledge')->fetch(PDO::FETCH_ASSOC);
-$snapshotLiveCalendar=\LorkhanServer\Application\MorrowindCalendar::parse($liveDatabase['current']['calendar_data']??null);
-$snapshotTimeline=[];
-$timelineRows=$database->query("SELECT backup_id,byte_count,created_at,scope#>>'{snapshot,name}' AS name,scope#>'{game_metadata,calendar}' AS calendar FROM backup_records WHERE scope->>'kind'='database_sql' AND jsonb_exists(scope,'snapshot') ORDER BY created_at,backup_id");
-while($point=$timelineRows->fetch(PDO::FETCH_ASSOC)){
-    $calendar=\LorkhanServer\Application\MorrowindCalendar::parse($point['calendar']);
-    if($calendar===null)continue;
-    $snapshotTimeline[]=['name'=>$point['name'],'minute'=>$calendar['minute'],'date'=>$calendar['label'],'created'=>$point['created_at'],'bytes'=>(int)$point['byte_count'],'active'=>false];
-}
-if($snapshotLiveCalendar!==null)$snapshotTimeline[]=['name'=>'Active Database','minute'=>$snapshotLiveCalendar['minute'],'date'=>$snapshotLiveCalendar['label'],'created'=>'Live recorded state','bytes'=>null,'active'=>true];
 $installations=$uiRepository->rows('installations');
 $installationIds=array_column($installations,'installation_id');
 $installationId=(string)($_GET['installation_id']??($installationIds[0]??''));
@@ -42,6 +23,29 @@ $selected??=$rows[0]??null;
 $profiles=array_values(array_filter(array_merge($uiRepository->rows('characters'),$uiRepository->rows('player')),static fn(array$row):bool=>$row['installation_id']===$installationId));
 $playthroughUrl=static fn(string$id):string=>'?'.http_build_query(['installation_id'=>$installationId,'playthrough_id'=>$id,'page'=>$page,'embed'=>$embedded?'1':'0']);
 $pageUrl=static fn(int$number):string=>'?'.http_build_query(['installation_id'=>$installationId,'playthrough_id'=>$selected['playthrough_id']??'','page'=>$number,'embed'=>$embedded?'1':'0']);
+$liveDatabase=$uiRepository->dashboard();
+$snapshotLiveCalendar=\LorkhanServer\Application\MorrowindCalendar::parse($liveDatabase['current']['calendar_data']??null);
+$snapshotTimeline=[];
+$snapshotPage=max(1,min(100000,(int)($_GET['snapshot_page']??1)));
+if ($selected) {
+    try {
+        $managementRepository->playthroughSaves()->capture($installationId,$selected['playthrough_id'],'default',
+            'Initial gameplay save.','default','default:'.$selected['playthrough_id']);
+    } catch (Throwable) { $initialSaveError=true; }
+}
+$snapshotQuery=$database->prepare("SELECT save_id AS backup_id,name,notes,created_at,octet_length(document) AS byte_count,metadata AS game_metadata,kind='dragon_break' AS dragon_break,kind='before_copy' AS rollback_for,kind FROM playthrough_saves WHERE installation_id=:installation ORDER BY created_at DESC,save_id DESC LIMIT 26 OFFSET ".(($snapshotPage-1)*25));
+$storedSnapshots=[];
+if ($installationId!=='') {
+    $snapshotQuery->execute(['installation'=>$installationId]);
+    $storedSnapshots=$snapshotQuery->fetchAll(PDO::FETCH_ASSOC);
+}
+$snapshotsHasNext=count($storedSnapshots)>25;$storedSnapshots=array_slice($storedSnapshots,0,25);
+foreach ($storedSnapshots as $point) {
+    $metadata=json_decode($point['game_metadata'],true);
+    $calendar=\LorkhanServer\Application\MorrowindCalendar::parse($metadata['calendar']??null);
+    if ($calendar!==null) $snapshotTimeline[]=['name'=>$point['name'],'minute'=>$calendar['minute'],'date'=>$calendar['label'],'created'=>$point['created_at'],'bytes'=>(int)$point['byte_count'],'active'=>false];
+}
+$snapshotPageUrl=static fn(int $number):string=>'?'.http_build_query(['installation_id'=>$installationId,'playthrough_id'=>$playthroughId,'snapshot_page'=>$number,'embed'=>$embedded?'1':'0']);
 $additionalStylesheets=['herika-playthroughs.css?v='.(string)filemtime(__DIR__.'/css/herika-playthroughs.css')];
 include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';
 include __DIR__.'/tmpl/playthrough_manager.html.php';

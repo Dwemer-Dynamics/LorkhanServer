@@ -28,7 +28,7 @@ final class PlaythroughArchive
     private int $collectedBytes=0;
     private int $deadline=0;
 
-    public function __construct(private readonly PDO $db) {}
+    public function __construct(private readonly PDO $db, private readonly bool $localSave = false) {}
 
     public static function tableNames():array
     {
@@ -40,10 +40,11 @@ final class PlaythroughArchive
     {
         $this->deadline=hrtime(true)+120_000_000_000;
         if(!Uuid::isValid($installation)||!Uuid::isValid($playthrough))throw new RuntimeException('invalid_archive_scope');
-        if($this->db->inTransaction())throw new RuntimeException('archive_transaction_active');
-        $this->db->beginTransaction();
+        $owns = !$this->db->inTransaction();
+        if (!$owns && !$this->localSave) throw new RuntimeException('archive_transaction_active');
+        if ($owns) $this->db->beginTransaction();
         try{
-            $this->db->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            if ($owns) $this->db->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
             $this->db->exec("SET LOCAL statement_timeout='30s'; SET LOCAL lock_timeout='3s'");
             $meta=$this->metadata();$tables=array_fill_keys(self::tableNames(),[]);$this->collectedBytes=0;
             foreach($meta as$table=>$definition){
@@ -80,13 +81,13 @@ final class PlaythroughArchive
             $owned=array_column($tables['lorkhan_internal.profiles'],'profile_id');$shared=[];
             foreach($tables as$rows)foreach($rows as$row)if(isset($row['profile_id'])&&!in_array($row['profile_id'],$owned,true))$shared[$row['profile_id']]=true;
             foreach($shared as$id=>$_){$q=$this->db->prepare("SELECT actor_identity->>'kind' FROM profiles WHERE profile_id=:id AND installation_id=:installation");$q->execute(['id'=>$id,'installation'=>$installation]);if($q->fetchColumn()!=='narrator')throw new RuntimeException('archive_unowned_profile');$shared[$id]='narrator';}
-            $document=['format'=>'lorkhan.playthrough-archive','version'=>1,'schema_sha256'=>$this->schemaHash($meta),
+            $document=['format'=>$this->localSave?'lorkhan.playthrough-save':'lorkhan.playthrough-archive','version'=>1,'schema_sha256'=>$this->schemaHash($meta),
                 'source'=>['installation_id'=>$installation,'playthrough_id'=>$playthrough],'created_at'=>gmdate('c'),
                 'limitations'=>$this->limitations(),'shared_profiles'=>$shared,'tables'=>$tables];
             $document['sha256']=hash('sha256',$this->canonical($document));
             if(strlen($this->canonical($document))>self::MAX_BYTES)throw new RuntimeException('archive_too_large');
-            $this->validate($document);$this->db->commit();return$document;
-        }catch(\Throwable$error){if($this->db->inTransaction())$this->db->rollBack();throw$error;}
+            $this->validate($document);if ($owns) $this->db->commit();return$document;
+        }catch(\Throwable$error){if($owns && $this->db->inTransaction())$this->db->rollBack();throw$error;}
     }
 
     public function inspect(string $json):array
@@ -104,8 +105,10 @@ final class PlaythroughArchive
         if(!Uuid::isValid($installation))throw new RuntimeException('invalid_archive_scope');
         $document=$this->decode($json);$this->validate($document);$meta=$this->metadata();
         usort($document['tables']['lorkhan_internal.relationship_audit'],static fn($a,$b)=>$a['audit_sequence']<=>$b['audit_sequence']);
-        if($this->db->inTransaction())throw new RuntimeException('archive_transaction_active');
-        $this->db->beginTransaction();
+        $owns = !$this->db->inTransaction();
+        if (!$owns && !$this->localSave) throw new RuntimeException('archive_transaction_active');
+        if ($this->localSave && $document['source']['installation_id'] !== $installation) throw new RuntimeException('archive_scope_mismatch');
+        if ($owns) $this->db->beginTransaction();
         try{
             $this->db->exec("SET LOCAL lock_timeout='3s'; SET LOCAL statement_timeout='30s'");
             $q=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:id AND revoked_at IS NULL FOR UPDATE');$q->execute(['id'=>$installation]);if(!$q->fetchColumn())throw new RuntimeException('not_found');
@@ -119,6 +122,14 @@ final class PlaythroughArchive
                 $uuid[$id]=str_starts_with($id,'ref:')
                     ?'ref:'.$installation.':'.$uuid[$document['source']['playthrough_id']].':'.explode(':',$id,4)[3]
                     :Uuid::v4();
+            }
+            // Local saves keep references to existing shared settings; they never copy those settings.
+            if ($this->localSave) {
+                foreach (['core_profiles'=>'core_profile_id', 'configuration_sets'=>'configuration_id'] as $table=>$column) {
+                    $q=$this->db->prepare('SELECT '.$column.' FROM '.$table.' WHERE installation_id=:installation');
+                    $q->execute(['installation'=>$installation]);
+                    foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $id) $uuid[$id]=$id;
+                }
             }
             foreach($document['tables']as$table=>$rows)foreach($rows as$row)foreach($meta[$table]['columns']as$column=>$type){
                 $this->checkBudget();
@@ -150,8 +161,17 @@ final class PlaythroughArchive
                 foreach($meta[$table]['foreign']as$fk){
                     foreach($fk['columns']as$i=>$column){$old=$source[$column];if($old!==null&&isset($serial[$fk['table']][$fk['references'][$i]][(string)$old]))$row[$column]=$serial[$fk['table']][$fk['references'][$i]][(string)$old];}
                     if(isset($meta[$fk['table']])||$fk['table']==='lorkhan_internal.installations')continue;
-                    if($fk['table']==='lorkhan_internal.core_profiles'){foreach($fk['columns']as$column)if($column==='core_profile_id')$row[$column]=$core['core_profile_id'];continue;}
+                    if($fk['table']==='lorkhan_internal.core_profiles'){foreach($fk['columns']as$column)if($column==='core_profile_id')$row[$column]=$this->localSave ? $source[$column] : $core['core_profile_id'];continue;}
                     if($fk['table']==='lorkhan_internal.character_playthrough_bindings'){if($table==='lorkhan_internal.sessions')$row['character_id']=null;continue;}
+                    if ($this->localSave && in_array($fk['table'],['lorkhan_internal.configuration_sets','lorkhan_internal.configuration_revisions','lorkhan_internal.core_profile_revisions'],true)) {
+                        if (in_array(null,array_map(static fn($column)=>$source[$column],$fk['columns']),true)) continue;
+                        $conditions=[];$values=[];
+                        foreach ($fk['columns'] as $i=>$column) {$row[$column]=$source[$column];$conditions[]=$fk['references'][$i].'=?';$values[]=$source[$column];}
+                        $check=$this->db->prepare('SELECT 1 FROM '.$fk['table'].' WHERE '.implode(' AND ',$conditions));
+                        $check->execute($values);
+                        if (!$check->fetchColumn()) throw new RuntimeException('archive_shared_dependency_missing');
+                        continue;
+                    }
                     $nullable=array_values(array_filter($fk['columns'],fn($column)=>$meta[$table]['columns'][$column]['nullable']));
                     if($nullable!==[]){foreach($nullable as$column)$row[$column]=null;continue;}
                     // Required shared catalog references must exist at the destination, never be silently manufactured.
@@ -166,7 +186,7 @@ final class PlaythroughArchive
                 if($table==='lorkhan_internal.turns'){$row['state']=in_array($row['state'],['complete','failed','cancelled'],true)?$row['state']:'cancelled';foreach(['processing_job_id','processing_lease_token','processing_job_attempt']as$key)$row[$key]=null;$row['completed_at']??=gmdate('c');}
                 if($table==='lorkhan_internal.action_intents'){$row['state']='terminal';$row['expires_at']=gmdate('c');$row['followup_enabled']=false;$row['followup_actions_allowed']=false;}
                 if($table==='lorkhan_internal.dialogue_utterances'&&$row['delivery_state']==='pending'){$row['delivery_state']='expired';$row['delivery_deadline_at']=gmdate('c');}
-                if($table==='lorkhan_internal.profiles')$row['core_profile_id']=$core['core_profile_id'];
+                if($table==='lorkhan_internal.profiles' && !$this->localSave)$row['core_profile_id']=$core['core_profile_id'];
                 if($table==='lorkhan_internal.profile_revisions'){$row['content']=$this->portableProfile($row['content']);}
                 if($table==='lorkhan_internal.playthroughs')$row['name']=mb_substr($row['name'],0,180).' (copy '.$uuid[$document['source']['playthrough_id']].')';
                 foreach(['derivation_key','projection_key']as$key)if(isset($row[$key]))$row[$key]='archive:'.$uuid[$document['source']['playthrough_id']].':'.hash('sha256',$row[$key]);
@@ -182,10 +202,10 @@ final class PlaythroughArchive
             $this->db->exec('SET CONSTRAINTS ALL IMMEDIATE');
             foreach($disabled as[$table,$trigger])$this->db->exec('ALTER TABLE '.$table.' ENABLE TRIGGER '.$trigger);
             foreach($document['tables']['lorkhan_internal.profiles']as$profile){if((((array)$profile['actor_identity'])['kind']??'')==='player')continue;$q=$this->db->prepare('SELECT lorkhan_internal.sync_profile_projection(CAST(:profile AS text))');$q->execute(['profile'=>$uuid[$profile['profile_id']]]);}
-            $this->db->commit();return['playthrough_id'=>$uuid[$document['source']['playthrough_id']],
+            if ($owns) $this->db->commit();return['playthrough_id'=>$uuid[$document['source']['playthrough_id']],
                 'profile_id'=>$uuid[$document['tables']['lorkhan_internal.playthroughs'][0]['profile_id']],
                 'active'=>false,'row_counts'=>array_map('count',$document['tables']),'limitations'=>$this->limitations()];
-        }catch(\Throwable$error){if($this->db->inTransaction())$this->db->rollBack();throw$error;}
+        }catch(\Throwable$error){if($owns && $this->db->inTransaction())$this->db->rollBack();throw$error;}
     }
 
     private function remapJson(mixed $value,array $ids):mixed
@@ -197,6 +217,7 @@ final class PlaythroughArchive
 
     private function portableProfile(array|object $content):array|object
     {
+        if ($this->localSave) return $content;
         if(is_object($content))return(object)$this->portableProfile((array)$content);
         unset($content['routing'],$content['portrait']);
         foreach($content as$key=>$value){if(preg_match('/(?:api.?key|secret|password|authorization|token|configuration_id)$/i',(string)$key)||in_array($key,['audio','media','media_id','audio_url','audio_path','storage_path','file_path'],true))unset($content[$key]);elseif(is_array($value)||is_object($value))$content[$key]=$this->portableProfile($value);}
@@ -221,7 +242,7 @@ final class PlaythroughArchive
     private function validate(array $document):void
     {
         $keys=array_keys($document);sort($keys);$expected=['created_at','format','limitations','schema_sha256','sha256','shared_profiles','source','tables','version'];sort($expected);
-        if($keys!==$expected||$document['format']!=='lorkhan.playthrough-archive'||$document['version']!==1)throw new RuntimeException('invalid_archive');
+        if($keys!==$expected||$document['format']!==($this->localSave?'lorkhan.playthrough-save':'lorkhan.playthrough-archive')||$document['version']!==1)throw new RuntimeException('invalid_archive');
         $copy=$document;unset($copy['sha256']);
         if(!is_string($document['sha256'])||!hash_equals(hash('sha256',$this->canonical($copy)),$document['sha256']))throw new RuntimeException('archive_checksum_mismatch');
         $meta=$this->metadata();if($document['schema_sha256']!==$this->schemaHash($meta))throw new RuntimeException('archive_schema_mismatch');
@@ -321,6 +342,9 @@ final class PlaythroughArchive
 
     private function limitations():array
     {
+        if ($this->localSave) return ['Gameplay only; shared settings and connectors remain unchanged.',
+            'No game saves, media, active sessions, queued jobs or executable deliveries are restored.',
+            'Local Core Profile assignments and connector references are preserved. Derived summaries and embeddings regenerate.'];
         return ['No game saves, media, credentials, connectors or global settings.','No active sessions, queued jobs, pending delivery or executable actions are restored.',
             'Core and Narrator references use the destination installation; connector routing is not transferred.','Derived summaries, embeddings and runtime scheduling are not imported; normal workflows must regenerate them.'];
     }
