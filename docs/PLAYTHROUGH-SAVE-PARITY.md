@@ -14,7 +14,7 @@ Reference: HerikaServer `origin/unstable` at `5a97fe2f`, inspected 2026-09-18.
 - Copied sessions, actions and speech cannot resume as live work.
 - Dragon Break capture is always attempted at the configured rollback threshold: default 3 game days, range 1–3650 as in CHIM.
 - Capture failure skips timeline rollback without rejecting the new session. Request identity deduplicates retries, without treating later visits to the same dates as the same save.
-- The first manager visit creates one protected default gameplay save per world.
+- Initial setup is an explicit CSRF-protected POST, as in CHIM. Viewing the manager creates no save. Setup creates one protected default only when the installation has no saves; repeated setup preserves the existing collection.
 - Full SQL backups remain separate in Database Manager. Existing SQL snapshots are retained, not silently converted or deleted.
 
 ## Implementation boundaries

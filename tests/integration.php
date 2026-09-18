@@ -241,8 +241,9 @@ $defaultModels=[];$defaultPromptFormat=null;foreach($defaultConfigurations as$co
     if($configuration['name']==='Roleplay Dialogue')$defaultPromptFormat=$content['format']??null;
     if(($content['driver']??null)==='configured')$defaultModels[(string)$configuration['name']]=$content['model']??null;}
 $assert($defaultModels===[
-    'DeepSeek Chat V3.2'=>'deepseek/deepseek-v3.2','GLM 4.7'=>'z-ai/glm-4.7','GLM 5'=>'z-ai/glm-5',
-    'Gemini 2.5 Flash Lite'=>'google/gemini-2.5-flash-lite'],
+    'DeepSeek V4 Flash'=>'deepseek/deepseek-v4-flash','DeepSeek V4 Pro'=>'deepseek/deepseek-v4-pro','GLM 5.2'=>'z-ai/glm-5.2',
+    'Gemini 2.5 Flash Lite'=>'google/gemini-2.5-flash-lite','Gemma 3N E4B'=>'google/gemma-3n-e4b-it',
+    'Mistral Small 3.2 24B'=>'mistralai/mistral-small-3.2-24b-instruct'],
     'new installation did not receive the pinned CHIM LLM connector set: '.json_encode($defaultModels));
 $defaultCore=(new ProductRepository($db))->defaultCoreProfileForInstallation($defaultInstallationId);
 $defaultRouting=$defaultCore['content']['routing']??[];
@@ -254,8 +255,8 @@ $assert(count(array_filter($defaultRouting,static fn(mixed$value,string$key):boo
     &&isset($defaultRouting['tts_configuration_id'],$defaultRouting['prompt_configuration_id'])
     &&!isset($defaultRouting['oghma_configuration_id'],$defaultRouting['profile_generation_configuration_id'],$defaultRouting['relationship_configuration_id'])
     &&($defaultSystemRouting['oghma_configuration_id']??null)===($defaultRouting['llm_fast_configuration_id']??null)
-    &&($defaultSystemRouting['profile_generation_configuration_id']??null)===($defaultRouting['llm_fast_configuration_id']??null)
-    &&($defaultSystemRouting['relationship_configuration_id']??null)===($defaultRouting['llm_fast_configuration_id']??null),
+    &&($defaultSystemRouting['profile_generation_configuration_id']??null)===($defaultRouting['llm_configuration_id']??null)
+    &&$products->getRevisioned('provider',$defaultSystemRouting['relationship_configuration_id'])['content']['model']==='mistralai/mistral-small-3.2-24b-instruct',
     'new installation routing was not split between Core Profiles and Global Settings');
 $defaultPrompt=$db->prepare("SELECT p.prompt_key,p.default_prompt,p.custom_prompt,p.description FROM prompts p WHERE p.installation_id=:installation AND p.prompt_key='roleplay_dialogue'");
 $defaultPrompt->execute(['installation'=>$defaultInstallationId]);$defaultPromptRow=$defaultPrompt->fetch();

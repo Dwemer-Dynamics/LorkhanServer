@@ -1,6 +1,7 @@
 <?php
 $snapshotMessages=[
     'snapshot-saved'=>'Playthrough Save created.',
+    'snapshot-setup'=>'Playthrough management is set up. Existing progress was preserved.',
     'snapshot-copy-queued'=>'Playthrough Save prepared. Load the corresponding game save to switch. Current progress was saved first.',
     'snapshot-deleted'=>'Stored Playthrough Save deleted. Live gameplay was not deleted.',
     'snapshot-busy'=>'Another save operation is running. Try again shortly.',
@@ -17,7 +18,19 @@ $snapshotMessages=[
     <p class="loading-sub">Please keep this tab open until the operation finishes.</p>
 </div></dialog>
 <?php if(isset($snapshotMessages[$_GET['status']??''])): ?><p class="playthrough-notice" role="status"><?= lorkhan_ui_h($snapshotMessages[$_GET['status']]) ?></p><?php endif; ?>
-<?php if(!empty($initialSaveError)): ?><p class="playthrough-notice" role="alert">The initial recovery save could not be created. Existing saves and gameplay are unchanged.</p><?php endif; ?>
+<?php if($needsSetup): ?>
+<section class="content-section" aria-labelledby="playthrough-setup-title">
+    <h2 id="playthrough-setup-title">🎮 Set up Playthrough Saves</h2>
+    <p>Playthrough management is not set up yet. Nothing has been changed by opening this page.</p>
+    <p class="section-note">Save your current LORKHAN data as the protected <strong>default</strong> Playthrough Save. Your current progress stays unchanged.</p>
+    <form method="post" class="create-form" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthrough-snapshot">
+        <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="operation" value="setup">
+        <input type="hidden" name="installation_id" value="<?= lorkhan_ui_h($installationId) ?>"><input type="hidden" name="playthrough_id" value="<?= lorkhan_ui_h($selected['playthrough_id']) ?>">
+        <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+        <button type="submit" class="button snapshot-save">🚀 Set up Playthrough Saves</button>
+    </form>
+</section>
+<?php return; endif; ?>
 <?php if($snapshotTimeline!==[]): ?>
 <section class="content-section"><div class="timeline" id="pt-timeline" role="group" aria-label="Playthrough Save timeline" data-snapshot-timeline="<?= lorkhan_ui_h(json_encode($snapshotTimeline,JSON_THROW_ON_ERROR)) ?>">
     <div class="timeline-title"></div><div class="timeline-track"></div><div class="timeline-notches"></div><div class="timeline-nodes"></div>
@@ -39,7 +52,7 @@ $snapshotMessages=[
         </form>
         <?php else: ?><p class="playthrough-empty">Load a character first.</p><?php endif; ?>
         <p class="scope-note">Game saves and audio files are not included. Full database backups, including older SQL snapshots, remain in <a href="<?= lorkhan_ui_h($webRoot) ?>/ui/database_manager.php">Database Manager</a>.</p>
-        <p class="scope-note">Save limits: 16 MiB / 50,000 rows. Restores require the same database schema; derived summaries and embeddings regenerate.</p>
+        <p class="scope-note">Save limits: 128 MiB, with up to 50,000 playthrough rows and 50,000 additional gameplay-state rows. Restores require the same database schema. Generated summaries are preserved; embeddings regenerate.</p>
     </section>
     <section class="content-section" aria-labelledby="stored-snapshots-title">
         <h2 id="stored-snapshots-title">💾 Stored Playthrough Saves</h2>

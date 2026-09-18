@@ -9,6 +9,7 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
         <p class="page-subtitle">Characters and their separate Lorkhan histories.</p>
         <div class="playthrough-help"><strong>Switch in game:</strong> Load the corresponding game save to switch playthroughs. New games receive their own data scope automatically. Use this page to prepare a new playthrough or associate a copy with a saved character for its next load.</div>
     </header>
+    <?php if($needsSetup): include __DIR__.'/playthrough_database_snapshots.php'; else: ?>
     <?php if(isset($_GET['status'])&&$_GET['status']==='saved'): ?><p class="playthrough-notice" role="status">Profile record operation completed.</p><?php endif; ?>
     <form method="get" class="playthrough-scope" aria-label="Playthrough installation">
         <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
@@ -175,6 +176,7 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
         <p class="scope-note">Current, default and pending-restore backups are protected. Every deletion checks protection again. Game save files are never touched. Preview lists are limited to 100 files; preview again after cleanup for another batch.</p>
     </section>
 
+    <?php endif; ?>
 </main>
 <script src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/playthrough-snapshots.js?v=<?= (int)filemtime(__DIR__.'/../js/playthrough-snapshots.js') ?>" defer></script>
 

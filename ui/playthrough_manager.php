@@ -27,12 +27,9 @@ $liveDatabase=$uiRepository->dashboard();
 $snapshotLiveCalendar=\LorkhanServer\Application\MorrowindCalendar::parse($liveDatabase['current']['calendar_data']??null);
 $snapshotTimeline=[];
 $snapshotPage=max(1,min(100000,(int)($_GET['snapshot_page']??1)));
-if ($selected) {
-    try {
-        $managementRepository->playthroughSaves()->capture($installationId,$selected['playthrough_id'],'default',
-            'Initial gameplay save.','default','default:'.$selected['playthrough_id']);
-    } catch (Throwable) { $initialSaveError=true; }
-}
+$setupQuery=$database->prepare('SELECT 1 FROM playthrough_saves WHERE installation_id=:installation LIMIT 1');
+$setupQuery->execute(['installation'=>$installationId]);
+$needsSetup=$selected!==null&&!$setupQuery->fetchColumn();
 $snapshotQuery=$database->prepare("SELECT save_id AS backup_id,name,notes,created_at,octet_length(document) AS byte_count,metadata AS game_metadata,kind='dragon_break' AS dragon_break,kind='before_copy' AS rollback_for,kind FROM playthrough_saves WHERE installation_id=:installation ORDER BY created_at DESC,save_id DESC LIMIT 26 OFFSET ".(($snapshotPage-1)*25));
 $storedSnapshots=[];
 if ($installationId!=='') {

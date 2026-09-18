@@ -11,6 +11,25 @@ final class PlaythroughSaveRepository
 {
     public function __construct(private readonly PDO $db) {}
 
+    /** Explicit first-run setup: never create another default over an existing save collection. */
+    public function setup(string $installation,string $playthrough): void
+    {
+        $owns=!$this->db->inTransaction();
+        if($owns)$this->db->exec('BEGIN ISOLATION LEVEL REPEATABLE READ');
+        try{
+            $lock=$this->db->prepare('SELECT pg_try_advisory_xact_lock(hashtext(:scope))');
+            $lock->execute(['scope'=>'playthrough-save:'.$installation]);
+            if(!filter_var($lock->fetchColumn(),FILTER_VALIDATE_BOOL))throw new RuntimeException('maintenance_busy');
+            $q=$this->db->prepare('SELECT 1 FROM playthrough_saves WHERE installation_id=:installation LIMIT 1');
+            $q->execute(['installation'=>$installation]);
+            if(!$q->fetchColumn())$this->capture($installation,$playthrough,'default','Initial gameplay save.','default','default:'.$playthrough);
+            if($owns)$this->db->commit();
+        }catch(\Throwable $error){
+            if($owns&&$this->db->inTransaction())$this->db->rollBack();
+            throw $error;
+        }
+    }
+
     public function capture(string $installation, string $playthrough, string $name, string $notes = '', string $kind = 'manual', ?string $key = null): string
     {
         $metadata=ManagementRepository::snapshotMetadata(['name'=>$name,'notes'=>$notes]);

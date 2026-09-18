@@ -325,6 +325,13 @@ final class ProductRepository
             if($firstId!==false){$this->db->prepare('UPDATE core_profiles SET default_npc=true WHERE core_profile_id=:id')->execute(['id'=>$firstId]);return$find()??throw new RuntimeException('core_profile_default_failed');}
             $id=$this->deterministicUuid('lorkhan:core-profile:default:v1:'.$installationId);
             $content=['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]];
+            if($this->coreCreationPreset($installationId)===null){
+                // CHIM's initial SQL profile differs from its explicitly applied Quickstart preset.
+                $content=\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn('builtin:default',$content);
+                $content['settings_overrides']['behavior']['rechat_max_depth']=4;
+                $content['settings_overrides']['behavior']['rechat_probability_percent']=100;
+                $content['settings_overrides']['bored_event']['chance_percent']=50;
+            }
             $content=$this->withCoreCreationDefaults($installationId,$content);
             $this->db->prepare('INSERT INTO core_profiles(core_profile_id,installation_id,label,default_npc,slot,created_at) VALUES(:id,:installation,\'Default\',true,1,:now)')
                 ->execute(['id'=>$id,'installation'=>$installationId,'now'=>$now]);

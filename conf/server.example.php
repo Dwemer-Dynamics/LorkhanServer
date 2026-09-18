@@ -27,7 +27,7 @@ return [
         'driver' => 'openai-compatible',
         'endpoint' => 'https://openrouter.ai/api/v1/chat/completions',
         'allowed_hosts' => ['openrouter.ai'],
-        'model' => 'z-ai/glm-4.7',
+        'model' => 'deepseek/deepseek-v4-flash',
         'api_key_env' => 'LORKHAN_LLM_API_KEY',
         'timeout_ms' => 120_000,
         'disable_reasoning' => true,

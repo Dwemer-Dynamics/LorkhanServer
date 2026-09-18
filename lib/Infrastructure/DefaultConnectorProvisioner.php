@@ -15,10 +15,10 @@ use Throwable;
 final class DefaultConnectorProvisioner
 {
     private const LLM_DEFAULTS = [
-        'llm_configuration_id' => ['GLM 4.7', 'z-ai/glm-4.7', ['CHIM Default']],
+        'llm_configuration_id' => ['DeepSeek V4 Flash', 'deepseek/deepseek-v4-flash', []],
         'llm_fast_configuration_id' => ['Gemini 2.5 Flash Lite', 'google/gemini-2.5-flash-lite', []],
-        'llm_powerful_configuration_id' => ['GLM 5', 'z-ai/glm-5', []],
-        'llm_experimental_configuration_id' => ['DeepSeek Chat V3.2', 'deepseek/deepseek-v3.2', []],
+        'llm_powerful_configuration_id' => ['GLM 5.2', 'z-ai/glm-5.2', []],
+        'llm_experimental_configuration_id' => ['DeepSeek V4 Pro', 'deepseek/deepseek-v4-pro', []],
     ];
 
     public function __construct(
@@ -48,15 +48,24 @@ final class DefaultConnectorProvisioner
                     $installationId,
                     'provider',
                     $name,
-                    ['driver' => 'configured', 'model' => $model],
+                    ['driver' => 'configured', 'model' => $model, 'options'=>['max_tokens'=>750,'temperature'=>str_starts_with($model,'deepseek/')?0.6:1.0,'json_mode'=>true,'json_schema'=>true,'prefill_json'=>false,'reasoning_model'=>in_array($route,['llm_configuration_id','llm_powerful_configuration_id'],true)]],
                     $aliases,
                 );
             }
+            $relationshipId=$this->ensureConfiguration($service,$installationId,'provider','Mistral Small 3.2 24B',
+                ['driver'=>'configured','model'=>'mistralai/mistral-small-3.2-24b-instruct','options'=>['max_tokens'=>750,'temperature'=>1.0]]);
+            $sceneId=$this->ensureConfiguration($service,$installationId,'provider','Gemma 3N E4B',
+                ['driver'=>'configured','model'=>'google/gemma-3n-e4b-it','options'=>['max_tokens'=>128,'temperature'=>0.2]]);
             $systemRoutes = [
                 'oghma_configuration_id' => $routes['llm_fast_configuration_id'],
-                'profile_generation_configuration_id' => $routes['llm_fast_configuration_id'],
-                'relationship_configuration_id' => $routes['llm_fast_configuration_id'],
+                'profile_generation_configuration_id' => $routes['llm_configuration_id'],
+                'relationship_configuration_id' => $relationshipId,
+                'background_memory_configuration_id' => $routes['llm_experimental_configuration_id'],
+                'director_configuration_id' => $routes['llm_configuration_id'],
+                'scene_classifier_configuration_id' => $sceneId,
             ];
+            $routes['diary_generation_configuration_id']=$routes['llm_configuration_id'];
+            $routes['player_autochat_configuration_id']=$routes['llm_fast_configuration_id'];
 
             $defaultPrompt = 'Respond in character as the selected Morrowind actor. Use only the scoped profile, '
                 . 'conversation history, memories, relationships, world knowledge, narrative context, and current '
@@ -105,22 +114,23 @@ final class DefaultConnectorProvisioner
                 ]);
             }
 
-            $deepgramSttId = $this->ensureConfiguration($service, $installationId, 'stt_provider', 'Global STT Connector', [
-                'driver' => 'deepgram',
-                'endpoint' => 'https://api.deepgram.com',
-                'model' => 'nova-3',
-                'voice' => '',
-                'language' => 'en-US',
-                'timeout_ms' => 30_000,
-                'options' => [],
-            ]);
+            // Parakeet is the local Quickstart choice; preserve any saved service selection.
+            $parakeetSttId = $repository->ensureQuickstartSpeechConnector($installationId,'stt_provider','parakeet',gmdate(DATE_ATOM));
             $sttSelection = $repository->connectorForInstallation($installationId, 'stt_provider');
             if ($sttSelection === null) {
-                $repository->selectConnector($installationId, 'stt_provider', $deepgramSttId, gmdate('Y-m-d\TH:i:s\Z'));
-                $selectedSttId = $deepgramSttId;
+                $repository->selectConnector($installationId, 'stt_provider', $parakeetSttId, gmdate('Y-m-d\TH:i:s\Z'));
+                $selectedSttId = $parakeetSttId;
             } else {
                 $selectedSttId = (string) $sttSelection['configuration_id'];
             }
+
+            if($repository->memorySummaryPolicyForInstallation($installationId)===null)$service->createRevisioned('memory_policy',[
+                'installation_id'=>$installationId,'name'=>'Memory summaries','content'=>[
+                    'schema'=>'lorkhan.memory-policy.v1','enabled'=>true,'provider_configuration_id'=>$routes['llm_experimental_configuration_id'],
+                    'summary_interval'=>10,'minimum_events'=>5]]);
+            if($repository->memoryEmbeddingPolicyForInstallation($installationId)===null)$service->createRevisioned('memory_embedding_policy',[
+                'installation_id'=>$installationId,'name'=>'Semantic memory','content'=>[
+                    'schema'=>'lorkhan.memory-embedding-policy.v1','enabled'=>true,'endpoint'=>'http://127.0.0.1:8082','timeout_ms'=>1500]]);
 
             $core = $repository->defaultCoreProfileForInstallation($installationId, gmdate('Y-m-d\TH:i:s\Z'), true)
                 ?? throw new RuntimeException('default_core_profile_unavailable');
@@ -150,7 +160,7 @@ final class DefaultConnectorProvisioner
                 'llm' => array_intersect_key($routes, self::LLM_DEFAULTS),
                 'tts_configuration_id' => $pocketTtsId,
                 'selected_tts_configuration_id' => $selectedTtsId,
-                'stt_configuration_id' => $deepgramSttId,
+                'stt_configuration_id' => $parakeetSttId,
                 'selected_stt_configuration_id' => $selectedSttId,
                 'fallback_configuration_id' => null,
                 'voice_count' => $voiceCount,

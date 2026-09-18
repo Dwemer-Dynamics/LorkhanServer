@@ -567,7 +567,10 @@ final class ManagementRouter
             $installation=$this->need($v,'installation_id');$this->uuid($installation,'installation_id');
             $saves=$this->management->playthroughSaves();
             try{
-                if($operation==='create'){
+                if($operation==='setup'){
+                    $world=$this->need($v,'playthrough_id');$this->uuid($world,'playthrough_id');
+                    $saves->setup($installation,$world);$status='snapshot-setup';
+                }elseif($operation==='create'){
                     $world=$this->need($v,'playthrough_id');$this->uuid($world,'playthrough_id');
                     $saves->capture($installation,$world,$this->need($v,'name'),$v['notes']??'');$status='snapshot-saved';
                 }elseif(in_array($operation,['copy','delete'],true)){

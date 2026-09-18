@@ -61,7 +61,11 @@ final class GlobalSettingsPreset
         $settings['relationship']['update_chance_percent']=$local?0:50;
         $settings['context']['prompt_timestamp']=false;
         $settings['context']['power_awareness_enabled']=false;
-        $settings['context']['transformation_detection']=false;
+        $settings['context']['transformation_detection']=!$local;
+        $settings['context']['detect_magic_events']=!$local;
+        $settings['context']['item_pickup_min_value']=$local?1000:500;
+        foreach(['background_memory','profile_generation','scene_classifier'] as $task)$settings['task_availability'][$task]=!$local;
+        $settings['task_availability']['director']=true;
         $settings['context']['hide_ambient_combat']=$local;
         $settings['context']['ground_items_descriptions_only']=$local;
         $settings['context']['inventory_items_descriptions_only']=$local;
@@ -71,6 +75,7 @@ final class GlobalSettingsPreset
         foreach(['npc_group','npc_groups','npc_skills','npc_rpg_skills','nearby_actor_summary','nearby_actor_personality','nearby_actor_appearance',
             'nearby_actor_occupation','nearby_actor_equipment','item_descriptions'] as $detail)$settings['context']['details'][$detail]=!$local;
         $settings['context']['details']['nearby_actor_activity']=true;
+        $settings['context']['details']['nearby_actor_power']=!$local;
         $settings['context']['details']['group_duplicate_items']=$local;
         $settings['context']['details']['npc_equipment']=true;
         $settings['context']['details']['npc_inventory']=!$local;

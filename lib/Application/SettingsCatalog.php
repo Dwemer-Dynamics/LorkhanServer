@@ -29,9 +29,9 @@ final class SettingsCatalog
             'combat_barks' => false,
             'combat_bark_period_seconds' => 30,
         ],
-        'memory' => ['recent_turn_limit' => 20, 'knowledge_limit' => 5],
+        'memory' => ['recent_turn_limit' => 50, 'knowledge_limit' => 5],
         'narrator' => [
-            'enabled' => false,
+            'enabled' => true,
             'name' => 'The Narrator',
             'context_visibility' => true,
             'inline_mode' => 'Disabled',
@@ -103,7 +103,7 @@ final class SettingsCatalog
         'nearby_actor_activity' => true,
         'nearby_actor_power' => true,
         'nearby_actor_equipment' => true,
-        'group_duplicate_items' => true,
+        'group_duplicate_items' => false,
         'item_descriptions' => true,
     ];
 
@@ -209,7 +209,7 @@ final class SettingsCatalog
                 'autofill_custom_profiles_trigger' => 40,
             ],
             'rpg_comments' => ['events'=>['levelup','combat_end'],'chance_percent'=>50],
-            'bored_event' => ['chance_percent'=>50],
+            'bored_event' => ['chance_percent'=>30],
             'quest_comments' => ['enabled'=>false,'chance_percent'=>10],
             'translation' => TranslationPolicy::defaults(),
             'oghma' => self::OGHMA_DEFAULTS + ['knowledge_tags' => '', 'extractor_enabled' => false],
@@ -230,7 +230,7 @@ final class SettingsCatalog
                 'item_blacklist' => [],
                 'magic_effects_blacklist' => [],
             ],
-            'relationship' => ['enabled' => false, 'update_chance_percent' => 0,
+            'relationship' => ['enabled' => true, 'update_chance_percent' => 50,
                 'worst_memory_lifespan_days' => 7, 'never_clear_relationship_data' => false],
             'task_availability' => ['background_memory'=>true, 'profile_generation'=>true, 'scene_classifier'=>true, 'director'=>true],
             'system_routing' => [

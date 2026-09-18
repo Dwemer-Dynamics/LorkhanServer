@@ -16,7 +16,7 @@ $localNetwork=\LorkhanServer\Application\QuickstartLocalLlm::networkIps();
             <?php endforeach; ?>
             </div>
         </fieldset>
-        <p class="qs-preset-desc" id="qs_settings_preset_desc" role="status" aria-live="polite">Default settings for all Core Profiles, with profile backfill, relationship updates, memory summaries and semantic recall enabled.</p>
+        <p class="qs-preset-desc" id="qs_settings_preset_desc" role="status" aria-live="polite">The recommended LORKHAN experience.</p>
     </div>
     <fieldset class="qs-local-llm" id="qs_local_llm_panel" hidden disabled>
         <div class="qs-local-llm-head"><h3 class="qs-local-llm-title">Local LLM Setup</h3></div>

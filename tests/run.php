@@ -249,7 +249,7 @@ $diaryMock=(new \LorkhanServer\Application\MockProfileGenerationProvider())->gen
     ['generation_mode'=>'diary_generation','name'=>'Fargoth','witnessed_context'=>[['type'=>'inputtext']]],new NeverCancelledToken());
 $check($diaryDefaults['enabled']===false&&$diaryDefaults['automatic_enabled']===false
     &&$diaryDefaults['automatic_wait_enabled']===false&&$diaryDefaults['automatic_interval_seconds']===120
-    &&$diaryDefaults['include_in_context']===true&&$diaryDefaults['latest_entry_in_context']===false&&$diaryDefaults['context_turn_limit']===20
+    &&$diaryDefaults['include_in_context']===true&&$diaryDefaults['latest_entry_in_context']===false&&$diaryDefaults['context_turn_limit']===100
     &&\LorkhanServer\Application\DiaryGenerationPolicy::validateOverrides($diaryOverrides)===$diaryOverrides
     &&$diaryMock===['title'=>'Fargoth diary','content'=>'Fargoth records 1 witnessed Morrowind event.']
     &&in_array('narrative.generate',\LorkhanServer\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
@@ -3356,7 +3356,14 @@ foreach (['identity','connector','invalid_id'] as $invalidSnapshotKind) {
 $quickLocal=\LorkhanServer\Application\GlobalSettingsPreset::applyBuiltIn('builtin:local_llm',$presetCurrent);
 $check(!$quickLocal['profile_management']['autofill_custom_profiles']&&!$quickLocal['relationship']['enabled']&&$quickLocal['relationship']['update_chance_percent']===0,'Local preset stops backfill and relationship updates');
 $check($quickLocal['context']['ground_items_descriptions_only']&&$quickLocal['context']['inventory_items_descriptions_only']&&!$quickLocal['context']['prompt_timestamp'],'Local preset uses descriptions without timestamp headings');
+$check(!$quickLocal['context']['detect_magic_events']&&$quickLocal['context']['item_pickup_min_value']===1000
+    &&!$quickLocal['context']['transformation_detection']&&!$quickLocal['context']['details']['nearby_actor_power'],'Local preset matches CHIM context defaults');
+$check($quickLocal['task_availability']===['background_memory'=>false,'profile_generation'=>false,'scene_classifier'=>false,'director'=>true],'Local preset keeps director but disables optional background tasks');
 $quickDefault=\LorkhanServer\Application\GlobalSettingsPreset::applyBuiltIn('builtin:default',$quickLocal);
+$check($quickDefault['context']['detect_magic_events']&&$quickDefault['context']['transformation_detection']
+    &&$quickDefault['context']['item_pickup_min_value']===500,'Default preset restores CHIM context defaults');
+$check(!in_array(false,$quickDefault['task_availability'],true),'Default preset restores task availability');
+
 $check($quickDefault['profile_management']['autofill_custom_profiles']&&$quickDefault['relationship']['enabled']&&$quickDefault['relationship']['update_chance_percent']===50,'Default preset restores reference backfill and relationship chance');
 $check(!$quickDefault['context']['ground_items_descriptions_only']&&!$quickDefault['context']['inventory_items_descriptions_only'],'Default restores full item context');
 $check($quickDefault['context']['location_blacklist']===$presetCurrent['context']['location_blacklist']&&$quickDefault['system_routing']===$presetCurrent['system_routing']&&$quickDefault['client']===$presetCurrent['client'],'Quickstart global presets retain blacklists, routes and unrelated controls');
