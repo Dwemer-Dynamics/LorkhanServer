@@ -492,9 +492,10 @@ final class ManagementRouter
             $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
             if($domain==='reference-group-delete')$this->repository->deleteReferenceGroup($installation,$this->need($v,'group_key'));
             else $this->repository->saveReferenceGroup($installation,[
-                'group_key'=>$this->need($v,'group_key'),'name'=>$this->need($v,'name'),
+                'group_key'=>(string)($v['group_key']??''),'name'=>$this->need($v,'name'),
+                'match_name'=>(string)($v['match_name']??''),
                 'enabled'=>in_array($v['enabled']??false,[true,1,'1','on'],true),
-                'canonical_ref'=>$this->need($v,'canonical_ref'),'aliases'=>(string)($v['aliases']??'')]);
+                'canonical_ref'=>(string)($v['canonical_ref']??''),'aliases'=>(string)($v['aliases']??'')]);
             return$this->redirect($this->uiPath('characters').'?'.http_build_query([
                 'installation_id'=>$installation,'tab'=>'reference-groups','status'=>'saved']));
         }

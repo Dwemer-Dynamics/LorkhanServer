@@ -23,9 +23,20 @@ unchanged. OpenMW's content filename remains in raw actor identity for exact gam
 
 ## Reference Groups
 
-The Lorkhan NPC page contains an editable Reference Groups section. Each group has a stable key,
-display name, canonical reference, alternate references and enabled flag. A physical reference can
-belong to only one group. Unlisted NPCs are never grouped by name or base record.
+The Lorkhan NPC page opens Reference Groups from a toolbar button into a modal. Each group has an
+automatically generated stable key, display name, canonical reference, alternate references and
+enabled flag. A physical reference can belong to only one group. An optional exact NPC-name rule
+ignores capitalization and surrounding whitespace. Without an explicit rule, matching names do
+not group actors. Base records never group actors automatically.
+
+For name-based creation, leave the canonical reference blank to select an existing matching actor
+from the current playthrough. A missing actor is rejected instead of inventing a reference. Explicit
+reference membership takes precedence over name rules. Duplicate name rules are rejected. Changing,
+disabling or deleting a rule invalidates affected cached bindings; existing histories remain intact.
+
+All supported non-player actor profiles, including creatures such as Vivec, appear in the NPC
+manager. Player and Narrator retain their dedicated editors. Migration 136 backfills creature
+projections and adds optional name rules without resetting profiles.
 
 Defaults cover the alternate placed references of Dagoth Ur, Almalexia and Thormoor Gray-Wave.
 The list contains reference metadata only, not game assets. New paired installations receive the

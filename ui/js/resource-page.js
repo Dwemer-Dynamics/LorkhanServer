@@ -635,6 +635,10 @@
         modal.querySelector('[data-npc-core-switch]')?.dispatchEvent(new Event('npc-switch-open'));
     };
 
+    if (new URLSearchParams(window.location.search).get('tab') === 'reference-groups') {
+        openModal('reference-groups', document.querySelector('[data-npc-modal-target="reference-groups"]'));
+    }
+
     // Herika's mass switch changes Core Profile assignments, never actor identities.
     const coreSwitch = document.querySelector('[data-npc-core-switch]');
     if (coreSwitch) {

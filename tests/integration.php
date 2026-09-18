@@ -687,6 +687,18 @@ $independentPlacementId=$products->ensureMorrowindActorProfile(['session_id'=>$s
 $assert($independentPlacementId===$secondPlacementProfileId,'disabled group did not restore independent profile');
 $products->deleteReferenceGroup($installationId,'test-ref-alias');
 $assert(!in_array('test-ref-alias',array_column($products->referenceGroups($installationId),'group_key'),true),'reference group delete failed');
+$groups=new \LorkhanServer\Infrastructure\ReferenceGroupRepository($db);
+$namedGroup=$groups->save($installationId,['name'=>'Named actors','match_name'=>$automaticTarget['display_name'],
+    'canonical_ref'=>\LorkhanServer\Domain\ProfileId::reference($automaticTarget),'enabled'=>true]);
+$sameName=$automaticTarget;$sameName['refnum']['index']=4294000000;
+$assert(\LorkhanServer\Domain\ProfileId::reference($groups->resolve($installationId,$sameName))===$namedGroup['canonical_ref'],
+    'explicit name group did not map a new reference');
+$otherName=$sameName;$otherName['display_name']='Unrelated actor';
+$assert($groups->resolve($installationId,$otherName)===$otherName,'name group captured an unrelated actor');
+$groups->save($installationId,array_replace($namedGroup,['enabled'=>false]));
+$assert($groups->resolve($installationId,$sameName)===$sameName,'disabled name group still matched');
+$groups->delete($installationId,$namedGroup['group_key']);
+$assert($groups->resolve($installationId,$sameName)===$sameName,'deleted name group still matched');
 $db->exec('ROLLBACK TO SAVEPOINT reference_group_parity');
 $legacyLocalityTarget=$automaticTarget;$legacyLocalityTarget['record_id']='legacy_locality_bosmer';
 $legacyLocalityTarget['refnum']['index']=104;$legacyLocalityTarget['cell']=['kind'=>'interior','name'=>'Balmora, Guild of Mages'];
