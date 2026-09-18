@@ -2940,6 +2940,15 @@ try {
     }
     $generatedHead=$products->getRevisioned('profile',$actorProfile['profile_id']);
     $timeline=new \LorkhanServer\Infrastructure\LoadedSaveTimeline($db);
+    $db->exec('SAVEPOINT timeline_high_water');
+    foreach($timelineTurns as$index=>$row){
+        $date=['year'=>999,'month'=>7,'day'=>$index===0?20:18,'hour'=>12];
+        $db->prepare("UPDATE turns SET context=jsonb_set(context,'{world,calendar}',CAST(:date AS jsonb)),accepted_at=clock_timestamp() WHERE turn_id=:id")
+            ->execute(['date'=>json_encode($date),'id'=>$row['turn_id']]);
+    }
+    $assert($timeline->highWaterCalendar($installationId,$turn['playthrough_id'])['day']===20,'rollback clock used latest arrival instead of highest valid date');
+    $assert($timeline->highWaterCalendar($installationId,Uuid::v4())===null,'rollback clock included another playthrough');
+    $db->exec('ROLLBACK TO SAVEPOINT timeline_high_water');
     $db->exec('SAVEPOINT profile_relationship_retention');
     $retentionGlobal=$products->globalSettingsForInstallation($installationId);
     $retentionContent=$retentionGlobal['content'];$retentionContent['relationship']['never_clear_relationship_data']=true;

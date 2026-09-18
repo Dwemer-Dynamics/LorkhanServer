@@ -10,7 +10,26 @@ use RuntimeException;
 /** Retire the abandoned branch without deleting immutable transport or turn evidence. */
 final class LoadedSaveTimeline
 {
+    private const SOURCE_CALENDAR="COALESCE(e.payload#>'{context,world,calendar}',e.payload#>'{payload,context,world,calendar}',e.payload->'calendar',e.payload#>'{payload,calendar}',CASE WHEN e.event_kind='session.init' THEN e.payload->'loaded_save' END)";
     public function __construct(private readonly PDO $db) {}
+
+    /** CHIM's high-water rule, restricted to this world's non-retired calendar observations. */
+    public function highWaterCalendar(string $installation,string $playthrough): ?array
+    {
+        $q=$this->db->prepare("SELECT t.context#>'{world,calendar}' AS calendar FROM turns t JOIN sessions s USING(session_id)
+            WHERE s.installation_id=:installation AND s.playthrough_id=:playthrough
+            AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_turns i WHERE i.turn_id=t.turn_id)
+            UNION ALL SELECT ".self::SOURCE_CALENDAR." FROM source_events e JOIN sessions s USING(session_id)
+            WHERE e.installation_id=:installation AND s.playthrough_id=:playthrough
+            AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=e.source_event_id)
+            AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_turns i WHERE i.turn_id=e.turn_id)");
+        $q->execute(['installation'=>$installation,'playthrough'=>$playthrough]);$highest=null;
+        while($row=$q->fetch()){
+            $date=MorrowindCalendar::parse($row['calendar']);
+            if($date!==null&&$date['time']!==''&&($highest===null||$date['minute']>$highest['minute']))$highest=$date;
+        }
+        return $highest;
+    }
 
     /** Avoid starting provider work from a frozen context that has already been retired. */
     public function sourcesActive(array $turnIds): bool
@@ -76,7 +95,7 @@ final class LoadedSaveTimeline
             $markTurn->execute($parameters+['id'=>$row['turn_id']]);$counts['turns']+=$markTurn->rowCount();
         }
         $sources=$this->db->prepare("SELECT e.source_event_id,e.session_id,e.event_kind,
-            COALESCE(e.payload#>'{context,world,calendar}',e.payload#>'{payload,context,world,calendar}',e.payload->'calendar',CASE WHEN e.event_kind IN ('gamedata.spell_cast','gamedata.item_pickup','gamedata.actor_resurrected') THEN e.payload#>'{payload,calendar}' END) AS calendar,
+            ".self::SOURCE_CALENDAR." AS calendar,
             EXISTS(SELECT 1 FROM timeline_invalidated_turns i WHERE i.turn_id=e.turn_id) AS invalid_turn
             FROM source_events e JOIN sessions s ON s.session_id=e.session_id
             WHERE e.installation_id=:installation AND s.playthrough_id=:playthrough AND e.source_event_id<>:load
@@ -104,11 +123,14 @@ final class LoadedSaveTimeline
         $memories->execute($scope);$counts['memories']=$memories->rowCount();
         $narratives=$this->db->prepare("UPDATE narrative_records n SET deleted_at=clock_timestamp(),updated_at=clock_timestamp()
             WHERE n.installation_id=:installation AND n.playthrough_id=:playthrough AND n.deleted_at IS NULL
-            AND EXISTS(SELECT 1 FROM timeline_invalidated_turns i
-                WHERE COALESCE(n.provenance->'source_turn_ids','[]'::jsonb) @> jsonb_build_array(i.turn_id::text))");
+            AND (EXISTS(SELECT 1 FROM timeline_invalidated_turns i
+                WHERE COALESCE(n.provenance->'source_turn_ids','[]'::jsonb) @> jsonb_build_array(i.turn_id::text))
+                OR EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE n.provenance->>'source_event_id'=i.source_event_id::text
+                    OR COALESCE(n.provenance->'source_event_ids','[]'::jsonb) @> jsonb_build_array(i.source_event_id::text)))");
         $narratives->execute($scope);$counts['narratives']=$narratives->rowCount();
 
         foreach (['speech'=>['speech_metadata','turn_id'],'books'=>['book_metadata','source_turn_id'],
+            'responselog'=>['responselog_metadata','turn_id'],
             'currentmission'=>['currentmission_metadata','source_turn_id'],'questlog'=>['questlog_metadata','source_turn_id'],
             'quests'=>['quest_metadata','source_turn_id']] as $table=>[$metadata,$turnColumn]) {
             $projection=$this->db->prepare("DELETE FROM public.$table p USING $metadata m,timeline_invalidated_turns i
@@ -117,6 +139,11 @@ final class LoadedSaveTimeline
             $orphan=$this->db->prepare("DELETE FROM $metadata m USING timeline_invalidated_turns i WHERE m.$turnColumn=i.turn_id
                 AND m.installation_id=:installation AND m.playthrough_id=:playthrough");$orphan->execute($scope);
         }
+        // Action metadata is scoped through its session, unlike the other public projections.
+        $actions=$this->db->prepare('DELETE FROM public.actions_issued p USING action_issued_metadata m,timeline_invalidated_turns i,sessions s
+            WHERE p.rowid=m.rowid AND m.turn_id=i.turn_id AND s.session_id=m.session_id
+            AND s.installation_id=:installation AND s.playthrough_id=:playthrough');
+        $actions->execute($scope);$counts['actions_issued']=$actions->rowCount();
         $counts+=$this->restoreGeneratedProfiles($scope,$message['message_id']);
         $counts+=(new RelationshipTimelineRepository($this->db))->restore($scope,$message['message_id']);
         return $counts;

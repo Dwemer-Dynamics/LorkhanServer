@@ -36,3 +36,13 @@ The fresh broad integration suite still stops at its unrelated `active_playthrou
 - The broad integration runner currently stops before this feature's tests at its existing `active_playthrough_required` fixture failure (`tests/integration.php`, profile setup). It is not reported as passing.
 
 New gameplay-save metadata is operational storage, excluded from its own capture policy. No retention job deletes these saved documents automatically; individual non-default copies can be removed from the manager.
+
+## Loaded-save rollback detection
+
+Automatic recovery capture uses the highest non-retired game-calendar observation in the selected installation/playthrough, rechecked under the capture lock. Later-arriving older observations cannot hide a rollback. Retired turns and previous loaded-save observations do not keep triggering recovery copies.
+
+The three-day default controls recovery capture only. Every accepted dated loaded-save handshake retires abandoned-future history, including shorter rollbacks. Source-event-linked diaries and response/action projections are included. Immutable transport/audit evidence remains retained but is excluded from active history. Generated profile and relationship rollback respects manual edits and the never-clear-relationships setting.
+
+OpenMW cleanup runs on the actual loaded-save handshake, not an assumed last-save timestamp on death. This is not a complete database snapshot restore: dynamic Oghma patches and other state without rollback provenance still need a separate parity audit. Manual gameplay-save restore remains the full captured-state recovery route.
+
+Focused transactional database probes passed for highest-time selection, playthrough isolation, one-day rollback, past/future memory and diary handling, repeated-load idempotency and retirement of previous loaded-save times. No live game load or restoration was performed.
