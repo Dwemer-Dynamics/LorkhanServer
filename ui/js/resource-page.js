@@ -589,6 +589,7 @@
                 if (!scope.supported) {
                     const reasons = {
                         npc_manager_unsupported: 'The connected client does not support NPC actions. Restart with the latest Lorkhan build.',
+                        npc_manager_ambiguous_actor: 'This profile is linked to multiple NPCs. Restore the matching Ref ID before using movement actions.',
                         npc_manager_exact_actor_required: 'This profile has no complete observed NPC identity. Meet the NPC in this playthrough first.',
                     };
                     notice(reasons[scope.reason_code] || 'No matching active game session and NPC binding. Load this NPC’s playthrough first.', true);

@@ -68,16 +68,31 @@ final class ProfileEvolutionScheduler
         $query=$this->db->prepare('SELECT count(*) FROM lorkhan_internal.profile_evolution_events WHERE profile_id=:profile AND playthrough_id=:playthrough AND epoch=:epoch');
         $query->execute($scope+['epoch'=>$clock['epoch']]);$total=(int)$query->fetchColumn();$observed=max(0,$total-(int)$progress['consumed_events']);
         $this->db->prepare('UPDATE lorkhan_internal.profile_evolution_progress SET checked_at=clock_timestamp() WHERE profile_id=:profile AND playthrough_id=:playthrough')->execute($scope);
-        $manual=$manual||$progress['manual_requested']===true||$progress['manual_requested']==='t';
-        $due=$manual||($clock['game_minute']-$progress['last_game_minute']>=($policy['interval_days']??1)*1440
-            &&$observed>=($policy['min_events']??30)&&($progress['attempted_at']===null||time()-strtotime($progress['attempted_at'])>=($policy['cooldown_minutes']??5)*60));
-        return ['due'=>$due,'reason'=>'interval','observed'=>$observed,'epoch'=>$clock['epoch'],'game_minute'=>(int)$clock['game_minute'],'total'=>$total,'manual'=>$manual];
+        if($manual){
+            $progress['manual_request_id']=Uuid::v4();$progress['manual_attempts']=0;
+            $progress['manual_requested_at']=gmdate('c');$progress['manual_requested']=true;
+            $this->db->prepare('UPDATE lorkhan_internal.profile_evolution_progress SET manual_requested=true,manual_request_id=:request,
+                manual_requested_at=clock_timestamp(),manual_attempts=0 WHERE profile_id=:profile AND playthrough_id=:playthrough')
+                ->execute($scope+['request'=>$progress['manual_request_id']]);
+        }
+        $pending=filter_var($progress['manual_requested'],FILTER_VALIDATE_BOOL);
+        $manual=$pending&&(int)$progress['manual_attempts']<3&&time()-strtotime($progress['manual_requested_at']??'1970-01-01')<3600;
+        if($pending&&!$manual)$this->db->prepare('UPDATE lorkhan_internal.profile_evolution_progress SET manual_requested=false WHERE profile_id=:profile AND playthrough_id=:playthrough')->execute($scope);
+        $cooled=$progress['attempted_at']===null||time()-strtotime($progress['attempted_at'])>=($policy['cooldown_minutes']??5)*60;
+        $due=$manual?((int)$progress['manual_attempts']===0||$cooled):
+            ($clock['game_minute']-$progress['last_game_minute']>=($policy['interval_days']??1)*1440&&$observed>=($policy['min_events']??30)&&$cooled);
+        return ['due'=>$due,'reason'=>$manual?'manual_cooldown':'interval','observed'=>$observed,'epoch'=>$clock['epoch'],
+            'game_minute'=>(int)$clock['game_minute'],'total'=>$total,'manual'=>$manual,
+            'manual_request_id'=>$manual?$progress['manual_request_id']:null];
     }
 
-    public function attempted(string $profile,string $playthrough):void
+    /** Retain manual intent until success; each scheduled provider attempt consumes one retry. */
+    public function attempted(string $profile,string $playthrough,array $schedule=[]):void
     {
-        $this->db->prepare('UPDATE lorkhan_internal.profile_evolution_progress SET attempted_at=clock_timestamp(),manual_requested=false WHERE profile_id=:profile AND playthrough_id=:playthrough')
-            ->execute(['profile'=>$profile,'playthrough'=>$playthrough]);
+        $this->db->prepare('UPDATE lorkhan_internal.profile_evolution_progress SET attempted_at=clock_timestamp(),
+            manual_attempts=manual_attempts+CASE WHEN manual_request_id=CAST(:request AS uuid) THEN 1 ELSE 0 END
+            WHERE profile_id=:profile AND playthrough_id=:playthrough')
+            ->execute(['profile'=>$profile,'playthrough'=>$playthrough,'request'=>$schedule['manual_request_id']??null]);
     }
 
     public function active(array $payload):bool
@@ -106,6 +121,9 @@ final class ProfileEvolutionScheduler
     {
         if(!isset($payload['evolution_schedule']))return;
         $schedule=$payload['evolution_schedule'];
+        if(!empty($schedule['manual_request_id']))$this->db->prepare('UPDATE lorkhan_internal.profile_evolution_progress SET manual_requested=false
+            WHERE profile_id=:profile AND playthrough_id=:playthrough AND manual_request_id=:request AND epoch=:epoch')
+            ->execute(['profile'=>$payload['profile_id'],'playthrough'=>$payload['playthrough_id'],'request'=>$schedule['manual_request_id'],'epoch'=>$schedule['epoch']]);
         $this->db->prepare('UPDATE lorkhan_internal.profile_evolution_progress SET consumed_events=:total,last_game_minute=:minute
             WHERE profile_id=:profile AND playthrough_id=:playthrough AND epoch=:epoch')->execute(['total'=>$schedule['total'],'minute'=>$schedule['game_minute'],
                 'profile'=>$payload['profile_id'],'playthrough'=>$payload['playthrough_id'],'epoch'=>$schedule['epoch']]);

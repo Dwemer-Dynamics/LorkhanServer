@@ -971,6 +971,7 @@ assert 'data-npc-editor-tab="background-life"' not in profile_text and 'data-npc
 profile_labels=['Voice Filter','Voice ID','Core Profile','Profile LLMs','Prompt Head Override','Backstory','Gender','Race','Skills','Emote Moods Override','Lock This NPC','Oghma Tags','Favorite NPC','Auto Diary','Auto Diary Wait','Visit','Teleport']
 missing_profile_labels=[label for label in profile_labels if label not in profile_text]
 assert not missing_profile_labels,missing_profile_labels
+assert 'name="voice_language"' not in profile_text
 assert 'Dynamic Profile Fields' not in profile_text and 'name="dynamic_profile_fields[]"' not in profile_text
 assert 'name="dynamic_profile_present"' in profile_text
 assert not any('name="'+field+'"' in profile_text for field in ['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','llm_randomizer_enabled','llm_fallback_enabled','tts_configuration_id'])
@@ -996,6 +997,7 @@ profile_id=profile_match.group(1)
 profile_export=json.loads(request('/LorkhanServer/manage/exports/profiles/'+profile_id+'.json').read().decode())
 assert 'settings_overrides' not in profile_export['content'] and 'routing' not in profile_export['content'],profile_export['content']
 assert profile_export['content']['tts_filter_preset']=='warm'
+assert 'language' not in profile_export['content']['voice']
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'delete','voice_name':batch_voice}); body=r.read().decode()
 assert r.status==200 and 'voice_sample_in_use' in body and 'Profile: '+profile_name in body and batch_voice in body,(r.status,r.geturl(),body)
 managed_for_clone,clone_html=parse(request('/LorkhanServer/ui/core/character_manager.php'))

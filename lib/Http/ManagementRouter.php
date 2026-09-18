@@ -2797,8 +2797,13 @@ final class ManagementRouter
             unset($content['oghma_tags']);
             if($tags==='')unset($content['oghma_knowledge_tags']);else$content['oghma_knowledge_tags']=$tags;
         }
-        if(array_key_exists('voice_id',$values)){$voice=trim((string)$values['voice_id']);$language=trim((string)($values['voice_language']??'en'));
-            if($voice!=='')$content['voice']=['id'=>$voice,'language'=>$language===''?'en':$language];else unset($content['voice']);}
+        if(array_key_exists('voice_id',$values)){
+            $voice=trim((string)$values['voice_id']);
+            if($voice!==''){
+                $content['voice']=['id'=>$voice];
+                if($allowSpecialTtsRouting){$language=trim((string)($values['voice_language']??'en'));$content['voice']['language']=$language===''?'en':$language;}
+            }else unset($content['voice']);
+        }
         // Only an explicit override-editor submission changes these leaves; ordinary saves preserve them.
         if ($allowSpecialTtsRouting) unset($content['settings_overrides']);
         elseif (array_key_exists('npc_settings_overrides_json', $values)) {
@@ -3058,6 +3063,8 @@ final class ManagementRouter
                 $this->repository->editNpcMemoryDigest((string)$profile['installation_id'],(string)$playthrough,$profileId,(int)$edit['revision'],$edit['content']);
             }
         }
+        if(array_key_exists('name',$values))$this->repository->setNpcName($profileId,(string)$profile['installation_id'],$values['name']);
+        if(array_key_exists('record_id',$values))$this->repository->setNpcRecordId($profileId,(string)$profile['installation_id'],$values['record_id']);
         $revised=$this->service->revise('profile',$profileId,$content,$this->need($values,'change_reason'),$batch['profile_revision']??null);
         if(isset($values['core_profile_id'])&&trim((string)$values['core_profile_id'])!==''){
             $this->uuid((string)$values['core_profile_id'],'core_profile_id');$this->repository->assignCoreProfile($profileId,(string)$values['core_profile_id']);

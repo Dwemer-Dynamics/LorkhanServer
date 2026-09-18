@@ -469,7 +469,7 @@ final class Router
             else{$narrator=$this->products->narratorProfileForInstallation((string)$session['installation_id']);
                 if($narrator===null||!is_string($m['selection_id'])||!hash_equals((string)$narrator['profile_id'],$m['selection_id']))
                     throw new ApiException(422,'invalid_schema','The selected narrator profile is unavailable.');
-                $this->products->enqueueNarratorProfileGeneration($m['selection_id']);}
+                $this->products->maybeEnqueueDynamicProfileEvolution($m['selection_id'],(string)$session['playthrough_id'],(string)$session['session_id'],true);}
             $updated=$this->repository->session($m['session_id'],$m['generation']);
             $body=$this->controlsBody($m,$updated);
             $this->repository->remember((string)$session['installation_id'],$m['message_id'],'/controls/select',$hash,200,$body);

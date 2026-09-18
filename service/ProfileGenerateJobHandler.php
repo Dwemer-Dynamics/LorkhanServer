@@ -38,7 +38,10 @@ final class ProfileGenerateJobHandler implements JobHandler
         if(!$heartbeat())throw new RuntimeException('lease_lost');
         $receipt=fn(string $outcome)=>$this->repository->recordProfileGenerationOutcome($job['job_id'],$job['attempt'],$outcome);
         if(!$this->repository->evolutionScheduleActive($payload)){$receipt('schedule_changed');return;}
-        $profile=$this->repository->getRevisioned('profile',$profileId);if((int)$profile['current_revision']!==$baseRevision){$receipt('revision_conflict');return;}
+        $profile=$this->repository->getRevisioned('profile',$profileId);
+        $conflict=isset($payload['evolution_baseline'])?!$this->repository->evolutionBaselineMatches($payload):
+            (int)$profile['current_revision']!==$baseRevision;
+        if($conflict){$receipt('revision_conflict');return;}
         if(!$this->repository->profileTasksEnabled((string)$profile['installation_id']))throw new RuntimeException('profile_tasks_disabled');
         $currentContent=is_array($profile['content']??null)?$profile['content']:[];
         $management=is_array($currentContent['management']??null)?$currentContent['management']:[];

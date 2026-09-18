@@ -365,6 +365,32 @@ final class ProductRepository
         });
     }
 
+    /** Rename the NPC profile and its display label without changing game identity or bindings. */
+    public function setNpcName(string $profileId,string $installationId,mixed $name):void
+    {
+        if(!is_string($name)||!mb_check_encoding($name,'UTF-8')||strlen($name)>256
+            ||trim($name)===''||preg_match('/[\x00-\x1F\x7F]/',$name))throw new \InvalidArgumentException('invalid_npc_name');
+        $name=trim($name);
+        $update=$this->db->prepare("UPDATE profiles SET name=:name,actor_identity=jsonb_set(actor_identity,'{display_name}',to_jsonb(CAST(:display AS text)),true) "
+            ."WHERE profile_id=:profile AND installation_id=:installation AND deleted_at IS NULL "
+            ."AND COALESCE(actor_identity->>'kind','actor') NOT IN ('player','narrator')");
+        $update->execute(['name'=>$name,'display'=>$name,'profile'=>$profileId,'installation'=>$installationId]);
+        if($update->rowCount()!==1)throw new \InvalidArgumentException('profile_not_editable');
+    }
+
+    /** Edit profile reference metadata without rewriting witnessed identities or live actor bindings. */
+    public function setNpcRecordId(string $profileId,string $installationId,mixed $recordId):void
+    {
+        if(!is_string($recordId)||!mb_check_encoding($recordId,'UTF-8')||strlen($recordId)>256
+            ||preg_match('/[\x00-\x1F\x7F]/',$recordId))throw new \InvalidArgumentException('invalid_record_id');
+        $recordId=trim($recordId);
+        $update=$this->db->prepare("UPDATE profiles SET actor_identity=jsonb_set(actor_identity,'{record_id}',to_jsonb(CAST(:record AS text)),true) "
+            ."WHERE profile_id=:profile AND installation_id=:installation AND deleted_at IS NULL "
+            ."AND COALESCE(actor_identity->>'kind','actor') NOT IN ('player','narrator')");
+        $update->execute(['record'=>$recordId,'profile'=>$profileId,'installation'=>$installationId]);
+        if($update->rowCount()!==1)throw new \InvalidArgumentException('profile_not_editable');
+    }
+
     /** Assign one same-installation Core Profile to an NPC/persona profile. */
     public function assignCoreProfile(string $profileId,string $coreProfileId):void
     {
@@ -1001,7 +1027,8 @@ final class ProductRepository
             $key='profile-evolution:'.$profileId.':'.$playthroughId.':'.Uuid::v4();
             $payload=$this->profileGenerationPayload((string)$row['installation_id'],$profileId,$revision,$mode)+[
                 'playthrough_id'=>$playthroughId,'source_turn_ids'=>$history['source_turn_ids'],
-                'recent_events'=>$history['recent_events'],'dynamic_fields'=>$fields,'evolution_schedule'=>$schedule];
+                'recent_events'=>$history['recent_events'],'dynamic_fields'=>$fields,'evolution_schedule'=>$schedule,
+                'evolution_baseline'=>$this->evolutionBaseline($profileId)];
             // Freeze editable field instructions at enqueue so later prompt edits cannot change an in-flight job.
             $definitions=\LorkhanServer\Application\NarratorEventPrompts::definitions();
             $overrides=$this->narratorEventPromptTexts((string)$row['installation_id']);
@@ -1009,15 +1036,45 @@ final class ProductRepository
                 $payload['dynamic_field_prompts'][$field]=$overrides[$promptKey]??$definitions[$promptKey]['default_prompt'];}
             $payload['witnessed_events']=$witnessed;
             $payload['source_event_ids']=array_values(array_unique(array_column($payload['witnessed_events'],'source_event_id')));
-            $jobId=Uuid::v4();$insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),3,:priority) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
-            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($payload),'priority'=>$manual?60:45]);$job=$insert->fetch();
+            $jobId=Uuid::v4();$insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),1,:priority) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
+            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($payload),'priority'=>$schedule['manual']?60:45]);$job=$insert->fetch();
             if(!$job){$existing=$this->db->prepare("SELECT job_id,state FROM durable_jobs WHERE job_type='profile.generate' AND idempotency_key=:key");
                 $existing->execute(['key'=>$key]);$job=$existing->fetch();}
             if(!$job)throw new RuntimeException('profile_generation_queue_failed');
-            $scheduler->attempted($profileId,$playthroughId);
+            $scheduler->attempted($profileId,$playthroughId,$schedule);
             return$job+['queued'=>true,'profile_id'=>$profileId,'base_revision'=>$revision,'mode'=>$mode,
                 'observed'=>$observed,'dynamic_fields'=>$fields];
         });
+    }
+
+    /** Snapshot only inputs that change generated meaning; routine gameplay metadata is not a conflict. */
+    public function evolutionBaseline(string $profileId):array
+    {
+        $profile=$this->getRevisioned('profile',$profileId);
+        $content=$profile['content'];$identity=$profile['actor_identity'];
+        if(is_string($identity))$identity=$this->json($identity);
+        $effective=$this->effectiveSettingsForProfile((string)$profile['installation_id'],$profileId);
+        $policy=$effective['settings']['profile_evolution']??[];
+        $fields=($identity['kind']??null)==='narrator'?($content['dynamic_profile_fields']??[]):
+            EffectiveSettingsResolver::profileEvolutionDefaults($effective['core_profile']['content']['settings_overrides']['profile_evolution']??null)['fields'];
+        $fields=array_values(array_unique(array_filter($fields,static fn($field)=>in_array($field,EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS,true))));
+        if($fields===[])$fields=['personality','speech_style','goals'];
+        $values=[];foreach($fields as$field)$values[$field]=$content[$field]??'';
+        $history=(int)($policy['history_limit']??50);
+        if($history===0)$history=(int)($effective['settings']['memory']['recent_turn_limit']??20);
+        return ['name'=>$profile['name'],'identity'=>array_intersect_key($identity,array_flip(['kind','record_id','content_file','refnum'])),
+            'core_profile_id'=>$profile['core_profile_id']??null,'enabled'=>($content['dynamic_profile']??false)===true,
+            'locked'=>($content['management']['locked']??false)===true,'fields'=>$fields,'values'=>$values,
+            'policy'=>array_intersect_key($policy,array_flip(['interval_days','min_events','cooldown_minutes'])),'history_limit'=>$history];
+    }
+
+    public function evolutionBaselineMatches(array $payload):bool
+    {
+        if(!isset($payload['evolution_baseline']))return false;
+        $fresh=$this->evolutionBaseline($payload['profile_id']);$changed=[];
+        foreach($fresh as$key=>$value)if($value!=($payload['evolution_baseline'][$key]??null))$changed[]=$key;
+        if($changed!==[])error_log('[DPS] save_conflict profile='.$payload['profile_id'].' changed='.implode(',',$changed));
+        return $changed===[];
     }
 
     /** Queue a revision-safe AI regeneration only for the installation narrator profile. */
@@ -1356,7 +1413,7 @@ final class ProductRepository
         $selected=$this->selectedActorProfileId((string)$session['installation_id'],
             (string)$session['playthrough_id'],$target);
         if($selected===null||!hash_equals($selected,$profileId))throw new \OutOfBoundsException('profile_not_bound');
-        return$this->enqueueProfileGeneration($profileId);
+        return$this->maybeEnqueueDynamicProfileEvolution($profileId,(string)$session['playthrough_id'],(string)$session['session_id'],true);
     }
 
     /** Keep a durable, non-secret receipt when generation is skipped or its output is not applied. */
@@ -1369,7 +1426,7 @@ final class ProductRepository
         $query->execute(['job'=>$jobId,'attempt'=>$attempt,'outcome'=>$outcome]);
     }
 
-    /** Commit generated fields only while the queued base revision is still current. */
+    /** Fence full regeneration by revision and dynamic updates by their meaningful input snapshot. */
     public function reviseGeneratedProfileIfCurrent(string $profileId,int $baseRevision,array $content,string $reason,string $now,array $sourceTurnIds=[],?string $jobId=null,?int $attempt=null):bool
     {
         return$this->transaction(function()use($profileId,$baseRevision,$content,$reason,$now,$sourceTurnIds,$jobId,$attempt):bool{
@@ -1396,8 +1453,14 @@ final class ProductRepository
             }
             if (!(new LoadedSaveTimeline($this->db))->sourcesActive($sourceTurnIds)) return false;
             $select=$this->db->prepare('SELECT current_revision FROM profiles WHERE profile_id=:id AND deleted_at IS NULL AND '.ProfileScopeSql::current('profiles').' FOR UPDATE');
-            $select->execute(['id'=>$profileId]);$current=$select->fetchColumn();if($current===false||(int)$current!==$baseRevision)return false;
-            $next=$baseRevision+1;
+            $select->execute(['id'=>$profileId]);$current=$select->fetchColumn();if($current===false)return false;
+            if(isset($payload['evolution_baseline'])){
+                if(!$this->evolutionBaselineMatches($payload))return false;
+                $fresh=$this->getRevisioned('profile',$profileId)['content'];
+                foreach($payload['dynamic_fields'] as$field)$fresh[$field]=$content[$field];
+                $content=$fresh;
+            }elseif((int)$current!==$baseRevision)return false;
+            $next=(int)$current+1;
             $insert=$this->db->prepare('INSERT INTO profile_revisions(profile_id,revision,content,change_reason,created_at,provenance)
                 VALUES(:profile,:revision,CAST(:content AS jsonb),:reason,:now,CAST(:provenance AS jsonb))');
             $insert->execute(['profile'=>$profileId,'revision'=>$next,'content'=>json_encode($content,JSON_THROW_ON_ERROR),
@@ -1915,7 +1978,9 @@ SQL);
         if(!is_array($voice)||($voice!==[]&&array_is_list($voice)))return[];
         $result=[];$filter=\LorkhanServer\Application\TtsFilterPresets::validate($content['tts_filter_preset']??'none');
         if($filter!=='none'){$result['tts_filter_preset']=$filter;$result['tts_filter_version']=\LorkhanServer\Application\TtsFilterPresets::VERSION;}
-        $id=trim((string)($voice['id']??$voice['voice_id']??''));$language=trim((string)($voice['language']??''));
+        $id=trim((string)($voice['id']??$voice['voice_id']??''));
+        // Ordinary NPCs inherit language from their Profile's TTS connector, not old voice metadata.
+        $language=in_array($identity['kind']??'actor',['player','narrator'],true)?trim((string)($voice['language']??'')):'';
         if($id!==''&&in_array($connector['content']['driver']??'',['cartesia','inworld'],true)){
             $lookup=$this->db->prepare('SELECT voice_id FROM speech_connector_voices WHERE configuration_id=:configuration AND (voice_id=:voice OR lower(display_name)=lower(:voice)) ORDER BY (voice_id=:voice) DESC LIMIT 2');
             $lookup->execute(['configuration'=>$connector['configuration_id'],'voice'=>$id]);$matches=$lookup->fetchAll(PDO::FETCH_COLUMN);
@@ -4249,9 +4314,15 @@ SQL);
             if($locked===false||$this->json($locked)!=$identity)throw new InvalidArgumentException('npc_manager_profile_changed');
         }
         $session=$sessions[0];$scope['session_id']=$session['session_id'];$scope['generation']=(int)$session['generation'];
-        $binding=$this->db->prepare('SELECT 1 FROM actor_profile_bindings WHERE installation_id=:installation AND playthrough_id=:playthrough AND profile_id=:profile AND actor_key=:key'.($lock?' FOR SHARE':''));
-        $binding->execute(['installation'=>$profile['installation_id'],'playthrough'=>$session['playthrough_id'],'profile'=>$profileId,'key'=>$this->actorKey($identity)]);
-        if(!$binding->fetchColumn()){$scope['reason_code']='npc_manager_profile_not_bound';return$scope;}
+        // Editable profile labels are not authority to move a game actor. Resolve its verified binding.
+        $profileKey=$this->actorKey($identity);
+        $binding=$this->db->prepare('SELECT actor_key,actor_identity FROM actor_profile_bindings WHERE installation_id=:installation AND playthrough_id=:playthrough AND profile_id=:profile '
+            .'ORDER BY (actor_key=:key) DESC,actor_key LIMIT 2'.($lock?' FOR SHARE':''));
+        $binding->execute(['installation'=>$profile['installation_id'],'playthrough'=>$session['playthrough_id'],'profile'=>$profileId,'key'=>$profileKey]);
+        $bindings=$binding->fetchAll();
+        if($bindings===[]){$scope['reason_code']='npc_manager_profile_not_bound';return$scope;}
+        if(count($bindings)>1&&$bindings[0]['actor_key']!==$profileKey){$scope['reason_code']='npc_manager_ambiguous_actor';return$scope;}
+        $identity=$this->json($bindings[0]['actor_identity']);
         {
             $observed=$this->db->prepare("SELECT target FROM active_turns WHERE session_id=:session AND generation=:generation AND target->>'record_id'=:record AND target->>'content_file'=:content AND target->'refnum'=CAST(:refnum AS jsonb) AND target->>'kind'=:kind ORDER BY accepted_at DESC,turn_id DESC LIMIT 1");
             $observed->execute(['session'=>$session['session_id'],'generation'=>$session['generation'],'kind'=>$identity['kind']==='actor'?'npc':$identity['kind'],'record'=>$identity['record_id'],'content'=>$identity['content_file'],'refnum'=>$this->encode($identity['refnum'])]);

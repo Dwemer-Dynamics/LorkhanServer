@@ -695,7 +695,7 @@ $assert(($fargothProfile['content']['voice']['id']??null)==='fargoth'
     'voice backfill did not upgrade the current Fargoth profile to its exact provider sample');
 $actorProfile=$fargothProfile;
 $automaticSpeech=$products->speechContext($installationId,$session['playthrough_id'],$automaticTarget,$profileTtsPreset);
-$assert($automaticSpeech===['voice'=>'mw_wood_elf_male','language'=>'en'],
+$assert($automaticSpeech===['voice'=>'mw_wood_elf_male'],
     'catalog voice was not selected when the routed connector contained it');
 $db->prepare("DELETE FROM installation_provider_selections WHERE installation_id=:installation AND provider_kind='tts_provider'")
     ->execute(['installation'=>$installationId]);
@@ -936,8 +936,8 @@ $generateProfile['kind']='profile_generate';
 $queuedProfileJob=$db->prepare("SELECT state,payload FROM durable_jobs WHERE job_type='profile.generate' AND payload->>'profile_id'=:profile");
 $queuedProfileJob->execute(['profile'=>$actorProfile['profile_id']]);$queuedProfileJobRow=$queuedProfileJob->fetch();
 $assert($status===200&&$generationQueued['selected_profile_id']===$actorProfile['profile_id']
-    &&$queuedProfileJobRow&&$queuedProfileJobRow['state']==='queued',
-    'in-game bound profile generation did not queue a durable job');
+    &&!$queuedProfileJobRow,
+    'disabled dynamic profile incorrectly queued full regeneration');
 
 $unboundGenerate=$generateProfile;$unboundGenerate['message_id']=$newUuid(14);$unboundGenerate['request_id']=$newUuid(15);
 $unboundGenerate['target']['record_id']='not_bound';
@@ -951,8 +951,8 @@ $queuedNarratorJob=$db->prepare("SELECT state,payload FROM durable_jobs WHERE jo
 $queuedNarratorJob->execute(['profile'=>$narratorProfile['profile_id']]);$queuedNarratorJobRow=$queuedNarratorJob->fetch();
 $queuedNarratorPayload=$queuedNarratorJobRow?json_decode((string)$queuedNarratorJobRow['payload'],true,32,JSON_THROW_ON_ERROR):[];
 $assert($status===200&&$narratorQueued['narrator_profile_id']===$narratorProfile['profile_id']
-    &&$queuedNarratorJobRow&&$queuedNarratorJobRow['state']==='queued'&&($queuedNarratorPayload['mode']??null)==='narrator_profile',
-    'in-game narrator profile generation did not queue a durable narrator job: '.json_encode([
+    &&!$queuedNarratorJobRow,
+    'disabled narrator dynamic profile incorrectly queued full regeneration: '.json_encode([
         'status'=>$status,'body'=>$narratorQueued,'job'=>$queuedNarratorJobRow,'payload'=>$queuedNarratorPayload],JSON_UNESCAPED_SLASHES));
 $wrongNarrator=$generateNarrator;$wrongNarrator['message_id']=$newUuid(712);$wrongNarrator['request_id']=$newUuid(713);
 $wrongNarrator['selection_id']=$actorProfile['profile_id'];
@@ -1168,7 +1168,7 @@ $assert($inheritedNpc['content']['dynamic_profile']===true
     'Core Profile discovery defaults did not seed new NPCs or overwrote explicit/existing choices');
 
 $dynamicContent=$generatedBackfill['content'];$dynamicContent['dynamic_profile']=true;
-$dynamicContent['dynamic_profile_fields']=['personality','occupation','skills'];$dynamicContent['personality']='Baseline personality to evolve.';
+$dynamicContent['dynamic_profile_fields']=['goals'];$dynamicContent['personality']='Baseline personality to evolve.';
 $dynamicContent['occupation']='Baseline occupation.';$dynamicContent['skills']='Baseline skills.';
 $dynamicContent['speech_style']='Speech style must remain unchanged.';
 $dynamicContent['goals']='Goals must remain unchanged.';
@@ -1178,6 +1178,7 @@ $db->prepare("UPDATE sessions SET created_at=clock_timestamp()-interval '21 minu
     ->execute(['session'=>$sessionId]);
 $evolutionHistoryCore=$products->getRevisioned('core_profile',$evolutionCore['core_profile_id']);
 $evolutionHistoryContent=$evolutionHistoryCore['content'];$evolutionHistoryContent['settings_overrides']['profile_evolution']['history_limit']=3;
+$evolutionHistoryContent['settings_overrides']['profile_evolution']['fields']=['personality','occupation','skills'];
 $products->revise('core_profile',$evolutionCore['core_profile_id'],$evolutionHistoryContent,'bounded evolution history fixture',$now);
 $db->prepare('UPDATE profiles SET core_profile_id=:core WHERE profile_id IN (:npc,:narrator)')->execute([
     'core'=>$evolutionCore['core_profile_id'],'npc'=>$dynamicProfile['profile_id'],'narrator'=>$narratorProfile['profile_id']]);
@@ -1221,7 +1222,18 @@ try{
     $assert($probe()['observed']===2,'repeated scheduler scan counted events twice');
     $scheduler->attempted($inheritedNpc['profile_id'],$session['playthrough_id']);
     $assert(!$probe()['due'],'real-time attempt cooldown was bypassed');
-    $assert($scheduler->prepare($installationId,$inheritedNpc['profile_id'],$session['playthrough_id'],$scheduleIdentity,$schedulePolicy,true)['due'],'manual evolution failed to bypass schedule');
+    $manualSchedule=$scheduler->prepare($installationId,$inheritedNpc['profile_id'],$session['playthrough_id'],$scheduleIdentity,$schedulePolicy,true);
+    $assert($manualSchedule['due'],'manual evolution failed to bypass schedule');
+    $scheduler->attempted($inheritedNpc['profile_id'],$session['playthrough_id'],$manualSchedule);
+    $assert(!$probe()['due']&&$probe()['manual'],'manual failure lost intent or bypassed cooldown');
+    $newManual=$scheduler->prepare($installationId,$inheritedNpc['profile_id'],$session['playthrough_id'],$scheduleIdentity,$schedulePolicy,true);
+    $scheduler->complete(['profile_id'=>$inheritedNpc['profile_id'],'playthrough_id'=>$session['playthrough_id'],'evolution_schedule'=>$manualSchedule]);
+    $assert($probe()['manual_request_id']===$newManual['manual_request_id']&&$probe()['manual'],'old success cleared newer manual request');
+    for($manualAttempt=0;$manualAttempt<3;$manualAttempt++){
+        $scheduler->attempted($inheritedNpc['profile_id'],$session['playthrough_id'],$newManual);
+        $db->prepare("UPDATE lorkhan_internal.profile_evolution_progress SET attempted_at=clock_timestamp()-interval '2 days' WHERE profile_id=:profile")->execute(['profile'=>$inheritedNpc['profile_id']]);
+    }
+    $assert(!$probe()['manual'],'manual request exceeded three attempts');
     $scheduler->complete(['profile_id'=>$inheritedNpc['profile_id'],'playthrough_id'=>$session['playthrough_id'],'evolution_schedule'=>$progress]);
     $assert($probe()['observed']===0,'successful evolution failed to consume frozen events');
     $oldPayload=['profile_id'=>$inheritedNpc['profile_id'],'playthrough_id'=>$session['playthrough_id'],'evolution_schedule'=>$progress];
@@ -1264,6 +1276,15 @@ try{
     }
 }finally{$db->exec('ROLLBACK TO SAVEPOINT profile_history_limits_probe');if($historyOwns)$db->rollBack();}
 
+// Routine metadata revisions must not discard an update or be overwritten by it.
+$baselineProbe=$products->getRevisioned('profile',$dynamicProfile['profile_id']);
+$metadataContent=$baselineProbe['content'];$metadataContent['management']['runtime_probe']='preserve me';
+$products->revise('profile',$dynamicProfile['profile_id'],$metadataContent,'metadata conflict regression',$now);
+$assert($products->evolutionBaselineMatches($dynamicPayload),'unrelated metadata created an evolution conflict');
+$changedBaseline=$dynamicPayload;$changedBaseline['evolution_baseline']['values']['personality']='concurrent human edit';
+$assert(!$products->evolutionBaselineMatches($changedBaseline),'selected field conflict was ignored');
+$changedBaseline=$dynamicPayload;$changedBaseline['evolution_baseline']['policy']['min_events']=9999;
+$assert(!$products->evolutionBaselineMatches($changedBaseline),'schedule policy conflict was ignored');
 $dynamicHandlerPayload=$dynamicPayload;
 $leaseProfileFixture->execute(['job'=>$dynamicJobRow['job_id'],'token'=>\LorkhanServer\Infrastructure\Uuid::v4()]);
 $dynamicHandlerPayload['_job']=['job_id'=>$dynamicJobRow['job_id'],'attempt'=>1];
@@ -1271,7 +1292,8 @@ $dynamicHandlerPayload['_job']=['job_id'=>$dynamicJobRow['job_id'],'attempt'=>1]
     new \LorkhanServer\Application\MockProfileGenerationProvider()))->handle($dynamicHandlerPayload,'profile-evolution-test',static fn():bool=>true);
 $evolvedProfile=$products->getRevisioned('profile',$dynamicProfile['profile_id']);
 $dynamicAgain=$products->maybeEnqueueDynamicProfileEvolution($dynamicProfile['profile_id'],$session['playthrough_id'],$sessionId);
-$assert((int)$evolvedProfile['current_revision']===(int)$dynamicPayload['base_revision']+1
+$assert((int)$evolvedProfile['current_revision']===(int)$dynamicPayload['base_revision']+2
+    &&$evolvedProfile['content']['management']['runtime_probe']==='preserve me'
     &&($evolvedProfile['content']['personality']??'')!==($dynamicContent['personality']??'')
     &&($evolvedProfile['content']['occupation']??'')!==$dynamicContent['occupation']
     &&($evolvedProfile['content']['skills']??'')!==$dynamicContent['skills']
@@ -5144,6 +5166,10 @@ try {
     catch(InvalidArgumentException $error){$assert($error->getMessage()==='npc_manager_unsupported','unexpected NPC manager capability error');}
     $db->prepare("UPDATE sessions SET capabilities=array_append(capabilities,'debug.npc_manager.v1') WHERE session_id=:id")->execute(['id'=>$browserSession]);
     $assert($products->npcManagerStatus($managerId)['observed']===null,'NPC manager invented saved Return state');
+    $products->setNpcRecordId($managerId,$managerSession['installation_id'],'edited_profile_record');
+    $products->setNpcName($managerId,$managerSession['installation_id'],'Edited profile label');
+    $assert($products->npcManagerStatus($managerId)['actor']===$managerIdentity,'NPC manager used editable profile metadata instead of the bound actor');
+
     foreach(['status','visit','teleport','return']as$operation){
         $managerCommand=$products->queueNpcManagerCommand($managerId,$operation);
         $assert($managerCommand['state']==='queued'&&$managerCommand['name']==='npc.'.$operation&&$managerCommand['parameters']===['actor'=>$managerIdentity],

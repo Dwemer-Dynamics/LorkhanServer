@@ -191,7 +191,6 @@ $forms = match ($view) {
                 ['relationships', 'Relationships', 'textarea', '', [], false],
                 ['emote_moods', 'Allowed moods and emotes', 'text', '', [], false],
                 ['voice_id', 'Voice ID', 'datalist', '', $voiceOptions, false],
-                ['voice_language', 'Voice language', 'text', 'en'],
                 ['locked', 'Lock against automatic AI profile generation', 'checkbox', '1', [], false],
                 ['favorite', 'Favorite NPC', 'checkbox', '1', [], false],
                 ['notes', 'Notes', 'textarea', '', [], false],
@@ -612,7 +611,6 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
                 ['emote_moods','Allowed moods and emotes','text',(string)($content['emote_moods']??''),[],false],
                 ['core_profile_id','Core Profile','select',$coreProfileId,$coreProfileOptions],
                 ['voice_id','TTS voice ID (type or choose a stored sample)','datalist',(string)($voice['id']??''),$voiceOptions,false],
-                ['voice_language','Voice language','text',(string)($voice['language']??'en')],
                 ['locked','Lock against automatic AI profile generation','checkbox','1',[],false,$locked],
                 ['dynamic_profile','Enable Dynamic Profile','checkbox','1',[],false,$dynamicProfile],
                 ['favorite','Favorite NPC','checkbox','1',[],false,$favorite],
@@ -693,14 +691,14 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     echo'</div><div class="npc-editor-panels">';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="general">';
     if($creating){$field('installation_id','Installation','select',$installationId,$installationOptions, 'span-2');$field('name','NPC Name','text','',[],'span-2');}
-    else$disabled('NPC Name','config.npc.identity',(string)($row['name']??''),'span-2');
+    else$field('name','NPC Name','text',(string)($row['name']??''),[],'span-2');
     $field('core_profile_id','Profile','select',$coreProfileId,$coreProfileOptions);$checkbox('locked','Lock This NPC',$locked,'Prevents automatic AI profile generation from replacing manual edits.');
     $field('gender','Gender','select',(string)($content['gender']??''),[''=>'Unspecified','Male'=>'Male','Female'=>'Female','Other'=>'Other']);$field('race','Race','text',(string)($content['race']??''));
     if($creating){$field('content_file','Base / Content File','text','Morrowind.esm');$field('record_id','Ref ID','text','');$field('refnum','Reference Number','text','');}
-    else{$disabled('Base / Content File','config.npc.identity',(string)($identity['content_file']??''));$disabled('Ref ID','config.npc.identity',(string)($identity['record_id']??''));}
+    else{$field('record_id','Ref ID','text',(string)($identity['record_id']??''),[],'','Profile record ID. Does not rename the game actor or change existing actor bindings.');}
     $knowledgeTags=$content['oghma_knowledge_tags']??$content['oghma_tags']??'';
     $field('oghma_knowledge_tags','Oghma Tags','text',is_array($knowledgeTags)?implode(', ',array_map('strval',$knowledgeTags)):(string)$knowledgeTags,[],'','Used by Oghma systems for knowledge lookup restrictions.','Comma-separated knowledge tags');
-    $field('voice_id','Voice ID','datalist',(string)($voice['id']??''),$voiceOptions);$field('voice_language','Voice Language','text',(string)($voice['language']??'en'));
+    $field('voice_id','Voice ID','datalist',(string)($voice['id']??''),$voiceOptions);
     require_once __DIR__.'/tts_filter_field.php';
     lorkhan_ui_tts_filter_field($content,$creating?'':$profileId,$managementBasePath,$csrf,$formId);
     $checkbox('dynamic_profile','♻️Dynamic Profile',$dynamicProfile,'Evolve selected fields after the configured game-day interval, delivered event count and real-time cooldown. This NPC must be unlocked, but need not remain nearby.');
