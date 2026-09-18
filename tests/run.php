@@ -2952,6 +2952,10 @@ $check($npcCombatResolved['settings']['behavior']['combat_bark_period_seconds']=
     &&$npcCombatResolved['settings']['behavior']['combat_barks']===false,
     'NPC combat cooldown overrides Core and reaches native controls without enabling combat barks');
 $combatPreset=\LorkhanServer\Application\CoreProfilePreset::capture($combatCore);
+$check((new EffectiveSettingsResolver())->resolve([],[],[])['settings']['behavior']['combat_bark_period_seconds']===30,
+    'combat bark cooldown defaults to thirty seconds like CHIM');
+$check((new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['behavior'=>['combat_bark_period_seconds'=>20]]],[])['settings']['behavior']['combat_bark_period_seconds']===20,
+    'explicit twenty-second combat cooldown is preserved');
 $check(\LorkhanServer\Application\CoreProfilePreset::apply($combatPreset,$corePresetSource)['settings_overrides']['behavior']['combat_bark_period_seconds']===600,
     'combat cooldown survives named presets');
 $check(EffectiveSettingsResolver::validateSettingsOverrides(['behavior'=>['combat_bark_period_seconds'=>5]])['behavior']['combat_bark_period_seconds']===5,

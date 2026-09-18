@@ -2626,7 +2626,7 @@ final class ManagementRouter
                 'rechat_probability_percent'=>$number($values,'setting_behavior_rechat_probability_percent',50),
                 'rechat_allow_actions'=>isset($values['setting_behavior_rechat_allow_actions'])]
                 + (isset($values['setting_behavior_combat_bark_period_seconds'])
-                    ? ['combat_bark_period_seconds'=>$number($values,'setting_behavior_combat_bark_period_seconds',20)] : []),
+                    ? ['combat_bark_period_seconds'=>$number($values,'setting_behavior_combat_bark_period_seconds',30)] : []),
             'memory'=>['recent_turn_limit'=>$number($values,'setting_memory_recent_turn_limit',20),
                 'short_term_max_summaries'=>$number($values,'setting_memory_short_term_max_summaries',10)]
                 + (isset($values['memory_switches_present']) ? [

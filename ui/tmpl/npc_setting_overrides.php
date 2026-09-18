@@ -43,7 +43,7 @@ $overrideLabels = [
 $help=[
     'context.detect_magic_events'=>'Include observed successful spell casts in this NPC’s conversation context. The Infoaction event filter and Magic Effect Blacklist still apply; original event records are retained.',
     'context.item_pickup_min_value'=>'Minimum total gold value (quantity times item value) for observed pickups in conversation context. Zero includes all pickups; original event records are retained.',
-    'behavior.combat_bark_period_seconds'=>'Cooldown in seconds between combat barks (5–600). Does not enable combat barks. The active actor’s effective setting is sent to the game controls.',
+    'behavior.combat_bark_period_seconds'=>'Cooldown period in seconds between combat barks to prevent spam during combat. This cooldown is global across all NPCs in the party.',
     'profile_management.autofill_custom_profiles'=>'Automatically fill this NPC’s empty, unlocked profile after enough witnessed dialogue. Dynamic Profile updates remain separate.',
     'profile_management.autofill_custom_profiles_trigger'=>'Witnessed dialogue records required before automatic profile backfill (10–100).',
             'behavior.rechat_strict_targeting'=>'Require this responder to address the previous speaker directly. Captured when the chain starts.',
@@ -74,6 +74,8 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
         if($section==='oghma')$range=match($key){'topic_count'=>[1,3],'result_limit'=>[1,5],'extractor_timeout_ms'=>[250,3000],default=>null};
         $default=$effectiveSettings['settings'][$section][$key]
             ?? \LorkhanServer\Application\SettingsCatalog::clientDefaults()[$section][$key] ?? ($range?0:true);
+        // Use CHIM's editor bounds without invalidating pre-existing five-to-nine-second overrides.
+        if($path==='behavior.combat_bark_period_seconds')$range=[min(10,(int)$default),600];
         if($path==='response.core_lang')$default=$effectiveSettings['settings']['response']['core_lang']??'';
         if($path==='response.lang_llm_xtts')$default=$effectiveSettings['settings']['response']['lang_llm_xtts']??false;
         $overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>$range?'integer':'boolean','range'=>$range,'value'=>$default];

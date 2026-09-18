@@ -307,7 +307,8 @@ final class Repository
                 $lock=$this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))');
                 $lock->execute(['key'=>'combat-bark:'.$m['installation_id']]);
                 $effective=(new ProductRepository($this->db))->effectiveSettingsForActor($m['installation_id'],$m['playthrough_id'],$p['target']);
-                $period=max(5,min(600,(int)($effective['settings']['behavior']['combat_bark_period_seconds']??20)));
+                // Normal resolved defaults are 30; match CHIM's defensive 90-second fallback if absent.
+                $period=max(5,min(600,(int)($effective['settings']['behavior']['combat_bark_period_seconds']??90)));
                 $recent=$this->db->prepare("SELECT 1 FROM sessions s JOIN source_events e ON e.session_id=s.session_id "
                     ."WHERE s.installation_id=:installation "
                     ."AND e.received_at>clock_timestamp()-make_interval(secs=>:period) "

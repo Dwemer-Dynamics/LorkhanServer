@@ -27,7 +27,7 @@ final class SettingsCatalog
             'boredom' => false,
             'boredom_delay_seconds' => 180,
             'combat_barks' => false,
-            'combat_bark_period_seconds' => 20,
+            'combat_bark_period_seconds' => 30,
         ],
         'memory' => ['recent_turn_limit' => 20, 'knowledge_limit' => 5],
         'narrator' => [
