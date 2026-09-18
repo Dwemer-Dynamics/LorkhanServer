@@ -35,6 +35,21 @@ final class LoadedSaveTimeline
         return(int)$query->fetchColumn()===count($turnIds);
     }
 
+    /** Witnessed source events must still belong to the same live save branch at commit time. */
+    public function eventSourcesActive(array $ids,string $installation,string $playthrough):bool
+    {
+        if($ids===[])return true;
+        if(!array_is_list($ids)||count($ids)>100||count(array_unique($ids))!==count($ids))return false;
+        foreach($ids as$id)if(!is_string($id)||!Uuid::isValid($id))return false;
+        $query=$this->db->prepare("SELECT count(*) FROM source_events e JOIN sessions s ON s.session_id=e.session_id
+            WHERE s.installation_id=:installation AND s.playthrough_id=:playthrough
+            AND CAST(:sources AS jsonb) @> jsonb_build_array(e.source_event_id::text)
+            AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=e.source_event_id)
+            AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_turns i WHERE i.turn_id=e.turn_id)");
+        $query->execute(['installation'=>$installation,'playthrough'=>$playthrough,'sources'=>json_encode($ids,JSON_THROW_ON_ERROR)]);
+        return(int)$query->fetchColumn()===count($ids);
+    }
+
     /** The caller must hold the accepted-session transaction and persist its session.init source first. */
     public function invalidate(array $message): array
     {
@@ -132,10 +147,11 @@ final class LoadedSaveTimeline
                 if($kind==='automatic_profile'){
                     $sources=$provenance['source_turn_ids']??null;
                     if(!in_array($provenance['mode']??null,['npc_profile_backfill','profile_evolution'],true)
-                        ||!is_array($sources)||!$this->sourcesBelongTo($sources,$scope['installation'],$scope['playthrough'])){$complete=true;break;}
+                        ||!is_array($sources)||($sources!==[]&&!$this->sourcesBelongTo($sources,$scope['installation'],$scope['playthrough']))
+                        ||($sources===[]&&empty($provenance['source_event_ids']))){$complete=true;break;}
                     $next=$provenance['base_revision']??null;
                     if(!is_int($next)||$next<1||$next>=$cursor)break;
-                    if(!$this->sourcesActive($sources))$restore=$next;
+                    if(!$this->sourcesActive($sources)||!$this->eventSourcesActive($provenance['source_event_ids']??[],$scope['installation'],$scope['playthrough']))$restore=$next;
                 }elseif($kind==='loaded_save_restore'){
                     $next=$provenance['restored_revision']??null;
                     if(!is_int($next)||$next<1||$next>=$cursor)break;

@@ -10,7 +10,7 @@ use Throwable;
 
 final class Repository
 {
-    private const SERVER_CAPABILITIES = ['diary.books.v1', 'dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'debug.npc_manager.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
+    private const SERVER_CAPABILITIES = ['relationship.disposition', 'diary.books.v1', 'dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'debug.npc_manager.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
         'action.ai.stop', 'action.conversation.end', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
         'action.inventory.inspect','action.confirmation','action.result-followup'];
@@ -463,6 +463,7 @@ final class Repository
                 (string) $message['session_id'], (int) $message['generation'], 'gamedata.' . (string) $message['type'],
                 (string) $message['observed_at'], (string) $message['schema'], (string) $message['request_id'],
                 null, null, $message);
+            if($message['type']==='disposition')(new GameDispositionRepository($this->db))->observe($message);
             if($message['type']==='journal'){
                 $dynamicOghma=new DynamicOghmaRepository($this->db);
                 $dynamicOghma->apply((string)$message['installation_id'],(string)$message['playthrough_id'],(string)$message['request_id'],$dynamicOghma->plan($message,true));

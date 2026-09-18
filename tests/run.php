@@ -746,6 +746,14 @@ $validator->validate($actorProfileGameData,'lorkhan.gamedata.v1');
 $check(true,'auto-activated NPC profile snapshot validates');
 $transferActor=$actorProfileGameData['payload']['actor'];
 $transferPlayer=array_replace($transferActor,['kind'=>'player','record_id'=>'player','refnum'=>['index'=>1,'content_file'=>0]]);
+$dispositionData=$actorProfileGameData;$dispositionData['type']='disposition';
+$dispositionData['payload']=['actor'=>$transferActor,'player'=>$transferPlayer,'base_disposition'=>-15,'disposition'=>42,'dialogue_open'=>false];
+$validator->validate($dispositionData,'lorkhan.gamedata.v1');$check(true,'game disposition preserves raw base and bounded effective score');
+foreach([['disposition'=>-1],['disposition'=>101],['base_disposition'=>1.5],['dialogue_open'=>1],['status'=>'applied']]as$bad){
+    $invalidDisposition=$dispositionData;$invalidDisposition['payload']=array_replace($dispositionData['payload'],$bad);
+    try{$validator->validate($invalidDisposition,'lorkhan.gamedata.v1');$check(false,'invalid game disposition rejected');}
+    catch(ValidationException){$check(true,'invalid game disposition rejected');}
+}
 $transferItem=['item_id'=>'@0x1234567890abcdef','record_id'=>'gold_001','name'=>'Gold','count'=>100,
     'location'=>'actor_inventory','owner'=>$transferActor];
 $transferTurn=['target'=>$transferActor,'speaker'=>$transferPlayer,'context'=>['action_items'=>[$transferItem]]];
@@ -3727,6 +3735,26 @@ catch(RuntimeException $error){$check($error->getMessage()==='provider_action_no
 $sceneLine['action']=['name'=>'ai.wait','parameters'=>['duration_seconds'=>90]];
 $sceneActions=['one'=>[['name'=>'ai.wait','tier'=>1,'parameter_schema'=>['type'=>'object','properties'=>[]]]]];
 $check(\LorkhanServer\Application\DirectorPolicy::output(['instructions'=>[$sceneLine]],$sceneActors,$sceneActions)['instructions'][0]['action']===$sceneLine['action'],'Director retains only catalog-backed typed action for fresh child validation');
+
+// Evolution instructions reuse editable prompt rows while preserving strict provider output contracts.
+$evolutionDefinitions=\LorkhanServer\Application\NarratorEventPrompts::definitions();
+foreach(EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS as$field){
+    $key='dynamic_prompt_'.($field==='speech_style'?'speechstyle':$field);
+    $check(isset($evolutionDefinitions[$key]['default_prompt']),'evolution field has editable factory prompt: '.$field);
+}
+$evolutionInput=['generation_mode'=>'profile_evolution','dynamic_fields'=>['goals'],
+    'dynamic_field_prompts'=>['goals'=>'Focus on promises to the player.'],'witnessed_events'=>[]];
+$evolutionMessages=[];
+try{$auditProvider->generate($evolutionInput,new NeverCancelledToken(),static function(array $messages)use(&$evolutionMessages):void{
+    $evolutionMessages=$messages;throw new RuntimeException('evolution-observed-before-network');
+});$check(false,'evolution observer must precede network');}
+catch(RuntimeException $error){$check($error->getMessage()==='evolution-observed-before-network'
+    &&str_contains($evolutionMessages[0]['content'],'Field goals: Focus on promises to the player.')
+    &&str_contains($evolutionMessages[0]['content'],'return only the requested JSON string fields'),
+    'editable evolution instruction reaches system prompt without replacing output contract');}
+$evolutionInput['dynamic_field_prompts']=['occupation'=>'Unrequested field'];
+try{$auditProvider->generate($evolutionInput,new NeverCancelledToken());$check(false,'unselected evolution prompt accepted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='invalid_profile_evolution_prompts','unselected evolution prompt rejected before network');}
 
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");

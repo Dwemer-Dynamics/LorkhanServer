@@ -62,10 +62,14 @@ final class RelationshipEvaluationRepository
         if(($payload['relationship_types']??null)!==$types['relationship_types']
             ||!hash_equals((string)($payload['relationship_types_sha256']??''),$types['relationship_types_sha256']))return null;
         $record=$records['record'];
+        $gameOwned=($source['owner_identity']['kind']??'')==='npc'&&($source['target_identity']['kind']??'')==='player';
+        $game=$gameOwned?(new GameDispositionRepository($this->db))->snapshot($source,$source['owner_identity'],$source['target_identity']):null;
+        if($game!==null&&($game['session_id']!==$source['session_id']||(int)$game['generation']!==(int)$source['generation']))$game=null;
         return ['source'=>$source,'record'=>$record,'model'=>[
             'generation_mode'=>'relationship_evaluation','owner'=>$source['owner_identity'],'interlocutor'=>$source['target_identity'],
             'input'=>$source['input_text'],'played_reply'=>$source['reply'],
-            'disposition'=>(int)($record['disposition']??0),'affinity'=>(int)($record['affinity']??0),
+            'disposition'=>$gameOwned?($game['disposition']??null):(int)($record['disposition']??0),
+            'disposition_scale'=>$gameOwned?'game-owned 0 to 100; propose only a delta -3 to 3; unknown is not zero':'-100 to 100','affinity'=>(int)($record['affinity']??0),
             'relationship_type'=>(string)($record['relationship_type']??'neutral'),
             'details'=>json_decode($record['details']??'{}',true,16,JSON_THROW_ON_ERROR),
             'available_relationship_types'=>$types['relationship_types'],
@@ -83,7 +87,9 @@ final class RelationshipEvaluationRepository
             $source=$this->source($payload['source_event_id']);if($source===null)return false;
             $this->lockIdentity($source);$input=$this->input($payload);if($input===null)return false;
             $record=$input['record'];$beforeDisposition=(int)($record['disposition']??0);$beforeAffinity=(int)($record['affinity']??0);
-            $disposition=max(-100,min(100,$beforeDisposition+$output['disposition_delta']));
+            $gameOwned=($source['owner_identity']['kind']??'')==='npc'&&($source['target_identity']['kind']??'')==='player';
+            $disposition=$gameOwned?$beforeDisposition:max(-100,min(100,$beforeDisposition+$output['disposition_delta']));
+            if($gameOwned)(new GameDispositionRepository($this->db))->propose($source,$payload['_job'],$output['disposition_delta']);
             $affinity=max(-100,min(100,$beforeAffinity+$output['affinity_delta']));
             $beforeType=(string)($record['relationship_type']??'neutral');
             $relationshipType=RelationshipType::model($output['relationship_type']??null,

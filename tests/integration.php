@@ -1802,6 +1802,14 @@ $relationshipOff=$relationshipCore['content'];$relationshipOff['settings_overrid
 $products->revise('core_profile',$relationshipCore['core_profile_id'],$relationshipOff,'Core relationship off fixture',$now);
 $assert($relationships->enqueue($delivery['message_id'])===null,'Core relationship off still queued an evaluation');
 $products->revise('core_profile',$relationshipCore['core_profile_id'],$relationshipCore['content'],'Restore Core relationship inheritance',$now);
+$gameDisposition=new \LorkhanServer\Infrastructure\GameDispositionRepository($db);
+$dispositionObservation=['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id'],
+    'session_id'=>$turn['session_id'],'generation'=>$session['generation'],'request_id'=>$delivery['message_id'],
+    'observed_at'=>$now,'payload'=>['actor'=>$turn['payload']['target'],'player'=>$turn['payload']['speaker'],
+        'base_disposition'=>45,'disposition'=>50,'dialogue_open'=>false]];
+$gameDisposition->observe($dispositionObservation);
+$db->prepare("UPDATE sessions SET capabilities=array_append(capabilities,'relationship.disposition') WHERE session_id=:id")
+    ->execute(['id'=>$turn['session_id']]);
 $relationshipJob=$relationships->enqueue($delivery['message_id']);
 $assert(is_array($relationshipJob),'eligible played response did not queue relationship evaluation');
 $relationshipProvider=new class implements \LorkhanServer\Application\ProfileGenerationProvider {
@@ -1836,8 +1844,30 @@ $assert(($relationshipLog['rows'][0]['changes'][0]['type']??null)==='neutral'
     &&$relationshipLog['rows'][0]['request']!==''&&str_contains($relationshipLog['rows'][0]['context_note'],'typed'),
     'relationship log confused rejected model type with applied state or lost recorded input');
 $assert($relationshipStats['succeeded']===1&&$relationshipProvider->calls===1&&$relationshipReceipt
-    &&(int)$relationshipReceipt['disposition_delta']===4&&(int)$relationshipReceipt['affinity_delta']===2,
+    &&(int)$relationshipReceipt['disposition_delta']===0&&(int)$relationshipReceipt['affinity_delta']===2,
     'played relationship worker did not persist one bounded result under the global policy');
+$adjustment=$db->query('SELECT * FROM disposition_adjustments')->fetch();
+$assert($adjustment&&(int)$adjustment['delta']===3&&$adjustment['status']==='pending',
+    'AI disposition proposal was not clamped, durable and pending game confirmation');
+$assert($gameDisposition->snapshot($dispositionObservation,$turn['payload']['target'],$turn['payload']['speaker'])['disposition']===50,
+    'AI proposal changed game mirror before confirmation');
+$db->exec('SAVEPOINT disposition_confirm');
+$confirmed=$dispositionObservation;$confirmed['payload']+=['adjustment_id'=>$adjustment['adjustment_id'],'status'=>'applied'];
+$confirmed['payload']['base_disposition']=63;$confirmed['payload']['disposition']=68;
+$gameDisposition->observe($confirmed);
+$assert($gameDisposition->snapshot($confirmed,$turn['payload']['target'],$turn['payload']['speaker'])['disposition']===68,
+    'game readback failed to override stale server score after vanilla change');
+$confirmed['payload']['disposition']=71;$gameDisposition->observe($confirmed);
+$assert($gameDisposition->snapshot($confirmed,$turn['payload']['target'],$turn['payload']['speaker'])['disposition']===68,
+    'duplicate disposition confirmation was applied twice');
+$olderDisposition=$dispositionObservation;$olderDisposition['observed_at']='2000-01-01T00:00:00Z';
+$olderDisposition['payload']['disposition']=1;$gameDisposition->observe($olderDisposition);
+$assert($gameDisposition->snapshot($confirmed,$turn['payload']['target'],$turn['payload']['speaker'])['disposition']===68,
+    'out-of-order snapshot rolled back a newer game reading');
+$wrongDispositionActor=$turn['payload']['target'];$wrongDispositionActor['refnum']['index']+=1;
+$assert($gameDisposition->snapshot($confirmed,$wrongDispositionActor,$turn['payload']['speaker'])===null,
+    'game disposition crossed exact actor identity');
+$db->exec('ROLLBACK TO SAVEPOINT disposition_confirm');
 $assert($products->relationships(['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],
     'playthrough_id'=>$session['playthrough_id']])[0]['relationship_type']==='neutral',
     'low-affinity romantic proposal changed type or blocked safe score deltas');
@@ -1845,6 +1875,7 @@ $assert($relationships->enqueue($delivery['message_id'])['job_id']===$relationsh
     &&$relationshipWorker()['claimed']===0,'duplicate delivery reapplied relationship evaluation');
 $assert((int)$db->query("SELECT config_revision FROM provider_attempts WHERE operation='evaluate_relationship'")->fetchColumn()===1,
     'queued relationship job did not keep its frozen provider revision');
+$db->exec('DELETE FROM game_dispositions');
 // Exercise actual automatic provenance and loaded-save restoration without changing the surrounding worker fixtures.
 $db->exec('SAVEPOINT relationship_timeline');
 $db->prepare("UPDATE profiles SET actor_identity=jsonb_set(actor_identity,'{kind}','\"npc\"'::jsonb) WHERE profile_id=:id")
@@ -2318,7 +2349,7 @@ $rebuiltRows=$products->relationships($conversionRecordScope);$omittedRows=array
 $selectedRows=array_values(array_filter($rebuiltRows,
     static fn(array$row):bool=>($row['actor_identity']['record_id']??'')!=='conversion_omitted'));
 $assert(count($omittedRows)===1&&(int)$omittedRows[0]['disposition']===10&&(int)$omittedRows[0]['affinity']===20
-    &&count(array_filter($selectedRows,static fn(array$row):bool=>(int)$row['disposition']===40&&(int)$row['affinity']===50))===2
+    &&count(array_filter($selectedRows,static fn(array$row):bool=>(int)$row['disposition']===(($row['actor_identity']['kind']??'')==='player'?0:40)&&(int)$row['affinity']===50))===2
     &&(int)$db->query("SELECT count(*) FROM relationship_records WHERE profile_id='{$conversionOwner['profile_id']}' "
         ."AND playthrough_id='{$session['playthrough_id']}' AND custom_info='CONVERSION PRIVATE CUSTOM INFO'")->fetchColumn()===3,
     'rebuild changed an omitted row or private Custom Info');
@@ -5577,5 +5608,24 @@ $assert($linkedStatus===202,'canonical linked turn API failed: '.json_encode($li
 $linkedStored=$db->prepare('SELECT s.playthrough_id,s.profile_id FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE t.turn_id=:turn');$linkedStored->execute(['turn'=>$linkedTurn['turn_id']]);
 $assert($linkedStored->fetch()===['playthrough_id'=>$archiveCopy['playthrough_id'],'profile_id'=>$archiveCopy['profile_id']],
     'followup gameplay request persisted in stale save scope');
+
+// Profile evolution freezes editable field instructions and records application separately from API success.
+$frozenFields=array_keys($dynamicPayload['dynamic_field_prompts']??[]);$selectedFields=$dynamicPayload['dynamic_fields']??[];sort($frozenFields);sort($selectedFields);
+$assert($frozenFields===$selectedFields,
+    'evolution omitted selected editable field prompts');
+$receiptQuery=$db->prepare("SELECT payload->>'generation_outcome' FROM durable_jobs WHERE job_id=:job");
+$receiptQuery->execute(['job'=>$dynamicJobRow['job_id']]);
+$assert($receiptQuery->fetchColumn()==='applied','evolution application receipt missing');
+$timelineProbe=new \LorkhanServer\Infrastructure\LoadedSaveTimeline($db);
+$assert($timelineProbe->eventSourcesActive([],$installationId,$session['playthrough_id']), 'empty optional witnessed context rejected');
+$assert(!$timelineProbe->eventSourcesActive([Uuid::v4()],$installationId,$session['playthrough_id']), 'unknown witnessed source accepted');
+$assert(!$timelineProbe->eventSourcesActive(['not-an-id'],$installationId,$session['playthrough_id']), 'malformed witnessed source accepted');
+$evolutionHistoryMethod=new ReflectionMethod($products,'evolutionWitnessedEvents');
+$evolutionSnapshot=$evolutionHistoryMethod->invoke($products,$installationId,$session['playthrough_id'],null,100);
+$assert(count($evolutionSnapshot)<=100&&strlen(json_encode($evolutionSnapshot,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))<=16384,
+    'witnessed evolution history exceeded bound');
+$evolutionSources=array_values(array_unique(array_column($evolutionSnapshot,'source_event_id')));
+$assert($timelineProbe->eventSourcesActive($evolutionSources,$installationId,$session['playthrough_id']), 'frozen event snapshot has invalid provenance');
+if($evolutionSources!==[])$assert(!$timelineProbe->eventSourcesActive($evolutionSources,$installationId,Uuid::v4()), 'witnessed evolution history crossed playthrough scope');
 
 fwrite(STDOUT, "integration vertical slice passed\n");

@@ -111,7 +111,7 @@ for (const form of document.querySelectorAll('[data-playthrough-archive], [data-
             if (!preview || !confirm(`Delete exactly these ${preview.files.length} backups (SQL and companion dumps)? Live gameplay data will not be deleted.`)) return;
             data.set('token', preview.token); data.set('cutoff', preview.cutoff); data.set('confirm', 'Delete previewed backup files');
         }
-        busy = true; status.textContent = 'Working…'; if (confirmButton) confirmButton.disabled = true;
+        busy = true; form.setAttribute('aria-busy', 'true'); status.setAttribute('role', 'status'); status.textContent = 'Working…'; if (confirmButton) confirmButton.disabled = true;
         try {
             const response = await fetch(form.action, {method: 'POST', body: data, headers: {'Accept': 'application/json'}, credentials: 'same-origin'});
             const result = await response.json();
@@ -120,13 +120,32 @@ for (const form of document.querySelectorAll('[data-playthrough-archive], [data-
             if (operation === 'inspect') { preview = result; status.textContent = JSON.stringify(result.preview, null, 2); confirmButton.disabled = false; }
             else if (operation === 'preview') {
                 preview = result;
-                status.textContent = result.files.length ? result.files.map(file => `${file.name} — ${file.byte_count} bytes — ${file.created_at}`).join('\n') + `\nTotal: ${result.files.length} backups, ${result.bytes} recorded bytes.` : 'No eligible backups.';
+                status.replaceChildren();
+                const summary = document.createElement('p');
+                summary.textContent = result.files.length ? `${result.files.length} eligible backups - ${(Number(result.bytes) / 1048576).toFixed(2)} MiB. Review these files before deleting.` : 'No eligible backups. Protected and recent backups are kept.';
+                status.append(summary);
+                if (result.files.length) {
+                    const scroll = document.createElement('div'); scroll.className = 'retention-preview-scroll';
+                    const table = document.createElement('table'); table.className = 'retention-preview-table';
+                    const caption = table.createCaption(); caption.textContent = 'Backup files selected for deletion';
+                    const header = table.createTHead().insertRow();
+                    for (const label of ['Backup', 'Category', 'Created (UTC)', 'Size']) { const th = document.createElement('th'); th.scope = 'col'; th.textContent = label; header.append(th); }
+                    const body = table.createTBody();
+                    for (const file of result.files) {
+                        const row = body.insertRow();
+                        const created = new Date(file.created_at);
+                        const utc = Number.isNaN(created.getTime()) ? 'Unavailable' : created.toISOString().replace('T', ' ').replace('.000Z', '');
+                        for (const value of [file.name, file.kind === 'automatic' ? 'Automatic backup' : 'Manual snapshot', utc, `${(Number(file.byte_count) / 1048576).toFixed(2)} MiB`]) row.insertCell().textContent = value;
+                    }
+                    scroll.append(table); status.append(scroll);
+                    const note = document.createElement('p'); note.textContent = 'SQL files and companion dumps only. No live history, profiles or game saves will be deleted. Protection is checked again before deletion.'; status.append(note);
+                }
                 confirmButton.disabled = result.files.length === 0;
             } else if (operation === 'import') { preview = null; status.textContent = 'Inactive copy imported. Refresh this page, select the copy, then use Associate with character to queue it for the next save load.\n' + JSON.stringify(result.imported, null, 2); }
             else if (operation === 'delete') { preview = null; status.textContent = `${result.deleted.length} backups deleted; ${result.skipped.length} skipped after protection checks. No live gameplay records deleted. Preview again before continuing.`; }
             else { status.textContent = 'Threshold saved.'; if (result.revision) form.elements.expected_revision.value = result.revision; }
-        } catch (error) { preview = null; status.textContent = String(error.message || 'Request failed.'); }
-        finally { busy = false; }
+        } catch (error) { preview = null; status.setAttribute('role', 'alert'); status.textContent = String(error.message || 'Request failed.'); }
+        finally { busy = false; form.removeAttribute('aria-busy'); }
     });
 }
 
@@ -156,13 +175,21 @@ for (const form of document.querySelectorAll('[data-playthrough-manage], [data-p
         try {
             const response = await fetch(form.action, {method: 'POST', body: data, headers: {'Accept': 'application/json'}, credentials: 'same-origin'});
             const result = await response.json();
-            if (!response.ok) throw new Error(result.error || 'Request failed');
+            if (!response.ok) throw new Error(result.code || (typeof result.error === 'string' ? result.error : '') || 'Request failed');
             status.textContent = operation === 'queue' ? 'Association queued for the next save load.' : 'Saved. Refreshing…';
-            const destination = new URL(location.href);
+            const destination = new URL(form.dataset.successUrl || location.href, location.href);
             if (result.result?.playthrough_id) destination.searchParams.set('playthrough_id', result.result.playthrough_id);
             else if (operation === 'delete') destination.searchParams.delete('playthrough_id');
             location.assign(destination.href);
         } catch (error) { status.textContent = String(error.message || 'Request failed'); }
         finally { busy = false; }
     });
+}
+
+// Home dialogs reuse the manager forms and never issue game-load commands.
+for (const button of document.querySelectorAll('[data-pth-open]')) {
+    button.addEventListener('click', () => document.getElementById(button.dataset.pthOpen)?.showModal());
+}
+for (const button of document.querySelectorAll('[data-pth-close]')) {
+    button.addEventListener('click', () => button.closest('dialog').close());
 }

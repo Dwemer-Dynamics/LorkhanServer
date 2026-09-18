@@ -69,3 +69,30 @@ and is separate from this automated build/deployment goal.
   Rollback server code/Apache: `/var/backups/lorkhanserver-code.okSXEZ`.
   Client rollback: `%TEMP%/lorkhan-parity117-5f141b24d08d476bb3ab15ffc3d3e073`.
 - GitHub server workflow verified `disabled_manually`. No game was launched or controlled.
+
+## 2026-09-17: approved seven-item parity batch
+
+Reference: HerikaServer unstable 68dd8544f0328a3f4329d4e3f52c523240294190;
+CHIM unstable f590794f4e69ecc7094d904114bb9a90f160652d.
+
+1. Published playthrough/biography baseline fast-forwarded to both main branches.
+2. Client media preparation looks ahead without changing playback order; Rechat may generate during
+   the last spoken line of its completed turn, never across pending actions.
+3. Game-authoritative 0–100 disposition observations and bounded acknowledged AI deltas are wired
+   through native, Lua and server. Vanilla changes win. Affinity remains separate.
+4. Five editable dynamic-field prompts appear in the existing Prompt Manager and are frozen per job.
+5. Evolution receives bounded actor-relevant witnessed events with save-branch provenance. Jobs show
+   applied/skipped/conflicted outcomes separately from valid provider output; revision locks remain.
+6. Home now exposes Switch/New/Manage controls. Association applies on the next matching save load.
+7. Storage explains data categories and protections and previews manual backup deletion in a table.
+   This control never deletes live gameplay records or enables automatic cleanup. Existing automatic
+   backup count limits remain separate.
+
+Proof: 1539 server checks; fresh isolated PostgreSQL integration vertical slice; 193-relation schema
+inventory; 109 Lua checks; Windows Release OpenMW build plus native and Beast executables; exact-pin
+patch audit; 136 paired protocol files byte-identical. Browser checked Home dialogs, Storage preview,
+no console errors, and 390px layout without horizontal overflow. No live provider requests or in-game
+behavior were exercised. The game was not launched. Runtime testing with Caius remains user-owned.
+
+Deployment: /var/www/html/LorkhanServer and C:\Modlists\LORKHAN, preserving configuration and data.
+Client EXE SHA256: ddb626c2cfbafcfae140b2ab2b57d76dd4f58d1609ee4ba8b98ac2bdc1164394.

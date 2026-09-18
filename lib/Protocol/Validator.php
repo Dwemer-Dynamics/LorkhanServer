@@ -172,7 +172,7 @@ final class Validator
             'runtime_generation','observed_at','game','type','payload']);
         $type=$message['type']??null;
         if(($message['schema']??null)!=='lorkhan.gamedata.v1'||($message['game']??null)!=='tes3'
-            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue','rpg_event','bored_event','quest_event','journal','inventory','spell_cast','item_pickup','actor_resurrected'],true)
+            ||!in_array($type,['disposition','actor_profile','automatic_diary','captured_dialogue','rpg_event','bored_event','quest_event','journal','inventory','spell_cast','item_pickup','actor_resurrected'],true)
             ||!is_int($message['generation'])||$message['generation']<1
             ||$message['generation']>9_007_199_254_740_991||!is_int($message['runtime_generation'])
             ||$message['runtime_generation']<1||$message['runtime_generation']>9_007_199_254_740_991)
@@ -314,6 +314,20 @@ final class Validator
                 if(!in_array($actor['kind']??null,['npc','creature'],true))throw new ValidationException('invalid_schema');
                 $key=json_encode($actor,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);
                 if(isset($seen[$key]))throw new ValidationException('invalid_schema');$seen[$key]=true;}
+            return;
+        }
+        if($type==='disposition'){
+            $fields=['actor','player','base_disposition','disposition','dialogue_open'];
+            if(array_key_exists('adjustment_id',$payload))$fields=array_merge($fields,['adjustment_id','status']);
+            $this->keys($payload,$fields);$this->identity($payload['actor']??null);$this->identity($payload['player']??null);
+            if(($payload['actor']['kind']??null)!=='npc'||($payload['player']['kind']??null)!=='player'
+                ||!is_int($payload['base_disposition']??null)||$payload['base_disposition']<-2147483648||$payload['base_disposition']>2147483647
+                ||!is_int($payload['disposition']??null)||$payload['disposition']<0||$payload['disposition']>100
+                ||!is_bool($payload['dialogue_open']??null))throw new ValidationException('invalid_schema');
+            if(isset($payload['adjustment_id'])){
+                $this->uuid($payload['adjustment_id']);
+                if(!in_array($payload['status']??null,['applied','rejected'],true))throw new ValidationException('invalid_schema');
+            }
             return;
         }
         if($type==='actor_profile'){

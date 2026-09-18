@@ -18,6 +18,16 @@ final class NarratorEventPrompts
     public static function definitions(): array
     {
         return [
+            'dynamic_prompt_personality' => ['description' => 'Dynamic profile: personality and emotional tendencies. Used only when this field is enabled for evolution.',
+                'default_prompt' => 'Update only the character personality and emotional tendencies from witnessed history. Preserve established information unless evidence supports change. Do not mistake dialogue claims for proven facts or invent development.'],
+            'dynamic_prompt_occupation' => ['description' => 'Dynamic profile: occupation and daily responsibilities. Used only when this field is enabled for evolution.',
+                'default_prompt' => 'Update only the character occupation and daily responsibilities from witnessed history. Preserve established information unless evidence supports change. Do not mistake dialogue claims for proven facts or invent development.'],
+            'dynamic_prompt_skills' => ['description' => 'Dynamic profile: demonstrated skills and abilities. Used only when this field is enabled for evolution.',
+                'default_prompt' => 'Update only the character demonstrated skills and abilities from witnessed history. Preserve established information unless evidence supports change. Do not mistake dialogue claims for proven facts or invent development.'],
+            'dynamic_prompt_speechstyle' => ['description' => 'Dynamic profile: speech style, vocabulary and tone. Used only when this field is enabled for evolution.',
+                'default_prompt' => 'Update only the character speech style, vocabulary and tone from witnessed history. Preserve established information unless evidence supports change. Do not mistake dialogue claims for proven facts or invent development.'],
+            'dynamic_prompt_goals' => ['description' => 'Dynamic profile: current goals and motivations. Used only when this field is enabled for evolution.',
+                'default_prompt' => 'Update only the character current goals and motivations from witnessed history. Preserve established information unless evidence supports change. Do not mistake dialogue claims for proven facts or invent development.'],
             'dialogue_line_inline_response_narrator' => ['description' => 'Dialogue instruction when inline narration uses the Narrator voice. Supports {NPC_NAME}, {NARRATOR_NAME} and {MAXIMUM_WORDS}.',
                 'default_prompt' => "Write {NPC_NAME}'s next prose/narration. Be original, creative and knowledgeable. Review context history to stay on topic and avoid repeating previous lines.{MAXIMUM_WORDS}"],
             'inline_narration_prompt_narrator' => ['description' => 'Format for a leading narration block routed to the Narrator voice.',

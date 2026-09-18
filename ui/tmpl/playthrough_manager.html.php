@@ -22,7 +22,7 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
         <?php if(!empty($currentCharacter['character_id'])): ?>
         <dl class="snapshot-scope"><dt>Character identity</dt><dd><?= lorkhan_ui_h($currentCharacter['character_id']) ?></dd><dt>Playthrough</dt><dd><?= lorkhan_ui_h($currentCharacter['playthrough_id']) ?></dd><dt>Session</dt><dd><?= lorkhan_ui_h($currentCharacter['state']) ?></dd></dl>
         <p class="scope-note">This is the most recently connected saved character. NPC and Player profiles belong to its playthrough. Narrator and reusable templates are shared.</p>
-        <?php else: ?><p class="playthrough-empty">No saved character has been linked yet. Load your game and complete the one-time playthrough choice.</p><?php endif; ?>
+        <?php else: ?><p class="playthrough-empty">No saved character has been linked yet. Load your game to link it automatically.</p><?php endif; ?>
         <h3>Linked characters</h3>
         <?php if(($characterState['bindings']??[])===[]): ?><p class="section-note">Linked characters appear here after the game connects.</p><?php else: ?>
         <div class="backup-list" role="region" aria-label="Linked characters" tabindex="0">
@@ -105,7 +105,7 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
     </section><?php endif; ?>
     <section class="content-section" aria-labelledby="portable-archive-title">
         <h2 id="portable-archive-title">Portable playthrough archive</h2>
-        <p class="section-note">Export this playthrough's supported data without installation-wide settings, credentials, queues or audio files. Import creates an inactive history copy; it never switches your running game or overwrites the original. Use Associate with character below to load an imported copy with an existing saved character on its next connection. Archives contain private conversations and profile notes; share carefully.</p>
+        <p class="section-note">Export this playthrough's supported data without installation-wide settings, credentials, queues or audio files. Import creates an inactive history copy; it never switches your running game or overwrites the original. Use Associate with character above to load an imported copy with an existing saved character on its next connection. Archives contain private conversations and profile notes; share carefully.</p>
         <p class="section-note">Hard limits: 16 MiB and 50,000 rows. Oversized exports fail instead of returning partial data. Imports must match the archive format and database schema version.</p>
         <?php if($selected): ?><a class="button" href="<?= lorkhan_ui_h($managementBasePath) ?>/exports/playthrough-archives/<?= lorkhan_ui_h($selected['playthrough_id']) ?>.json?installation_id=<?= lorkhan_ui_h($installationId) ?>">Export Playthrough Archive</a><?php endif; ?>
         <form method="post" enctype="multipart/form-data" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/playthrough-archive" data-playthrough-archive>
@@ -156,15 +156,28 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
     <details class="content-section playthrough-tools"><summary>Full database backups and recovery</summary>
         <p class="section-note">These snapshots contain the whole database, including every character. Restoring one replaces server data and is not a way to switch characters. Game saves and external files are separate.</p>
         <?php include __DIR__.'/playthrough_database_snapshots.php'; ?>
+    </details>
+    <section class="content-section storage-cleanup" id="storage-cleanup" aria-labelledby="storage-cleanup-title">
+        <h2 id="storage-cleanup-title">Storage and Cleanup</h2>
+        <p class="section-note">Automatic cleanup from this control is off. Existing automatic-backup limits are separate. Review backup files before deleting them. The categories below explain what this control can remove and what stays protected.</p>
+        <details class="ps-cleanup-row" open><summary><strong>Playthrough Saves</strong><span>Manual cleanup</span></summary>
         <h3>Backup-file retention</h3>
         <p class="section-note">Automatic cleanup from this control is off. Preview up to 100 old backups, then confirm deletion of each SQL file and its companion dump. This affects full-database backup files for all characters, never live gameplay records. Active, default and pending-restore backups are protected.</p>
         <form method="post" action="<?= lorkhan_ui_h($managementBasePath) ?>/forms/backup-file-retention" data-backup-retention>
             <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>">
             <label for="backup-retention-days">Backups older than (days)</label><input type="number" id="backup-retention-days" name="days" min="1" max="3650" value="30" required>
             <div class="button-group"><button type="submit" name="operation" value="preview">Preview Backups</button><button type="submit" name="operation" value="delete" disabled>Delete Previewed Backups</button></div>
-            <pre role="status" data-retention-preview></pre>
+            <div role="status" aria-live="polite" data-retention-preview></div>
         </form>
-    </details>
+
+        </details>
+        <details class="ps-cleanup-row"><summary><strong>Events and Conversations</strong><span>Kept</span></summary><p>Gameplay events, vanilla dialogue and AI conversation history remain in the database. Removing them could affect NPC recall and future diaries, so this cleanup does not delete them.</p></details>
+        <details class="ps-cleanup-row"><summary><strong>Memories, Diaries and Relationships</strong><span>Kept</span></summary><p>Generated memories, diary entries and relationships are preserved. Deleting a backup file never deletes these live records.</p></details>
+        <details class="ps-cleanup-row"><summary><strong>Profiles and Shared Settings</strong><span>Kept</span></summary><p>NPC and Player profiles, Narrator settings, connector credentials, prompts and World Knowledge remain unchanged. Portable archives exclude installation-wide credentials and operational queues.</p></details>
+        <details class="ps-cleanup-row"><summary><strong>Diagnostics and Audio</strong><span>Not managed here</span></summary><p>Request diagnostics, operational jobs and external audio files are separate from saved database copies. This backup cleanup does not remove them or change their lifecycle policies.</p></details>
+        <p class="scope-note">Current, default and pending-restore backups are protected. Every deletion checks protection again. Game save files are never touched. Preview lists are limited to 100 files; preview again after cleanup for another batch.</p>
+    </section>
+
 </main>
 <script src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/playthrough-snapshots.js?v=<?= (int)filemtime(__DIR__.'/../js/playthrough-snapshots.js') ?>" defer></script>
 

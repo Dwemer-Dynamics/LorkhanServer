@@ -140,7 +140,8 @@
     "public.database_versioning",
     "public.relationship_eval_queue",
     "public.relationship_init_queue",
-    "public.rolemaster"
+    "public.rolemaster",
+    "lorkhan_internal.disposition_adjustments"
   ],
   "derived": [
     "lorkhan_internal.action_catalog_metadata",
@@ -188,7 +189,8 @@
     "public.npc_profile_backup",
     "public.oghma",
     "public.physical_npc_diaries",
-    "public.rumors"
+    "public.rumors",
+    "lorkhan_internal.game_dispositions"
   ],
   "portable": [
     "lorkhan_internal.action_intents",

@@ -49,10 +49,12 @@ $dialogueRows = array_map(static fn(array $row): array => [
 ], $dashboard['dialogue']);
 $installation = (string) ($dashboard['current']['installation_id'] ?? '');
 $scopeQuery = http_build_query(['installation_id' => $installation, 'playthrough_id' => $dashboard['current']['playthrough_id'] ?? '']);
+$homeCharacterState = $installation === '' ? ['bindings'=>[], 'pending_associations'=>[]] : (new \LorkhanServer\Infrastructure\CharacterPlaythroughRepository($database))->state($installation);
+$homePlaythroughs = $installation === '' ? [] : array_slice($uiRepository->rows('playthroughs', null, ['installation_id'=>$installation, 'page'=>1]), 0, 100);
 $diary = $dashboard['latest_diary'];
 $diaryAudioReady = $diary !== null && $installation !== '';
 $includeManagementStyles = false;
-$additionalStylesheets = ['herika-home.css?v=' . (string) filemtime(__DIR__ . '/css/herika-home.css')];
+$additionalStylesheets = ['herika-home.css?v=' . (string) filemtime(__DIR__ . '/css/herika-home.css'), 'playthrough-home.css?v=' . (string) filemtime(__DIR__ . '/css/playthrough-home.css')];
 include __DIR__ . '/tmpl/head.html';
 if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
@@ -69,6 +71,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 </div>
 <main class="container">
     <h1>Dwemer Dashboard</h1>
+    <?php include __DIR__.'/tmpl/playthrough_home_controls.php'; ?>
 
     <div class="dashboard-buttons">
         <a class="dashboard-btn" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/quickstart.php"><span class="btn-icon" aria-hidden="true">📚</span> LORKHAN Quickstart</a>

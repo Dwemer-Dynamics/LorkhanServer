@@ -36,12 +36,13 @@ final class ProfileGenerateJobHandler implements JobHandler
         if($currentStyle!==null&&(!is_string($currentStyle)||strlen($currentStyle)>8192||!mb_check_encoding($currentStyle,'UTF-8')||$mode!=='player_speech_style'))throw new \InvalidArgumentException('invalid_current_speech_style');
         if(!is_array($job)||!is_string($job['job_id']??null)||!is_int($job['attempt']??null))throw new \InvalidArgumentException('invalid_job_fence');
         if(!$heartbeat())throw new RuntimeException('lease_lost');
-        if(!$this->repository->evolutionScheduleActive($payload))return;
-        $profile=$this->repository->getRevisioned('profile',$profileId);if((int)$profile['current_revision']!==$baseRevision)return;
+        $receipt=fn(string $outcome)=>$this->repository->recordProfileGenerationOutcome($job['job_id'],$job['attempt'],$outcome);
+        if(!$this->repository->evolutionScheduleActive($payload)){$receipt('schedule_changed');return;}
+        $profile=$this->repository->getRevisioned('profile',$profileId);if((int)$profile['current_revision']!==$baseRevision){$receipt('revision_conflict');return;}
         if(!$this->repository->profileTasksEnabled((string)$profile['installation_id']))throw new RuntimeException('profile_tasks_disabled');
         $currentContent=is_array($profile['content']??null)?$profile['content']:[];
         $management=is_array($currentContent['management']??null)?$currentContent['management']:[];
-        if(($management['locked']??false)===true)return;
+        if(($management['locked']??false)===true){$receipt('profile_locked');return;}
         $identity=$profile['actor_identity']??[];if(is_string($identity))$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);
         if(!is_array($identity)||array_is_list($identity))throw new RuntimeException('profile_not_generatable');
         if(in_array($mode,['npc_profile','npc_profile_backfill','profile_evolution'],true)&&in_array($identity['kind']??'actor',['player','narrator'],true))throw new RuntimeException('profile_not_generatable');
@@ -71,7 +72,7 @@ final class ProfileGenerateJobHandler implements JobHandler
         $evolution=in_array($mode,['profile_evolution','narrator_profile_evolution'],true);
         if($mode==='npc_profile_backfill'||$evolution){$events=$payload['recent_events']??null;$sources=$payload['source_turn_ids']??null;
             $historyLimit=$evolution?400:100;
-            if(!is_array($events)||!array_is_list($events)||$events===[]||count($events)>$historyLimit
+            if(!is_array($events)||!array_is_list($events)||($events===[]&&(!$evolution||empty($payload['witnessed_events'])))||count($events)>$historyLimit
                 ||!is_array($sources)||!array_is_list($sources)||count($sources)!==count($events)||count($sources)>$historyLimit
                 ||strlen(json_encode($events,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>65_536)
                 throw new \InvalidArgumentException('invalid_profile_backfill_context');
@@ -89,7 +90,24 @@ final class ProfileGenerateJobHandler implements JobHandler
                 if(!is_array($fields)||!array_is_list($fields)||$fields===[]||count($fields)>count($allowed)||count(array_unique($fields))!==count($fields))
                     throw new \InvalidArgumentException('invalid_profile_evolution_fields');
                 foreach($fields as$field)if(!is_string($field)||!in_array($field,$allowed,true))throw new \InvalidArgumentException('invalid_profile_evolution_fields');
-                $input['dynamic_fields']=$fields;}}
+                $input['dynamic_fields']=$fields;
+                $prompts=$payload['dynamic_field_prompts']??[];
+                if(!is_array($prompts)||($prompts!==[]&&array_is_list($prompts))||array_diff_key($prompts,array_flip($fields))!==[])
+                    throw new \InvalidArgumentException('invalid_profile_evolution_prompts');
+                foreach($prompts as$text)if(!is_string($text)||trim($text)===''||strlen($text)>8192||!mb_check_encoding($text,'UTF-8'))
+                    throw new \InvalidArgumentException('invalid_profile_evolution_prompts');
+                $input['dynamic_field_prompts']=$prompts;
+                $witnessed=$payload['witnessed_events']??[];$eventSources=$payload['source_event_ids']??[];
+                if(!is_array($witnessed)||!array_is_list($witnessed)||count($witnessed)>100
+                    ||!is_array($eventSources)||!array_is_list($eventSources)
+                    ||array_values(array_unique(array_column($witnessed,'source_event_id')))!==$eventSources
+                    ||strlen(json_encode($witnessed,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>16384)
+                    throw new \InvalidArgumentException('invalid_profile_witnessed_context');
+                foreach($witnessed as$event){if(!is_array($event)||count($event)!==5||!Uuid::isValid((string)($event['source_event_id']??'')))
+                        throw new \InvalidArgumentException('invalid_profile_witnessed_context');
+                    foreach(['type','text','location','game_time']as$key)if(!is_string($event[$key]??null)||!mb_check_encoding($event[$key],'UTF-8'))
+                        throw new \InvalidArgumentException('invalid_profile_witnessed_context');}
+                $input['witnessed_events']=$witnessed;}}
         $operation=match($mode){'player_speech_style'=>'generate_player_speech_style','narrator_profile','narrator_profile_evolution'=>'generate_narrator_profile',default=>'generate_profile'};
         $this->attempts?->start($attemptId,'llm',$providerName,$operation,$job['attempt'],jobId:$job['job_id'],
             model:$slot===null?null:(string)$slot['content']['model'],configRevision:$slot===null?null:(string)$slot['revision'],
@@ -103,8 +121,9 @@ final class ProfileGenerateJobHandler implements JobHandler
             $reason=match($mode){'player_speech_style'=>'AI player speech-style generation','narrator_profile'=>'AI narrator profile generation',
                 'profile_evolution'=>'automatic NPC profile evolution','narrator_profile_evolution'=>'automatic narrator profile evolution',
                 'npc_profile_backfill'=>'automatic AI profile backfill',default=>'AI profile generation'};
-            if($mode==='player_speech_style')$this->repository->storePlayerSpeechStyleDraft($job['job_id'],$job['attempt'],$profileId,$baseRevision,$content['speech_style']);
-            else $this->repository->reviseGeneratedProfileIfCurrent($profileId,$baseRevision,$content,$reason,gmdate('Y-m-d\TH:i:s\Z'),$payload['source_turn_ids']??[],$job['job_id'],$job['attempt']);
+            if($mode==='player_speech_style'){$this->repository->storePlayerSpeechStyleDraft($job['job_id'],$job['attempt'],$profileId,$baseRevision,$content['speech_style']);$receipt('draft_saved');}
+            else {$applied=$this->repository->reviseGeneratedProfileIfCurrent($profileId,$baseRevision,$content,$reason,gmdate('Y-m-d\TH:i:s\Z'),$payload['source_turn_ids']??[],$job['job_id'],$job['attempt']);$receipt($applied?'applied':'commit_fence_changed');}
+            // Provider success and profile application are separate outcomes; never mislabel a save conflict as an API failure.
             $this->attempts?->finish($attemptId,'succeeded',strlen(json_encode($generated,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)));
         }catch(OperationCancelled $error){$this->attempts?->finish($attemptId,'cancelled',errorCode:'operation_cancelled');throw$error;
         }catch(Throwable $error){try{$this->attempts?->finish($attemptId,'failed',errorCode:'provider_unavailable');}catch(Throwable){}throw$error;}

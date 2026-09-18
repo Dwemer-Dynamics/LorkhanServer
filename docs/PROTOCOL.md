@@ -429,3 +429,13 @@ The foundation rejects an unsafe cross-playthrough admission with
 not isolate mutable NPC and Player profiles. Automatic switching must wait for the ownership stage
 in the server's `docs/PLAYTHROUGH-PARITY.md`. Shared Narrator configuration, Core Profiles and
 connectors stay global. No full-database restore is performed by this handshake.
+
+## September 17 parity completion: disposition contract
+
+Clients negotiate `relationship.disposition`. Game-data observations carry exact NPC/player identities,
+base disposition, effective disposition (0–100), and dialogue-menu state. AI relationship evaluations
+may propose only a -3…3 adjustment, bound to the active session/generation and expiring after 90 seconds.
+The game applies the delta to its current value and returns an applied/rejected readback. The server
+never treats sending the proposal as success and never overwrites game disposition with an AI score.
+Bribes/flattery and other vanilla changes remain authoritative. Affinity and NPC-to-NPC relationships
+retain their separate semantics. Snapshot/receipt tables are not portable playthrough history.

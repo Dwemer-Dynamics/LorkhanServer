@@ -61,3 +61,7 @@ body.playthrough-shell .playthrough-page button.timeline-node.active{background:
 @media(prefers-reduced-motion:reduce){.playthrough-page .lds-ring div{animation:none}}
 
 .playthrough-page pre[role="status"]{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}
+
+/* Keep each storage category, cleanup rule and protection explanation together, as in CHIM. */
+.playthrough-page .storage-cleanup{margin-top:20px}.ps-cleanup-row{margin:12px 0;padding:14px;border:1px solid #444;border-radius:6px;background:#202020}.ps-cleanup-row summary{display:flex;justify-content:space-between;gap:16px;list-style-position:inside}.ps-cleanup-row summary span{color:#bc9d5a;font-size:.85rem}.ps-cleanup-row p{font-size:.9rem;line-height:1.5}.ps-cleanup-row label{display:block;margin:12px 0 6px}.ps-cleanup-row input[type=number]{width:120px;max-width:100%}.retention-preview-table{width:100%;border-collapse:collapse;font-size:.85rem;margin:12px 0}.retention-preview-table :is(th,td){text-align:left;padding:8px;border-bottom:1px solid #444;overflow-wrap:anywhere}.retention-preview-scroll{overflow-x:auto}.storage-cleanup [role=alert]{color:#ffb8aa}
+@media(max-width:600px){.ps-cleanup-row summary{flex-wrap:wrap}.retention-preview-table{min-width:400px}}

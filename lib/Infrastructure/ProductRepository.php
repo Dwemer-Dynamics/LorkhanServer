@@ -992,13 +992,21 @@ final class ProductRepository
             if($historyLimit===0)$historyLimit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
             $history=$narrator?$this->narratorEvolutionHistory((string)$row['installation_id'],$playthroughId,$historyLimit)
                 :$this->profileBackfillHistory((string)$row['installation_id'],$playthroughId,$identity,$historyLimit);
-            $observed=count($history['source_turn_ids']);
+            $witnessed=$this->evolutionWitnessedEvents((string)$row['installation_id'],$playthroughId,$narrator?null:$identity,$historyLimit);
+            $observed=count($history['source_turn_ids'])+count($witnessed);
             if($observed===0)return['queued'=>false,'reason'=>'history_unavailable','observed'=>0];
             $revision=(int)$row['current_revision'];
             $key='profile-evolution:'.$profileId.':'.$playthroughId.':'.Uuid::v4();
             $payload=$this->profileGenerationPayload((string)$row['installation_id'],$profileId,$revision,$mode)+[
                 'playthrough_id'=>$playthroughId,'source_turn_ids'=>$history['source_turn_ids'],
                 'recent_events'=>$history['recent_events'],'dynamic_fields'=>$fields,'evolution_schedule'=>$schedule];
+            // Freeze editable field instructions at enqueue so later prompt edits cannot change an in-flight job.
+            $definitions=\LorkhanServer\Application\NarratorEventPrompts::definitions();
+            $overrides=$this->narratorEventPromptTexts((string)$row['installation_id']);
+            foreach($fields as$field){$promptKey='dynamic_prompt_'.($field==='speech_style'?'speechstyle':$field);
+                $payload['dynamic_field_prompts'][$field]=$overrides[$promptKey]??$definitions[$promptKey]['default_prompt'];}
+            $payload['witnessed_events']=$witnessed;
+            $payload['source_event_ids']=array_values(array_unique(array_column($payload['witnessed_events'],'source_event_id')));
             $jobId=Uuid::v4();$insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),3,:priority) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
             $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($payload),'priority'=>$manual?60:45]);$job=$insert->fetch();
             if(!$job){$existing=$this->db->prepare("SELECT job_id,state FROM durable_jobs WHERE job_type='profile.generate' AND idempotency_key=:key");
@@ -1168,6 +1176,31 @@ final class ProductRepository
         return['source_turn_ids'=>$turnIds,'recent_events'=>$events];
     }
 
+    /** Freeze actor-relevant vanilla and world events, excluding diagnostics and retired save branches. */
+    private function evolutionWitnessedEvents(string $installation,string $playthrough,?array $identity,int $limit):array
+    {
+        $parameters=['installation'=>$installation,'playthrough'=>$playthrough];
+        $actor='';
+        if($identity!==null){$stable=array_intersect_key($identity,array_flip(['kind','record_id','content_file','refnum']));
+            $actor=' AND (m.speaker @> CAST(:speaker AS jsonb) OR m.target @> CAST(:target AS jsonb) OR m.audience @> CAST(:audience AS jsonb))';
+            $parameters+=['speaker'=>$this->encode($stable),'target'=>$this->encode($stable),'audience'=>$this->encode([$stable])];}
+        $query=$this->db->prepare("SELECT m.source_event_id,e.type,e.data,e.location,e.gamets FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid
+            JOIN source_events se ON se.source_event_id=m.source_event_id
+            WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL
+            AND e.type IN ('chat','chat_background','location','weather','death','infoaction','narration','quest','book','spellcast','npcspellcast','itemfound')
+            AND (e.delivery_state IS NULL OR e.delivery_state IN ('spoken','played'))
+            AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=m.source_event_id)
+            AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_turns i WHERE i.turn_id=m.turn_id)".$actor.
+            ' ORDER BY e.gamets DESC,e.rowid DESC LIMIT :limit');
+        foreach($parameters as$key=>$value)$query->bindValue(':'.$key,$value);
+        $query->bindValue(':limit',max(1,min(100,$limit)),PDO::PARAM_INT);$query->execute();$events=[];$bytes=2;
+        foreach(array_reverse($query->fetchAll())as$row){$text=trim((string)$row['data']);if($text==='')continue;
+            $event=['source_event_id'=>$row['source_event_id'],'type'=>$row['type'],'text'=>mb_strcut($text,0,2048,'UTF-8'),
+                'location'=>mb_strcut((string)$row['location'],0,512,'UTF-8'),'game_time'=>(string)$row['gamets']];
+            $size=strlen($this->encode($event))+1;if($bytes+$size>16384)continue;$events[]=$event;$bytes+=$size;}
+        return$events;
+    }
+
     /** Load the exact revision queued for a task while enforcing installation and live-connector ownership. */
     public function providerRevisionForInstallation(string $installationId,string $configurationId,int $revision):array
     {
@@ -1324,6 +1357,16 @@ final class ProductRepository
         return$this->enqueueProfileGeneration($profileId);
     }
 
+    /** Keep a durable, non-secret receipt when generation is skipped or its output is not applied. */
+    public function recordProfileGenerationOutcome(string $jobId,int $attempt,string $outcome):void
+    {
+        if(!in_array($outcome,['applied','draft_saved','schedule_changed','revision_conflict','profile_locked','commit_fence_changed'],true))
+            throw new InvalidArgumentException('invalid_profile_generation_outcome');
+        $query=$this->db->prepare("UPDATE durable_jobs SET payload=jsonb_set(payload,'{generation_outcome}',to_jsonb(CAST(:outcome AS text)))
+            WHERE job_id=:job AND job_type='profile.generate' AND state='leased' AND attempt_count=:attempt AND lease_expires_at>clock_timestamp()");
+        $query->execute(['job'=>$jobId,'attempt'=>$attempt,'outcome'=>$outcome]);
+    }
+
     /** Commit generated fields only while the queued base revision is still current. */
     public function reviseGeneratedProfileIfCurrent(string $profileId,int $baseRevision,array $content,string $reason,string $now,array $sourceTurnIds=[],?string $jobId=null,?int $attempt=null):bool
     {
@@ -1342,8 +1385,10 @@ final class ProductRepository
                 if(in_array($payload['mode']??null,['npc_profile_backfill','profile_evolution','narrator_profile_evolution'],true)){
                     $sources=$payload['source_turn_ids']??[];$playthrough=$payload['playthrough_id']??null;
                     if(!is_string($playthrough)||!Uuid::isValid($playthrough)||$sources!==$sourceTurnIds
-                        ||!(new LoadedSaveTimeline($this->db))->sourcesBelongTo($sources,(string)$installationId,$playthrough))return false;
-                    $provenance=['kind'=>'automatic_profile','mode'=>$payload['mode'],'playthrough_id'=>$playthrough,
+                        ||($sources!==[]&&!(new LoadedSaveTimeline($this->db))->sourcesBelongTo($sources,(string)$installationId,$playthrough)))return false;
+                    $eventSources=$payload['source_event_ids']??[];
+                    if(($sources===[]&&$eventSources===[])||!(new LoadedSaveTimeline($this->db))->eventSourcesActive($eventSources,(string)$installationId,$playthrough))return false;
+                    $provenance=['source_event_ids'=>$eventSources,'kind'=>'automatic_profile','mode'=>$payload['mode'],'playthrough_id'=>$playthrough,
                         'base_revision'=>$baseRevision,'source_turn_ids'=>$sources];
                 }
             }
@@ -2642,6 +2687,13 @@ SQL);
             $customInfo=$input['custom_info']??($before['custom_info']??'');
             $details=$input['details']??$this->json($before['details']??'{}');
             $relationshipType=$input['relationship_type']??($before['relationship_type']??'neutral');
+            $targetIdentity=$input['actor_identity']??($before?$this->json($before['actor_identity']):[]);
+            if(($targetIdentity['kind']??'')==='player'){
+                $mirror=$this->db->prepare('SELECT g.disposition FROM game_dispositions g JOIN sessions live ON live.session_id=g.session_id AND live.generation=g.generation AND live.state=\'active\' JOIN actor_profile_bindings b ON b.installation_id=g.installation_id AND b.playthrough_id=g.playthrough_id AND b.actor_key=g.actor_key WHERE g.installation_id=:installation AND g.playthrough_id=:playthrough AND b.profile_id=:profile AND g.player_key=:player');
+                $mirror->execute($scope+['player'=>$this->actorKey($targetIdentity)]);$score=$mirror->fetchColumn();
+                // Unknown legacy values are not converted; prompt readers mark them unknown.
+                if($score!==false)$input['disposition']=(int)$score;
+            }
             $save->execute($params+['details'=>$this->encode($details),'custom'=>$customInfo,'disposition'=>$input['disposition'],'affinity'=>$input['affinity'],'type'=>$relationshipType,'mode'=>$input['source_mode'],
                 'source'=>$input['source_event_id']??null,'now'=>$now]);
             $revision=$save->fetchColumn();if($revision===false)throw new RuntimeException('relationship_revision_conflict');
@@ -3342,6 +3394,17 @@ SQL);
         }
         $relationshipScope=$scope;$relationshipScope['profile_id']=$activeProfileId;
         $relationships=$ownsProfile&&$contextSections['relationships']?$this->relationships($relationshipScope):[];
+        // Native NPC-to-player disposition overrides legacy AI scores; unknown stays unknown.
+        if(($turn['payload']['target']['kind']??'')==='npc'){
+            $gameDisposition=new GameDispositionRepository($this->db);
+            foreach($relationships as &$relationship){
+                if(($relationship['actor_identity']['kind']??'')!=='player')continue;
+                $snapshot=$gameDisposition->snapshot($turn,$turn['payload']['target'],$relationship['actor_identity']);
+                $current=$snapshot!==null&&$snapshot['session_id']===$turn['session_id']&&(int)$snapshot['generation']===(int)$turn['generation'];
+                $relationship['disposition']=$current?$snapshot['disposition']:null;
+                $relationship['details']['disposition_authority']='Morrowind game value, 0 to 100; null means unknown. Affinity is separate long-term trust.';
+            }unset($relationship);
+        }
         usort($relationships,fn($a,$b)=>strcmp((string)$a['relationship_id'],(string)$b['relationship_id']));
         $memorySelection=$contextSections['memories']?$this->selectPromptMemories($turn,$scope,
             $this->promptMemoryCandidates($turn,$actorKey,$activeProfileId,$ownsProfile,$now,$semanticMemory),$now,$semanticMemory)
@@ -4385,7 +4448,7 @@ SQL);
     public function saveNarratorEventPrompt(string $installationId, string $key, string $custom, int $expectedRevision): array
     {
         $definition = \LorkhanServer\Application\NarratorEventPrompts::definitions()[$key] ?? null;
-        if ($definition === null || $expectedRevision < 0 || strlen($custom) > 32768 || !mb_check_encoding($custom, 'UTF-8'))
+        if ($definition === null || $expectedRevision < 0 || strlen($custom) > (str_starts_with($key,'dynamic_prompt_')?8192:32768) || !mb_check_encoding($custom, 'UTF-8'))
             throw new InvalidArgumentException('invalid_narrator_prompt');
         return $this->transaction(function () use ($installationId, $key, $custom, $expectedRevision, $definition): array {
             $lock = $this->db->prepare('SELECT installation_id FROM installations WHERE installation_id=:installation');

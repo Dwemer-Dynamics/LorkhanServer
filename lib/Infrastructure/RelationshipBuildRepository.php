@@ -120,6 +120,7 @@ final class RelationshipBuildRepository
             $changed=0;$applied=[];$draft=[];$preview=($payload['preview']??false)===true;$products=new ProductRepository($this->db);
             foreach($output['relationships'] as $row){
                 $target=$targets[$row['target_key']];$record=$input['records'][$row['target_key']];
+                if(($target['identity']['kind']??'')==='player')$row['disposition']=(int)($record['disposition']??0);
                 $beforeType=(string)($record['relationship_type']??'neutral');
                 $relationshipType=RelationshipType::model($row['relationship_type']??null,
                     $payload['relationship_types'],$row['affinity'],$row['reason'],$beforeType)??$beforeType;

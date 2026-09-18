@@ -19,16 +19,24 @@ if ($state['query']!=='') {
     $conditions[]="concat_ws(' ',j.job_id,j.job_type,j.last_error_code) ILIKE :query";
     $params['query']='%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],$state['query']).'%';
 }
-// Only monitoring metadata is selected: payloads, lease credentials and raw errors remain private.
+// Only monitoring metadata and the allowlisted generation outcome are selected; raw payloads and credentials remain private.
 $state=lorkhan_control_query($database,$state,
     "j.job_id,j.job_type,j.state,j.attempt_count,j.max_attempts,
+        CASE j.payload->>'generation_outcome'
+            WHEN 'applied' THEN 'Profile updated'
+            WHEN 'draft_saved' THEN 'Draft saved'
+            WHEN 'schedule_changed' THEN 'Skipped: schedule changed'
+            WHEN 'revision_conflict' THEN 'Skipped: profile edited'
+            WHEN 'profile_locked' THEN 'Skipped: profile locked'
+            WHEN 'commit_fence_changed' THEN 'Skipped: generation context changed'
+            ELSE '' END AS generation_outcome,
         to_char(j.next_run_at AT TIME ZONE 'UTC','DD-MM-YYYY HH24:MI:SS') AS next_run_utc,
         to_char(j.updated_at AT TIME ZONE 'UTC','DD-MM-YYYY HH24:MI:SS') AS updated_utc,j.last_error_code",
     'FROM durable_jobs j',$conditions,$params,'j.updated_at DESC,j.job_id DESC');
-$columns=['job_id'=>'ID','job_type'=>'Job','state'=>'Status','attempt_count'=>'Attempts','max_attempts'=>'Max Attempts',
+$columns=['job_id'=>'ID','job_type'=>'Job','state'=>'Status','generation_outcome'=>'Outcome','attempt_count'=>'Attempts','max_attempts'=>'Max Attempts',
     'next_run_utc'=>'Next Run (UTC)','updated_utc'=>'Updated (UTC)','last_error_code'=>'Error'];
 $searchPlaceholder='Job type, error or ID';
-$recordNote='Durable jobs with bounded retries and dead-letter state. Period filters use the last update time. Next Run is the stored scheduling time, not a promise that finished jobs will run again. Payloads, worker credentials and raw errors are excluded. Export contains the displayed page only.';
+$recordNote='Durable jobs with bounded retries and dead-letter state. Period filters use the last update time. Next Run is the stored scheduling time, not a promise that finished jobs will run again. Outcome distinguishes saved profile updates from skipped generation. Raw payloads, worker credentials and raw errors are excluded. Export contains the displayed page only.';
 $emptyMessage='No durable jobs match these filters.';
 $exportFilename='workers-jobs.csv';
 require __DIR__.'/tmpl/operational_log.html.php';
