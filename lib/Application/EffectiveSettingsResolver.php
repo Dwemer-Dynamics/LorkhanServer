@@ -103,6 +103,10 @@ final class EffectiveSettingsResolver
         $this->markLeaves($settings['narrator'], 'default', 'settings.narrator', $sources);
         $this->markLeaves($settings['diary'], 'default', 'settings.diary', $sources);
         $this->markLeaves($settings['profile_evolution'], 'default', 'settings.profile_evolution', $sources);
+        foreach(['short_term_enabled','mid_term_enabled'] as $field){
+            $settings['memory'][$field]=false;
+            $sources['settings.memory.'.$field]='default';
+        }
         $settings['memory']['short_term_max_summaries'] = 10;
         $sources['settings.memory.short_term_max_summaries'] = 'default';
         $settings['quest_comments'] = $global['quest_comments'];
@@ -150,7 +154,7 @@ final class EffectiveSettingsResolver
             'rechat_strict_targeting', 'open_rechat', 'end_conversation_cooldown_seconds'] as $field) {
             if (array_key_exists($field, $coreOverrides['behavior'] ?? [])) $allowedOverrides['behavior'][$field] = $coreOverrides['behavior'][$field];
         }
-        foreach (['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled', 'short_term_max_summaries', 'oghma_knowledge_tags'] as $field) {
+        foreach (['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled', 'short_term_max_summaries', 'summary_interval', 'oghma_knowledge_tags'] as $field) {
             if (array_key_exists($field, $coreOverrides['memory'] ?? [])) $allowedOverrides['memory'][$field] = $coreOverrides['memory'][$field];
         }
         if (isset($coreOverrides['diary'])) $allowedOverrides['diary'] = $coreOverrides['diary'];
@@ -382,7 +386,7 @@ final class EffectiveSettingsResolver
             $events = $policy['events'];
             if (!is_array($events) || !array_is_list($events)) throw new InvalidArgumentException('invalid_rpg_comments');
             foreach ($events as $event) {
-                if (!is_string($event) || !in_array($event, ['levelup', 'combat_end', 'sleep', 'wait'], true))
+                if (!is_string($event) || !in_array($event, ['levelup', 'combat_end', 'sleep', 'wait', 'lockpick'], true))
                     throw new InvalidArgumentException('invalid_rpg_comments');
             }
             if (count($events) !== count(array_unique($events))) throw new InvalidArgumentException('invalid_rpg_comments');
@@ -512,6 +516,11 @@ final class EffectiveSettingsResolver
             $limit = $validation['memory']['short_term_max_summaries'];
             if (!is_int($limit) || $limit < 1 || $limit > 50) throw new InvalidArgumentException('invalid_settings_overrides');
             unset($validation['memory']['short_term_max_summaries']);
+        }
+        if(array_key_exists('summary_interval',$validation['memory']??[])){
+            $interval=$validation['memory']['summary_interval'];
+            if(!is_int($interval)||$interval<0||$interval>100)throw new InvalidArgumentException('invalid_settings_overrides');
+            unset($validation['memory']['summary_interval']);
         }
         // Retrieval switches are server-owned and do not enlarge the client controls contract.
         foreach (['short_term_enabled', 'mid_term_enabled', 'long_term_enabled'] as $field) {

@@ -18,7 +18,7 @@ final class CoreProfilePreset
         'quest_comments'=>['enabled','chance_percent'],
         'behavior'=>['rechat','rechat_max_depth','rechat_probability_percent','rechat_allow_actions','combat_bark_period_seconds','rechat_mode','open_rechat','rechat_strict_targeting','end_conversation_cooldown_seconds'],
         'relationship'=>['enabled','update_chance_percent'],
-        'memory'=>['recent_turn_limit','short_term_enabled','mid_term_enabled','long_term_enabled','short_term_max_summaries','oghma_knowledge_tags'],
+        'memory'=>['recent_turn_limit','short_term_enabled','mid_term_enabled','long_term_enabled','short_term_max_summaries','summary_interval','oghma_knowledge_tags'],
         'oghma'=>['enabled','topic_count','result_limit','racial_context_enabled','location_context_enabled','extractor_fallback_enabled','extractor_timeout_ms'],
         'diary'=>['enabled','materialize_enabled','automatic_enabled','automatic_wait_enabled','automatic_interval_seconds','include_in_context','latest_entry_in_context','context_turn_limit','prompt'],
         'profile_evolution'=>['enabled','fields','history_limit'],
@@ -47,12 +47,9 @@ final class CoreProfilePreset
                 'memory'=>['recent_turn_limit'=>$history,'mid_term_enabled'=>$automatic],
                 'behavior'=>['rechat'=>true,'rechat_max_depth'=>$depth,'rechat_probability_percent'=>$probability,'rechat_allow_actions'=>$actions,'combat_bark_period_seconds'=>$combatCooldown],
                 'diary'=>['context_turn_limit'=>$diaryHistory,'automatic_enabled'=>$automatic,
-                    'automatic_wait_enabled'=>$automatic,'latest_entry_in_context'=>$automatic],
+                    'automatic_wait_enabled'=>$automatic,'materialize_enabled'=>$automatic,'latest_entry_in_context'=>$automatic],
                 'profile_evolution'=>$evolution,
             ]];
-        // The native scheduler has a separate generation gate; timer flags alone cannot enable Follower diaries.
-        // Other presets stop automatic diaries without disabling existing manual diary generation.
-        if($automatic)$preset['settings_overrides']['diary']['enabled']=true;
         return self::apply($preset,$content);
     }
 

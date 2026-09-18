@@ -13892,3 +13892,22 @@ separate from the now-closed supported webpage presentation/interaction audit.
 - GitHub workflow330702270 is still `disabled_manually`.
 - The game was not launched or controlled; no paid provider was called. Live
   movement must be tested after the user starts the newly deployed client.
+
+
+## 2026-09-18 Profiles parity completion
+
+Reference: HerikaServer unstable `7b6901387d46e863d604a2c02b19ac3da977a9a7`.
+
+- AUTOMATED: removed redundant Long Term Memory, Diary Generation, Diary In Context and Dialogue Prompt controls; unrelated saves retain hidden compatibility values and prompt assignment. Profile Prompt stays.
+- AUTOMATED: Other Connectors order is TTS, Diary, Fallback. No fabricated Formatter task: the reference stores `llm_formatter_id` but has no runtime consumer. Its dormant selector is intentionally not presented as a working LORKHAN feature.
+- AUTOMATED: optional STM/MTM default off when absent; explicit settings remain authoritative. Follower preset enables Physical Diary, matching CHIM.
+- AUTOMATED: context history uses individual visible events, accepts 0..200 (zero omits history). Diary and evolution history use events, 0 inherits context, with existing size/scope/delivery protections. Evolution no longer duplicates conversation turns in a second event stream.
+- AUTOMATED: Rechat editor 1..10, Diary Cooldown 10..1200; existing wider saved values remain representable, avoiding silent changes on unrelated saves. Wire compatibility ranges are retained where needed.
+- AUTOMATED: manual diaries require a configured connector, not a second enable switch. Auto Diary governs sleep; Auto Diary Wait additionally permits waiting. Old timer observations are accepted but never generate diaries.
+- AUTOMATED: Memory Summary Interval is a working Global Settings Override. Global policy inherits unless explicitly overridden by Core/NPC, including zero; worker execution resolves the latest value.
+- AUTOMATED / WINDOWS BUILD PROVEN: successful player lockpicking can request an RPG comment. Existing native RPG, Quest and Bored request/decision paths are wired. Shared schemas/manifests are byte-identical.
+- Existing wait-comment selections are retained but no longer offered in the picker. Skyrim-only shout/word/soul/bleedout events, XML prompting, global connector ownership and previously excluded systems remain excluded.
+
+Proof: 1586 PHP unit checks; isolated PostgreSQL schema132 probes for hidden form values, event limits, diary gates, global/Core/NPC summary-interval precedence; 136 protocol files verified; PHP lint and browser layout/controls check (1265px viewport, no horizontal overflow). Client: 117 Lua tests, 10 patch tests, exact-pin patch audit, Windows Release build, native and Beast loopback tests. Local WSL deployment and worker health passed; matching engine/Lua hashes installed under C:/Modlists/LORKHAN. No game launched or in-game proof claimed.
+
+Full migrations/jobs integration remains blocked before feature assertions by the existing migration replay error `relation reference_profile_columns already exists`; isolated fresh-schema probes passed. No unrelated migration repair included.

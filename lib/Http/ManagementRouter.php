@@ -2609,11 +2609,16 @@ final class ManagementRouter
     /** Convert Herika-style labelled controls into the bounded Core Profile revision document. */
     private function coreProfileContent(array $values):array
     {
+        $previousContent=isset($values['core_profile_id'])
+            ? $this->repository->getRevisioned('core_profile',$values['core_profile_id'])['content'] : [];
         $routing=[];
         foreach(['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
             'llm_experimental_configuration_id','llm_fallback_configuration_id','diary_generation_configuration_id','tts_configuration_id']as$field){
             $value=trim((string)($values[$field]??''));if($value==='')continue;$this->uuid($value,$field);$routing[$field]=$value;
         }
+        // The prompt picker is no longer exposed; retain its assignment on unrelated saves.
+        if(!array_key_exists('prompt_configuration_id',$values)&&isset($previousContent['routing']['prompt_configuration_id']))
+            $routing['prompt_configuration_id']=$previousContent['routing']['prompt_configuration_id'];
         $routing['llm_randomizer_enabled']=isset($values['llm_randomizer_enabled']);
         $routing['llm_fallback_enabled']=isset($values['llm_fallback_enabled']);
 
@@ -2632,17 +2637,19 @@ final class ManagementRouter
                 + (isset($values['memory_switches_present']) ? [
                     'short_term_enabled'=>isset($values['setting_memory_short_term_enabled']),
                     'mid_term_enabled'=>isset($values['setting_memory_mid_term_enabled']),
-                    'long_term_enabled'=>isset($values['setting_memory_long_term_enabled']),
                 ] : []),
-            'diary'=>['enabled'=>isset($values['setting_diary_enabled']),
-                'automatic_enabled'=>isset($values['setting_diary_automatic_enabled']),
+            'diary'=>['automatic_enabled'=>isset($values['setting_diary_automatic_enabled']),
                 'automatic_wait_enabled'=>isset($values['setting_diary_automatic_wait_enabled']),
                 'automatic_interval_seconds'=>$number($values,'setting_diary_automatic_interval_seconds',120),
-                'include_in_context'=>isset($values['setting_diary_include_in_context']),
                 'latest_entry_in_context'=>isset($values['setting_diary_latest_entry_in_context']),
                 'context_turn_limit'=>$number($values,'setting_diary_context_turn_limit',20),
                 'prompt'=>trim((string)($values['setting_diary_prompt']??DiaryGenerationPolicy::defaults()['prompt']))],
         ];
+
+        // Removed controls must not clear stored compatibility values on a normal form save.
+        foreach(['memory'=>['long_term_enabled'],'diary'=>['enabled','include_in_context']] as $section=>$fields)
+            foreach($fields as $field)if(array_key_exists($field,$previousContent['settings_overrides'][$section]??[]))
+                $overrides[$section][$field]=$previousContent['settings_overrides'][$section][$field];
 
         if (isset($values['diary_materialize_present'])) {
             $overrides['diary']['materialize_enabled']=isset($values['setting_diary_materialize_enabled']);
@@ -2661,6 +2668,9 @@ final class ManagementRouter
             EffectiveSettingsResolver::validateSettingsOverrides(['bored_event'=>$overrides['bored_event']]);
         }
         if (isset($values['rpg_comments_present'])) {
+            // Wait comments are no longer offered; preserve an existing explicit selection.
+            if(in_array('wait',$previousContent['settings_overrides']['rpg_comments']['events']??[],true))
+                $values['profile_rpg_events']=array_values(array_unique(array_merge($values['profile_rpg_events']??[],['wait'])));
             $overrides['rpg_comments']=['events'=>$values['profile_rpg_events']??[],
                 'chance_percent'=>$number($values,'setting_rpg_comments_chance_percent',50)];
             EffectiveSettingsResolver::validateSettingsOverrides(['rpg_comments'=>$overrides['rpg_comments']]);

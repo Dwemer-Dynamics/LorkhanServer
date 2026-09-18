@@ -1466,7 +1466,7 @@ foreach([[$playerProfile['profile_id'],'enqueuePlayerSpeechStyleGeneration'],[$n
 $modeRouteStats=(new Worker($jobs,$generationRegistry,'profile-modes-route-test',5,2,2,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
 $check($modeRouteStats['succeeded']===2,'narrator or player speech-style generation ignored its routed connector');
 
-// Queue one manual diary only after an explicit opt-in, a dedicated connector route, and witnessed context exist.
+// Queue one manual diary only after a dedicated connector route and witnessed context exist.
 $diaryConnector=$service->createRevisioned('provider',['installation_id'=>$installation,'name'=>'Diary connector',
     'content'=>['driver'=>'mock','model'=>'diary-v1']]);
 $diaryCoreContent=['schema'=>'lorkhan.core-profile.v1','prompt'=>'','settings_overrides'=>[],'routing'=>[]];
@@ -1477,8 +1477,8 @@ $diaryProfile=$service->createRevisioned('profile',['installation_id'=>$installa
     'content'=>['biography'=>'Witnesses events in Balmora.']]);
 $diaryScope=['installation_id'=>$installation,'profile_id'=>$diaryProfile['profile_id'],
     'playthrough_id'=>$playthrough['playthrough_id'],'request_id'=>Uuid::v4()];
-try{$products->enqueueDiaryGeneration($diaryScope);throw new RuntimeException('default diary policy queued work');}
-catch(InvalidArgumentException $error){$check($error->getMessage()==='diary_generation_disabled','manual diary did not default off');}
+try{$products->enqueueDiaryGeneration($diaryScope);throw new RuntimeException('manual diary without a connector queued work');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='diary_generation_connector_unavailable','manual diary did not require its dedicated connector');}
 $jobsBeforeDiarySave=(int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='narrative.generate'")->fetchColumn();
 $diaryCoreContent['settings_overrides']['diary']=['enabled'=>true,'include_in_context'=>true,'context_turn_limit'=>12,
     'prompt'=>'Record only witnessed events.'];
@@ -1764,6 +1764,36 @@ $derivePlayedMemory=static function(int $ordinal)use($db,$derive,$legacyInstalla
         'memory.derive:played:'.$ordinal,static fn():bool=>true);
 };
 foreach(range(2,4)as$ordinal)$derivePlayedMemory($ordinal);
+// Queued recent memories use the current Core/NPC interval and preserve installation inheritance.
+$db->beginTransaction();
+try {
+    $intervalPolicy=$service->createRevisioned('memory_policy',['installation_id'=>$legacyInstallation,'name'=>'Interval inheritance',
+        'content'=>['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>'','summary_interval'=>10]]);
+    $intervalCoreContent=['schema'=>'lorkhan.core-profile.v1','prompt'=>'','settings_overrides'=>[],'routing'=>[]];
+    $intervalCore=$service->createRevisioned('core_profile',['installation_id'=>$legacyInstallation,'name'=>'Interval Core','content'=>$intervalCoreContent]);
+    $products->assignCoreProfile($legacyProfile,$intervalCore['core_profile_id']);
+    $intervalScope=['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough];
+    $intervalJobs=new \LorkhanServer\Infrastructure\FirstPartyJobRepository($db);
+    $check($intervalJobs->consolidateMemories($intervalScope,'recent',$derivedMemoryId,$clock->iso())===null,
+        'missing profile interval did not inherit the open installation time bucket');
+    $intervalCoreContent['settings_overrides']['memory']['summary_interval']=0;
+    $service->revise('core_profile',$intervalCore['core_profile_id'],$intervalCoreContent,'use event count after enqueue');
+    $db->exec('SAVEPOINT interval_core_result');
+    $check($intervalJobs->consolidateMemories($intervalScope,'recent',$derivedMemoryId,$clock->iso())!==null,
+        'explicit Core zero did not override the inherited time interval for queued memories');
+    $db->exec('ROLLBACK TO SAVEPOINT interval_core_result');
+    $intervalProfile=$products->getRevisioned('profile',$legacyProfile)['content'];
+    $intervalProfile['settings_overrides']['memory']['summary_interval']=10;
+    $service->revise('profile',$legacyProfile,$intervalProfile,'NPC interval overrides Core zero');
+    $check($intervalJobs->consolidateMemories($intervalScope,'recent',$derivedMemoryId,$clock->iso())===null,
+        'NPC interval did not override Core interval at worker execution');
+    unset($intervalProfile['settings_overrides']['memory']['summary_interval']);
+    $service->revise('profile',$legacyProfile,$intervalProfile,'restore Core interval inheritance');
+    $check($intervalJobs->consolidateMemories($intervalScope,'recent',$derivedMemoryId,$clock->iso())!==null,
+        'removing the NPC interval did not restore Core event-count grouping');
+} finally {
+    $db->rollBack();
+}
 $consolidationWorker=new Worker($jobs,$firstPartyRegistry,'memory-consolidation-four',5,1,20,0,10,['memory.consolidate'],static fn(int $microseconds):mixed=>null);
 $fourStats=$consolidationWorker->run();
 $check($fourStats['retried']===0&&$fourStats['dead']===0

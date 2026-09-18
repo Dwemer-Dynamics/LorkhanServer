@@ -1058,8 +1058,8 @@ final class ProductRepository
             if(empty($effective['routing']['profile_generation_configuration_id']))return['queued'=>false,'reason'=>'profile_generation_connector_unavailable','observed'=>0];
             $historyLimit=(int)($effective['settings']['profile_evolution']['history_limit']??50);
             if($historyLimit===0)$historyLimit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
-            $history=$narrator?$this->narratorEvolutionHistory((string)$row['installation_id'],$playthroughId,$historyLimit)
-                :$this->profileBackfillHistory((string)$row['installation_id'],$playthroughId,$identity,$historyLimit);
+            // Evolution consumes one bounded event stream, not turns plus a duplicate world-event stream.
+            $history=['source_turn_ids'=>[],'recent_events'=>[]];
             $witnessed=$this->evolutionWitnessedEvents((string)$row['installation_id'],$playthroughId,$narrator?null:$identity,$historyLimit);
             $observed=count($history['source_turn_ids'])+count($witnessed);
             if($observed===0)return['queued'=>false,'reason'=>'history_unavailable','observed'=>0];
@@ -1252,29 +1252,6 @@ final class ProductRepository
         return['source_turn_ids'=>$turnIds,'recent_events'=>$events];
     }
 
-    /** Freeze recent completed dialogue for narrator evolution without treating one NPC as the owner. */
-    private function narratorEvolutionHistory(string $installationId,string $playthroughId,int $limit):array
-    {
-        $statement=$this->db->prepare("SELECT t.turn_id,CASE WHEN jsonb_exists(t.context,'director') THEN '' ELSE t.input_text END AS input_text,t.response_payload,
-            (jsonb_exists(t.context,'director') OR EXISTS (SELECT 1 FROM source_events ie WHERE ie.turn_id=t.turn_id "
-            ."AND ie.event_kind='turn.requested' AND ie.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat'))) AS injected FROM active_turns t "
-            .'JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation '
-            .'AND s.playthrough_id=:playthrough AND t.state=\'complete\' AND t.response_payload IS NOT NULL ORDER BY t.completed_at DESC,t.turn_id DESC LIMIT :limit');
-        $statement->bindValue(':installation',$installationId);$statement->bindValue(':playthrough',$playthroughId);
-        $statement->bindValue(':limit',$limit,PDO::PARAM_INT);$statement->execute();$rows=$statement->fetchAll();
-        $turnIds=[];$events=[];$bytes=2;
-        foreach(array_reverse($rows)as$row){$response=$this->json($row['response_payload']);$lines=[];
-            foreach(($response['lines']??[])as$line)if(is_array($line)&&($line['action']??null)==='say'){
-                $speaker=is_array($line['speaker_identity']??null)?$line['speaker_identity']:[];
-                $name=trim((string)($speaker['display_name']??$line['speaker']??'NPC'))?:'NPC';
-                $text=trim((string)($line['text']??''));if($text!=='')$lines[]=$name.': '.$text;}
-            if($lines===[])continue;$turnId=(string)$row['turn_id'];
-            $event=['turn_id'=>$turnId,(($row['injected']===true||$row['injected']==='t')?'scene_event':'player_input')=>(string)$row['input_text'],'npc_responses'=>$lines];
-            $eventBytes=strlen(json_encode($event,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))+($events===[]?0:1);if($bytes+$eventBytes>65_536)continue;
-            $turnIds[]=$turnId;$events[]=$event;$bytes+=$eventBytes;}
-        return['source_turn_ids'=>$turnIds,'recent_events'=>$events];
-    }
-
     /** Freeze actor-relevant vanilla and world events, excluding diagnostics and retired save branches. */
     private function evolutionWitnessedEvents(string $installation,string $playthrough,?array $identity,int $limit):array
     {
@@ -1286,13 +1263,13 @@ final class ProductRepository
         $query=$this->db->prepare("SELECT m.source_event_id,e.type,e.data,e.location,e.gamets FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid
             JOIN source_events se ON se.source_event_id=m.source_event_id
             WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL
-            AND e.type IN ('chat','chat_background','location','weather','death','infoaction','narration','quest','book','spellcast','npcspellcast','itemfound')
+            AND e.type IN ('inputtext','chat','chat_background','location','weather','death','infoaction','narration','quest','book','spellcast','npcspellcast','itemfound')
             AND (e.delivery_state IS NULL OR e.delivery_state IN ('spoken','played'))
             AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=m.source_event_id)
             AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_turns i WHERE i.turn_id=m.turn_id)".$actor.
             ' ORDER BY e.gamets DESC,e.rowid DESC LIMIT :limit');
         foreach($parameters as$key=>$value)$query->bindValue(':'.$key,$value);
-        $query->bindValue(':limit',max(1,min(100,$limit)),PDO::PARAM_INT);$query->execute();$events=[];$bytes=2;
+        $query->bindValue(':limit',max(0,min(400,$limit)),PDO::PARAM_INT);$query->execute();$events=[];$bytes=2;
         foreach(array_reverse($query->fetchAll())as$row){$text=trim((string)$row['data']);if($text==='')continue;
             $event=['source_event_id'=>$row['source_event_id'],'type'=>$row['type'],'text'=>mb_strcut($text,0,2048,'UTF-8'),
                 'location'=>mb_strcut((string)$row['location'],0,512,'UTF-8'),'game_time'=>(string)$row['gamets']];
@@ -1343,7 +1320,6 @@ final class ProductRepository
             if(!$playthroughStatement->fetchColumn())throw new \InvalidArgumentException('invalid_diary_generation_scope');
             $effective=$this->effectiveSettingsForProfile($scope['installation_id'],$scope['profile_id']);
             $diary=$effective['settings']['diary']??[];
-            if(($diary['enabled']??false)!==true)throw new \InvalidArgumentException('diary_generation_disabled');
             $configurationId=(string)($effective['routing']['diary_generation_configuration_id']??'');
             if($configurationId==='')throw new \InvalidArgumentException('diary_generation_connector_unavailable');
             $providerStatement=$this->db->prepare("SELECT configuration_id,current_revision FROM configuration_sets WHERE configuration_id=:configuration "
@@ -1366,9 +1342,9 @@ final class ProductRepository
             $historyStatement->bindValue(':installation',$scope['installation_id']);$historyStatement->bindValue(':playthrough',$scope['playthrough_id']);
             $historyStatement->bindValue(':speaker',$actorJson);$historyStatement->bindValue(':target',$actorJson);$historyStatement->bindValue(':audience',$audienceJson);
             $historyStatement->bindValue(':limit',$candidateLimit,\PDO::PARAM_INT);$historyStatement->execute();
-            $context=[];$turns=[];$sourceIds=[];$bytes=0;
-            foreach($historyStatement->fetchAll()as$row){$turnId=(string)($row['turn_id']??'');$turnKey=$turnId!==''?$turnId:'event:'.count($context);
-                if(!isset($turns[$turnKey])&&count($turns)>=$limit)continue;
+            $context=[];$sourceIds=[];$bytes=0;
+            foreach($historyStatement->fetchAll()as$row){$turnId=(string)($row['turn_id']??'');
+                if(count($context)>=$limit)break;
                 $speaker=$this->json($row['speaker']);$target=$this->json($row['target']);$item=array_filter([
                     'turn_id'=>$turnId===''?null:$turnId,'at'=>(string)$row['created_at'],'type'=>(string)$row['type'],
                     'speaker'=>$speaker['display_name']??$speaker['record_id']??null,'target'=>$target['display_name']??$target['record_id']??null,
@@ -1376,7 +1352,7 @@ final class ProductRepository
                     'game_time'=>(int)($row['gamets']??0)?:null,'people'=>trim((string)($row['people']??''))?:null,
                 ],static fn(mixed$value):bool=>$value!==null&&$value!=='');$encoded=$this->encode($item);
                 if($bytes+strlen($encoded)>65_536)continue;
-                $turns[$turnKey]=true;if($turnId!==''&&Uuid::isValid($turnId))$sourceIds[$turnId]=true;
+                if($turnId!==''&&Uuid::isValid($turnId))$sourceIds[$turnId]=true;
                 $bytes+=strlen($encoded);$context[]=$item;}
             if($context===[])throw new \InvalidArgumentException('diary_generation_no_context');$context=array_reverse($context);
             $profileContent=$this->json($profile['content']);$profileInput=[];
@@ -1419,6 +1395,8 @@ final class ProductRepository
         if(!in_array($trigger,['timer','sleep','wait'],true)||!is_numeric($gameTime)||$gameTime<0
             ||!is_array($actors)||!array_is_list($actors)||count($actors)>12)
             throw new \InvalidArgumentException('invalid_automatic_diary_scope');
+        // Older clients still send timer observations. CHIM only generates on sleep/wait.
+        if($trigger==='timer')return ['trigger'=>$trigger,'considered'=>0,'queued'=>0,'skipped'=>[]];
         $profileIds=[];
         foreach([$this->playerProfileForInstallation($message['installation_id'],$message['playthrough_id']),
             $this->narratorProfileForInstallation($message['installation_id'])]as$profile)
@@ -1429,7 +1407,7 @@ final class ProductRepository
         $result=['trigger'=>$trigger,'considered'=>count($profileIds),'queued'=>0,'skipped'=>[]];
         foreach(array_keys($profileIds)as$profileId){$effective=$this->effectiveSettingsForProfile($message['installation_id'],$profileId);
             $settings=$effective['settings']['diary']??[];
-            if(($settings['enabled']??false)!==true||($settings['automatic_enabled']??false)!==true){$result['skipped'][$profileId]='disabled';continue;}
+            if(($settings['automatic_enabled']??false)!==true){$result['skipped'][$profileId]='disabled';continue;}
             if($trigger==='wait'&&($settings['automatic_wait_enabled']??false)!==true){$result['skipped'][$profileId]='wait_disabled';continue;}
             $seconds=max(10,min(86400,(int)($settings['automatic_interval_seconds']??120)));
             $recent=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type='narrative.generate' "
@@ -3526,7 +3504,7 @@ SQL);
 
         $recentTurnLimit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
         $history=[];
-        if($contextSections['conversation_history']){$typeParameters=[];$historyParameters=[];
+        if($contextSections['conversation_history']&&$recentTurnLimit>0){$typeParameters=[];$historyParameters=[];
         $excludedEventTypes=$contextPolicy['event_types_excluded'];
         if(!($contextPolicy['detect_magic_events']??true))$excludedEventTypes=array_unique(array_merge($excludedEventTypes,['spellcast','npcspellcast']));
         foreach(array_values($excludedEventTypes) as $index=>$eventType){$name='event_type_'.$index;$typeParameters[]=':'.$name;$historyParameters[$name]=$eventType;}
@@ -3600,8 +3578,8 @@ SQL);
             'is_narrator_target'=>$isNarratorTarget?'true':'false',
             'candidate_limit'=>min(500,max(40,$recentTurnLimit*5)),
         ]);
-        // Count conversation turns, not individual input, response, and world-event rows.
-        $historyTurns=[];$locationBlacklist=[];foreach($contextPolicy['location_blacklist']as$location)$locationBlacklist[mb_strtolower(trim((string)$location),'UTF-8')]=true;
+        // Match CHIM: every visible event consumes one history slot, including input and response rows.
+        $locationBlacklist=[];foreach($contextPolicy['location_blacklist']as$location)$locationBlacklist[mb_strtolower(trim((string)$location),'UTF-8')]=true;
         $magicBlacklist=[];foreach($contextPolicy['magic_effects_blacklist']as$spell)$magicBlacklist[mb_strtolower(trim((string)$spell),'UTF-8')]=true;
         $itemBlacklist=[];foreach($contextPolicy['item_blacklist']as$item)$itemBlacklist[mb_strtolower(trim((string)$item),'UTF-8')]=true;
         foreach($historyStatement->fetchAll()as$row){
@@ -3617,9 +3595,7 @@ SQL);
                     ||isset($itemBlacklist[mb_strtolower(trim((string)($pickup['item_record_id']??'')),'UTF-8')])
                     ||isset($itemBlacklist[mb_strtolower(trim((string)($pickup['item_name']??'')),'UTF-8')]))continue;
             }
-            $turnKey=(string)($row['turn_id']??$row['id']);
-            if(!isset($historyTurns[$turnKey])&&count($historyTurns)>=$recentTurnLimit)continue;
-            $historyTurns[$turnKey]=true;
+            if(count($history)>=$recentTurnLimit)break;
             $history[]=['id'=>(string)$row['id'],'installation_id'=>$turn['installation_id'],
                 'playthrough_id'=>$turn['playthrough_id'],'created_at'=>(string)$row['sort_created_at'],
                 'content'=>$content];

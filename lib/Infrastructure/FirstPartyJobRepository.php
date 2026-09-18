@@ -103,6 +103,12 @@ final class FirstPartyJobRepository
     {
         $targetTier = $sourceTier === 'recent' ? 'mid' : 'long';
         $policy = (new MemorySummaryRepository($this->db))->policy($scope['installation_id'])['content'] ?? [];
+        // Resolve at execution so queued memories follow the current profile and inherit the global interval.
+        if ($sourceTier === 'recent') {
+            $effective = (new ProductRepository($this->db))->effectiveSettingsForProfile($scope['installation_id'], $scope['profile_id']);
+            if (in_array($effective['sources']['settings.memory.summary_interval'] ?? null, ['core_profile', 'npc'], true))
+                $policy['summary_interval'] = $effective['settings']['memory']['summary_interval'];
+        }
         $minimum = $sourceTier === 'recent' ? (int)($policy['minimum_events'] ?? 4) : 4;
         $interval = $sourceTier === 'recent' ? (int)($policy['summary_interval'] ?? 0) * 864 : 0;
         $limit = $interval > 0 ? 16 : $minimum;

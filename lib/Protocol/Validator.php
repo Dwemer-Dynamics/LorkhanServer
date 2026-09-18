@@ -295,7 +295,7 @@ final class Validator
                 if(!in_array($payload['responder']['kind']??null,['npc','creature'],true))throw new ValidationException('invalid_schema');
             }
             $this->keys($payload,$fields);$this->identity($payload['player']??null);
-            if(!in_array($payload['kind']??null,['levelup','combat_end','sleep','wait'],true)
+            if(!in_array($payload['kind']??null,['levelup','combat_end','sleep','wait','lockpick'],true)
                 ||($payload['player']['kind']??null)!=='player'
                 ||(!is_int($payload['game_time']??null)&&!is_float($payload['game_time']??null))
                 ||$payload['game_time']<0||$payload['game_time']>9_007_199_254_740_991

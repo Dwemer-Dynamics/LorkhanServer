@@ -101,7 +101,7 @@ final class ProfileGenerateJobHandler implements JobHandler
                     throw new \InvalidArgumentException('invalid_profile_evolution_prompts');
                 $input['dynamic_field_prompts']=$prompts;
                 $witnessed=$payload['witnessed_events']??[];$eventSources=$payload['source_event_ids']??[];
-                if(!is_array($witnessed)||!array_is_list($witnessed)||count($witnessed)>100
+                if(!is_array($witnessed)||!array_is_list($witnessed)||count($witnessed)>400
                     ||!is_array($eventSources)||!array_is_list($eventSources)
                     ||array_values(array_unique(array_column($witnessed,'source_event_id')))!==$eventSources
                     ||strlen(json_encode($witnessed,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>16384)

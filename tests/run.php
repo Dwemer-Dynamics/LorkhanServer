@@ -1146,11 +1146,13 @@ $disabledPresetSource=$corePresetSource;
 $disabledPresetSource['settings_overrides']['diary']['enabled']=false;
 $disabledPresetSource['settings_overrides']['behavior']['rechat']=false;
 $followerPreset=\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn('builtin:follower',$disabledPresetSource);
-$check($followerPreset['settings_overrides']['diary']['enabled']===true
-    &&$followerPreset['settings_overrides']['behavior']['rechat']===true,'Follower opens the native diary and Rechat gates');
+$check($followerPreset['settings_overrides']['diary']['automatic_enabled']===true
+    &&$followerPreset['settings_overrides']['diary']['materialize_enabled']===true
+    &&$followerPreset['settings_overrides']['behavior']['rechat']===true,'Follower enables automatic and physical diaries and Rechat');
 foreach(['builtin:default','builtin:local_llm','builtin:passive'] as $builtin){
     $after=\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn($builtin,$followerPreset);
-    $check($after['settings_overrides']['diary']['enabled']===true
+    $check($after['settings_overrides']['diary']['enabled']===false
+        &&$after['settings_overrides']['diary']['materialize_enabled']===false
         &&$after['settings_overrides']['diary']['automatic_enabled']===false
         &&$after['settings_overrides']['behavior']['rechat']===true,$builtin.' stops automatic diaries while retaining manual generation and configured Rechat');
 }
@@ -2735,7 +2737,7 @@ foreach ([['events'=>[]], ['chance_percent'=>0], ['events'=>['combat_end'],'chan
     $check(!isset(EffectiveSettingsResolver::controlsProjection($resolvedRpg)['settings']['rpg_comments']),
         'server RPG policy does not enlarge native controls');
 }
-foreach ([null, [], ['events'=>['lockpick']], ['events'=>['sleep','sleep']], ['events'=>[1]],
+foreach ([null, [], ['events'=>['learn_shout']], ['events'=>['sleep','sleep']], ['events'=>[1]],
     ['events'=>['x'=>'sleep']], ['chance_percent'=>-1], ['chance_percent'=>101], ['chance_percent'=>'50'],
     ['chance_percent'=>false], ['unknown'=>true]] as $invalidRpg) {
     try { EffectiveSettingsResolver::validateSettingsOverrides(['rpg_comments'=>$invalidRpg]); $check(false, 'invalid Core RPG policy rejected'); }
@@ -3859,6 +3861,30 @@ $check(\LorkhanServer\Domain\ProfileId::forActor($referenceInstallation,$referen
 $check(\LorkhanServer\Domain\ProfileId::isValid($referenceInstallation),'existing persona UUID remains valid');
 foreach([strtoupper($referenceProfile),$referenceProfile."\n",str_replace('|42','|042',$referenceProfile),str_replace('|42','|4294967296',$referenceProfile),str_replace('morrowind.esm','../morrowind.esm',$referenceProfile)]as$invalidReference)
     $check(!\LorkhanServer\Domain\ProfileId::isValid($invalidReference),'malformed or ambiguous reference profile is rejected');
+
+$intervalCore=['settings_overrides'=>['memory'=>['summary_interval'=>0]]];
+$intervalNpc=['settings_overrides'=>['memory'=>['summary_interval'=>12]]];
+$intervalResolved=(new EffectiveSettingsResolver())->resolve([],$intervalCore,$intervalNpc);
+$check($intervalResolved['settings']['memory']['summary_interval']===12
+    &&$intervalResolved['sources']['settings.memory.summary_interval']==='npc','NPC summary interval overrides Core zero');
+$check((new EffectiveSettingsResolver())->resolve([],$intervalCore,[])['settings']['memory']['summary_interval']===0,
+    'explicit Core zero summary interval is not discarded');
+$check(\LorkhanServer\Application\CoreProfilePreset::capture($intervalCore)['settings_overrides']['memory']['summary_interval']===0,
+    'summary interval survives preset capture');
+foreach([-1,101,'10'] as $badInterval){
+    try{EffectiveSettingsResolver::validateSettingsOverrides(['memory'=>['summary_interval'=>$badInterval]]);$check(false,'invalid summary interval rejected');}
+    catch(InvalidArgumentException){$check(true,'invalid summary interval rejected');}
+}
+// Profile parity: absent switches are off, explicit overrides survive, and history accepts CHIM's endpoints.
+$profileDefaults=(new EffectiveSettingsResolver())->resolve([],[],[]);
+$check($profileDefaults['settings']['memory']['short_term_enabled']===false
+    &&$profileDefaults['settings']['memory']['mid_term_enabled']===false,'new profiles default optional memory tiers off');
+foreach([0,200] as $eventCount){
+    $eventSettings=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['memory'=>['recent_turn_limit'=>$eventCount]]],[]);
+    $check($eventSettings['settings']['memory']['recent_turn_limit']===$eventCount,'history event endpoints preserve zero and 200');
+}
+$lockpickSettings=EffectiveSettingsResolver::validateSettingsOverrides(['rpg_comments'=>['events'=>['lockpick']]]);
+$check($lockpickSettings['rpg_comments']['events']===['lockpick'],'successful lockpicking is an eligible RPG comment');
 
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");

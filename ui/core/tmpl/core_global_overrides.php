@@ -12,6 +12,8 @@ foreach (['location_context_enabled'=>'Force Location Oghma', 'topic_count'=>'Og
     $coreOverrideCatalog['oghma.'.$key] = ['label'=>$label, 'type'=>is_bool($default)?'boolean':'integer',
         'value'=>$default, 'range'=>match($key){'topic_count'=>[1,3],'result_limit'=>[1,5],default=>[250,3000]}];
 }
+$coreOverrideCatalog['memory.summary_interval']=['label'=>'Memory Summary Interval','type'=>'integer',
+    'value'=>(int)($productRepository->memorySummaryPolicyForInstallation($installationId)['content']['summary_interval']??0),'range'=>[0,100]];
 $coreOverrideCatalog['memory.oghma_knowledge_tags'] = ['label'=>'Oghma Knowledge Tags', 'type'=>'string', 'value'=>'', 'maxBytes'=>4096];
 foreach (['location_blacklist'=>'Location Blacklist','item_blacklist'=>'Item Blacklist','magic_effects_blacklist'=>'Magic Effect Blacklist'] as $key=>$label)
     $coreOverrideCatalog['context.'.$key]=['label'=>$label,'type'=>'textlist','value'=>[],'maxBytes'=>65792,'multiline'=>true];
@@ -38,6 +40,7 @@ foreach(['sections'=>'Context Sections','details'=>'Context Details']as$key=>$la
         'value'=>$key==='sections'?\LorkhanServer\Application\SettingsCatalog::contextSectionDefaults():\LorkhanServer\Application\SettingsCatalog::contextDetailDefaults()];
 }
 $coreOverrideHelp = [
+    'memory.summary_interval'=>'In-game time between memory summaries. Each point is 0.24 game hours. Zero uses the existing event-count policy. Turn off Override to inherit the global memory policy.',
     'context.sections'=>'Select optional prompt sections. Uncheck all to exclude them; turn off Override to inherit. Required speaker and action instructions remain.',
     'context.details'=>'Select optional character, state and nearby details. The containing section must also be enabled. Turn off Override to inherit.',
     'prompt.emote_moods'=>'Moods and emotes offered in the prompt when the NPC has no custom mood list. Blank removes inherited suggestions; turn off Override to inherit. Maximum 4096 UTF-8 bytes.',
@@ -81,7 +84,7 @@ foreach ($coreOverrideCatalog as $path=>&$definition) {
         'profile_management' => 'Misc',
         'oghma', 'memory' => 'Oghma', 'prompt' => 'Prompt', 'behavior' => 'Rechat', default => 'Context'
     };
-    if($path==='context.short_term_in_compact_chat')$definition['category']='Memory';
+    if(in_array($path,['context.short_term_in_compact_chat','memory.summary_interval'],true))$definition['category']='Memory';
     if (in_array($path, ['context.prompt_timestamp','context.location_blacklist','context.item_blacklist',
         'context.magic_effects_blacklist','context.event_types_excluded','relationship.update_chance_percent'], true))
         $definition['category'] = 'Prompt';
