@@ -74,8 +74,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
     <?php include __DIR__.'/tmpl/playthrough_home_controls.php'; ?>
 
     <div class="dashboard-buttons">
-        <a class="dashboard-btn" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/quickstart.php"><span class="btn-icon" aria-hidden="true">📚</span> LORKHAN Quickstart</a>
         <a class="dashboard-btn" href="https://docs.google.com/spreadsheets/d/1UtAR_r18wskmTMMsg8IlhVvr1Fn9tHvRJT8drH6RuzY/edit?gid=1257158105#gid=1257158105" target="_blank" rel="noopener noreferrer"><span class="btn-icon" aria-hidden="true">🥇</span> AI/LLM Tier List</a>
+        <a class="dashboard-btn" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/quickstart.php"><span class="btn-icon" aria-hidden="true">&#x1F680;</span> Go to Quickstart</a>
     </div>
 
     <section class="dashboard-container" aria-label="LORKHAN dashboard">
