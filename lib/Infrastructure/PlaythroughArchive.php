@@ -9,7 +9,10 @@ use RuntimeException;
 final class PlaythroughArchive
 {
     public const MAX_BYTES=16777216;
+    public const MAX_LOCAL_BYTES=134217728;
     public const MAX_ROWS=50000;
+    private const ADDED_TABLES=['memory_model_summaries','profile_evolution_clocks','profile_evolution_progress',
+        'profile_evolution_events','audit_request_metadata','log_metadata','retrieval_traces'];
     private const TABLES=[
         'playthroughs','playthrough_revisions','profiles','profile_revisions','actor_profile_bindings','sessions',
         'source_events','turns','action_intents','action_results','dialogue_utterances','dialogue_delivery_results','interruptions',
@@ -30,9 +33,9 @@ final class PlaythroughArchive
 
     public function __construct(private readonly PDO $db, private readonly bool $localSave = false) {}
 
-    public static function tableNames():array
+    public static function tableNames(bool $localSave=false):array
     {
-        return array_merge(array_map(static fn($name)=>'lorkhan_internal.'.$name,self::TABLES),array_map(static fn($name)=>'public.'.$name,self::PUBLIC_TABLES));
+        return array_merge(array_map(static fn($name)=>'lorkhan_internal.'.$name,array_merge(self::TABLES,$localSave?self::ADDED_TABLES:[])),array_map(static fn($name)=>'public.'.$name,array_merge(self::PUBLIC_TABLES,$localSave?['audit_request','log']:[])));
     }
 
     /** Obtain a repeatable database snapshot, rejecting overflow rather than producing a truncated success. */
@@ -46,7 +49,7 @@ final class PlaythroughArchive
         try{
             if ($owns) $this->db->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
             $this->db->exec("SET LOCAL statement_timeout='30s'; SET LOCAL lock_timeout='3s'");
-            $meta=$this->metadata();$tables=array_fill_keys(self::tableNames(),[]);$this->collectedBytes=0;
+            $meta=$this->metadata();$tables=array_fill_keys(self::tableNames($this->localSave),[]);$this->collectedBytes=0;
             foreach($meta as$table=>$definition){
                 if(!isset($definition['columns']['playthrough_id']))continue;
                 $where='t.playthrough_id=:world';$parameters=['world'=>$playthrough];
@@ -84,8 +87,9 @@ final class PlaythroughArchive
             $document=['format'=>$this->localSave?'lorkhan.playthrough-save':'lorkhan.playthrough-archive','version'=>1,'schema_sha256'=>$this->schemaHash($meta),
                 'source'=>['installation_id'=>$installation,'playthrough_id'=>$playthrough],'created_at'=>gmdate('c'),
                 'limitations'=>$this->limitations(),'shared_profiles'=>$shared,'tables'=>$tables];
+            if ($this->localSave) $document['local_state']=(new PlaythroughLocalState($this->db))->capture($installation,$playthrough);
             $document['sha256']=hash('sha256',$this->canonical($document));
-            if(strlen($this->canonical($document))>self::MAX_BYTES)throw new RuntimeException('archive_too_large');
+            if(strlen($this->canonical($document))>($this->localSave?self::MAX_LOCAL_BYTES:self::MAX_BYTES))throw new RuntimeException('archive_too_large');
             $this->validate($document);if ($owns) $this->db->commit();return$document;
         }catch(\Throwable$error){if($owns && $this->db->inTransaction())$this->db->rollBack();throw$error;}
     }
@@ -104,6 +108,8 @@ final class PlaythroughArchive
         $this->deadline=hrtime(true)+120_000_000_000;
         if(!Uuid::isValid($installation))throw new RuntimeException('invalid_archive_scope');
         $document=$this->decode($json);$this->validate($document);$meta=$this->metadata();
+        // Older saves keep their original checksum and schema validation; new sections are simply absent.
+        foreach (self::tableNames($this->localSave) as $table) $document['tables'][$table]??=[];
         usort($document['tables']['lorkhan_internal.relationship_audit'],static fn($a,$b)=>$a['audit_sequence']<=>$b['audit_sequence']);
         $owns = !$this->db->inTransaction();
         if (!$owns && !$this->localSave) throw new RuntimeException('archive_transaction_active');
@@ -111,6 +117,7 @@ final class PlaythroughArchive
         if ($owns) $this->db->beginTransaction();
         try{
             $this->db->exec("SET LOCAL lock_timeout='3s'; SET LOCAL statement_timeout='30s'");
+            $this->db->exec('SET CONSTRAINTS ALL DEFERRED');
             $q=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:id AND revoked_at IS NULL FOR UPDATE');$q->execute(['id'=>$installation]);if(!$q->fetchColumn())throw new RuntimeException('not_found');
             $products=new ProductRepository($this->db);$core=$products->defaultCoreProfileForInstallation($installation);
             if($core===null)throw new RuntimeException('archive_default_core_missing');
@@ -137,6 +144,10 @@ final class PlaythroughArchive
                 if($type['type']==='uuid'&&!isset($uuid[$row[$column]]))$uuid[$row[$column]]=Uuid::v4();
                 if($type['identity']||(in_array($column,$meta[$table]['primary'],true)&&str_contains((string)$type['default'],'nextval('))){
                     $sequence=$this->db->prepare('SELECT pg_get_serial_sequence(:table,:column)');$sequence->execute(['table'=>$table,'column'=>$column]);$sequenceName=$sequence->fetchColumn();
+                    if(!$sequenceName){
+                        $sequence=$this->db->prepare("SELECT s.oid::regclass::text FROM pg_attribute a JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum JOIN pg_depend dep ON dep.classid='pg_attrdef'::regclass AND dep.objid=d.oid AND dep.refclassid='pg_class'::regclass JOIN pg_class s ON s.oid=dep.refobjid AND s.relkind='S' WHERE a.attrelid=CAST(:table AS regclass) AND a.attname=:column");
+                        $sequence->execute(['table'=>$table,'column'=>$column]);$sequenceName=$sequence->fetchColumn();
+                    }
                     if(!$sequenceName)throw new RuntimeException('archive_sequence_unavailable');$next=$this->db->prepare('SELECT nextval(CAST(:sequence AS regclass))');$next->execute(['sequence'=>$sequenceName]);$serial[$table][$column][(string)$row[$column]]=(int)$next->fetchColumn();
                 }
             }
@@ -184,6 +195,11 @@ final class PlaythroughArchive
                 }
                 if($table==='lorkhan_internal.sessions'){$row['archived']=true;$row['state']='ended';$row['capabilities']=[];$row['enabled_actions']=[];$row['character_id']=null;$row['event_sequence']=0;$row['ended_at']??=gmdate('c');}
                 if($table==='lorkhan_internal.turns'){$row['state']=in_array($row['state'],['complete','failed','cancelled'],true)?$row['state']:'cancelled';foreach(['processing_job_id','processing_lease_token','processing_job_attempt']as$key)$row[$key]=null;$row['completed_at']??=gmdate('c');}
+                if($table==='lorkhan_internal.profile_evolution_progress'){$row['manual_requested']=false;$row['manual_request_id']=null;$row['manual_requested_at']=null;$row['manual_attempts']=0;}
+                if($table==='lorkhan_internal.profile_evolution_events'){
+                    // Retained progress can outlive pruned event rows. Negative IDs cannot collide with future events.
+                    $row['rowid']=$serial['public.eventlog']['rowid'][(string)$source['rowid']]??-abs((int)$source['rowid']);
+                }
                 if($table==='lorkhan_internal.action_intents'){$row['state']='terminal';$row['expires_at']=gmdate('c');$row['followup_enabled']=false;$row['followup_actions_allowed']=false;}
                 if($table==='lorkhan_internal.dialogue_utterances'&&$row['delivery_state']==='pending'){$row['delivery_state']='expired';$row['delivery_deadline_at']=gmdate('c');}
                 if($table==='lorkhan_internal.profiles' && !$this->localSave)$row['core_profile_id']=$core['core_profile_id'];
@@ -194,14 +210,40 @@ final class PlaythroughArchive
             }
             // Nondeferrable dependencies are inserted in bounded passes; cycles or missing parents fail atomically.
             $pending=$rows;
-            while($pending!==[]){$next=[];$progress=0;foreach($pending as[$table,$row]){$this->checkBudget();
+            while($pending!==[]){$next=[];$progress=0;$dependencyError=null;foreach($pending as[$table,$row]){$this->checkBudget();
                 $this->db->exec('SAVEPOINT archive_row');
                 try{$columns=implode(',',array_keys($meta[$table]['columns']));$q=$this->db->prepare('INSERT INTO '.$table.'('.$columns.') OVERRIDING SYSTEM VALUE SELECT '.$columns.' FROM jsonb_populate_record(NULL::'.$table.',CAST(:row AS jsonb))');$q->execute(['row'=>$this->canonical($row)]);$this->db->exec('RELEASE SAVEPOINT archive_row');++$progress;}
-                catch(\PDOException$error){$this->db->exec('ROLLBACK TO SAVEPOINT archive_row');$this->db->exec('RELEASE SAVEPOINT archive_row');if($error->getCode()!=='23503')throw$error;$next[]=[$table,$row];}
-            }if($progress===0)throw new RuntimeException('archive_dependency_incomplete');$pending=$next;}
+                catch(\PDOException$error){$this->db->exec('ROLLBACK TO SAVEPOINT archive_row');$this->db->exec('RELEASE SAVEPOINT archive_row');if($error->getCode()!=='23503')throw$error;$dependencyError=$error;$next[]=[$table,$row];}
+            }if($progress===0)throw new RuntimeException('archive_dependency_incomplete',0,$dependencyError);$pending=$next;}
             $this->db->exec('SET CONSTRAINTS ALL IMMEDIATE');
+            // Rebuild scoped read models while revision/delivery triggers remain disabled.
+            foreach (['memory_records'=>'herika_project_memory','knowledge_documents'=>'herika_project_knowledge'] as $table=>$trigger) {
+                $this->db->exec('ALTER TABLE lorkhan_internal.'.$table.' ENABLE TRIGGER '.$trigger);
+                $q=$this->db->prepare('UPDATE lorkhan_internal.'.$table.' SET content=content WHERE playthrough_id=:world');
+                $q->execute(['world'=>$uuid[$document['source']['playthrough_id']]]);
+            }
+            // Project each saved NPC revision, leaving the source's current revision selected.
+            foreach($document['tables']['lorkhan_internal.profiles'] as $profile){
+                if((((array)$profile['actor_identity'])['kind']??'')==='player')continue;
+                $id=$uuid[$profile['profile_id']];
+                $revisions=$this->db->prepare('SELECT revision FROM profile_revisions WHERE profile_id=:p ORDER BY revision');$revisions->execute(['p'=>$id]);
+                $select=$this->db->prepare('UPDATE profiles SET current_revision=:r WHERE profile_id=:p');
+                $project=$this->db->prepare('SELECT lorkhan_internal.sync_profile_projection(CAST(:profile AS text))');
+                foreach($revisions->fetchAll(PDO::FETCH_COLUMN) as $revision){$select->execute(['r'=>$revision,'p'=>$id]);$project->execute(['profile'=>$id]);}
+                $select->execute(['r'=>$profile['current_revision'],'p'=>$id]);$project->execute(['profile'=>$id]);
+            }
             foreach($disabled as[$table,$trigger])$this->db->exec('ALTER TABLE '.$table.' ENABLE TRIGGER '.$trigger);
-            foreach($document['tables']['lorkhan_internal.profiles']as$profile){if((((array)$profile['actor_identity'])['kind']??'')==='player')continue;$q=$this->db->prepare('SELECT lorkhan_internal.sync_profile_projection(CAST(:profile AS text))');$q->execute(['profile'=>$uuid[$profile['profile_id']]]);}
+            if ($this->localSave && isset($document['local_state'])) {
+                // Remap owned graph IDs only. Shared Oghma/catalogue IDs may also appear in prompt JSON.
+                $ownedIds=[$document['source']['installation_id']=>$installation,$document['source']['playthrough_id']=>$uuid[$document['source']['playthrough_id']]];
+                foreach($document['tables'] as $table=>$sourceRows) foreach($sourceRows as $source) foreach($meta[$table]['primary'] as $column){
+                    $id=$source[$column];if(is_string($id)&&isset($uuid[$id]))$ownedIds[$id]=$uuid[$id];
+                }
+                $state=$this->remapJson($document['local_state'],$ownedIds);
+                foreach($state['tables']['public.moods_issued'] as &$mood)$mood['rowid']=$serial['public.speech']['rowid'][(string)$mood['rowid']]??$mood['rowid'];
+                unset($mood);
+                (new PlaythroughLocalState($this->db))->stage($installation,$uuid[$document['source']['playthrough_id']],$state);
+            }
             if ($owns) $this->db->commit();return['playthrough_id'=>$uuid[$document['source']['playthrough_id']],
                 'profile_id'=>$uuid[$document['tables']['lorkhan_internal.playthroughs'][0]['profile_id']],
                 'active'=>false,'row_counts'=>array_map('count',$document['tables']),'limitations'=>$this->limitations()];
@@ -231,10 +273,11 @@ final class PlaythroughArchive
 
     private function decode(string $json):array
     {
-        if(strlen($json)>self::MAX_BYTES)throw new RuntimeException('archive_too_large');
+        if(strlen($json)>($this->localSave?self::MAX_LOCAL_BYTES:self::MAX_BYTES))throw new RuntimeException('archive_too_large');
         try{$object=json_decode($json,false,64,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new RuntimeException('invalid_archive');}
         if(!is_object($object))throw new RuntimeException('invalid_archive');$document=(array)$object;
         foreach(['source','shared_profiles','tables']as$key)if(isset($document[$key])&&is_object($document[$key]))$document[$key]=(array)$document[$key];
+        if(isset($document['local_state']))$document['local_state']=PlaythroughLocalState::decode(json_encode($document['local_state'],JSON_THROW_ON_ERROR));
         if(is_array($document['tables']??null))foreach($document['tables']as&$rows)if(is_array($rows))$rows=array_map(static fn($row)=>is_object($row)?(array)$row:$row,$rows);unset($rows);
         return$document;
     }
@@ -242,14 +285,21 @@ final class PlaythroughArchive
     private function validate(array $document):void
     {
         $keys=array_keys($document);sort($keys);$expected=['created_at','format','limitations','schema_sha256','sha256','shared_profiles','source','tables','version'];sort($expected);
+        if ($this->localSave && isset($document['local_state'])) {$expected[]='local_state';sort($expected);}
         if($keys!==$expected||$document['format']!==($this->localSave?'lorkhan.playthrough-save':'lorkhan.playthrough-archive')||$document['version']!==1)throw new RuntimeException('invalid_archive');
         $copy=$document;unset($copy['sha256']);
         if(!is_string($document['sha256'])||!hash_equals(hash('sha256',$this->canonical($copy)),$document['sha256']))throw new RuntimeException('archive_checksum_mismatch');
-        $meta=$this->metadata();if($document['schema_sha256']!==$this->schemaHash($meta))throw new RuntimeException('archive_schema_mismatch');
+        $meta=$this->metadata();
+        $legacy=array_diff_key($meta,array_fill_keys(array_merge(array_map(static fn($t)=>'lorkhan_internal.'.$t,self::ADDED_TABLES),['public.audit_request','public.log']),true));
+        if($document['schema_sha256']!==$this->schemaHash($meta)){
+            if($document['schema_sha256']!==$this->schemaHash($legacy))throw new RuntimeException('archive_schema_mismatch');
+            $meta=$legacy;
+        }
         if(!is_array($document['source'])||count($document['source'])!==2||!Uuid::isValid($document['source']['installation_id']??'')||!Uuid::isValid($document['source']['playthrough_id']??''))throw new RuntimeException('invalid_archive_scope');
         if(!is_array($document['tables']))throw new RuntimeException('invalid_archive');
         if(!is_array($document['shared_profiles']))throw new RuntimeException('invalid_archive');foreach($document['shared_profiles']as$id=>$kind)if(!\LorkhanServer\Domain\ProfileId::isValid($id)||$kind!=='narrator')throw new RuntimeException('archive_shared_profile');
-        $names=array_keys($document['tables']);sort($names);$allowed=self::tableNames();sort($allowed);if($names!==$allowed)throw new RuntimeException('archive_table_mismatch');
+        $names=array_keys($document['tables']);sort($names);$allowed=array_keys($meta);sort($allowed);if($names!==$allowed)throw new RuntimeException('archive_table_mismatch');
+        if(isset($document['local_state']))(new PlaythroughLocalState($this->db))->validate($document['local_state'],$document['source']['installation_id']);
         $count=0;$profileIds=[];
         foreach($document['tables']as$table=>$rows){
             if(!is_array($rows)||!array_is_list($rows))throw new RuntimeException('invalid_archive_rows');
@@ -297,7 +347,7 @@ final class PlaythroughArchive
 
     private function collect(array &$rows,\PDOStatement $query,array $definition):void
     {
-        while(($json=$query->fetchColumn())!==false){$row=(array)json_decode($json,false,64,JSON_THROW_ON_ERROR);$key=$this->rowKey($row,$definition);if(isset($rows[$key])&&$this->canonical($rows[$key])!==$this->canonical($row))throw new RuntimeException('archive_duplicate_row');if(!isset($rows[$key]))$this->collectedBytes+=strlen($json);$rows[$key]=$row;if(count($rows)>self::MAX_ROWS||$this->collectedBytes>self::MAX_BYTES)throw new RuntimeException('archive_too_large');}
+        while(($json=$query->fetchColumn())!==false){$row=(array)json_decode($json,false,64,JSON_THROW_ON_ERROR);$key=$this->rowKey($row,$definition);if(isset($rows[$key])&&$this->canonical($rows[$key])!==$this->canonical($row))throw new RuntimeException('archive_duplicate_row');if(!isset($rows[$key]))$this->collectedBytes+=strlen($json);$rows[$key]=$row;if(count($rows)>self::MAX_ROWS||$this->collectedBytes>($this->localSave?self::MAX_LOCAL_BYTES:self::MAX_BYTES))throw new RuntimeException('archive_too_large');}
     }
 
     private function rowKey(array $row,array $definition):string
@@ -309,7 +359,7 @@ final class PlaythroughArchive
     private function metadata():array
     {
         if($this->metadata!==null)return$this->metadata;$result=[];
-        foreach(self::tableNames()as$table){
+        foreach(self::tableNames($this->localSave)as$table){
             [$schema,$name]=explode('.',$table);
             $q=$this->db->prepare('SELECT column_name,udt_name,is_nullable,column_default,is_identity FROM information_schema.columns WHERE table_schema=:schema AND table_name=:table ORDER BY ordinal_position');
             $q->execute(['schema'=>$schema,'table'=>$name]);$columns=[];foreach($q->fetchAll()as$row)$columns[$row['column_name']]=['type'=>$row['udt_name'],'nullable'=>$row['is_nullable']==='YES','default'=>$row['column_default'],'identity'=>$row['is_identity']==='YES'];
@@ -324,8 +374,8 @@ final class PlaythroughArchive
                 $primary=['rowid'];$base=str_contains($table,'responselog')?'responselog':'speech';
                 $foreign[]=['table'=>'lorkhan_internal.'.$base,'columns'=>['rowid'],'references'=>['rowid']];
             }
-            if(str_starts_with($table,'public.')&&in_array(substr($table,7),self::PUBLIC_TABLES,true))$primary=['rowid'];
-            $projection=['book_metadata'=>'books','quest_metadata'=>'quests','questlog_metadata'=>'questlog','currentmission_metadata'=>'currentmission','eventlog_metadata'=>'eventlog','action_issued_metadata'=>'actions_issued','diarylog_metadata'=>'diarylog'];
+            if(str_starts_with($table,'public.')&&in_array(substr($table,7),array_merge(self::PUBLIC_TABLES,['audit_request','log']),true))$primary=['rowid'];
+            $projection=['book_metadata'=>'books','quest_metadata'=>'quests','questlog_metadata'=>'questlog','currentmission_metadata'=>'currentmission','eventlog_metadata'=>'eventlog','action_issued_metadata'=>'actions_issued','diarylog_metadata'=>'diarylog','audit_request_metadata'=>'audit_request','log_metadata'=>'log'];
             if(isset($projection[$name])&&!array_filter($foreign,static fn($fk)=>$fk['columns']===['rowid']))$foreign[]=['table'=>'public.'.$projection[$name],'columns'=>['rowid'],'references'=>['rowid']];
             if($primary===[])throw new RuntimeException('archive_table_without_key:'.$table);$result[$table]=['columns'=>$columns,'primary'=>$primary,'foreign'=>$foreign];
         }
@@ -344,7 +394,8 @@ final class PlaythroughArchive
     {
         if ($this->localSave) return ['Gameplay only; shared settings and connectors remain unchanged.',
             'No game saves, media, active sessions, queued jobs or executable deliveries are restored.',
-            'Local Core Profile assignments and connector references are preserved. Derived summaries and embeddings regenerate.'];
+            'Local Core Profile assignments, summaries and evolution progress are preserved. Embeddings regenerate.',
+            'Oghma, gameplay settings and active compatibility views are applied on the next character load.'];
         return ['No game saves, media, credentials, connectors or global settings.','No active sessions, queued jobs, pending delivery or executable actions are restored.',
             'Core and Narrator references use the destination installation; connector routing is not transferred.','Derived summaries, embeddings and runtime scheduling are not imported; normal workflows must regenerate them.'];
     }

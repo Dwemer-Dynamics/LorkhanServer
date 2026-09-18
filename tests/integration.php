@@ -5673,6 +5673,10 @@ foreach(['checksum','foreign_scope','global_revision','column']as$attack){
 $beforeArchiveSession=(new \LorkhanServer\Infrastructure\ProfileOwnershipRepository($db))->activePlaythrough($characterSession['installation_id']);
 $archiveCopy=$archiveService->importCopy($characterSession['installation_id'],$archiveJson);
 $archiveSecondCopy=$archiveService->importCopy($characterSession['installation_id'],$archiveJson);
+$projectionCheck=$db->prepare('SELECT count(*) FROM memory_records m LEFT JOIN memory_metadata p USING(memory_id) WHERE m.playthrough_id=:world AND m.deleted_at IS NULL AND p.memory_id IS NULL');
+$projectionCheck->execute(['world'=>$archiveCopy['playthrough_id']]);$assert((int)$projectionCheck->fetchColumn()===0,'import left memory read models missing');
+$projectionCheck=$db->prepare('SELECT count(*) FROM knowledge_documents d LEFT JOIN oghma_metadata p USING(document_id) WHERE d.playthrough_id=:world AND d.deleted_at IS NULL AND p.document_id IS NULL');
+$projectionCheck->execute(['world'=>$archiveCopy['playthrough_id']]);$assert((int)$projectionCheck->fetchColumn()===0,'import left Oghma read models missing');
 $assert($archiveSecondCopy['playthrough_id']!==$archiveCopy['playthrough_id'],'repeated import did not create a distinct inactive copy');
 $assert($archiveCopy['active']===false&&$archiveCopy['playthrough_id']!==$characterSession['playthrough_id'],'archive did not create inactive copy');
 $assert((new \LorkhanServer\Infrastructure\ProfileOwnershipRepository($db))->activePlaythrough($characterSession['installation_id'])===$beforeArchiveSession,'archive changed selected character');

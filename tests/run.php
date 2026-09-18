@@ -1394,6 +1394,16 @@ $tablePolicy=\LorkhanServer\Infrastructure\PlaythroughTablePolicy::tables();
 $portableTables=array_keys(array_filter($tablePolicy,static fn(array $row):bool=>$row['portable']));sort($portableTables);
 $archiveTables=\LorkhanServer\Infrastructure\PlaythroughArchive::tableNames();sort($archiveTables);
 $check($portableTables===$archiveTables,'Portable policy exactly matches archive allowlist');
+$localTables=array_keys(array_filter($tablePolicy,static fn(array $row):bool=>$row['local_save']));sort($localTables);
+$localExpected=array_values(array_unique(array_merge(\LorkhanServer\Infrastructure\PlaythroughArchive::tableNames(true),\LorkhanServer\Infrastructure\PlaythroughLocalState::tableNames())));sort($localExpected);
+$check($localTables===$localExpected,'Local-save labels exactly match graph and staged gameplay tables');
+foreach([
+    ['public.general_settings','PLAYER_NAME',[],true],['public.general_settings','AUTO_DIARY_LAST_caius',[],true],
+    ['public.general_settings','CONTEXT_HISTORY',[],false],['public.general_settings','custom_option',[],false],
+    ['public.conf_opts','custom_gameplay',[],true],['public.conf_opts','custom_option',['custom_option'],false],
+    ['public.conf_opts','COMBAT_BARK_COOLDOWN',[],false],['public.conf_opts','inworld_voice_caius',[],false],
+    ['public.conf_opts','Network/provider',[],false],['public.conf_opts','DYNAMIC_PROFILE_CLOCK',[],true],
+] as [$table,$key,$global,$expected])$check(\LorkhanServer\Infrastructure\PlaythroughLocalState::gameplaySetting($table,$key,$global)===$expected,'CHIM gameplay setting filter: '.$table.'.'.$key);
 $check(array_filter($tablePolicy,static fn(array $row):bool=>in_array($row['category'],['shared','operational','derived'],true)&&$row['portable'])===[],'Shared operational and derived tables never enter portable archive');
 $backupGlobal=SettingsCatalog::globalDefaults();
 $check($backupGlobal['backup']['dragon_break_days']===3,'Dragon Break default remains three days');

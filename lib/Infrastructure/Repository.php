@@ -148,6 +148,7 @@ final class Repository
             if ($previous !== null && $message['generation'] <= (int) $previous) throw new \UnexpectedValueException('stale_generation');
             // The installation fence and generation checks precede backup capture; no prior session work has been cancelled yet.
             $rollbackSafe=$beforeReplace===null || $beforeReplace($message)!==false;
+            (new PlaythroughLocalState($this->db))->activate($message['installation_id'],$message['playthrough_id']);
             $characters->bind($message,$characterId);
             $active=$this->db->prepare("SELECT session_id FROM sessions WHERE installation_id=:id AND state='active' FOR UPDATE");
             $active->execute(['id'=>$message['installation_id']]);$activeSessions=$active->fetchAll(PDO::FETCH_COLUMN);
