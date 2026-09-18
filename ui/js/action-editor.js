@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     description: action.description,
     return_message: action.return_message || '',
     confirmation_required: action.confirmation_mode === 'required'
-      || action.metadata?.custom_config?.confirmation_required === true,
+      || (action.metadata?.custom_config?.confirmation_required ?? action.confirmation_default) === true,
     followup_enabled: action.continuation_capable === true
       && (action.metadata?.custom_config?.followup_enabled ?? action.followup_default) === true,
     followup_prompt: action.metadata?.custom_config?.followup_prompt ?? action.metadata?.followup?.prompt ?? '',

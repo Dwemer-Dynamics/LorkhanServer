@@ -1615,7 +1615,7 @@ foreach (['inspect.report'=>0, 'ai.follow'=>1, 'ai.stop'=>1, 'item.use'=>2] as $
     $actionDefinitions[] = ['name'=>$name, 'tier'=>$tier, 'client_capability'=>'action.'.$name,
         'available_to_npc'=>true,'available_to_narrator'=>false,'game_function'=>true,'source'=>'base',
         'description'=>'', 'continuation_capable'=>$name==='ai.follow',
-        'display_name'=>ucwords(str_replace('.',' ',$name)),'confirmation_mode'=>$tier>=2?'required':($tier===0?'none':'optional'),
+        'display_name'=>ucwords(str_replace('.',' ',$name)),'confirmation_mode'=>$tier===0?'none':'optional','confirmation_default'=>$tier>=2,
         'followup_default'=>false,'followup_prompt'=>'React to the completed action result.',
         'followup_actions_supported'=>$name==='ai.follow','cooldown_seconds'=>0,
         'parameter_schema'=>['type'=>'object', 'additionalProperties'=>false]];
@@ -1673,6 +1673,13 @@ $check($herikaFollow['display_name']==='Herika-shaped Follow'&&$herikaFollow['de
     &&$herikaFollow['followup_prompt']==='React to the typed result.'
     &&$herikaFollow['followup_actions_allowed']===true&&$herikaFollow['cooldown_seconds']===7,
     'complete Herika action rows normalize into the bounded LORKHAN runtime contract');
+$inheritedConfirmation=$herikaContext;
+$inheritedConfirmation['definitions']=array_map(static function(array $definition):array{
+    $definition['confirmation_default']=true;return $definition;
+},$inheritedConfirmation['definitions']);
+unset($inheritedConfirmation['policy']['content']['actions']['ai.follow']['metadata']['custom_config']['confirmation_required']);
+$check($policy->validate($proposal,$inheritedConfirmation)['confirmation_required']===true,
+    'full action rows without a confirmation override retain catalog default');
 $continuationContext=$overrideContext;$continuationContext['continuation']=['depth'=>1,'allow_action'=>true];
 $continued=$policy->validate($proposal,$continuationContext);
 $requiredContext=$overrideContext;$requiredContext['session']['capabilities'][]='action.item.use';
@@ -1680,12 +1687,12 @@ $requiredContext['policy']['content']=['actions'=>['item.use'=>['enabled'=>true,
 $required=$policy->validate(['name'=>'item.use','tier'=>2,'actor'=>['kind'=>'npc'],'target'=>['kind'=>'player'],
     'parameters'=>[]],$requiredContext);
 $check($continued['followup_enabled']===false&&$continued['followup_actions_allowed']===false
-    &&$continued['followup_depth']===1&&$required['confirmation_required']===true,
-    'one extra action is the hard follow-up cap and required confirmations cannot be disabled');
+    &&$continued['followup_depth']===1&&$required['confirmation_required']===false,
+    'one extra action is the hard follow-up cap and Action Editor can disable confirmation');
 $actionTurn = $promptTurn;
 $worldTurn['context']['advanced_actions']['items']=[$worldTurn['context']['advanced_actions']['items'][0]];
 $worldDefinition=['name'=>'item.create','tier'=>2,'available_to_npc'=>false,'available_to_narrator'=>true,
-    'client_capability'=>'action.item.create','confirmation_mode'=>'required','parameter_schema'=>[
+    'client_capability'=>'action.item.create','confirmation_mode'=>'optional','confirmation_default'=>true,'parameter_schema'=>[
         'type'=>'object','additionalProperties'=>false,'required'=>['record_id','count'],
         'properties'=>['record_id'=>['type'=>'string','minLength'=>1,'maxLength'=>256],
             'count'=>['type'=>'integer','minimum'=>1,'maximum'=>100]]]];
@@ -1708,7 +1715,34 @@ $check($worldNormalized['action']['actor']===$transferPlayer&&$worldNormalized['
 $worldLoaded=['session'=>['capabilities'=>['action.confirmation','action.item.create'],'enabled_actions'=>['item.create']],
     'definitions'=>[$worldDefinition],'turn_payload'=>$worldTurn,'policy'=>['content'=>['actions'=>['item.create'=>['confirmation_required'=>false]]]]];
 $worldApproved=$policy->validate($worldNormalized['action'],$worldLoaded);
-$check($worldApproved['confirmation_required']===true,'world per-action approval cannot be disabled in policy');
+$check($worldApproved['confirmation_required']===false,'world action respects disabled Action Editor confirmation');
+$worldDefault=$worldLoaded;$worldDefault['policy']['content']=['enabled'=>true];
+$check($policy->validate($worldNormalized['action'],$worldDefault)['confirmation_required']===true,
+    'world action retains enabled confirmation default without an override');
+$worldAllowed=$policy->allowedDefinitions($worldLoaded);
+$check($worldAllowed[0]['confirmation_required']===false,
+    'prompt catalogue and execution agree on disabled confirmation');
+foreach(['gold.give','spell.cast'] as $confirmationName){
+    $confirmationDefinition=$worldDefinition;
+    $confirmationDefinition['name']=$confirmationName;
+    $confirmationDefinition['client_capability']='action.'.$confirmationName;
+    $confirmationDefinition['available_to_npc']=true;
+    $confirmationDefinition['parameter_schema']=['type'=>'object','additionalProperties'=>false,
+        'properties'=>$confirmationName==='spell.cast'?['spell_id'=>['type'=>'string']]:['amount'=>['type'=>'integer']]];
+    $confirmationContext=$worldLoaded;
+    $confirmationContext['definitions']=[$confirmationDefinition];
+    $confirmationContext['session']=['capabilities'=>['action.confirmation','action.'.$confirmationName],
+        'enabled_actions'=>[$confirmationName]];
+    $confirmationContext['turn_payload']=$confirmationName==='spell.cast'?$spellTurn:$transferTurn;
+    $confirmationProposal=['name'=>$confirmationName,'tier'=>2,'actor'=>$transferActor,
+        'target'=>$confirmationName==='spell.cast'?$transferActor:$transferPlayer,
+        'parameters'=>$confirmationName==='spell.cast'?['spell_id'=>'fireball']:['amount'=>1]];
+    foreach([false,true] as $confirmation){
+        $confirmationContext['policy']['content']=['actions'=>[$confirmationName=>['confirmation_required'=>$confirmation]]];
+        $check($policy->validate($confirmationProposal,$confirmationContext)['confirmation_required']===$confirmation,
+            'transfer and spell dispatch respect Action Editor confirmation');
+    }
+}
 $worldLoaded['continuation']=['depth'=>1];
 try{$policy->validate($worldNormalized['action'],$worldLoaded);$check(false,'world actions cannot execute from action followups');}
 catch(DomainException){$check(true,'world actions cannot execute from action followups');}

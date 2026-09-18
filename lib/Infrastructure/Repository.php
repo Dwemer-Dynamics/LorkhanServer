@@ -590,10 +590,6 @@ final class Repository
             $physical['context']['targetState']=\LorkhanServer\Application\ExecutionModePolicy::actorState($payload,$actor);
             $narratorLoaded=$loaded+['turn_payload'=>$physical];
             $narratorAllowed=$this->actionPolicy->allowedDefinitions($narratorLoaded);
-            foreach($narratorAllowed as &$definition){
-                if(($definition['confirmation_required']??false)===true)$definition['confirmation_mode']='required';
-            }
-            unset($definition);
             $actorLoaded=$narratorLoaded;
             $effective=$products->effectiveSettingsForActor($loaded['session']['installation_id'],$loaded['session']['playthrough_id'],$actor);
             $actorLoaded['policy']=$this->actionCatalog->currentPolicy($loaded['session']['installation_id'],$effective['npc_profile']['profile_id']??null);

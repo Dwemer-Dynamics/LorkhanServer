@@ -21,7 +21,7 @@ final class ActionCatalogRepository
     {
         $rows = $this->db->query(
             'SELECT action_name, tier, display_name, category, sort_order, description, parameter_schema, result_schema, '
-            . 'client_capability, server_owned, terminal_result_required, continuation_capable, confirmation_mode, '
+            . 'client_capability, server_owned, terminal_result_required, continuation_capable, confirmation_mode, confirmation_default, '
             . "followup_default, followup_actions_supported, cooldown_seconds, COALESCE((to_jsonb(action_catalog)->>'available_to_narrator')::boolean,false) AS available_to_narrator "
             . 'FROM action_catalog WHERE enabled = true ORDER BY category, sort_order, action_name'
         )->fetchAll();
@@ -167,6 +167,7 @@ final class ActionCatalogRepository
             'terminal_result_required'=>$this->boolean($row['terminal_result_required']),
             'continuation_capable'=>$continuationCapable,
             'confirmation_mode'=>(string)$row['confirmation_mode'],
+            'confirmation_default'=>$this->boolean($row['confirmation_default']),
             'followup_default'=>$followupDefault,
             'followup_prompt'=>self::DEFAULT_FOLLOWUP_PROMPT,
             'followup_actions_supported'=>$followupActionsSupported,

@@ -57,11 +57,13 @@ $advancedDefinitions=array_intersect_key(array_column((new ActionCatalogReposito
 $check(count($advancedDefinitions)===8,'advanced upgrade omitted world actions');
 foreach($advancedDefinitions as$name=>$definition)$check($definition['available_to_npc']===false
     &&$definition['available_to_narrator']===true&&$definition['metadata']['tier']===2
-    &&$definition['metadata']['confirmation_mode']==='required'&&!$definition['metadata']['continuation_capable'],
-    'world action must retain explicit authority and mandatory confirmation: '.$name);
+    &&$definition['metadata']['confirmation_mode']==='optional'&&$definition['confirmation_default']===true&&!$definition['metadata']['continuation_capable'],
+    'world action must retain explicit authority and editable confirmation enabled by default: '.$name);
 $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/118_advanced_world_actions.down.sql'));
 $check(!isset(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['actor.kill']),'world downgrade retained action');
 $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/118_advanced_world_actions.up.sql'));
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/132_action_confirmation_policy.down.sql'));
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/132_action_confirmation_policy.up.sql'));
 $check(array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),$advancedDefinitions)===$advancedDefinitions,
     'world actions changed on reapply');
 $serviceDefinitions=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),
@@ -100,9 +102,9 @@ $check(count($transferDefinitions)===5,'transfer upgrade omitted a typed action 
 foreach($transferDefinitions as$name=>$definition){
     $required=str_starts_with($name,'gold.')?['amount']:($name==='item.pickup'?['item_id']:['item_id','count']);
     $check($definition['metadata']['tier']===2&&$definition['metadata']['client_capability']==='action.'.$name
-        &&$definition['metadata']['confirmation_mode']==='required'&&$definition['metadata']['terminal_result_required']===true
+        &&$definition['metadata']['confirmation_mode']==='optional'&&$definition['confirmation_default']===true&&$definition['metadata']['terminal_result_required']===true
         &&$definition['parameters_json']['additionalProperties']===false&&$definition['parameters_json']['required']===$required,
-        'transfer catalogue omitted its exact bounded parameters or forced approval: '.$name);
+        'transfer catalogue omitted its exact bounded parameters or default approval: '.$name);
 }
 $db->beginTransaction();
 try{
@@ -111,6 +113,8 @@ try{
     $remaining=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),$transferDefinitions);
     $check($remaining===[],'transfer downgrade retained typed transfer entries');
     $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/113_transfer_actions.up.sql'));
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/132_action_confirmation_policy.down.sql'));
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/132_action_confirmation_policy.up.sql'));
     $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.up.sql'));
     $reapplied=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),$transferDefinitions);
     $check($reapplied===$transferDefinitions,'transfer reapply changed catalogue definitions');
@@ -127,7 +131,7 @@ try{
     $check(str_contains($directorEventConstraint,'director.instructions'),'Director reapply lost its event contract');
 }finally{$db->rollBack();}
 $spellDefinition=array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['spell.cast']??null;
-$check(is_array($spellDefinition)&&$spellDefinition['metadata']['tier']===2&&$spellDefinition['metadata']['confirmation_mode']==='required'
+$check(is_array($spellDefinition)&&$spellDefinition['metadata']['tier']===2&&$spellDefinition['metadata']['confirmation_mode']==='optional'&&$spellDefinition['confirmation_default']===true
     &&$spellDefinition['metadata']['client_capability']==='action.spell.cast'&&$spellDefinition['parameters_json']['required']===['spell_id']
     &&$spellDefinition['available_to_narrator']===true,'spell catalogue lost bounded identifier, approval or Narrator eligibility');
 $db->beginTransaction();
@@ -137,6 +141,8 @@ try{
     $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/116_spell_cast.down.sql'));
     $check(!isset(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['spell.cast']),'spell downgrade retained action');
     $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/116_spell_cast.up.sql'));
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/132_action_confirmation_policy.down.sql'));
+    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/132_action_confirmation_policy.up.sql'));
     $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.up.sql'));
     $check(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['spell.cast']===$spellDefinition,'spell/Narrator reapply changed authority');
 }finally{$db->rollBack();}
