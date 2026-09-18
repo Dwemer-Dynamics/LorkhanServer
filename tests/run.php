@@ -2053,7 +2053,7 @@ foreach ([[], ['data'=>array_fill(0,5001,[])]] as $invalidCatalogue) {
     try { ConnectorCatalog::normalizeOpenRouterModels($invalidCatalogue); $check(false,'invalid model catalogue rejected'); }
     catch (InvalidArgumentException) { $check(true,'invalid model catalogue rejected'); }
 }
-$check(count($ttsCatalog)===22 && count($sttCatalog)===8
+$check(count($ttsCatalog)===23 && count($sttCatalog)===8
     &&in_array('none',array_column($sttCatalog,'driver'),true), 'CHIM-lineage TTS and STT connector catalogs are complete');
 $check(array_column(ConnectorCatalog::optionFields('tts_provider','xtts-fastapi'),'name')===
     ['speed','temperature','top_p','top_k','repetition_penalty','paralinguistic_tags_enabled','paralinguistic_tags_prompt','paralinguistic_tags_list']

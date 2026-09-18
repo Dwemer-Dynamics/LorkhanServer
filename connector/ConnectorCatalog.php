@@ -113,6 +113,7 @@ final class ConnectorCatalog
     }
 
     private const TTS = [
+        'higgs' => ['Higgs TTS 3', true, 'LORKHAN_TTS_HIGGS_API_KEY'],
         'pockettts' => ['PocketTTS', true, 'LORKHAN_TTS_POCKETTTS_API_KEY'],
         'omnivoice' => ['OmniVoice', true, 'LORKHAN_TTS_OMNIVOICE_API_KEY'],
         'chatterbox' => ['Chatterbox', true, 'LORKHAN_TTS_CHATTERBOX_API_KEY'],
@@ -153,7 +154,7 @@ final class ConnectorCatalog
      * library. Every other driver names a voice the provider owns, so a local sample name is
      * not a voice it can speak.
      */
-    public const SAMPLE_LIBRARY_TTS_DRIVERS = ['pockettts', 'omnivoice', 'chatterbox', 'xtts-fastapi', 'xtts'];
+    public const SAMPLE_LIBRARY_TTS_DRIVERS = ['higgs', 'pockettts', 'omnivoice', 'chatterbox', 'xtts-fastapi', 'xtts'];
 
     /** Keep Morrowind voice names only for adapters that can consume or register their samples. */
     public static function usesLocalVoiceSamples(string $driver):bool
@@ -198,6 +199,7 @@ final class ConnectorCatalog
     ];
 
     private const TTS_DEFAULTS = [
+        'higgs'=>['http://127.0.0.1:8025','higgs-v3','default','en'],
         'pockettts'=>['http://127.0.0.1:8086','pocket-tts','default','en'],
         'omnivoice'=>['http://127.0.0.1:8021','k2-fsa/OmniVoice','default','en'],
         'chatterbox'=>['http://127.0.0.1:8020','default','default','en'],
