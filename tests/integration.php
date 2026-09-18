@@ -5643,7 +5643,8 @@ $db->exec("CREATE TABLE public.archive_unknown_probe(id integer); COMMENT ON TAB
 \LorkhanServer\Infrastructure\PlaythroughTablePolicy::synchronize($db);
 $policyComment=$db->query("SELECT obj_description('lorkhan_internal.profiles'::regclass,'pg_class')")->fetchColumn();
 \LorkhanServer\Infrastructure\PlaythroughTablePolicy::synchronize($db);
-$assert(str_contains($policyComment,'Keep unrelated table note')&&$db->query("SELECT obj_description('lorkhan_internal.profiles'::regclass,'pg_class')")->fetchColumn()===$policyComment,'policy sync replaced unrelated comments or was not idempotent');
+$assert($policyComment==='Playthrough Manager Backed Up'&&$db->query("SELECT obj_description('lorkhan_internal.profiles'::regclass,'pg_class')")->fetchColumn()===$policyComment,'policy comments do not match CHIM or sync was not idempotent');
+$assert($db->query("SELECT obj_description('lorkhan_internal.core_profiles'::regclass,'pg_class') IS NULL")->fetchColumn(),'excluded table retained a policy comment');
 $unknownPolicy=array_values(array_filter(\LorkhanServer\Infrastructure\PlaythroughTablePolicy::inventory($db),static fn($row)=>$row['table']==='public.archive_unknown_probe'))[0];
 $assert($unknownPolicy['portable']===false&&$unknownPolicy['category']==='unclassified','unknown table silently became portable');$db->rollBack();
 $archivePendingAction=Uuid::v4();$archivePendingDialogue=Uuid::v4();
