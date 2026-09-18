@@ -1968,6 +1968,17 @@ $relationDate=$db->prepare("UPDATE turns SET context=jsonb_set(context,'{world}'
     ||jsonb_build_object('calendar',CAST(:calendar AS jsonb))) WHERE turn_id=:id");
 $relationDate->execute(['id'=>$turn['turn_id'],'calendar'=>'{"year":427,"month":7,"day":16,"hour":12}']);
 $db->exec('SAVEPOINT relationship_timeline_seed');
+$retentionGlobal=$products->globalSettingsForInstallation($installationId);
+$retentionContent=$retentionGlobal['content'];
+$retentionContent['relationship']['never_clear_relationship_data']=true;
+$products->revise('global_settings',$retentionGlobal['configuration_id'],$retentionContent,'relationship retention fixture',$now);
+$assert($relationshipTimeline->invalidate($relationLoad)['relationships']===0,'never-clear setting rolled back relationship data');
+$relationRead->execute(['id'=>$relationId]);
+$assert($relationRead->fetch()['deleted_at']===null,'never-clear setting retired automatic relationship');
+$products->deleteRelationship($relationId,$now,(int)$relationBefore['revision']);
+$relationRead->execute(['id'=>$relationId]);
+$assert($relationRead->fetch()['deleted_at']!==null,'never-clear setting blocked explicit manual deletion');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_timeline_seed');
 $relationCounts=$relationshipTimeline->invalidate($relationLoad);
 $relationRead->execute(['id'=>$relationId]);$relationRemoved=$relationRead->fetch();
 $assert($relationCounts['relationships']===1&&$relationRemoved['deleted_at']!==null
@@ -1975,6 +1986,42 @@ $assert($relationCounts['relationships']===1&&$relationRemoved['deleted_at']!==n
     'loaded save retained an automatic-only relationship or decreased its revision: '.json_encode([$relationCounts,$relationRemoved['revision'],$relationBefore['revision'],$relationRemoved['deleted_at'],$products->getRevisioned('profile',$actorProfile['profile_id'])['actor_identity']]));
 $assert($relationshipTimeline->invalidate($relationLoad)['relationships']===0,'repeated load reapplied relationship retirement');
 $db->exec('ROLLBACK TO SAVEPOINT relationship_timeline_seed');
+// Only player-owned worst memories fade, measured in game days from the text change.
+$db->exec('SAVEPOINT relationship_worst_lifespan');
+$db->prepare("UPDATE profiles SET actor_identity=jsonb_set(actor_identity,'{kind}','\"player\"'::jsonb) WHERE profile_id=:id")
+    ->execute(['id'=>$actorProfile['profile_id']]);
+$db->prepare("UPDATE relationship_records SET actor_identity=CAST(:identity AS jsonb) WHERE relationship_id=:id")
+    ->execute(['id'=>$relationId,'identity'=>json_encode($turn['payload']['target'])]);
+$relationRead->execute(['id'=>$relationId]);$worstBase=$relationRead->fetch();
+$worstInput=['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'relationship_id'=>$relationId,'expected_revision'=>(int)$worstBase['revision'],'disposition'=>21,'affinity'=>19,
+    'details'=>['worst'=>'An insult','best'=>'A gift'],'source_mode'=>'manual'];
+$worstSaved=$products->setRelationship($worstInput,$now);
+$worstScope=array_intersect_key($worstInput,array_flip(['installation_id','profile_id','playthrough_id']));
+$worstRead=static function()use($products,$worstScope,$relationId):array{
+    foreach($products->relationships($worstScope)as$row)if($row['relationship_id']===$relationId)return$row;
+    throw new RuntimeException('worst memory fixture missing');
+};
+$assert($worstRead()['details']['worst']==='An insult','fresh player worst memory expired');
+$relationDate->execute(['id'=>$turn['turn_id'],'calendar'=>'{"year":427,"month":7,"day":22,"hour":12}']);
+$assert($worstRead()['details']['worst']==='An insult','player worst memory expired before seven game days');
+$relationDate->execute(['id'=>$turn['turn_id'],'calendar'=>'{"year":427,"month":7,"day":23,"hour":12}']);
+$assert($worstRead()['details']['worst']===''&&$worstRead()['details']['best']==='A gift','worst lifespan did not expire only worst text');
+$worstInput['expected_revision']=$worstSaved['revision'];$worstInput['affinity']=20;
+$products->setRelationship($worstInput,$now);
+$assert($worstRead()['details']['worst']==='','unrelated relationship update renewed worst memory age');
+$retentionContent=$retentionGlobal['content'];$retentionContent['relationship']['worst_memory_lifespan_days']=0;
+$products->revise('global_settings',$retentionGlobal['configuration_id'],$retentionContent,'worst memory never forget fixture',$now);
+$assert($worstRead()['details']['worst']==='An insult','zero lifespan did not retain worst memory');
+$retentionContent['relationship']['worst_memory_lifespan_days']=7;
+$products->revise('global_settings',$retentionGlobal['configuration_id'],$retentionContent,'worst memory lifespan fixture',$now);
+$relationDate->execute(['id'=>$turn['turn_id'],'calendar'=>'{"year":427,"month":7,"day":15,"hour":12}']);
+$assert($worstRead()['details']['worst']==='An insult','loading an earlier game date expired a future worst memory');
+$relationDate->execute(['id'=>$turn['turn_id'],'calendar'=>'{"year":427,"month":7,"day":23,"hour":12}']);
+$db->prepare("UPDATE profiles SET actor_identity=jsonb_set(actor_identity,'{kind}','\"npc\"'::jsonb) WHERE profile_id=:id")
+    ->execute(['id'=>$actorProfile['profile_id']]);
+$assert($worstRead()['details']['worst']==='An insult','NPC to NPC worst memory expired');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_worst_lifespan');
 $relationManual=$products->setRelationship(['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],
     'playthrough_id'=>$session['playthrough_id'],'relationship_id'=>$relationId,'expected_revision'=>(int)$relationBefore['revision'],
     'disposition'=>21,'affinity'=>19,'custom_info'=>'Keep my manual canon','details'=>['note'=>'Manual relationship'],
@@ -2887,11 +2934,21 @@ try {
             'mode'=>'profile_evolution','playthrough_id'=>$turn['playthrough_id'],'source_turn_ids'=>$sources];
         $generatedJob->execute(['id'=>$jobId,'key'=>$jobId,'token'=>\LorkhanServer\Infrastructure\Uuid::v4(),'payload'=>json_encode($jobPayload)]);
         $generatedContent=$current['content'];$generatedContent['personality']='GENERATED PROFILE '.$generationIndex;
+        $generatedContent['relationships']='GENERATED RELATIONSHIPS '.$generationIndex;
         $assert($products->reviseGeneratedProfileIfCurrent($actorProfile['profile_id'],$current['current_revision'],$generatedContent,
             'reason is not provenance',gmdate('c'),$sources,$jobId,1),'leased automatic profile revision was not published');
     }
     $generatedHead=$products->getRevisioned('profile',$actorProfile['profile_id']);
     $timeline=new \LorkhanServer\Infrastructure\LoadedSaveTimeline($db);
+    $db->exec('SAVEPOINT profile_relationship_retention');
+    $retentionGlobal=$products->globalSettingsForInstallation($installationId);
+    $retentionContent=$retentionGlobal['content'];$retentionContent['relationship']['never_clear_relationship_data']=true;
+    $products->revise('global_settings',$retentionGlobal['configuration_id'],$retentionContent,'profile relationship retention fixture',$now);
+    $timeline->invalidate($load);
+    $retainedProfile=$products->getRevisioned('profile',$actorProfile['profile_id']);
+    $assert($retainedProfile['content']['relationships']==='GENERATED RELATIONSHIPS 2'
+        &&$retainedProfile['content']['personality']==='GENERATED PROFILE 0','relationship retention prevented unrelated profile rollback or lost relationships');
+    $db->exec('ROLLBACK TO SAVEPOINT profile_relationship_retention');
     foreach(['manual','locked','other_playthrough','unknown','player','narrator','creature']as$boundary){
         $db->exec('SAVEPOINT profile_boundary_probe');
         if($boundary==='manual')$products->revise('profile',$actorProfile['profile_id'],$generatedHead['content'],'manual edit',gmdate('c'));
@@ -3052,6 +3109,23 @@ $assert($products->promptContext($memoryProbe,$memoryNow)['history']===[], 'Core
 $assert((int)$db->query('SELECT count(*) FROM eventlog')->fetchColumn()===$eventCountBefore,'profile context filtering must not delete event history');
 $db->exec('ROLLBACK TO SAVEPOINT profile_event_filter_probe');
 $assert($products->promptContext($memoryProbe,$memoryNow)['history']===$limitedHistory,'removing Core event filter restores inherited history');
+$db->exec('SAVEPOINT custom_event_filter_probe');
+$customEvent=$db->prepare("SELECT rowid FROM eventlog_metadata WHERE source_event_id=:source AND projection_kind='turn'");
+$customEvent->execute(['source'=>$sharedSource]);$customEventRow=$customEvent->fetchColumn();
+$db->prepare("UPDATE eventlog SET type='custom_parity_event',data='CUSTOM EVENT PARITY SENTINEL' WHERE rowid=:rowid")->execute(['rowid'=>$customEventRow]);
+$filteredContent=$limitedContent;unset($filteredContent['settings_overrides']['context']['event_types']);
+$filteredContent['settings_overrides']['context']['event_types_excluded']=[];
+$products->revise('core_profile',$actorCoreProfile['core_profile_id'],$filteredContent,'empty exclusions include custom events',$memoryNow);
+$assert(in_array('event:'.$customEventRow,array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
+    'empty exclusion filter did not include a witnessed custom event');
+$assert(str_contains((new PromptAssembler())->assemble($memoryProbe,$products->promptContext($memoryProbe,$memoryNow))['provider_input']['_assembled_prompt'],
+    'CUSTOM EVENT PARITY SENTINEL'),'custom event text was lost before prompt assembly');
+$filteredContent['settings_overrides']['context']['event_types_excluded']=['custom_parity_event'];
+$products->revise('core_profile',$actorCoreProfile['core_profile_id'],$filteredContent,'exclude custom event',$memoryNow);
+$assert(!in_array('event:'.$customEventRow,array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
+    'checked custom event was not excluded from history');
+$assert((int)$db->query('SELECT count(*) FROM eventlog')->fetchColumn()===$eventCountBefore,'custom exclusion deleted event history');
+$db->exec('ROLLBACK TO SAVEPOINT custom_event_filter_probe');
 $limitedTurns=array_values(array_unique(array_column(array_column($limitedHistory,'content'),'turn_id')));
 $assert($limitedTurns===[$sharedTurn]&&count($limitedHistory)===2,
     'profile recent-turn limit must count one conversation turn with both input and world context');

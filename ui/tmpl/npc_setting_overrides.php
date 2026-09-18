@@ -8,7 +8,7 @@ $overrideLabels = [
     'profile_management.autofill_custom_profiles'=>'Autofill Custom Profiles',
     'profile_management.autofill_custom_profiles_trigger'=>'Autofill Custom Profiles Trigger',
     'context.sections'=>'Context Sections','context.details'=>'Context Details',
-    'context.event_types'=>'Event Type Filter','prompt.emote_moods'=>'Emote Moods',
+    'context.event_types_excluded'=>'Event Type Filter','prompt.emote_moods'=>'Emote Moods',
     'context.location_blacklist'=>'Location Blacklist','context.item_blacklist'=>'Item Blacklist','context.magic_effects_blacklist'=>'Magic Effect Blacklist',
     'quest_comments.enabled'=>'Quest Comment', 'quest_comments.chance_percent'=>'Quest Comment Chance',
     'bored_event.chance_percent'=>'Bored Event Chance',
@@ -41,7 +41,7 @@ $overrideLabels = [
     'oghma.enabled'=>'Oghma Infinium', 'oghma.result_limit'=>'Oghma Result Limit', 'oghma.racial_context_enabled'=>'Force Racial Oghma',
 ];
 $help=[
-    'context.detect_magic_events'=>'Include observed successful spell casts in this NPC’s conversation context. The Infoaction event filter and Magic Effect Blacklist still apply; original event records are retained.',
+    'context.detect_magic_events'=>'Include observed successful spell casts in this NPC’s conversation context. The Event Type Filter and Magic Effect Blacklist still apply; original event records are retained.',
     'context.item_pickup_min_value'=>'Minimum total gold value (quantity times item value) for observed pickups in conversation context. Zero includes all pickups; original event records are retained.',
     'behavior.combat_bark_period_seconds'=>'Cooldown period in seconds between combat barks to prevent spam during combat. This cooldown is global across all NPCs in the party.',
     'profile_management.autofill_custom_profiles'=>'Automatically fill this NPC’s empty, unlocked profile after enough witnessed dialogue. Dynamic Profile updates remain separate.',
@@ -59,6 +59,7 @@ $help=[
             'profile_evolution.history_limit'=>'History records included in this NPC’s automatic profile updates (0–400). Zero uses the regular Context History limit; this does not enable Dynamic Profile.',
         ];
 $overrideCatalog=[];$overrideValues=[];
+$normalizedOverrides=\LorkhanServer\Application\EffectiveSettingsResolver::validateSettingsOverrides($content['settings_overrides']??[], true);
 foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $section=>$fields) {
     foreach ($fields as $key) {
         $path=$section.'.'.$key;
@@ -95,7 +96,7 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
         if($path==='behavior.rechat_mode')$overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'choice','choices'=>['tight','conversational','group','random'],'value'=>$default];
         if($path==='prompt.prompt_head')$overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'string','maxBytes'=>8192,'allowEmpty'=>true,'value'=>$default,'help'=>'System roleplay instructions for this NPC. Blank uses the built-in prompt; removing the override restores Core or global inheritance.'];
         if($path==='prompt.emote_moods')$overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'string','maxBytes'=>4096,'allowEmpty'=>true,'value'=>$default,'help'=>'Moods and emotes offered when this NPC has no custom mood list. Blank removes inherited suggestions; remove the override to inherit.'];
-        if($path==='context.event_types')$overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'textlist','maxBytes'=>4096,'allowEmpty'=>true,'value'=>$effectiveSettings['context']['event_types']??\LorkhanServer\Application\SettingsCatalog::eventTypes(),'choices'=>\LorkhanServer\Application\SettingsCatalog::eventTypes(),'help'=>'One included event type per line: '.implode(', ',\LorkhanServer\Application\SettingsCatalog::eventTypes()).'. Blank excludes event history from context without deleting it. Remove the override to inherit.'];
+        if($path==='context.event_types_excluded')$overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>'textlist','maxBytes'=>33024,'allowEmpty'=>true,'value'=>$effectiveSettings['context']['event_types_excluded']??[],'help'=>'Event types to exclude from AI context, one per line or separated by commas. Custom names are supported. Use at most 256 names, each at most 128 letters, numbers, underscores, periods, colons or hyphens. Blank excludes no event types; remove the override to inherit.'];
         if($path==='diary.prompt')$overrideCatalog[$path]=[
             'label'=>$overrideLabels[$path],'type'=>'string','maxBytes'=>8192,
             'value'=>$effectiveSettings['settings']['diary']['prompt']??\LorkhanServer\Application\DiaryGenerationPolicy::defaults()['prompt']];
@@ -110,13 +111,13 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
             'context','relationship'=>'Context','prompt'=>'Prompt',default=>'Misc'
         };
         if(in_array($path,['context.prompt_timestamp','context.location_blacklist','context.item_blacklist',
-            'context.magic_effects_blacklist','context.event_types','relationship.update_chance_percent'],true))
+            'context.magic_effects_blacklist','context.event_types_excluded','relationship.update_chance_percent'],true))
             $overrideCatalog[$path]['category']='Prompt';
         if(in_array($path,['behavior.rechat_strict_targeting','behavior.open_rechat','behavior.end_conversation_cooldown_seconds','behavior.combat_bark_period_seconds'],true))
             $overrideCatalog[$path]['category']='Misc';
         if($path==='context.short_term_in_compact_chat')$overrideCatalog[$path]['category']='Memory';
         if($section==='profile_management')$overrideCatalog[$path]['category']='Misc';
-        if(array_key_exists($key,$content['settings_overrides'][$section]??[]))$overrideValues[$section][$key]=$content['settings_overrides'][$section][$key];
+        if(array_key_exists($key,$normalizedOverrides[$section]??[]))$overrideValues[$section][$key]=$normalizedOverrides[$section][$key];
         if($section==='diary'&&array_key_exists($key,$content['diary']??[]))$overrideValues[$section][$key]=$content['diary'][$key];
     }
 }

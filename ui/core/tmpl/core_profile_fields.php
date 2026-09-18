@@ -6,7 +6,7 @@ use LorkhanServer\Application\EffectiveSettingsResolver;
 
 $effectiveCoreSettings=(new EffectiveSettingsResolver())->resolve($globalContent??[],$content,[]);
 $routing=is_array($content['routing']??null)?$content['routing']:[];
-$overrides=is_array($content['settings_overrides']??null)?$content['settings_overrides']:[];
+$overrides=EffectiveSettingsResolver::validateSettingsOverrides(is_array($content['settings_overrides']??null)?$content['settings_overrides']:[]);
 $evolution=EffectiveSettingsResolver::profileEvolutionDefaults($overrides['profile_evolution']??null);
 $rpgComments=$effectiveCoreSettings['settings']['rpg_comments']??array_replace(\LorkhanServer\Application\SettingsCatalog::globalDefaults()['rpg_comments'],$overrides['rpg_comments']??[]);
 $profileMeta=is_array($profileMeta??null)?$profileMeta:[];$creatingProfile=($coreProfileMode??'edit')==='create';

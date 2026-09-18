@@ -102,6 +102,8 @@ body .global-settings-page .settings-tab.is-active { border-color: rgb(188,157,9
 .global-settings-page .provider-body { display: flex; min-width: 0; align-items: center; gap: 8px; }
 .global-settings-page .provider-body input[type="url"],.global-settings-page .provider-body input[type="text"],.global-settings-page .provider-body input[type="number"],.global-settings-page .provider-body select,.global-settings-page .provider-body textarea { width: 100%; flex: 1; padding: 8px 10px; border: 1px solid #3a3a3a; border-radius: 6px; background: rgba(26,26,26,.8); color: #e9efff; }
 .global-settings-page .provider-body textarea { min-height: 145px; resize: vertical; }
+.global-settings-page .gs-event-filter { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; min-width: 0; }
+.global-settings-page .gs-event-filter > textarea { width: 100%; box-sizing: border-box; }
 .global-settings-page .gs-checklist { display: grid; width: 100%; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 6px 12px; }
 .global-settings-page .gs-checklist label { display: flex; min-height: 30px; align-items: center; gap: 7px; color: #ddd; }
 .global-settings-page .gs-checklist input { accent-color: rgb(188,157,90); }

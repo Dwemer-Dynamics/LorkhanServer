@@ -36,10 +36,10 @@ final class GlobalSettingsPreset
         $keys=array_keys($snapshot);sort($keys);
         if($keys!==['default','items'] || !is_array($snapshot['default']) || !is_array($snapshot['items'])
             || ($snapshot['items']!==[] && array_is_list($snapshot['items']))) throw new InvalidArgumentException('invalid_profile_snapshot');
-        CoreProfilePreset::validate($snapshot['default']);
+        $snapshot['default']=CoreProfilePreset::validate($snapshot['default']);
         foreach($snapshot['items'] as $id=>$preset){
             if(!is_string($id)||!\LorkhanServer\Infrastructure\Uuid::isValid($id)||!is_array($preset)) throw new InvalidArgumentException('invalid_profile_snapshot');
-            CoreProfilePreset::validate($preset);
+            $snapshot['items'][$id]=CoreProfilePreset::validate($preset);
         }
         return $snapshot;
     }
@@ -96,9 +96,12 @@ final class GlobalSettingsPreset
             || !is_array($preset['embedding'] ?? null)) throw new InvalidArgumentException('invalid_named_global_preset');
         // Older presets retain the original disabled behavior for added Context controls.
         if (is_array($preset['settings']['context'] ?? null)) {
+            $preset['settings']['context']=SettingsCatalog::normalizeEventFilter($preset['settings']['context']);
             $preset['settings']['context'] += ['prompt_timestamp' => false, 'ground_items_descriptions_only' => false, 'inventory_items_descriptions_only' => false];
             if(is_array($preset['settings']['context']['details']??null))$preset['settings']['context']['details']=SettingsCatalog::normalizeContextDetails($preset['settings']['context']['details']);
         }
+        if (is_array($preset['settings']['relationship'] ?? null))
+            $preset['settings']['relationship'] += ['worst_memory_lifespan_days'=>7,'never_clear_relationship_data'=>false];
         $candidate = array_replace($settings, array_intersect_key($preset['settings'], array_flip(self::SECTIONS)));
         $candidate['client']['behavior'] = array_replace($settings['client']['behavior'], $preset['settings']['client']['behavior'] ?? []);
         $candidate['translation'] = array_replace($settings['translation'], $preset['settings']['translation'] ?? []);
@@ -108,7 +111,7 @@ final class GlobalSettingsPreset
         $profiles=null;
         if(($preset['schema']??null)==='lorkhan.named-global-preset.v2'){
             if(!is_array($preset['profiles']??null))throw new InvalidArgumentException('invalid_profile_snapshot');
-            $profiles=self::profileSnapshot($preset['profiles']);
+            $profiles=$preset['profiles']=self::profileSnapshot($preset['profiles']);
         }
         $captured = self::capture($candidate, $summary, $embedding, $profiles);
         if ($captured != $preset) throw new InvalidArgumentException('invalid_named_global_preset');

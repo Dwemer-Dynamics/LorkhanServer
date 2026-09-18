@@ -1,6 +1,22 @@
 /* Recent-value selection follows HerikaServer's Global Settings browser; edits remain local until Save All. */
 (() => {
     'use strict';
+    const eventCustom = document.getElementById('context-event-types-custom');
+    eventCustom?.addEventListener('input', () => {
+        const values = eventCustom.value.split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean);
+        const checked = [...document.getElementsByName('context_event_types[]')].filter(control => control.checked).map(control => control.value);
+        eventCustom.setCustomValidity(new Set([...values, ...checked]).size > 256 || values.some(value => !/^[a-zA-Z0-9_.:-]{1,128}$/.test(value))
+            ? 'Use at most 256 event names, each up to 128 letters, numbers, underscores, periods, colons or hyphens.' : '');
+    });
+    eventCustom?.addEventListener('change', () => {
+        const entries = new Set(eventCustom.value.split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean));
+        for (const checkbox of document.getElementsByName('context_event_types[]')) {
+            if (entries.delete(checkbox.value)) checkbox.checked = true;
+        }
+        eventCustom.value = [...entries].join(', ');
+        eventCustom.dispatchEvent(new Event('input', {bubbles: true}));
+    });
+    for (const checkbox of document.getElementsByName('context_event_types[]')) checkbox.addEventListener('change', () => eventCustom?.dispatchEvent(new Event('input', {bubbles: true})));
     const dialog = document.getElementById('filter-browse-dialog');
     if (!dialog) return;
     const search = document.getElementById('filter-browse-search');
@@ -9,8 +25,8 @@
     const status = document.getElementById('filter-browse-status');
     const save = document.getElementById('filter-browse-save');
     const titles = {locations: 'Recent Locations', items: 'Recent Items', magic: 'Recent Magic Events', event_types: 'Recent Event Types'};
-    const key = value => value.trim().toLowerCase();
-    let candidates = new Map(), selected = new Set(), controls = [], opener, request;
+    const key = value => custom ? value.trim() : value.trim().toLowerCase();
+    let candidates = new Map(), selected = new Set(), controls = [], custom, opener, request;
 
     function render() {
         list.replaceChildren();
@@ -60,7 +76,8 @@
         const kind = button.dataset.filterBrowse;
         controls = Array.from(document.getElementsByName(button.dataset.filterField + (kind === 'event_types' ? '[]' : '')));
         if (!controls.length) return;
-        const current = kind === 'event_types' ? controls.filter(control => control.checked).map(control => control.value) : controls[0].value.split(/\r\n|\r|\n/u);
+        custom = kind === 'event_types' ? document.getElementById('context-event-types-custom') : null;
+        const current = kind === 'event_types' ? [...controls.filter(control => control.checked).map(control => control.value), ...(custom?.value.split(/[,\r\n]+/) ?? [])] : controls[0].value.split(/\r\n|\r|\n/u);
         candidates = new Map();
         selected = new Set();
         for (const entry of current) if (key(entry)) {
@@ -70,7 +87,7 @@
         search.value = '';
         document.getElementById('filter-browse-title').textContent = titles[kind];
         document.getElementById('filter-browse-hint').textContent = kind === 'event_types'
-            ? 'Supported event types with counts from the latest 5,000 recorded events. Selected types enter conversation history.'
+            ? 'Event types with counts from the latest 5,000 recorded events. Selected types are excluded from AI context.'
             : 'Up to 500 values from the latest 5,000 recorded turns. Existing manual entries are retained. Selected values are excluded from context.';
         feedback.className = 'filter-modal-loading';
         feedback.textContent = 'Loading recent values…';
@@ -106,7 +123,19 @@
     dialog.addEventListener('close', () => { request?.abort(); opener?.focus(); });
     save.addEventListener('click', () => {
         if (controls[0].type === 'checkbox') {
+            const known = new Set(controls.map(control => key(control.value)));
+            const customValues = [...selected].filter(id => !known.has(id)).map(id => candidates.get(id).value);
+            if (selected.size > 256 || customValues.some(value => !/^[a-zA-Z0-9_.:-]{1,128}$/.test(value)) || customValues.join(', ').length > (custom?.maxLength ?? 32768)) {
+                feedback.hidden = false;
+                feedback.className = 'filter-modal-error';
+                feedback.textContent = 'Select at most 256 event types within the field length limit.';
+                return;
+            }
             for (const control of controls) control.checked = selected.has(key(control.value));
+            if (custom) {
+                custom.value = customValues.join(', ');
+                custom.dispatchEvent(new Event('change', {bubbles: true}));
+            }
         } else {
             const values = Array.from(selected, id => candidates.get(id).value);
             const content = values.join('\n');

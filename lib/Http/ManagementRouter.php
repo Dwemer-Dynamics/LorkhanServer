@@ -2500,10 +2500,10 @@ final class ManagementRouter
         $summary=['schema'=>'lorkhan.memory-policy.v1','enabled'=>isset($values['memory_summary_enabled']),
             'provider_configuration_id'=>trim((string)($values['memory_summary_connector']??'')),
             'summary_interval'=>filter_var($values['memory_summary_interval']??0,FILTER_VALIDATE_INT),
-            'minimum_events'=>filter_var($values['memory_summary_minimum_events']??4,FILTER_VALIDATE_INT)];
+            'minimum_events'=>filter_var($values['memory_summary_minimum_events']??($this->repository->memorySummaryPolicyForInstallation($installation)['content']['minimum_events']??4),FILTER_VALIDATE_INT)];
         $embedding=['schema'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::SCHEMA,
             'enabled'=>isset($values['memory_embedding_enabled']),'endpoint'=>trim((string)($values['memory_embedding_endpoint']??'')),
-            'timeout_ms'=>filter_var($values['memory_embedding_timeout']??1500,FILTER_VALIDATE_INT)];
+            'timeout_ms'=>filter_var($values['memory_embedding_timeout']??($this->repository->memoryEmbeddingPolicyForInstallation($installation)['content']['timeout_ms']??1500),FILTER_VALIDATE_INT)];
         $payload=\LorkhanServer\Application\GlobalSettingsPreset::capture($this->globalSettingsContent($values),$summary,$embedding,$this->repository->coreSettingsSnapshot($installation));
         $id=$this->management->saveGlobalSettingsPreset($installation,$this->need($values,'preset_name'),$payload,
             $operation==='overwrite'?$id:null,(int)($values['preset_revision']??0));
@@ -2520,13 +2520,13 @@ final class ManagementRouter
             $summary=['schema'=>'lorkhan.memory-policy.v1','enabled'=>isset($values['memory_summary_enabled']),
                 'provider_configuration_id'=>trim((string)($values['memory_summary_connector']??'')),
                 'summary_interval'=>filter_var($values['memory_summary_interval']??0,FILTER_VALIDATE_INT),
-                'minimum_events'=>filter_var($values['memory_summary_minimum_events']??4,FILTER_VALIDATE_INT)];
+                'minimum_events'=>filter_var($values['memory_summary_minimum_events']??($this->repository->memorySummaryPolicyForInstallation($installation)['content']['minimum_events']??4),FILTER_VALIDATE_INT)];
             \LorkhanServer\Application\MemorySummaryPolicy::validate($summary);
             $embedding=\LorkhanServer\Application\MemoryEmbeddingPolicy::validate([
                 'schema'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::SCHEMA,
                 'enabled'=>isset($values['memory_embedding_enabled']),
                 'endpoint'=>trim((string)($values['memory_embedding_endpoint']??'')),
-                'timeout_ms'=>filter_var($values['memory_embedding_timeout']??1500,FILTER_VALIDATE_INT)]);
+                'timeout_ms'=>filter_var($values['memory_embedding_timeout']??($this->repository->memoryEmbeddingPolicyForInstallation($installation)['content']['timeout_ms']??1500),FILTER_VALIDATE_INT)]);
             $summaryValues=$summary;unset($summaryValues['enabled']);if($summary['enabled'])$summaryValues['enabled']='1';
             $embeddingValues=$embedding;unset($embeddingValues['enabled']);if($embedding['enabled'])$embeddingValues['enabled']='1';
             $this->saveMemoryPolicy($summaryValues,$scope);$this->saveMemoryEmbeddingPolicy($embeddingValues,$scope);
@@ -2704,7 +2704,7 @@ final class ManagementRouter
     private function globalSettingsContent(array $values):array
     {
         $integer=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
-        $content=SettingsCatalog::globalDefaults();$client=&$content['client'];
+        $content=SettingsCatalog::globalDefaults();$client=&$content['client'];$saved=[];
         if(isset($values['installation_id'])){
             $saved=$this->repository->globalSettingsForInstallation($values['installation_id'])['content'];
             $content['backup']=$saved['backup']??$content['backup'];
@@ -2734,8 +2734,12 @@ final class ManagementRouter
             'knowledge_tags'=>isset($values['installation_id'])?$this->repository->oghmaKnowledgeTags($values['installation_id']):'',
             'extractor_enabled'=>isset($values['oghma_extractor_enabled']),
         ];
-        foreach(SettingsCatalog::contextSectionDefaults()as$key=>$default)$content['context']['sections'][$key]=isset($values['context_section_'.$key]);
-        foreach(SettingsCatalog::contextDetailDefaults()as$key=>$default)$content['context']['details'][$key]=isset($values['context_detail_'.$key]);
+        foreach (['sections'=>'section','details'=>'detail'] as $group=>$prefix) {
+            foreach ($content['context'][$group] as $key=>$default) {
+                $content['context'][$group][$key] = in_array($key,SettingsCatalog::hiddenContextFields()[$group],true)
+                    ? ($saved['context'][$group][$key]??$default) : isset($values['context_'.$prefix.'_'.$key]);
+            }
+        }
         if(isset($values['context_detail_npc_equipment_inventory'])&&!isset($values['context_detail_npc_equipment'])&&!isset($values['context_detail_npc_inventory'])){
             $content['context']['details']['npc_equipment']=true;$content['context']['details']['npc_inventory']=true;
         }
@@ -2765,12 +2769,23 @@ final class ManagementRouter
         $content['context']['ground_items_descriptions_only'] = isset($values['context_ground_items_descriptions_only']);
         $content['context']['inventory_items_descriptions_only'] = isset($values['context_inventory_items_descriptions_only']);
         $eventTypes=$values['context_event_types']??[];if(!is_array($eventTypes))throw new InvalidArgumentException('invalid_context_event_types');
-        $content['context']['event_types']=array_values($eventTypes);
+        if(isset($values['context_event_filter_exclusions'])) {
+            $custom=$values['context_event_types_custom']??'';
+            if(!is_string($custom)||strlen($custom)>32768)throw new InvalidArgumentException('invalid_context_event_types');
+            $eventTypes=array_merge(array_values($eventTypes),array_values(array_filter(array_map('trim',preg_split('/[,\r\n]+/',$custom)?:[]),static fn($type)=>$type!=='')));
+            $content['context']['event_types_excluded']=SettingsCatalog::normalizeEventFilter(['event_types_excluded'=>$eventTypes])['event_types_excluded'];
+        } else {
+            // A form opened before the exclusion UI was deployed still posts an inclusion list.
+            $content['context']['event_types_excluded']=SettingsCatalog::normalizeEventFilter(['event_types'=>array_values($eventTypes)])['event_types_excluded'];
+        }
         foreach(['location_blacklist','item_blacklist','magic_effects_blacklist']as$field){
             $raw=(string)($values['context_'.$field]??'');$content['context'][$field]=preg_split('/\R/u',$raw)?:[];
         }
         $content['relationship']=['enabled'=>isset($values['relationship_enabled']),
-            'update_chance_percent'=>$integer($values,'relationship_update_chance_percent',0)];
+            'update_chance_percent'=>$integer($values,'relationship_update_chance_percent',0),
+            'worst_memory_lifespan_days'=>$integer($values,'relationship_worst_memory_lifespan_days',$saved['relationship']['worst_memory_lifespan_days']??7),
+            'never_clear_relationship_data'=>isset($values['relationship_never_clear_relationship_data_present'])
+                ? isset($values['relationship_never_clear_relationship_data']) : ($saved['relationship']['never_clear_relationship_data']??false)];
         if(isset($values['task_availability_present']))$content['task_availability']=['background_memory'=>isset($values['background_memory_enabled']),'profile_generation'=>isset($values['profile_tasks_enabled']),'scene_classifier'=>isset($values['scene_classifier_enabled']),'director'=>isset($values['director_enabled'])];
         elseif(is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id']))$content['task_availability']=$this->repository->globalSettingsForInstallation($values['installation_id'])['content']['task_availability']??SettingsCatalog::globalDefaults()['task_availability'];
         if(!isset($values['scene_classifier_present'])&&is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id'])){
@@ -2817,15 +2832,14 @@ final class ManagementRouter
         // Only an explicit override-editor submission changes these leaves; ordinary saves preserve them.
         if ($allowSpecialTtsRouting) unset($content['settings_overrides']);
         elseif (array_key_exists('npc_settings_overrides_json', $values)) {
-            $submitted = $this->jsonField($values, 'npc_settings_overrides_json');
+            $submitted = EffectiveSettingsResolver::validateSettingsOverrides($this->jsonField($values, 'npc_settings_overrides_json'), true);
             $catalog = SettingsCatalog::npcOverrideFields();
             foreach ($submitted as $section => $fields) {
                 if (!isset($catalog[$section]) || !is_array($fields)
                     || array_diff(array_keys($fields), $catalog[$section]) !== [])
                     throw new InvalidArgumentException('invalid_npc_settings_override');
             }
-            $submitted = EffectiveSettingsResolver::validateSettingsOverrides($submitted, true);
-            $overrides = $content['settings_overrides'] ?? [];
+            $overrides = EffectiveSettingsResolver::validateSettingsOverrides($content['settings_overrides'] ?? [], true);
             foreach ($catalog as $section => $fields) {
                 foreach ($fields as $field) unset($overrides[$section][$field]);
                 if (($overrides[$section] ?? null) === []) unset($overrides[$section]);

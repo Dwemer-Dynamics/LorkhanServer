@@ -731,7 +731,7 @@ final class ProductRepository
                 . 'WHERE m.installation_id=:installation ORDER BY e.rowid DESC LIMIT 5000) recent GROUP BY type');
             $query->execute(['installation'=>$installationId]);
             $counts = $query->fetchAll(PDO::FETCH_KEY_PAIR);
-            return ['items'=>array_map(static fn(string $type): array => ['value'=>$type,'count'=>(int)($counts[$type]??0)], SettingsCatalog::eventTypes()), 'scan_limit'=>5000];
+            return ['items'=>array_map(static fn(string $type): array => ['value'=>$type,'count'=>(int)($counts[$type]??0)], array_values(array_unique(array_merge(SettingsCatalog::eventTypes(),array_keys($counts))))), 'scan_limit'=>5000];
         }
         $paths = [];
         if ($kind === 'locations') $paths = ['strict $.world.cell', 'strict $.world.region', 'strict $.cell', 'strict $.region'];
@@ -2867,7 +2867,8 @@ SQL);
             .'details,source_mode,source_event_id,updated_at,deleted_at,revision FROM relationship_records WHERE installation_id=:installation '
             .'AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 100');
         $s->execute($this->scopeParams($scope));
-        return array_map(function($r){$r['actor_identity']=$this->json($r['actor_identity']);$r['details']=$this->json($r['details']);return $r;},$s->fetchAll());
+        $rows=array_map(function($r){$r['actor_identity']=$this->json($r['actor_identity']);$r['details']=$this->json($r['details']);return $r;},$s->fetchAll());
+        return(new RelationshipTimelineRepository($this->db))->applyWorstMemoryLifespan($rows,$scope);
     }
 
     public function createNarrative(array $input,string $now):array{$id=Uuid::v4();$this->db->prepare('INSERT INTO narrative_records (narrative_id,installation_id,profile_id,playthrough_id,kind,title,content,provenance,created_at,updated_at) VALUES (:id,:installation,:profile,:playthrough,:kind,:title,:content,CAST(:provenance AS jsonb),:now,:now)')->execute($this->scopeParams($input)+['id'=>$id,'kind'=>$input['kind'],'title'=>$input['title'],'content'=>$input['content'],'provenance'=>$this->encode($input['provenance']),'now'=>$now]);return ['narrative_id'=>$id]+$input;}
@@ -3525,18 +3526,14 @@ SQL);
 
         $recentTurnLimit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
         $history=[];
-        if($contextSections['conversation_history']&&$contextPolicy['event_types']!==[]){$typeParameters=[];$historyParameters=[];
-        // Successful casts share the existing action-event switch; older saved settings need no new category.
-        $historyEventTypes=$contextPolicy['event_types'];
-        $resurrectionSql=in_array('infoaction',$historyEventTypes,true)
-            ? " OR (e.type='info' AND m.projection_key LIKE 'resurrection:%')" : '';
-        if(in_array('infoaction',$historyEventTypes,true))$historyEventTypes[]='itemfound';
-        if(($contextPolicy['detect_magic_events']??true)&&in_array('infoaction',$historyEventTypes,true))$historyEventTypes=array_merge($historyEventTypes,['spellcast','npcspellcast']);
-        foreach($historyEventTypes as$index=>$eventType){$name='event_type_'.$index;$typeParameters[]=':'.$name;$historyParameters[$name]=$eventType;}
+        if($contextSections['conversation_history']){$typeParameters=[];$historyParameters=[];
+        $excludedEventTypes=$contextPolicy['event_types_excluded'];
+        if(!($contextPolicy['detect_magic_events']??true))$excludedEventTypes=array_unique(array_merge($excludedEventTypes,['spellcast','npcspellcast']));
+        foreach(array_values($excludedEventTypes) as $index=>$eventType){$name='event_type_'.$index;$typeParameters[]=':'.$name;$historyParameters[$name]=$eventType;}
         $isNarratorTarget=($turn['payload']['target']['kind']??'')==='narrator';
         $hideNarratorDialogue=!$isNarratorTarget
             &&($this->narratorProfileForInstallation((string)$turn['installation_id'])['content']['hide_from_context']??true)===true;
-        $eventTypeSql=implode(',',$typeParameters);$historyStatement=$this->db->prepare(<<<SQL
+        $eventTypeSql=$typeParameters===[]?'TRUE':'e.type NOT IN ('.implode(',',$typeParameters).')';$historyStatement=$this->db->prepare(<<<SQL
 SELECT 'event:'||e.rowid::text AS id,
        m.turn_id,
        COALESCE(e.ts,NULLIF(e.gamets,0),(extract(epoch FROM m.created_at)*1000)::bigint) AS sort_ts,
@@ -3561,7 +3558,7 @@ SELECT 'event:'||e.rowid::text AS id,
                    WHEN e.type='location' THEN jsonb_strip_nulls(jsonb_build_object('location',e.location,'game_time',NULLIF(e.gamets,0)))
                    WHEN e.type='weather' THEN jsonb_strip_nulls(jsonb_build_object('weather',COALESCE(m.payload->>'weather',replace(e.data,'Weather changed to ',''))))
                     WHEN e.type IN ('quest','book','death','infoaction','narration','chat_background','spellcast','npcspellcast','itemfound') THEN m.payload
-                   ELSE NULL END,
+                   ELSE jsonb_build_object('text',e.data) END,
                'speaker',CASE WHEN m.speaker='{}'::jsonb THEN NULL ELSE m.speaker END,
                'target',CASE WHEN m.target='{}'::jsonb THEN NULL ELSE m.target END,
                'audience',CASE WHEN jsonb_array_length(m.audience)=0 THEN NULL ELSE m.audience END,
@@ -3571,7 +3568,7 @@ FROM eventlog e
 JOIN eventlog_metadata m ON m.rowid=e.rowid
 WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL
   AND m.turn_id IS DISTINCT FROM :current_turn
-  AND (e.type IN ($eventTypeSql)$resurrectionSql)
+  AND ($eventTypeSql)
   AND (e.type<>'itemfound' OR (lower(btrim(COALESCE(m.payload->>'item_record_id','')))<>ALL(CAST(:item_blacklist AS text[]))
        AND lower(btrim(COALESCE(m.payload->>'item_name','')))<>ALL(CAST(:item_blacklist AS text[]))))
   AND (e.type NOT IN ('spellcast','npcspellcast') OR (lower(btrim(COALESCE(m.payload->>'spell_id','')))<>ALL(CAST(:magic_blacklist AS text[]))

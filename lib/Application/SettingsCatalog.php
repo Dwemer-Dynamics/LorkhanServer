@@ -107,10 +107,11 @@ final class SettingsCatalog
         'item_descriptions' => true,
     ];
 
-    private const EVENT_TYPES = [
+    private const LEGACY_EVENT_TYPES = [
         'inputtext', 'chat', 'chat_background', 'location', 'weather', 'death',
         'infoaction', 'rechat', 'narration', 'quest', 'book',
     ];
+    private const EVENT_TYPES = [...self::LEGACY_EVENT_TYPES, 'info', 'itemfound', 'spellcast', 'npcspellcast'];
 
     private const CORE_ROUTING_FIELDS = [
         'prompt_configuration_id', 'llm_configuration_id', 'llm_fast_configuration_id',
@@ -224,12 +225,13 @@ final class SettingsCatalog
                 'inventory_items_descriptions_only' => false,
                 'sections' => self::CONTEXT_SECTION_DEFAULTS,
                 'details' => self::CONTEXT_DETAIL_DEFAULTS,
-                'event_types' => self::EVENT_TYPES,
+                'event_types_excluded' => [],
                 'location_blacklist' => [],
                 'item_blacklist' => [],
                 'magic_effects_blacklist' => [],
             ],
-            'relationship' => ['enabled' => false, 'update_chance_percent' => 0],
+            'relationship' => ['enabled' => false, 'update_chance_percent' => 0,
+                'worst_memory_lifespan_days' => 7, 'never_clear_relationship_data' => false],
             'task_availability' => ['background_memory'=>true, 'profile_generation'=>true, 'scene_classifier'=>true, 'director'=>true],
             'system_routing' => [
                 'oghma_configuration_id' => '',
@@ -282,6 +284,43 @@ final class SettingsCatalog
         return self::EVENT_TYPES;
     }
 
+    /** Convert legacy inclusion lists once; newly saved filters always contain exclusions. */
+    public static function normalizeEventFilter(array $context): array
+    {
+        if (array_key_exists('event_types', $context)) {
+            $included = $context['event_types'];
+            if (array_key_exists('event_types_excluded', $context) || !is_array($included) || !array_is_list($included))
+                throw new \InvalidArgumentException('invalid_context_event_types');
+            foreach ($included as $type) if (!is_string($type) || !in_array($type, self::LEGACY_EVENT_TYPES, true))
+                throw new \InvalidArgumentException('invalid_context_event_types');
+            if (in_array('infoaction', $included, true)) $included = array_merge($included, ['info', 'itemfound', 'spellcast', 'npcspellcast']);
+            $context['event_types_excluded'] = array_values(array_diff(self::EVENT_TYPES, $included));
+            unset($context['event_types']);
+        }
+        if (array_key_exists('event_types_excluded', $context)) {
+            $values = $context['event_types_excluded'];
+            if (!is_array($values) || !array_is_list($values) || count($values) > 256)
+                throw new \InvalidArgumentException('invalid_context_event_types');
+            $normalized = [];
+            foreach ($values as $value) {
+                if (!is_string($value) || preg_match('/^[a-zA-Z0-9_.:-]{1,128}$/D', trim($value)) !== 1)
+                    throw new \InvalidArgumentException('invalid_context_event_types');
+                $normalized[] = trim($value);
+            }
+            $context['event_types_excluded'] = array_values(array_unique($normalized));
+        }
+        return $context;
+    }
+
+    /** Hidden compatibility switches keep their saved values when a visible form is submitted. */
+    public static function hiddenContextFields(): array
+    {
+        return [
+            'sections' => ['player_narrator', 'people_present', 'record_descriptions', 'relationships', 'memories', 'narratives', 'conversation_history', 'recent_action_results'],
+            'details' => ['npc_moods', 'npc_notes', 'npc_race_gender', 'nearby_actor_personality', 'nearby_actor_occupation'],
+        ];
+    }
+
     public static function coreRoutingFields(): array
     {
         return self::CORE_ROUTING_FIELDS;
@@ -330,7 +369,7 @@ final class SettingsCatalog
             'diary' => ['prompt', 'automatic_interval_seconds', 'context_turn_limit'],
             'profile_evolution' => ['history_limit','interval_days','min_events','cooldown_minutes'],
             'profile_management' => ['autofill_custom_profiles','autofill_custom_profiles_trigger'],
-            'context' => ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','transformation_detection','short_term_in_compact_chat','hide_ambient_combat','detect_magic_events','item_pickup_min_value','location_blacklist','item_blacklist','magic_effects_blacklist','event_types','sections','details'],
+            'context' => ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','transformation_detection','short_term_in_compact_chat','hide_ambient_combat','detect_magic_events','item_pickup_min_value','location_blacklist','item_blacklist','magic_effects_blacklist','event_types_excluded','sections','details'],
             'prompt' => ['prompt_head','emote_moods'],
             'oghma' => ['location_context_enabled','topic_count','extractor_fallback_enabled','extractor_timeout_ms','enabled','result_limit','racial_context_enabled'],
             'relationship' => ['enabled','update_chance_percent'],

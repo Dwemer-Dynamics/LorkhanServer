@@ -126,6 +126,8 @@ final class LoadedSaveTimeline
     private function restoreGeneratedProfiles(array $scope,string $loadId): array
     {
         $counts=['profiles'=>0,'profile_restore_skipped'=>0];
+        $global=(new ProductRepository($this->db))->globalSettingsForInstallation($scope['installation']);
+        $preserveRelationships=($global['content']['relationship']['never_clear_relationship_data']??false)===true;
         $profiles=$this->db->prepare("SELECT p.profile_id,p.current_revision,r.content,r.provenance FROM profiles p
             JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision
             WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND ".ProfileScopeSql::matches('p',':playthrough')."
@@ -163,6 +165,13 @@ final class LoadedSaveTimeline
             if($restore===null)continue;
             $revision->execute(['profile'=>$profile['profile_id'],'revision'=>$restore]);$baseline=$revision->fetch();
             if(!$baseline){$counts['profile_restore_skipped']++;continue;}
+            if($preserveRelationships){
+                $content=json_decode($baseline['content'],true,32,JSON_THROW_ON_ERROR);
+                $currentContent=json_decode($profile['content'],true,32,JSON_THROW_ON_ERROR);
+                if(array_key_exists('relationships',$currentContent))$content['relationships']=$currentContent['relationships'];
+                else unset($content['relationships']);
+                $baseline['content']=json_encode($content,JSON_THROW_ON_ERROR);
+            }
             $identity=['profile'=>$profile['profile_id'],'revision'=>$current+1];
             $insert->execute($identity+['content'=>$baseline['content'],'provenance'=>json_encode([
                 'kind'=>'loaded_save_restore','playthrough_id'=>$scope['playthrough'],

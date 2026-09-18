@@ -1228,15 +1228,45 @@ foreach ([['context'=>['prompt_timestamp'=>'true']], ['context'=>['sections'=>[]
 
 $filterCore=['settings_overrides'=>['context'=>['event_types'=>['book','chat','chat']], 'prompt'=>['emote_moods'=>'wary, hopeful']]];
 $filterResolved=(new EffectiveSettingsResolver())->resolve([],$filterCore,[]);
-$check($filterResolved['context']['event_types']===['chat','book'],'Core event types are canonicalized against the supported catalog');
+$check($filterResolved['context']['event_types_excluded']===array_values(array_diff(\LorkhanServer\Application\SettingsCatalog::eventTypes(),['chat','book'])),'Core event types are canonicalized against the supported catalog');
 $filterSelection=$promptSelection;$filterSelection['effective_settings']=$filterResolved;
 $check(str_contains((new PromptAssembler())->assemble($promptTurn,$filterSelection)['provider_input']['_assembled_prompt'],'wary, hopeful'),'Core mood override reaches the actual prompt');
 $filterNpc=['settings_overrides'=>['context'=>['event_types'=>[]],'prompt'=>['emote_moods'=>'']]];
 $filterSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve([],$filterCore,$filterNpc);
-$check($filterSelection['effective_settings']['context']['event_types']===[]
+$check($filterSelection['effective_settings']['context']['event_types_excluded']===\LorkhanServer\Application\SettingsCatalog::eventTypes()
     &&!str_contains((new PromptAssembler())->assemble($promptTurn,$filterSelection)['provider_input']['_assembled_prompt'],'wary, hopeful'),'NPC empty event and mood overrides clear inherited selections');
 $filterPreset=\LorkhanServer\Application\CoreProfilePreset::capture($filterCore);
-$check($filterPreset['settings_overrides']['context']['event_types']===['chat','book']&&$filterPreset['settings_overrides']['prompt']['emote_moods']==='wary, hopeful','event and mood overrides survive named presets');
+$check($filterPreset['settings_overrides']['context']['event_types_excluded']===$filterResolved['context']['event_types_excluded']&&$filterPreset['settings_overrides']['prompt']['emote_moods']==='wary, hopeful','event and mood overrides survive named presets');
+$customEventRenderer=new ReflectionMethod(PromptAssembler::class,'semanticHistoryEvent');
+$check($customEventRenderer->invoke(new PromptAssembler(),'ext_custom_event',['text'=>'Custom event sentinel'],[])==='[Event] Custom event sentinel','custom event display text reaches prompt formatting');
+$customFilter=['context'=>['event_types_excluded'=>['chat','ext_custom_event','chat']]];
+$check(EffectiveSettingsResolver::validateSettingsOverrides($customFilter)['context']['event_types_excluded']===['chat','ext_custom_event'], 'custom event exclusions are retained and deduplicated');
+$emptyFilter=(new EffectiveSettingsResolver())->resolve([],$filterCore,['settings_overrides'=>['context'=>['event_types_excluded'=>[]]]]);
+$check($emptyFilter['context']['event_types_excluded']===[], 'empty NPC exclusion override clears inherited filtering');
+$legacyGlobal=\LorkhanServer\Application\SettingsCatalog::globalDefaults();unset($legacyGlobal['context']['event_types_excluded']);
+$legacyGlobal['context']['event_types']=['infoaction'];unset($legacyGlobal['relationship']['worst_memory_lifespan_days'],$legacyGlobal['relationship']['never_clear_relationship_data']);
+$migratedFilter=EffectiveSettingsResolver::validateGlobalSettings($legacyGlobal);
+$check(!in_array('spellcast',$migratedFilter['context']['event_types_excluded'],true)&&in_array('chat',$migratedFilter['context']['event_types_excluded'],true), 'legacy action filter preserves spell and item aliases');
+$check($migratedFilter['relationship']['worst_memory_lifespan_days']===7&&!$migratedFilter['relationship']['never_clear_relationship_data'], 'older settings acquire relationship controls safely');
+$legacyNamed=['schema'=>'lorkhan.named-core-preset.v1','settings_overrides'=>$filterCore['settings_overrides'],'routing'=>[]];
+$check(\LorkhanServer\Application\CoreProfilePreset::validate($legacyNamed)['settings_overrides']['context']['event_types_excluded']===$filterResolved['context']['event_types_excluded'], 'legacy named preset imports normalize event filtering');
+$coreLegacyTarget=['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>$filterCore['settings_overrides']];
+$coreApplied=\LorkhanServer\Application\CoreProfilePreset::apply($filterPreset,$coreLegacyTarget);
+$check(!isset($coreApplied['settings_overrides']['context']['event_types'])&&$coreApplied['settings_overrides']['context']['event_types_excluded']===$filterResolved['context']['event_types_excluded'],'applying a new Core preset replaces a legacy inclusion filter');
+$globalLegacyPreset=\LorkhanServer\Application\GlobalSettingsPreset::defaults();
+unset($globalLegacyPreset['settings']['context']['event_types_excluded'],$globalLegacyPreset['settings']['relationship']['worst_memory_lifespan_days'],$globalLegacyPreset['settings']['relationship']['never_clear_relationship_data']);
+$globalLegacyPreset['settings']['context']['event_types']=['chat'];
+$globalApplied=\LorkhanServer\Application\GlobalSettingsPreset::apply($globalLegacyPreset,\LorkhanServer\Application\SettingsCatalog::globalDefaults(),['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''],\LorkhanServer\Application\MemoryEmbeddingPolicy::defaults());
+$check(in_array('book',$globalApplied['settings']['context']['event_types_excluded'],true)&&!in_array('chat',$globalApplied['settings']['context']['event_types_excluded'],true),'older Global Settings presets import their known filter meaning');
+foreach ([['event_types_excluded'=>'chat'],['event_types_excluded'=>['bad type']],['event_types_excluded'=>[str_repeat('a',129)]],['event_types_excluded'=>array_fill(0,257,'chat')],['event_types'=>['chat'],'event_types_excluded'=>[]]] as $badFilter) {
+    try {EffectiveSettingsResolver::validateSettingsOverrides(['context'=>$badFilter]);$check(false,'invalid exclusion list rejected');}
+    catch(InvalidArgumentException){$check(true,'invalid exclusion list rejected');}
+}
+foreach ([-1,366,'7'] as $badLifespan) {
+    $badSettings=\LorkhanServer\Application\SettingsCatalog::globalDefaults();$badSettings['relationship']['worst_memory_lifespan_days']=$badLifespan;
+    try {EffectiveSettingsResolver::validateGlobalSettings($badSettings);$check(false,'invalid memory lifespan rejected');}
+    catch(InvalidArgumentException){$check(true,'invalid memory lifespan rejected');}
+}
 $npcPromptOverrides=$corePromptOverrides;$npcPromptOverrides['prompt']['prompt_head']='NPC override sentinel.';
 $npcPromptOverrides['context']['prompt_timestamp']=false;
 $corePromptSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>$corePromptOverrides],['settings_overrides'=>$npcPromptOverrides]);

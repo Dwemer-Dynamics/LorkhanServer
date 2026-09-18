@@ -1086,7 +1086,9 @@ Return a tones object before mood and text in every utterance. Include all eight
             'narration' => ($text = trim((string)($details['text'] ?? ''))) === '' ? null : '[Narration] ' . $text,
             'chat_background' => ($text = trim((string)($details['text'] ?? ''))) === '' ? null
                 : '[Background dialogue] ' . $this->identityName($details['speaker'] ?? $content['speaker'] ?? null, 'NPC') . ': ' . $text,
-            default => null,
+            // Custom event types carry their display text, never arbitrary metadata or provider payloads.
+            default => ($text = trim((string)($details['text'] ?? ''))) === '' || $this->ignoredHistoryText($text)
+                ? null : '[Event] ' . $text,
         };
     }
 

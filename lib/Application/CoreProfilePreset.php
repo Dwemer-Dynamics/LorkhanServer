@@ -10,7 +10,7 @@ use InvalidArgumentException;
 final class CoreProfilePreset
 {
     private const FIELDS = [
-        'context'=>['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','transformation_detection','short_term_in_compact_chat','hide_ambient_combat','detect_magic_events','item_pickup_min_value','location_blacklist','item_blacklist','magic_effects_blacklist','event_types','sections','details'],
+        'context'=>['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','transformation_detection','short_term_in_compact_chat','hide_ambient_combat','detect_magic_events','item_pickup_min_value','location_blacklist','item_blacklist','magic_effects_blacklist','event_types_excluded','sections','details'],
         'prompt'=>['prompt_head','emote_moods'],
         'response'=>['max_words','core_lang','lang_llm_xtts'],
         'rpg_comments'=>['events','chance_percent'],
@@ -74,6 +74,7 @@ final class CoreProfilePreset
         if($keys!==['routing','schema','settings_overrides'] || ($preset['schema']??null)!=='lorkhan.named-core-preset.v1'
             || !is_array($preset['settings_overrides']) || !is_array($preset['routing']))
             throw new InvalidArgumentException('invalid_named_core_preset');
+        $preset['settings_overrides']=EffectiveSettingsResolver::validateSettingsOverrides($preset['settings_overrides']);
         $captured=self::capture($preset);
         if($captured!=$preset) throw new InvalidArgumentException('invalid_named_core_preset');
         return $captured;
@@ -83,11 +84,11 @@ final class CoreProfilePreset
     public static function apply(array $preset,array $content): array
     {
         $preset=self::validate($preset);
+        $content['settings_overrides']=EffectiveSettingsResolver::validateSettingsOverrides($content['settings_overrides']??[]);
         foreach($preset['settings_overrides'] as $section=>$values) {
             $content['settings_overrides'][$section]=array_replace($content['settings_overrides'][$section]??[],$values);
         }
         $content['routing']=array_replace($content['routing']??[],$preset['routing']);
-        EffectiveSettingsResolver::validateCoreProfile($content);
-        return $content;
+        return EffectiveSettingsResolver::validateCoreProfile($content);
     }
 }

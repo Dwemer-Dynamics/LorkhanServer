@@ -32,10 +32,10 @@
                     const definition = catalog[section + '.' + key];
                     if (!definition) throw new Error('Unsupported setting: ' + section + '.' + key);
                     if (definition.type === 'boolean' ? typeof setting !== 'boolean'
-                        : definition.type === 'booleanmap' ? !setting || Array.isArray(setting) || typeof setting !== 'object' || Object.keys(setting).length !== Object.keys(definition.choices).length || Object.keys(definition.choices).some(key => typeof setting[key] !== 'boolean')
+                        : definition.type === 'booleanmap' ? !setting || Array.isArray(setting) || typeof setting !== 'object' || Object.keys(setting).length !== Object.keys(definition.value).length || Object.keys(definition.value).some(key => typeof setting[key] !== 'boolean')
                         : definition.type === 'choice' ? !definition.choices.includes(setting)
                         : definition.type === 'string' ? typeof setting !== 'string' || (!definition.allowEmpty && !setting.trim()) || new TextEncoder().encode(setting).length > definition.maxBytes
-                        : definition.type === 'textlist' ? !Array.isArray(setting) || setting.length > (definition.choices?.length ?? 256) || setting.some(entry => typeof entry !== 'string' || new TextEncoder().encode(entry).length > 256 || (definition.choices && !definition.choices.includes(entry)))
+                        : definition.type === 'textlist' ? !Array.isArray(setting) || setting.length > (definition.choices?.length ?? 256) || setting.some(entry => typeof entry !== 'string' || new TextEncoder().encode(entry).length > 256 || (key === 'event_types_excluded' && !/^[a-zA-Z0-9_.:-]{1,128}$/.test(entry)) || (definition.choices && !definition.choices.includes(entry)))
                         : !Number.isInteger(setting) || setting < definition.range[0] || setting > definition.range[1])
                         throw new Error('Invalid value for ' + definition.label + '.');
                 }
@@ -50,7 +50,7 @@
                 const icon = document.createElement('span'); icon.textContent = section === 'quest_comments' ? '🧭' : section === 'memory' ? '🧠' : section === 'behavior' ? '🔁' : '⚙️';
                 const info = document.createElement('div'); info.className = 'npc-ovr-info';
                 const label = document.createElement('strong'); label.textContent = definition.label;
-                const value = document.createElement('span'); value.className = 'npc-ovr-value'; value.textContent = definition.type === 'booleanmap' ? Object.entries(values[section][key]).filter(([,enabled]) => enabled).map(([key]) => definition.choices[key]).join(', ') || 'None selected' : definition.labels?.[values[section][key]] ?? String(values[section][key]) + (definition.suffix || ''); info.append(label, value);
+                const value = document.createElement('span'); value.className = 'npc-ovr-value'; value.textContent = definition.type === 'booleanmap' ? Object.entries(values[section][key]).filter(([key,enabled]) => enabled && Object.hasOwn(definition.choices,key)).map(([key]) => definition.choices[key]).join(', ') || 'None selected' : definition.labels?.[values[section][key]] ?? String(values[section][key]) + (definition.suffix || ''); info.append(label, value);
                 const actions = document.createElement('div'); actions.className = 'npc-ovr-actions';
                 const edit = button('Edit', () => { opener = edit; openSetting(path); dialog.showModal(); });
                 edit.setAttribute('aria-label', 'Edit ' + definition.label);
@@ -137,13 +137,13 @@
             const choice = definition.type === 'choice' ? definition.choices.find(value => String(value) === boolean.value) : undefined;
             if (definition.type === 'choice' && choice === undefined) return;
             let value = Number(number.value);
-            if (definition.type === 'booleanmap') value = Object.fromEntries([...selections.querySelectorAll('input')].map(input => [input.dataset.contextKey,input.checked]));
+            if (definition.type === 'booleanmap') value = {...(values[section]?.[key] ?? definition.value), ...Object.fromEntries([...selections.querySelectorAll('input')].map(input => [input.dataset.contextKey,input.checked]))};
             else if (definition.type === 'boolean') value = boolean.value === 'true';
             else if (definition.type === 'choice') value = choice;
             else if (definition.type === 'string') value = text.value;
             else if (definition.type === 'textlist') {
-                value = text.value.split(/\r?\n/).map(entry => entry.trim()).filter(Boolean);
-                text.setCustomValidity(value.length > (definition.choices?.length ?? 256) || value.some(entry => new TextEncoder().encode(entry).length > 256 || (definition.choices && !definition.choices.includes(entry))) ? definition.choices ? 'Use only the listed event types, one per line.' : 'Use at most 256 entries, each at most 256 UTF-8 bytes.' : '');
+                value = text.value.split(key === 'event_types_excluded' ? /[,\r\n]+/ : /\r?\n/).map(entry => entry.trim()).filter(Boolean);
+                text.setCustomValidity(value.length > (definition.choices?.length ?? 256) || value.some(entry => new TextEncoder().encode(entry).length > 256 || (key === 'event_types_excluded' && !/^[a-zA-Z0-9_.:-]{1,128}$/.test(entry)) || (definition.choices && !definition.choices.includes(entry))) ? key === 'event_types_excluded' ? 'Use at most 256 event names, each up to 128 letters, numbers, underscores, periods, colons or hyphens.' : 'Use at most 256 entries, each at most 256 UTF-8 bytes.' : '');
                 if (!text.reportValidity()) return;
             }
             values[section] ||= {}; values[section][key] = value;

@@ -19,7 +19,7 @@ foreach (['hide_ambient_combat'=>'Hide Ambient Combat','prompt_timestamp'=>'Prom
     $coreOverrideCatalog['context.'.$key]=['label'=>$label,'type'=>'boolean','value'=>false];
 $coreOverrideCatalog['prompt.prompt_head']=['label'=>'Prompt Head','type'=>'string','value'=>'','maxBytes'=>8192,'multiline'=>true];
 $coreOverrideCatalog['prompt.emote_moods']=['label'=>'Emote Moods','type'=>'string','value'=>'','maxBytes'=>4096,'multiline'=>true];
-$coreOverrideCatalog['context.event_types']=['label'=>'Event Type Filter','type'=>'textlist','value'=>\LorkhanServer\Application\SettingsCatalog::eventTypes(),'choices'=>\LorkhanServer\Application\SettingsCatalog::eventTypes(),'maxBytes'=>4096,'multiline'=>true];
+$coreOverrideCatalog['context.event_types_excluded']=['label'=>'Event Type Filter','type'=>'textlist','value'=>[],'maxBytes'=>33024,'multiline'=>true];
 $coreOverrideCatalog['behavior.rechat_mode']=['label'=>'Rechat Mode','type'=>'choice','value'=>'random','choices'=>['tight','conversational','group','random']];
 $coreOverrideCatalog['behavior.rechat_strict_targeting']=['label'=>'Strict Rechat Targeting','type'=>'boolean','value'=>false];
 $coreOverrideCatalog['behavior.open_rechat']=['label'=>'Open Rechat','type'=>'boolean','value'=>true];
@@ -41,7 +41,7 @@ $coreOverrideHelp = [
     'context.sections'=>'Select optional prompt sections. Uncheck all to exclude them; turn off Override to inherit. Required speaker and action instructions remain.',
     'context.details'=>'Select optional character, state and nearby details. The containing section must also be enabled. Turn off Override to inherit.',
     'prompt.emote_moods'=>'Moods and emotes offered in the prompt when the NPC has no custom mood list. Blank removes inherited suggestions; turn off Override to inherit. Maximum 4096 UTF-8 bytes.',
-    'context.event_types'=>'One included event type per line: '.implode(', ',\LorkhanServer\Application\SettingsCatalog::eventTypes()).'. Blank excludes event history from this profile’s context without deleting it; turn off Override to inherit.',
+    'context.event_types_excluded'=>'Event types to exclude from AI context, one per line or separated by commas. Custom names are supported. Blank excludes no event types; turn off Override to inherit.',
     'profile_management.autofill_custom_profiles'=>'Automatically fill an empty, unlocked NPC profile after enough witnessed dialogue. Does not enable periodic Dynamic Profile updates.',
     'profile_management.autofill_custom_profiles_trigger'=>'Witnessed dialogue records required before automatic profile backfill (10–100).',
     'context.location_blacklist'=>'One location per line. These locations are omitted from prompt context. Blank clears the inherited blacklist; turn off Override to inherit. Maximum 256 entries, 256 UTF-8 bytes each.',
@@ -50,7 +50,7 @@ $coreOverrideHelp = [
     'context.hide_ambient_combat'=>'Hide ambient death events containing has killed from conversation context. Other death events and the stored event log are retained.',
     'context.short_term_in_compact_chat'=>'Keep past-scene summaries in compact chat. Off omits summaries without hiding original dialogue; Short Term Memory must also be enabled.',
     'context.transformation_detection'=>'Include the observed werewolf form in player and NPC current-state context.',
-    'context.detect_magic_events'=>'Include observed successful spell casts in this profile’s conversation context. The Infoaction event filter and Magic Effect Blacklist still apply; original event records are retained.',
+    'context.detect_magic_events'=>'Include observed successful spell casts in this profile’s conversation context. The Event Type Filter and Magic Effect Blacklist still apply; original event records are retained.',
     'context.item_pickup_min_value'=>'Minimum total gold value (quantity times item value) for observed pickups in conversation context. Zero includes all pickups; original event records are retained.',
     'context.power_awareness_enabled'=>'Compare observed character levels so NPCs can assess relative threats. The Nearby Actor Details Power selection must also be enabled. Missing levels produce no assessment.',
     'behavior.rechat_mode'=>'Tight uses the listener; Conversational prefers the current partner; Group rotates nearby NPCs; Random chooses a mode at the start of each chain. Existing chains retain their starting mode.',
@@ -83,7 +83,7 @@ foreach ($coreOverrideCatalog as $path=>&$definition) {
     };
     if($path==='context.short_term_in_compact_chat')$definition['category']='Memory';
     if (in_array($path, ['context.prompt_timestamp','context.location_blacklist','context.item_blacklist',
-        'context.magic_effects_blacklist','context.event_types','relationship.update_chance_percent'], true))
+        'context.magic_effects_blacklist','context.event_types_excluded','relationship.update_chance_percent'], true))
         $definition['category'] = 'Prompt';
     if (in_array($path, ['behavior.rechat_strict_targeting','behavior.open_rechat','behavior.end_conversation_cooldown_seconds'], true))
         $definition['category'] = 'Misc';
