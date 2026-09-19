@@ -1578,7 +1578,7 @@ $moodProjectionStatement=$db->prepare('SELECT e.data,m.payload,se.payload AS sou
 $moodProjectionStatement->execute(['turn'=>$turn['turn_id']]);$moodProjection=$moodProjectionStatement->fetch();
 $moodProjectionPayload=$moodProjection?json_decode((string)$moodProjection['payload'],true,64,JSON_THROW_ON_ERROR):[];
 $moodSourcePayload=$moodProjection?json_decode((string)$moodProjection['source_payload'],true,64,JSON_THROW_ON_ERROR):[];
-$traceStatement=$db->prepare('SELECT core_profile_id,core_profile_revision,effective_settings_sha256,settings_sources FROM prompt_traces WHERE turn_id=:turn');
+$traceStatement=$db->prepare('SELECT algorithm,core_profile_id,core_profile_revision,effective_settings_sha256,settings_sources FROM prompt_traces WHERE turn_id=:turn');
 $traceStatement->execute(['turn'=>$turn['turn_id']]);$layerTrace=$traceStatement->fetch();
 $traceSources=$layerTrace?json_decode((string)$layerTrace['settings_sources'],true,64,JSON_THROW_ON_ERROR):[];
 $promptSectionStatement=$db->prepare('SELECT section_order,section_key,inclusion_reason,source_refs,source_sha256 FROM prompt_trace_sections WHERE prompt_trace_id=(SELECT prompt_trace_id FROM prompt_traces WHERE turn_id=:turn) ORDER BY section_order');
@@ -1711,11 +1711,12 @@ try{
 $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&is_array($promptMessages)&&array_is_list($promptMessages)&&count($promptMessages)>=2
     &&($promptMessages[0]['role']??null)==='system'
-    &&str_contains((string)($promptMessages[0]['content']??''),'# Roleplay Context')
-    &&str_contains((string)($promptMessages[0]['content']??''),'- **Roleplay Instructions:**')
-    &&str_contains((string)($promptMessages[0]['content']??''),'## NPC Context')
-    &&str_contains((string)($promptMessages[0]['content']??''),'- **General Instructions:**')
-    &&($snapshot['trace']['algorithm']??null)==='chim-compact-roleplay-prompt-v3-markdown'
+    &&str_contains((string)($promptMessages[0]['content']??''),'# Roleplay Instructions')
+    &&str_contains((string)($promptMessages[0]['content']??''),'# World')
+    &&str_contains((string)($promptMessages[0]['content']??''),'# Character')
+    &&str_contains((string)($promptMessages[0]['content']??''),'# General Instructions')
+    &&($snapshot['trace']['algorithm']??null)==='lorkhan-markdown'
+    &&($layerTrace['algorithm']??null)==='lorkhan-markdown'
     &&($promptMessages[array_key_last($promptMessages)]['role']??null)==='user'
     &&str_contains((string)($promptMessages[array_key_last($promptMessages)]['content']??''),'Please follow me. (Player answers in a playful voice.)')
     &&str_contains($promptHistoryJson,'[Background dialogue] Fargoth: Ambient captured sentinel.')

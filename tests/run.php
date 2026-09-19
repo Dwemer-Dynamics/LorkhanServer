@@ -1632,7 +1632,7 @@ $check(str_contains($markdownPrompt,"# Roleplay Instructions\n\nYou are Fargoth"
     &&!str_contains($markdownPrompt,'<response_contract>')
     &&!str_contains($markdownPrompt,'<action_contract>')
     &&!str_contains($markdownPrompt,'<oghma ')
-    &&$markdownAssembled['trace']['algorithm']==='chim-compact-roleplay-prompt-v4-markdown'
+    &&$markdownAssembled['trace']['algorithm']==='lorkhan-markdown'
     &&$markdownAssembled['trace']['prompt_format']==='markdown'
     &&array_column($markdownAssembled['trace']['sections'],'section_key')===array_column($assembled['trace']['sections'],'section_key'),
     'compact chat and all prompt contracts use the single Markdown presentation');

@@ -10,7 +10,8 @@ use JsonException;
 /** Builds one compact Markdown prompt with system-owned chat history for each turn. */
 final class PromptAssembler
 {
-    private const ALGORITHM = 'chim-compact-roleplay-prompt-v4-markdown';
+    // Trace metadata stays stable across heading/order changes; it is not a protocol version.
+    private const PROMPT_FORMAT = 'lorkhan-markdown';
     private const OGHMA_CONTRACT = 'oghma-parity-v1';
 
     /** @var array<string,int> */
@@ -251,7 +252,7 @@ Return a tones object before mood and text in every utterance. Include all eight
         $providerInput = $this->providerInput($turn, $assembled, $messages);
         if ($llmSpeechLanguage) $providerInput['_llm_tts_language'] = true;
         $trace = [
-            'algorithm' => self::ALGORITHM,
+            'algorithm' => self::PROMPT_FORMAT,
             'prompt_format' => 'markdown',
             'input_sha256' => hash('sha256', $assembled),
             'input_bytes' => strlen($assembled),
