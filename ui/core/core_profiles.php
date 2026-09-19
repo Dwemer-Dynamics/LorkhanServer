@@ -138,7 +138,6 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                     <span class="pf-line"><span class="pf-icon">&#x1F4AA;</span><span class="pf-key">Powerful LLM</span><span class="pf-val"><?php echo lorkhan_ui_h($profileRouteLabel($profile, 'llm_powerful_configuration_id')); ?></span></span>
                                     <span class="pf-line"><span class="pf-icon">&#x1F9EA;</span><span class="pf-key">Experimental LLM</span><span class="pf-val"><?php echo lorkhan_ui_h($profileRouteLabel($profile, 'llm_experimental_configuration_id')); ?></span></span>
                                     <span class="pf-line"><span class="pf-icon">&#x1F504;</span><span class="pf-key">Fallback LLM</span><span class="pf-val"><?php echo lorkhan_ui_h($profileRouteLabel($profile, 'llm_fallback_configuration_id')); ?></span></span>
-                                    <span class="pf-line"><span class="pf-icon">&#x1F4AC;</span><span class="pf-key">Dialogue Prompt</span><span class="pf-val"><?php echo lorkhan_ui_h($profileRouteLabel($profile, 'prompt_configuration_id')); ?></span></span>
                                     <span class="pf-line"><span class="pf-icon">&#x1F4D3;</span><span class="pf-key">Diary LLM</span><span class="pf-val"><?php echo lorkhan_ui_h($profileRouteLabel($profile, 'diary_generation_configuration_id', 'Disabled')); ?></span></span>
                                 </span>
                             </a>

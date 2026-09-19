@@ -25,7 +25,9 @@ final class RelationshipEvaluateJobHandler implements JobHandler
     {
         unset($idempotencyKey);
         foreach(['installation_id','profile_id','playthrough_id','session_id','turn_id','source_event_id','provider_configuration_id']as$field){
-            if(!is_string($payload[$field]??null)||preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D',$payload[$field])!==1)
+            if(!is_string($payload[$field]??null)||!($field==='profile_id'
+                ?\LorkhanServer\Domain\ProfileId::isValid($payload[$field])
+                :preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D',$payload[$field])===1))
                 throw new \InvalidArgumentException('invalid_relationship_job');
         }
         foreach(['profile_revision','provider_revision']as$field)

@@ -48,8 +48,8 @@ document.querySelectorAll('.create-form, [data-snapshot-confirm]').forEach(form 
     if (operation) {
         const name = form.dataset.snapshotName;
         const message = operation === 'copy'
-            ? 'Copy '+name+' to the active database? Close the game first. Current data will be replaced after a rollback snapshot is saved.'
-            : 'Permanently delete stored snapshot '+name+'? This does not delete the active database.';
+            ? 'Load '+name+' for this character? Close the game first. Current progress will be saved, and the copy applies on the next game load.'
+            : 'Permanently delete stored snapshot '+name+'? This does not delete live gameplay.';
         if (!confirm(message)) { event.preventDefault(); return; }
     }
     if (operation === 'delete' || !snapshotOverlay) return;

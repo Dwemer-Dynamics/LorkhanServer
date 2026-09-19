@@ -96,6 +96,7 @@ function initializeBiographyPage() {
         'biography-speechstyle': 'speechstyle',
         'biography-goals': 'goals',
         'biography-voiceid': 'voiceid',
+        'biography-tts_filter_preset': 'tts_filter_preset',
         'biography-gender': 'gender',
         'biography-race': 'race',
         'biography-refid': 'refid'
@@ -107,7 +108,7 @@ function initializeBiographyPage() {
             try {
                 const template = await loadTemplate(button.dataset.templateName || '', button.dataset.templateProfile || '');
                 Object.keys(editFields).forEach(function (id) {
-                    const value = template[editFields[id]];
+                    const value = template[editFields[id]] ?? (id === 'biography-tts_filter_preset' ? 'none' : '');
                     document.getElementById(id).value = value === null || value === undefined ? '' : String(value);
                 });
                 document.getElementById('biography-template-profile').value = template.profile_id || '';

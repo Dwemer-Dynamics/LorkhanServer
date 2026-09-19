@@ -25,7 +25,7 @@ final class DiaryGenerateJobHandler implements JobHandler
     public function handle(array $payload,string $idempotencyKey,callable $heartbeat):void
     {
         foreach(['request_id','narrative_id','installation_id','profile_id','playthrough_id','provider_configuration_id']as$field)
-            if(!is_string($payload[$field]??null)||!Uuid::isValid($payload[$field]))throw new InvalidArgumentException('invalid_diary_generation_job');
+            if(!is_string($payload[$field]??null)||!($field === 'profile_id' ? \LorkhanServer\Domain\ProfileId::isValid($payload[$field]) : Uuid::isValid($payload[$field])))throw new InvalidArgumentException('invalid_diary_generation_job');
         if($idempotencyKey!=='narrative.generate:'.$payload['request_id']
             ||!is_int($payload['profile_revision']??null)||$payload['profile_revision']<1
             ||!is_int($payload['provider_revision']??null)||$payload['provider_revision']<1

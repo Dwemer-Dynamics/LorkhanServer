@@ -20,7 +20,7 @@ final class RelationshipConversionJobHandler implements JobHandler
     public function handle(array $payload,string $idempotencyKey,callable $heartbeat):void
     {
         foreach(['installation_id','profile_id','playthrough_id','request_id','provider_configuration_id']as$field)
-            if(!is_string($payload[$field]??null)||!Uuid::isValid($payload[$field]))
+            if(!is_string($payload[$field]??null)||!($field === 'profile_id' ? \LorkhanServer\Domain\ProfileId::isValid($payload[$field]) : Uuid::isValid($payload[$field])))
                 throw new \InvalidArgumentException('invalid_relationship_conversion_job');
         if($idempotencyKey!=='relationship.convert:'.$payload['request_id'].':'.$payload['profile_id']
             ||!in_array($payload['mode']??null,['missing','rebuild'],true)

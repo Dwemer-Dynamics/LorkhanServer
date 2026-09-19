@@ -13,7 +13,7 @@ final class RelationshipTimelineRepository
     /** Capture legacy/manual state as an unknown boundary without guessing from its source mode. */
     public function snapshot(array $row,array $provenance=[]):void
     {
-        $content=array_intersect_key($row,array_fill_keys(['disposition','affinity','relationship_type','details','source_mode','source_event_id'],true));
+        $content=array_intersect_key($row,array_fill_keys(['disposition','affinity','relationship_type','details','source_mode','source_event_id','worst_memory_game_minute'],true));
         foreach(['disposition','affinity']as$field)$content[$field]=(int)$content[$field];
         if(is_string($content['details']))$content['details']=json_decode($content['details'],false,32,JSON_THROW_ON_ERROR);
         $query=$this->db->prepare('INSERT INTO relationship_revisions(relationship_id,revision,content,provenance)
@@ -44,7 +44,57 @@ final class RelationshipTimelineRepository
             $provenance=['kind'=>'automatic_relationship','base_revision'=>$base,'job_id'=>$job['job_id'],
                 'playthrough_id'=>$row['playthrough_id'],'source_turn_ids'=>[$source['turn_id']]];
         }
+        $previous=$this->db->prepare('SELECT content FROM relationship_revisions WHERE relationship_id=:id AND revision=:revision');
+        $previous->execute(['id'=>$id,'revision'=>$base]);
+        $before=json_decode($previous->fetchColumn()?:'{}',true,32,JSON_THROW_ON_ERROR);
+        $details=json_decode($row['details'],true,32,JSON_THROW_ON_ERROR);
+        $row['worst_memory_game_minute']=($details['worst']??'')===($before['details']['worst']??'')
+            ?($before['worst_memory_game_minute']??null)
+            :$this->currentGameMinute($row['installation_id'],$row['playthrough_id']);
         $this->snapshot($row,$provenance);
+    }
+
+    /** Age only the player's directed worst memories; undated legacy records remain intact. */
+    public function applyWorstMemoryLifespan(array $rows,array $scope):array
+    {
+        if($rows===[])return$rows;
+        $policy=(new ProductRepository($this->db))->globalSettingsForInstallation($scope['installation_id']);
+        $days=(int)($policy['content']['relationship']['worst_memory_lifespan_days']??7);
+        if($days<=0)return$rows;
+        $owner=$this->db->prepare("SELECT actor_identity->>'kind' FROM profiles WHERE profile_id=:profile AND installation_id=:installation");
+        $owner->execute(['profile'=>$scope['profile_id'],'installation'=>$scope['installation_id']]);
+        if($owner->fetchColumn()!=='player')return$rows;
+        $minute=$this->currentGameMinute($scope['installation_id'],$scope['playthrough_id']);
+        if($minute===null)return$rows;
+        $dates=$this->db->prepare('SELECT r.relationship_id,v.content FROM relationship_records r JOIN relationship_revisions v
+            ON v.relationship_id=r.relationship_id AND v.revision=r.revision
+            WHERE r.installation_id=:installation AND r.profile_id=:profile AND r.playthrough_id=:playthrough AND r.deleted_at IS NULL
+            AND CAST(:ids AS jsonb) @> jsonb_build_array(r.relationship_id::text)');
+        $dates->execute(['installation'=>$scope['installation_id'],'profile'=>$scope['profile_id'],'playthrough'=>$scope['playthrough_id'],
+            'ids'=>json_encode(array_column($rows,'relationship_id'),JSON_THROW_ON_ERROR)]);
+        $starts=[];
+        foreach($dates->fetchAll()as$date)$starts[$date['relationship_id']]=json_decode($date['content'],true,32,JSON_THROW_ON_ERROR)['worst_memory_game_minute']??null;
+        foreach($rows as&$row){
+            $start=$starts[$row['relationship_id']]??null;
+            if(in_array($row['actor_identity']['kind']??'', ['npc','creature'],true)
+                &&is_int($start)&&$minute-$start>=$days*1440)$row['details']['worst']='';
+        }unset($row);
+        return$rows;
+    }
+
+    /** Use the latest observed game date, including a newly loaded older save, never wall-clock age. */
+    private function currentGameMinute(string $installation,string $playthrough):?int
+    {
+        $query=$this->db->prepare("WITH observations AS (
+            SELECT t.context#>'{world,calendar}' AS calendar,t.accepted_at AS observed_at,t.turn_id AS id,t.session_id
+                FROM active_turns t WHERE t.context#>'{world,calendar}' IS NOT NULL
+            UNION ALL SELECT e.payload->'loaded_save',e.received_at,e.source_event_id,e.session_id
+                FROM source_events e WHERE e.event_kind='session.init' AND jsonb_exists(e.payload,'loaded_save'))
+            SELECT o.calendar FROM observations o JOIN sessions s ON s.session_id=o.session_id
+            WHERE s.installation_id=:installation AND s.playthrough_id=:playthrough AND NOT s.archived
+            ORDER BY o.observed_at DESC,o.id DESC LIMIT 1");
+        $query->execute(['installation'=>$installation,'playthrough'=>$playthrough]);
+        return \LorkhanServer\Application\MorrowindCalendar::parse($query->fetchColumn()?:null)['minute']??null;
     }
 
     /** Append a monotonic baseline or retire an automatic-only row; manual/deleted/locked rows remain untouched. */
@@ -52,6 +102,8 @@ final class RelationshipTimelineRepository
     {
         if(!$this->db->inTransaction())throw new RuntimeException('timeline_transaction_required');
         $counts=['relationships'=>0,'relationship_restore_skipped'=>0];
+        $global=(new ProductRepository($this->db))->globalSettingsForInstallation($scope['installation']);
+        if(($global['content']['relationship']['never_clear_relationship_data']??false)===true)return$counts;
         $query=$this->db->prepare("SELECT r.*,v.provenance FROM relationship_records r
             JOIN relationship_revisions v ON v.relationship_id=r.relationship_id AND v.revision=r.revision
             JOIN profiles p ON p.profile_id=r.profile_id AND p.installation_id=r.installation_id
@@ -105,6 +157,7 @@ final class RelationshipTimelineRepository
                     'mode'=>$baseline['source_mode'],'source'=>$baseline['source_event_id']];
             }
             $update->execute($params);$after=$update->fetch();if(!$after)throw new RuntimeException('relationship_revision_conflict');
+            $after['worst_memory_game_minute']=$restore===0?null:($baseline['worst_memory_game_minute']??null);
             $this->snapshot($after,['kind'=>'loaded_save_relationship_restore','playthrough_id'=>$scope['playthrough'],
                 'restored_revision'=>$restore,'loaded_save_id'=>$loadId]);
             $audit=$this->db->prepare("INSERT INTO relationship_audit(audit_id,relationship_id,mode,before_value,after_value,reason,created_at)

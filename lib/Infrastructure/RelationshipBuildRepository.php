@@ -172,7 +172,7 @@ final class RelationshipBuildRepository
         if(!Uuid::isValid($jobId))return null;
         $query=$this->db->prepare("SELECT r.draft,j.payload,j.payload->>'profile_revision' AS profile_revision
             FROM relationship_build_results r JOIN durable_jobs j ON j.job_id=r.job_id
-            JOIN profiles p ON p.profile_id=CAST(j.payload->>'profile_id' AS uuid) AND p.deleted_at IS NULL
+            JOIN profiles p ON p.profile_id=j.payload->>'profile_id' AND p.deleted_at IS NULL
             JOIN playthroughs t ON t.playthrough_id=CAST(j.payload->>'playthrough_id' AS uuid) AND t.deleted_at IS NULL
             WHERE j.job_id=:job AND j.job_type='relationship.build' AND r.draft IS NOT NULL
                 AND j.payload->>'installation_id'=:installation_id AND j.payload->>'profile_id'=:profile_id

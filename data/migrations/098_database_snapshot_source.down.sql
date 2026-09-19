@@ -1,1 +1,0 @@
-DROP TABLE lorkhan_internal.database_snapshot_source;

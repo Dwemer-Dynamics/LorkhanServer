@@ -1,3 +1,0 @@
-ALTER TABLE lorkhan_internal.director_instructions ADD COLUMN authored_response jsonb;
-ALTER TABLE lorkhan_internal.director_instructions DROP CONSTRAINT director_instructions_ordinal_check;
-ALTER TABLE lorkhan_internal.director_instructions ADD CONSTRAINT director_instructions_ordinal_check CHECK(ordinal BETWEEN 1 AND 12);

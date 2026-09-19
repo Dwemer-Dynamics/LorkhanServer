@@ -3,6 +3,8 @@
 declare(strict_types=1);
 namespace LorkhanServer\Application;
 
+use LorkhanServer\Domain\ProfileId;
+
 use LorkhanServer\Infrastructure\{NpcMemoryDigestRepository,Uuid};
 use InvalidArgumentException;
 
@@ -17,7 +19,7 @@ final class MemoryDigestScanJobHandler implements JobHandler
         unset($idempotencyKey);
         foreach(['installation_id','playthrough_id','memory_id']as$key)if(!is_string($payload[$key]??null)||!Uuid::isValid($payload[$key]))throw new InvalidArgumentException('invalid_digest_scan');
         if(!is_int($payload['memory_revision']??null)||$payload['memory_revision']<1
-            ||(($payload['after_profile']??null)!==null&&(!is_string($payload['after_profile'])||!Uuid::isValid($payload['after_profile']))))throw new InvalidArgumentException('invalid_digest_scan');
+            ||(($payload['after_profile']??null)!==null&&(!is_string($payload['after_profile'])||!ProfileId::isValid($payload['after_profile']))))throw new InvalidArgumentException('invalid_digest_scan');
         if(!$heartbeat())throw new OperationCancelled('lease_lost');$this->digests->scan($payload,$heartbeat);
     }
 }

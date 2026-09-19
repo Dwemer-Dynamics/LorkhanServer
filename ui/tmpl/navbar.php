@@ -3,7 +3,7 @@ declare(strict_types=1);
 $currentPageName=basename((string)($_SERVER['PHP_SELF']??''));
 $topNavSection=$topNavSection??match(true){
     $currentPageName==='home.php'=>'home',
-    in_array($currentPageName,['events-memories.php'],true)=>'roleplay',
+    in_array($currentPageName,['events-memories.php','ai-response.php','adventurelog.php','diarylog.php'],true)=>'roleplay',
     in_array($currentPageName,['control_panel.php','database_manager.php','request_logs.php'],true)=>'control',
     default=>'configuration',
 };
@@ -27,7 +27,6 @@ $topNavSection=$topNavSection??match(true){
                     ]as$key=>[$label,$href]): ?>
                         <li><a class="dropdown-item<?php echo $topNavSection===$key?' active':''; ?>" href="<?php echo lorkhan_ui_h($href); ?>"<?php echo $topNavSection===$key?' aria-current="page"':''; ?>><?php echo lorkhan_ui_h($label); ?></a></li>
                     <?php endforeach; ?>
-                    <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="/Dwemer-Dashboard/index.php">DwemerDistro Home</a></li>
                 </ul>
             </div>

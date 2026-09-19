@@ -5,7 +5,7 @@ namespace LorkhanServer\Infrastructure;
 use PDO;
 use RuntimeException;
 
-/** Explicit portable-backup policy; PostgreSQL comments describe it but never grant inclusion. */
+/** Explicit portable/local backup policy; comments describe it but never grant inclusion. */
 final class PlaythroughTablePolicy
 {
     public static function tables():array
@@ -24,10 +24,12 @@ final class PlaythroughTablePolicy
                 if(!is_string($table)||preg_match('/^(public|lorkhan_internal)\.[a-z_][a-z0-9_]*$/D',$table)!==1||isset($result[$table]))throw new RuntimeException('invalid_playthrough_table_policy');
                 $portable=in_array($table,$data['portable']??[],true);
                 if($portable&&!in_array($category,['playthrough','mixed'],true))throw new RuntimeException('unsafe_playthrough_table_policy');
-                $result[$table]=['category'=>$category,'description'=>$description,'portable'=>$portable];
+                $result[$table]=['category'=>$category,'description'=>$description,'portable'=>$portable,
+                    'local_save'=>$portable||in_array($table,$data['local_save']??[],true)];
             }
         }
         foreach($data['portable']??[] as$table)if(!isset($result[$table]))throw new RuntimeException('unknown_portable_table');
+        foreach($data['local_save']??[] as$table)if(!isset($result[$table]))throw new RuntimeException('unknown_local_save_table');
         ksort($result,SORT_STRING);
         return$result;
     }
@@ -44,7 +46,7 @@ final class PlaythroughTablePolicy
         $policy=self::tables();$result=[];
         $query=$db->query("SELECT n.nspname||'.'||c.relname AS name,obj_description(c.oid,'pg_class') AS comment FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','lorkhan_internal') AND c.relkind IN ('r','p') ORDER BY 1");
         foreach($query->fetchAll(PDO::FETCH_ASSOC)as$row)$result[]=['table'=>$row['name'],'comment'=>$row['comment']]+($policy[$row['name']]??[
-            'category'=>'unclassified','portable'=>false,'description'=>'Not reviewed. Excluded from portable export and deletion.']);
+            'category'=>'unclassified','portable'=>false,'local_save'=>false,'description'=>'Not reviewed. Excluded from portable export and deletion.']);
         return$result;
     }
 }

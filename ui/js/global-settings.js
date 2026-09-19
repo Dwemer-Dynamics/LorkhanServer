@@ -24,23 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (next !== null) { event.preventDefault(); activate(tabs[next].dataset.settingsTab, true); }
         });
     });
-    const portability = document.getElementById('gs-portability-panel');
-    if (portability) {
-        portability.hidden = true;
-        document.querySelectorAll('[data-gs-portability-toggle]').forEach((button) => {
-            button.addEventListener('click', () => {
-                portability.hidden = false;
-                const disclosure = portability.querySelector(`[data-gs-disclosure="${button.dataset.gsPortabilityToggle}"]`);
-                if (disclosure) {
-                    disclosure.open = true;
-                    disclosure.querySelector('summary')?.focus();
-                }
-                document.querySelectorAll('[data-gs-portability-toggle]').forEach((toggle) => {
-                    toggle.setAttribute('aria-expanded', portability.hidden ? 'false' : 'true');
-                });
-            });
-        });
-    }
     document.getElementById('gs_form')?.addEventListener('invalid', (event) => {
         const panel = event.target.closest('[data-settings-panel]');
         if (panel) activate(panel.dataset.settingsPanel);

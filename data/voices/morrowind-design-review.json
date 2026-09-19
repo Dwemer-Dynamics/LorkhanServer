@@ -1,0 +1,131 @@
+{
+  "characters": [
+    {
+      "key": "vivec",
+      "tts_filter_preset": "ethereal",
+      "name": "Vivec",
+      "record_ids": [
+        "vivec_god"
+      ],
+      "character": "Flamboyant poet-god; playful, theatrical, sensuous and dangerous.",
+      "design_prompt": "An ageless masculine voice with a flamboyant, androgynous theatrical lilt. Silky low tenor, luxurious vowels, playful pitch movement and deliciously wry amusement. Cultured, sensuous and extravagantly self-assured. Speak naturally to one person, with expressive inflections and intimate wit rather than solemn narration.",
+      "preview_text": "Oh, darling pilgrim. You arrive covered in dust and expect a simple answer from a god? How wonderfully optimistic. Come closer. Let us make something beautiful of your confusion."
+    },
+    {
+      "key": "yagrum",
+      "name": "Yagrum Bagarn",
+      "record_ids": [
+        "yagrum bagarn"
+      ],
+      "character": "An extremely old, sick Dwemer; gruff dwarf warmth beneath exhaustion.",
+      "design_prompt": "An extremely elderly male dwarf: low, thick, craggy and chesty, with a worn-out gravel rasp, frail breath and a subtle congested rattle. A very old sick man fighting fatigue, not a smooth narrator. Gruff dry wit and stubborn scholarly warmth; uneven conversational phrasing, tired pauses, distinctly weathered vowels. Keep words understandable.",
+      "preview_text": "Ah, a visitor. Give an old dwarf a moment to catch his breath. These wretched lungs are failing me, but the mind still works. Bring that device here. No, closer. My eyes are not what they were."
+    },
+    {
+      "key": "almalexia",
+      "tts_filter_preset": "ethereal",
+      "name": "Almalexia",
+      "record_ids": [
+        "almalexia",
+        "Almalexia_warrior"
+      ],
+      "character": "Regal goddess; maternal reassurance masking pride and danger.",
+      "design_prompt": "A mature female contralto, rich, clear and regal. Reassuring maternal warmth with controlled steel underneath, articulate consonants, measured flowing pace. Can turn cold without shouting. Dry studio voice.",
+      "preview_text": "Come closer, my champion. You have carried a heavy burden, and I have not forgotten your service. Trust in me, and I shall show you what must be done."
+    },
+    {
+      "key": "hircine",
+      "name": "Hircine",
+      "record_ids": [
+        "BM_hircine",
+        "BM_hircine2",
+        "BM_hircine_huntaspect",
+        "BM_hircine_straspect",
+        "BM_hircine_spdaspect"
+      ],
+      "character": "Sinister hunter-god; predatory intimacy and controlled menace.",
+      "design_prompt": "A deeply sinister male bass-baritone with a rough, throaty growl under fully intelligible speech. Predatory, patient and cruelly amused, speaking close to his prey. Dark chest resonance, textured vocal fry, quiet threats and sudden sharp emphasis. Organic conversational timing with brief pauses; not a booming narrator or monotone machine.",
+      "preview_text": "There you are. I wondered how long you would keep running. Listen to that frightened little heartbeat. You still think there is a path out of these woods, do you? Go on. Show me."
+    },
+    {
+      "key": "dagoth-gares",
+      "name": "Dagoth Gares",
+      "record_ids": [
+        "dagoth gares"
+      ],
+      "character": "A diseased Sixth House priest; sinister Dark Elf rasp.",
+      "design_prompt": "An old male Dark Elf with a naturally gravelly, smoke-rough baritone and coarse throaty rasp. Sinister and dangerous, hollow, feverish and coaxingly hospitable. Weathered chest resonance and expressive vocal fry. Speak like a living, breathing person in a tense conversation: irregular stresses, small hesitations, varied pitch and natural pauses. No robotic cadence, announcer delivery, metallic filter or flat monotone.",
+      "preview_text": "Come in, outlander. No need to stare. Yes, the air tastes foul at first. You will grow used to it. Our lord has waited so patiently for you, and I would hate to disappoint him."
+    },
+    {
+      "key": "dagoth-odros",
+      "name": "Dagoth Odros",
+      "record_ids": [
+        "dagoth odros"
+      ],
+      "character": "A sinister Dark Elf guardian; rough and quietly threatening.",
+      "design_prompt": "An old male Dark Elf with a naturally gravelly, smoke-rough baritone and coarse throaty rasp. Sinister and dangerous, clipped, suspicious and quietly murderous. Weathered chest resonance and expressive vocal fry. Speak like a living, breathing person in a tense conversation: irregular stresses, small hesitations, varied pitch and natural pauses. No robotic cadence, announcer delivery, metallic filter or flat monotone.",
+      "preview_text": "Stop there. I heard you coming long before you reached that door. Put the weapon down. Slowly. Good. Now tell me why I should let you leave this place breathing."
+    },
+    {
+      "key": "dagoth-vemyn",
+      "name": "Dagoth Vemyn",
+      "record_ids": [
+        "dagoth vemyn"
+      ],
+      "character": "A sinister Dark Elf lord; deep, coarse and implacable.",
+      "design_prompt": "An old male Dark Elf with a naturally gravelly, smoke-rough baritone and coarse throaty rasp. Sinister and dangerous, heavy-chested, blunt and cruelly amused. Weathered chest resonance and expressive vocal fry. Speak like a living, breathing person in a tense conversation: irregular stresses, small hesitations, varied pitch and natural pauses. No robotic cadence, announcer delivery, metallic filter or flat monotone.",
+      "preview_text": "That is what you came for, is it? The hammer. Look at your hands. They are shaking. You can reach for it, little thief, but you will have to come through me."
+    },
+    {
+      "key": "dagoth-endus",
+      "name": "Dagoth Endus",
+      "record_ids": [
+        "dagoth endus"
+      ],
+      "character": "A sinister Dark Elf scholar; gravelly, sardonic intelligence.",
+      "design_prompt": "An old male Dark Elf with a naturally gravelly, smoke-rough baritone and coarse throaty rasp. Sinister and dangerous, dry, sardonic and intellectually contemptuous. Weathered chest resonance and expressive vocal fry. Speak like a living, breathing person in a tense conversation: irregular stresses, small hesitations, varied pitch and natural pauses. No robotic cadence, announcer delivery, metallic filter or flat monotone.",
+      "preview_text": "You have rehearsed that little speech, have you? I can hear it. Every borrowed word. Tell me what you actually believe, outlander. That might be worth listening to."
+    },
+    {
+      "key": "dagoth-tureynul",
+      "name": "Dagoth Tureynul",
+      "record_ids": [
+        "dagoth tureynul"
+      ],
+      "character": "An ancient Dark Elf keeper; worn rasp and intimate menace.",
+      "design_prompt": "An old male Dark Elf with a naturally gravelly, smoke-rough baritone and coarse throaty rasp. Sinister and dangerous, old, papery, conspiratorial and ominously patient. Weathered chest resonance and expressive vocal fry. Speak like a living, breathing person in a tense conversation: irregular stresses, small hesitations, varied pitch and natural pauses. No robotic cadence, announcer delivery, metallic filter or flat monotone.",
+      "preview_text": "Careful with those pages. They have survived men far wiser than you. Ah, you recognize the name. Good. Now you begin to understand why no one wanted you to find this place."
+    },
+    {
+      "key": "dagoth-gilvoth",
+      "name": "Dagoth Gilvoth",
+      "record_ids": [
+        "dagoth gilvoth"
+      ],
+      "character": "A sinister Dark Elf sentinel; taut rasp and restrained hostility.",
+      "design_prompt": "An old male Dark Elf with a naturally gravelly, smoke-rough baritone and coarse throaty rasp. Sinister and dangerous, taut, vigilant and sharp-tempered. Weathered chest resonance and expressive vocal fry. Speak like a living, breathing person in a tense conversation: irregular stresses, small hesitations, varied pitch and natural pauses. No robotic cadence, announcer delivery, metallic filter or flat monotone.",
+      "preview_text": "You are too close. Take one step back. There. I can smell the fear beneath all that armor. Do you really want your last mistake to be another step forward?"
+    },
+    {
+      "key": "dagoth-araynys",
+      "name": "Dagoth Araynys",
+      "record_ids": [
+        "dagoth araynys"
+      ],
+      "character": "A sinister Dark Elf mystic; seductive but gravelly menace.",
+      "design_prompt": "An old male Dark Elf with a naturally gravelly, smoke-rough baritone and coarse throaty rasp. Sinister and dangerous, softly persuasive, sardonic and treacherously warm. Weathered chest resonance and expressive vocal fry. Speak like a living, breathing person in a tense conversation: irregular stresses, small hesitations, varied pitch and natural pauses. No robotic cadence, announcer delivery, metallic filter or flat monotone.",
+      "preview_text": "Oh, I know that look. Doubt. You have carried it all this way. Sit with me a moment. We need not be enemies, unless you insist on making this unpleasant."
+    },
+    {
+      "key": "dagoth-uthol",
+      "name": "Dagoth Uthol",
+      "record_ids": [
+        "dagoth uthol"
+      ],
+      "character": "A sinister Dark Elf zealot; embittered, rough and forceful.",
+      "design_prompt": "An old male Dark Elf with a naturally gravelly, smoke-rough baritone and coarse throaty rasp. Sinister and dangerous, embittered, heated and contemptuous. Weathered chest resonance and expressive vocal fry. Speak like a living, breathing person in a tense conversation: irregular stresses, small hesitations, varied pitch and natural pauses. No robotic cadence, announcer delivery, metallic filter or flat monotone.",
+      "preview_text": "Do not speak to me of mercy. Not in this house. I remember the men who promised us mercy, and I remember what they did when we opened the gates. You sound just like them."
+    }
+  ]
+}

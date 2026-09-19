@@ -89,7 +89,7 @@ not provisioned and their pre-beta compatibility schema has been retired.
 
 ## Start here
 
-1. `CLAUDEX-TASK.md`
+1. `docs/archive/CLAUDEX-TASK.md`
 2. `docs/IMPLEMENTATION-PLAN.md`
 3. `docs/REFERENCE-SERVER-DATAFLOW.md`
 4. `docs/MIGRATION-SOURCE-AUDIT.md`

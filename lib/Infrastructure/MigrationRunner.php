@@ -60,7 +60,7 @@ final class MigrationRunner
                 $this->apply($migration);
                 $ran[] = $migration['version'];
             }
-            if ($target >= 123) PlaythroughTablePolicy::synchronize($this->db);
+            if ($target >= 1) PlaythroughTablePolicy::synchronize($this->db);
             return $ran;
         });
     }
@@ -111,7 +111,7 @@ final class MigrationRunner
                 $this->apply($migration);
                 $ran[] = $migration['version'];
             }
-            if ($migrations !== [] && $migrations[array_key_last($migrations)]['version'] >= 123) PlaythroughTablePolicy::synchronize($this->db);
+            if ($migrations !== [] && $migrations[array_key_last($migrations)]['version'] >= 1) PlaythroughTablePolicy::synchronize($this->db);
             return $ran;
         });
     }
@@ -138,7 +138,7 @@ final class MigrationRunner
             }
             $this->revert($migration);
             $this->apply($migration);
-            if ($version >= 123) PlaythroughTablePolicy::synchronize($this->db);
+            if ($version >= 1) PlaythroughTablePolicy::synchronize($this->db);
             return $version;
         });
     }
@@ -168,7 +168,7 @@ final class MigrationRunner
                     if($after!==null)$after();
                     if($progress!==null)$progress();
                     $current=$this->applied();
-                    if($current!==[]&&max(array_keys($current))>=123)PlaythroughTablePolicy::synchronize($this->db);
+                    if($current!==[]&&max(array_keys($current))>=1)PlaythroughTablePolicy::synchronize($this->db);
                     $this->assertNoDrift($migrations,$current);
                 }finally{$this->atomicReplay=false;}
             });
@@ -207,7 +207,7 @@ final class MigrationRunner
             // PostgreSQL function and DO bodies can contain PL/pgSQL BEGIN blocks; only
             // reject transaction control that appears in the migration's top-level SQL.
             $transactionScan = preg_replace(
-                '/\$(?<tag>[A-Za-z_][A-Za-z0-9_]*)\$.*?\$\k<tag>\$/s',
+                '/\$(?<tag>[A-Za-z_][A-Za-z0-9_]*|)\$.*?\$\k<tag>\$/s',
                 '',
                 $upSql . "\n" . $downSql
             );
@@ -324,8 +324,7 @@ final class MigrationRunner
         }
         $this->db->beginTransaction();
         try {
-            // Historical migrations intentionally build their source tables in public;
-            // the final cutover moves LORKHAN-only state behind the internal schema.
+            // Baseline and subsequent migrations qualify application objects explicitly.
             $this->db->exec('SET LOCAL search_path TO public, pg_temp');
             $callback();
             $this->db->commit();

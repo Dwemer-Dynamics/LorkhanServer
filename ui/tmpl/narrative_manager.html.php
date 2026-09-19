@@ -5,7 +5,7 @@
     <div class="narrative-toolbar">
         <button class="log-button" type="button" data-open-narrative="narrative-create"<?= !$diaryScopeReady?' disabled':'' ?>>Create narrative</button>
         <button class="log-button" type="button" data-open-narrative="narrative-generate"<?= !$diaryScopeReady?' disabled':'' ?>>Request a diary</button>
-        <a class="log-button" href="<?= lorkhan_ui_h($webRoot) ?>/ui/events-memories.php?tab=diaries">View Diaries</a>
+        <a class="log-button" href="<?= lorkhan_ui_h($webRoot) ?>/ui/diarylog.php">View Diaries</a>
         <a class="log-button secondary" href="<?= lorkhan_ui_h(lorkhan_control_url($state)) ?>">Refresh</a>
     </div>
     <?php if (!$diaryScopeReady): ?><p class="narrative-scope-note">Creating an entry needs an installation, a profile and a playthrough.</p><?php endif; ?>

@@ -295,7 +295,7 @@ final class Validator
                 if(!in_array($payload['responder']['kind']??null,['npc','creature'],true))throw new ValidationException('invalid_schema');
             }
             $this->keys($payload,$fields);$this->identity($payload['player']??null);
-            if(!in_array($payload['kind']??null,['levelup','combat_end','sleep','wait'],true)
+            if(!in_array($payload['kind']??null,['levelup','combat_end','sleep','wait','lockpick'],true)
                 ||($payload['player']['kind']??null)!=='player'
                 ||(!is_int($payload['game_time']??null)&&!is_float($payload['game_time']??null))
                 ||$payload['game_time']<0||$payload['game_time']>9_007_199_254_740_991
@@ -513,7 +513,9 @@ final class Validator
             ||(!$modelSlot&&($message['selection_key']??null)!==null)
             ||(in_array($message['kind']??null,['profile_generate','narrator_profile_generate'],true)&&($message['selection_id']??null)===null))throw new ValidationException('invalid_schema');
         foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]??null);
-        if(($message['selection_id']??null)!==null)$this->uuid($message['selection_id']);
+        if(($message['selection_id']??null)!==null) {
+            $message['kind']==='narrator_profile_generate' ? $this->uuid($message['selection_id']) : $this->profileId($message['selection_id']);
+        }
         $this->identity($message['target']??null);$this->timestamp($message['created_at']??null);
     }
 
@@ -613,7 +615,7 @@ final class Validator
             throw new ValidationException('invalid_schema');
         }
         foreach ($uuidFields as $field) {
-            $this->uuid($message[$field] ?? null);
+            $field === 'profile_id' && $schema !== 'lorkhan.session.init.v1' ? $this->profileId($message[$field] ?? null) : $this->uuid($message[$field] ?? null);
         }
         $this->timestamp($message['created_at'] ?? null);
         $this->runtime($message['runtime'] ?? null);
@@ -626,7 +628,7 @@ final class Validator
             'turn_id','request_id','generation','runtime_generation','created_at','ok','lines','close','error']);
         if (($message['schema']??null)!=='lorkhan.response.v1') throw new ValidationException('invalid_schema');
         foreach(['response_id','installation_id','profile_id','playthrough_id','session_id','turn_id','request_id'] as $field) {
-            $this->uuid($message[$field]??null);
+            $field === 'profile_id' ? $this->profileId($message[$field]??null) : $this->uuid($message[$field]??null);
         }
         if(!is_int($message['generation'])||$message['generation']<1||$message['generation']>9_007_199_254_740_991
             ||!is_int($message['runtime_generation'])||$message['runtime_generation']<1
@@ -699,8 +701,11 @@ final class Validator
             throw new ValidationException('invalid_schema');
         }
         $this->keys($runtime, ['game','variant','openmw_version','openmw_commit','lua_api_revision','client_version','platform','capabilities']);
-        if ($runtime['game'] !== 'tes3' || $runtime['variant'] !== 'openmw' || $runtime['openmw_version'] !== '0.51.0'
-            || $runtime['openmw_commit'] !== 'f4bec41444214a7903bebd178389ca22ca13f646' || $runtime['lua_api_revision'] !== 129
+        // Build identifiers describe the client; capabilities and payload schemas govern support.
+        if ($runtime['game'] !== 'tes3' || $runtime['variant'] !== 'openmw'
+            || !is_string($runtime['openmw_version']) || $runtime['openmw_version'] === '' || strlen($runtime['openmw_version']) > 64
+            || !is_string($runtime['openmw_commit']) || $runtime['openmw_commit'] === '' || strlen($runtime['openmw_commit']) > 64
+            || !is_int($runtime['lua_api_revision']) || $runtime['lua_api_revision'] < 1
             || !is_string($runtime['client_version']) || $runtime['client_version'] === '' || strlen($runtime['client_version']) > 64
             || !is_string($runtime['platform']) || $runtime['platform'] === '' || strlen($runtime['platform']) > 64
             || !is_array($runtime['capabilities']) || !array_is_list($runtime['capabilities']) || count($runtime['capabilities']) > 64) {
@@ -759,6 +764,14 @@ final class Validator
         $expected = $allowed;
         sort($expected);
         if ($keys !== $expected) {
+            throw new ValidationException('invalid_schema');
+        }
+    }
+
+    /** Accept scoped physical-reference profile keys without relaxing other protocol IDs. */
+    private function profileId(mixed $value): void
+    {
+        if (!is_string($value) || strlen($value) > 300 || !preg_match('~^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|ref:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[^A-Z\\x00-\\x1f\\x7f/\\\\:|]+\\|(?:0|[1-9][0-9]{0,8}|[1-3][0-9]{9}|4[01][0-9]{8}|42[0-8][0-9]{7}|429[0-3][0-9]{6}|4294[0-8][0-9]{5}|42949[0-5][0-9]{4}|429496[0-6][0-9]{3}|4294967[01][0-9]{2}|42949672[0-8][0-9]|429496729[0-5]))$~D', $value)) {
             throw new ValidationException('invalid_schema');
         }
     }

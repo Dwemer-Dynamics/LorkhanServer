@@ -34,7 +34,7 @@ final class NpcMemoryDigestRepository
             CROSS JOIN LATERAL (SELECT jsonb_strip_nulls(jsonb_build_object('kind',b.actor_identity->'kind','record_id',b.actor_identity->'record_id','content_file',b.actor_identity->'content_file','refnum',b.actor_identity->'refnum')) AS actor) k
             JOIN eventlog_metadata m ON m.installation_id=b.installation_id AND m.playthrough_id=b.playthrough_id AND m.source_event_id=ANY(CAST(:sources AS uuid[])) AND m.suppressed_at IS NULL
                 AND (m.speaker @> k.actor OR m.target @> k.actor OR m.audience @> jsonb_build_array(k.actor))
-            WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.profile_id>CAST(:after AS uuid)
+            WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.profile_id>CAST(:after AS text)
             AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('narrator','player') ORDER BY b.profile_id LIMIT 25");
         $q->execute(['sources'=>'{'.implode(',',$sources).'}','installation'=>$payload['installation_id'],'playthrough'=>$payload['playthrough_id'],'after'=>$payload['after_profile']??'00000000-0000-0000-0000-000000000000']);$profiles=$q->fetchAll(PDO::FETCH_COLUMN);
         foreach($profiles as$profile){if(!$heartbeat())throw new RuntimeException('lease_lost');$this->enqueue($payload['installation_id'],$payload['playthrough_id'],$profile);}
@@ -186,7 +186,7 @@ final class NpcMemoryDigestRepository
 
     private function scope(string $installation,string $playthrough,string $profile):array
     {
-        foreach([$installation,$playthrough,$profile]as$id)if(!Uuid::isValid($id))throw new \InvalidArgumentException('invalid_digest_scope');
+        if(!Uuid::isValid($installation)||!Uuid::isValid($playthrough)||!\LorkhanServer\Domain\ProfileId::isValid($profile))throw new \InvalidArgumentException('invalid_digest_scope');
         return ['installation'=>$installation,'playthrough'=>$playthrough,'profile'=>$profile];
     }
 }

@@ -302,7 +302,21 @@ r=request(embedding_backfill['action'],'POST',dict(embedding_backfill['fields'],
 assert r.status==200 and 'status=embedding-backfill-empty' in r.geturl() and 'No memories needed embedding' in body and VoiceProvider.embedding_requests==[],(r.status,r.geturl(),body,VoiceProvider.embedding_requests)
 relationships,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=relationships-tab')); assert relationships.current==1 and '<strong>Morrowind Journal:</strong>' in text and '<th scope="col">Journal ID</th>' in text and 'id="journal-tab" class="tab-content active"' in text and 'Add relationship' not in text
 narratives_tab,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=narratives-tab')); assert narratives_tab.current==1 and '>Adventure Log</h1>' in text and 'id="adventure-tab" class="tab-content active"' in text and 'Regular Calendar' in text and 'calendar-event-table' in text and 'Create / Generate Entry' not in text
-diaries,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=diaries')); assert 'Diary Log</h1>' in text and 'Filter by Person' in text and 'calendar-event-table' in text
+diaries,text=parse(request('/LorkhanServer/ui/diarylog.php')); assert 'Diary Log</h1>' in text and 'Filter by Person' in text and 'calendar-event-table' in text
+# Canonical pages own their readers; old tab bookmarks preserve filters through redirects.
+for old_tab,new_page in [('responselog','ai-response.php'),('responses-tab','ai-response.php'),('adventure','adventurelog.php'),('narratives-tab','adventurelog.php'),('diaries','diarylog.php')]:
+    redirected=request('/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':old_tab,'q':'route-probe','reader_page':2,'embed':1}))
+    destination=urllib.parse.urlparse(redirected.geturl())
+    assert destination.path.endswith('/ui/'+new_page)
+    assert urllib.parse.parse_qs(destination.query)=={'q':['route-probe'],'reader_page':['2'],'embed':['1']}
+    body=redirected.read().decode()
+    assert 'data-eventlog-api=' not in body and 'memory-embedding-endpoint' not in body
+for retired in ['core/character_manager.php','core/global_settings.php']:
+    try:
+        request('/LorkhanServer/ui/'+retired)
+        raise AssertionError('Redundant page remains available: '+retired)
+    except urllib.error.HTTPError as response:
+        assert response.code==404
 narratives_page,text=parse(request('/LorkhanServer/ui/narrative_manager.php')); assert narratives_page.current==1 and '<h1>📝 Narratives</h1>' in text and 'Create narrative' in text
 assert 'data-open-narrative="narrative-create"' in text and 'No narratives match these filters.' in text
 cache,text=parse(request('/LorkhanServer/ui/cache_browser.php'))
@@ -356,19 +370,13 @@ invalid,text=parse(request('/LorkhanServer/ui/provider_usage.php?filter=week&wee
 assert 'Week: 2021-W53' not in text
 usage_period,text=parse(request('/LorkhanServer/ui/provider_usage.php?period=all'))
 assert '<h3>All Time</h3>' in text
-# Operational readers page the complete safe metadata set, including unassigned historical attempts.
-_,attempts=parse(request('/LorkhanServer/ui/provider_attempts.php?embed=1'))
-assert 'Showing 50 of 110 records. Page 1 / 3.' in attempts and 'operational-log-page' in attempts
-_,attempts_last=parse(request('/LorkhanServer/ui/provider_attempts.php?page=3&embed=1'))
-assert 'Showing 10 of 110 records. Page 3 / 3.' in attempts_last and 'embed=1' in attempts_last
-attempt_csv=request('/LorkhanServer/ui/provider_attempts.php?page=3&export=csv')
-attempt_rows=list(csv.DictReader(io.StringIO(attempt_csv.read().decode('utf-8-sig'))))
-assert len(attempt_rows)==10 and set(attempt_rows[0])=={'ID','Time (UTC)','Service','Connector','Model','Operation','Status','Duration (ms)','Error'}
-for filters in ['q=diary','q=%25','state=failed','installation_id=00000000-0000-4000-8000-000000000001','period=24h']:
-    _,filtered=parse(request('/LorkhanServer/ui/provider_attempts.php?'+filters))
-    assert ('Showing 3 of 3 records.' in filtered) if filters=='q=diary' else ('No provider attempts match these filters.' in filtered)
-_,jobs_empty=parse(request('/LorkhanServer/ui/jobs.php?q=unmatched-operational-fixture'))
-assert 'No durable jobs match these filters.' in jobs_empty and 'operational-log-page' in jobs_empty
+# Retired management pages must no longer be served; worker and debug APIs remain separate.
+for retired in ['jobs.php', 'provider_attempts.php', 'game_debug.php']:
+    try:
+        request('/LorkhanServer/ui/'+retired)
+        raise AssertionError('Retired page remains reachable: '+retired)
+    except urllib.error.HTTPError as response:
+        assert response.code == 404
 _,health_reader=parse(request('/LorkhanServer/ui/diagnostics.php?q=health-reader-fixture'))
 assert 'Server-wide snapshot' in health_reader and 'Showing 1 of 1 records.' in health_reader
 assert 'safe_scope' in health_reader and '00000000-0000-4000-8000-000000000099' in health_reader
@@ -384,15 +392,18 @@ assert 'No backups match these filters.' in backup_health_html and 'Operational 
 assert 'Backups, NPC memories, narrative entries, voice files and game saves are retained.' in backup_health_html
 retention_form=next(f for f in backup_health.forms if f['action'].endswith('/forms/retention'))
 assert retention_form['fields']['days']=='30' and 'data-retention-confirm' in backup_health_html and 'id="operational-retention-confirm"' in backup_health_html
-_,game_debug_html=parse(request('/LorkhanServer/ui/game_debug.php?embed=1'))
-assert 'request-log-page game-debug-page' in game_debug_html and 'Created (UTC)' in game_debug_html
-assert 'data-debug-table hidden' in game_debug_html and 'data-debug-empty' in game_debug_html
-assert game_debug_html.count('data-debug-command=')==19
-assert 'aria-label="God Mode on"' in game_debug_html and 'Refresh state queues a read-only game snapshot' in game_debug_html
-server_logs,text=parse(request('/LorkhanServer/ui/server_logs.php'))
-assert server_logs.current==1 and '<h1>Server Logs</h1>' in text and 'bounded to 256 KiB and redacted' in text
-assert text.count('class="log-section"')==3 and all(label in text for label in ['Download Logs','Timezone: UTC','Filter by Level:','Search expanded log','data-expand-log'])
-assert '/var/log/' not in text and 'chim.log' not in text
+class LogRedirectOnly(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+log_redirect_opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar),LogRedirectOnly())
+for suffix,target in [('', '?tab=lorkhan'),('?embed=1','?tab=lorkhan&embed=1')]:
+    try:
+        log_redirect_opener.open(base+'/LorkhanServer/ui/server_logs.php'+suffix)
+        raise AssertionError('Legacy log viewer did not redirect')
+    except urllib.error.HTTPError as response:
+        assert response.code==302 and response.headers['Location']=='/Dwemer-Dashboard/distro_debugger.php'+target
+_,log_hub_html=parse(request('/LorkhanServer/ui/control_panel.php?tab=server-logs-page'))
+assert '/Dwemer-Dashboard/distro_debugger.php?embed=1&amp;tab=lorkhan' in log_hub_html
+
 database,text=parse(request('/LorkhanServer/ui/database_manager.php')); assert database.current==1 and '<h1>Database Manager</h1>' in text and 'schema migrations' in text and 'Installation Configuration Backups' in text
 assert 'server-file-list' not in text and 'No configuration backups are available.' in text
 assert 'Database Versioning Manager' in text and 'not a full database backup' in text
@@ -767,7 +778,7 @@ deepl_key_input=re.search(r'<input id="credential-deepl"[^>]*>',text); assert de
 deepl_key_input=deepl_key_input.group(0); assert 'name="credentials[LORKHAN_DEEPL_API_KEY]"' in deepl_key_input and 'disabled' not in deepl_key_input and 'value=' not in deepl_key_input,deepl_key_input
 player,text=parse(request('/LorkhanServer/ui/core/player_management.php')); assert player.current==1 and 'Player Management</h1>' in text and any(f['action'].endswith(('/forms/player-profile-create','/forms/player-profile-revise')) for f in player.forms) and 'Profile generation uses the connector selected in' in text,text
 narrator,text=parse(request('/LorkhanServer/ui/narrator_management.php')); assert narrator.current==1 and 'Narrator Management</h1>' in text and 'Configure narrator behavior and settings' in text and 'Profile generation uses the connector selected in' in text
-globals_page,text=parse(request('/LorkhanServer/ui/core/global_settings.php')); assert globals_page.current==1 and 'Global Settings</h1>' in text and 'name="rechat_mode"' in text and 'name="rechat_allow_actions" value="1"' in text and 'name="relationship_enabled" value="1"' in text and 'name="context_section_conversation_history" value="1"' in text and 'name="context_location_blacklist"' in text and 'name="profile_generation_configuration_id"' in text and 'name="autofill_custom_profiles" value="1" checked' in text and 'name="autofill_custom_profiles_trigger" value="40"' in text and 'name="boredom"' in text and 'name="auto_greeting"' in text and 'name="combat_barks"' in text and 'feature-state-excluded' not in text and 'feature-state-replaced' not in text
+globals_page,text=parse(request('/LorkhanServer/ui/global_settings.php')); assert globals_page.current==1 and 'Global Settings</h1>' in text and 'name="rechat_mode"' in text and 'name="rechat_allow_actions" value="1"' in text and 'name="relationship_enabled" value="1"' in text and 'name="context_section_conversation_history" value="1"' in text and 'name="context_location_blacklist"' in text and 'name="profile_generation_configuration_id"' in text and 'name="autofill_custom_profiles" value="1" checked' in text and 'name="autofill_custom_profiles_trigger" value="40"' in text and 'name="boredom"' in text and 'name="auto_greeting"' in text and 'name="combat_barks"' in text and 'feature-state-excluded' not in text and 'feature-state-replaced' not in text
 assert 'class="page-header-actions"' in text and '&#128229; Import Settings' in text and 'class="gs-portability"' not in text and 'aria-controls="settings-panel-prompt-rechat"' in text and 'id="settings-panel-prompt-rechat"' in text
 global_settings_form=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-save'))
 global_settings_import=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-import'))
@@ -975,11 +986,11 @@ assert 'name="voice_language"' not in profile_text
 assert 'Dynamic Profile Fields' not in profile_text and 'name="dynamic_profile_fields[]"' not in profile_text
 assert 'name="dynamic_profile_present"' in profile_text
 assert not any('name="'+field+'"' in profile_text for field in ['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','llm_randomizer_enabled','llm_fallback_enabled','tts_configuration_id'])
-characters,_=parse(request('/LorkhanServer/ui/core/character_manager.php'))
+characters,_=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 auto_lock=next(f for f in characters.forms if f['action'].endswith('/forms/profile-auto-lock'))
 if auto_lock['fields'].get('enabled')!='1':
     r=request(auto_lock['action'],'POST',dict(auto_lock['fields'],_csrf=csrf,enabled='1')); assert r.status==200
-    characters,_=parse(request('/LorkhanServer/ui/core/character_manager.php')); auto_lock=next(f for f in characters.forms if f['action'].endswith('/forms/profile-auto-lock'))
+    characters,_=parse(request('/LorkhanServer/ui/core/npc_master.php')); auto_lock=next(f for f in characters.forms if f['action'].endswith('/forms/profile-auto-lock'))
 assert auto_lock['fields'].get('enabled')=='1','auto-lock preference did not default on'
 disabled=dict(auto_lock['fields'],_csrf=csrf); disabled.pop('enabled',None)
 r=request(auto_lock['action'],'POST',disabled); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
@@ -1000,7 +1011,7 @@ assert profile_export['content']['tts_filter_preset']=='warm'
 assert 'language' not in profile_export['content']['voice']
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'delete','voice_name':batch_voice}); body=r.read().decode()
 assert r.status==200 and 'voice_sample_in_use' in body and 'Profile: '+profile_name in body and batch_voice in body,(r.status,r.geturl(),body)
-managed_for_clone,clone_html=parse(request('/LorkhanServer/ui/core/character_manager.php'))
+managed_for_clone,clone_html=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 assert 'Clone profile' not in clone_html and 'Manage portrait' not in clone_html
 # The editor no longer exposes cloning; retain coverage of the supported backend operation.
 clone_form={'action':'/LorkhanServer/manage/forms/profile-clone','fields':{'profile_id':profile_id}}
@@ -1155,7 +1166,7 @@ saved_voice_url=urllib.parse.urlparse(r.geturl()); saved_voice_query=urllib.pars
 assert r.status==200 and saved_voice_url.path.endswith('/ui/core/voice_library.php') and saved_voice_query.get('status')==['saved'] and saved_voice_query.get('configuration_id')==[tts_id] and provider_voice in body,(r.status,r.geturl(),body)
 updated_tts=json.loads(request('/LorkhanServer/manage/exports/connectors/'+tts_id+'.json').read().decode()); assert updated_tts['content']['voice']==provider_voice and updated_tts['content']['language']=='en',updated_tts
 r=request('/LorkhanServer/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':tts_id,'kind':'tts_provider'}); body=r.read().decode(); assert r.status==422 and 'connector_in_use' in body,(r.status,r.geturl(),body)
-managed_profile,_=parse(request('/LorkhanServer/ui/core/character_manager.php'))
+managed_profile,_=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 generate=next(f for f in managed_profile.forms if f['action'].endswith('/forms/profile-generate') and f['fields'].get('profile_id')==profile_id)
 # Profile generation requires its explicit global connector; the runtime mock alone is not that route.
 r=request(generate['action'],'POST',dict(generate['fields'],_csrf=csrf)); generation_error=r.read().decode()
@@ -1166,13 +1177,13 @@ generation_connector_name='HTTP initial profile generation '+uuid.uuid4().hex
 r=request(generation_connector_form['action'],'POST',dict(generation_connector_form['fields'],_csrf=csrf,name=generation_connector_name,driver='mock',model='deterministic-mock-v1'))
 generation_connector_body=r.read().decode(); assert r.status==200,(r.status,generation_connector_body)
 generation_connector_id=connector_editor_id(generation_connector_body,generation_connector_name)
-generation_globals,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+generation_globals,_=parse(request('/LorkhanServer/ui/global_settings.php'))
 generation_route=next(f for f in generation_globals.forms if f['action'].endswith('/forms/global-settings-save'))
 r=request(generation_route['action'],'POST',dict(generation_route['fields'],_csrf=csrf,profile_generation_configuration_id=generation_connector_id,change_reason='HTTP generation fixture connector'))
 assert r.status==200,(r.status,r.read().decode())
 r=request(generate['action'],'POST',dict(generate['fields'],_csrf=csrf)); generation_body=r.read().decode()
 assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=generation-queued') and 'NPC profile generation is queued.' in generation_body and 'NPC profile change saved.' not in generation_body,(r.status,r.geturl(),generation_body)
-managed_profile,body=parse(request('/LorkhanServer/ui/core/character_manager.php'))
+managed_profile,body=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 revise=next(f for f in managed_profile.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
 auto_lock=next(f for f in managed_profile.forms if f['action'].endswith('/forms/profile-auto-lock'))
 r=request(auto_lock['action'],'POST',dict(auto_lock['fields'],_csrf=csrf,enabled='1')); assert r.status==200
@@ -1181,7 +1192,7 @@ r=request(revise['action'],'POST',values); body=r.read().decode(); locked_export
 assert r.status==200 and profile_name in body and 'data-lock-id="'+profile_id+'"' in body and locked_export['content']['management']=={'locked':True,'favorite':True},(r.status,r.geturl(),locked_export)
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'delete','voice_name':batch_voice}); body=r.read().decode()
 assert r.status==200 and 'Local voice sample deleted.' in body and batch_voice not in body,(r.status,r.geturl(),body)
-filtered=request('/LorkhanServer/ui/core/character_manager.php?state=favorites&q='+urllib.parse.quote(profile_name)); filtered_body=filtered.read().decode()
+filtered=request('/LorkhanServer/ui/core/npc_master.php?state=favorites&q='+urllib.parse.quote(profile_name)); filtered_body=filtered.read().decode()
 assert filtered.status==200 and profile_name in filtered_body and 'name="state" value="favorites"' in filtered_body and 'data-favorite-id="'+profile_id+'"' in filtered_body,(filtered.status,filtered.geturl())
 r=request('/LorkhanServer/manage/forms/profile-generate','POST',{'_csrf':csrf,'profile_id':profile_id}); body=r.read().decode(); assert r.status==422 and 'profile_locked' in body,(r.status,r.geturl(),body)
 portrait_png=bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360f8cff00000040101000db24bc40000000049454e44ae426082')
@@ -1200,25 +1211,25 @@ values=dict(import_form['fields'],_csrf=csrf,profile_json=json.dumps(exported))
 r=request(import_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved') and imported_name in body,(r.status,r.geturl())
 imported_id=selected_record_id(body,imported_name)
 r=request('/LorkhanServer/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':imported_id}); assert r.status==200
-characters,body=parse(request('/LorkhanServer/ui/core/character_manager.php'))
+characters,body=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 unlock=next(f for f in characters.forms if f['action'].endswith('/forms/profile-bulk-unlock'))
 r=request(unlock['action'],'POST',dict(unlock['fields'],_csrf=csrf,confirm='wrong')); body=r.read().decode(); assert r.status==422 and 'confirmation_mismatch' in body
 r=request(unlock['action'],'POST',dict(unlock['fields'],_csrf=csrf,confirm='Unlock')); body=r.read().decode(); unlocked_export=json.loads(request('/LorkhanServer/manage/exports/profiles/'+profile_id+'.json').read().decode())
 assert r.status==200 and profile_name in body and unlocked_export['content']['management']['locked'] is False,(r.status,r.geturl(),unlocked_export)
-characters,_=parse(request('/LorkhanServer/ui/core/character_manager.php'))
+characters,_=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 revise=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
 r=request(revise['action'],'POST',dict(revise['fields'],_csrf=csrf,favorite='1',change_reason='Restore lock after bulk unlock test')); assert r.status==200
-characters,_=parse(request('/LorkhanServer/ui/core/character_manager.php')); auto_lock=next(f for f in characters.forms if f['action'].endswith('/forms/profile-auto-lock'))
+characters,_=parse(request('/LorkhanServer/ui/core/npc_master.php')); auto_lock=next(f for f in characters.forms if f['action'].endswith('/forms/profile-auto-lock'))
 disabled=dict(auto_lock['fields'],_csrf=csrf); disabled.pop('enabled',None); r=request(auto_lock['action'],'POST',disabled); assert r.status==200
 extra_name='HTTP bulk delete '+uuid.uuid4().hex
 extra=dict(form['fields'],_csrf=csrf,name=extra_name,voice_language='en',biography='Disposable unlocked bulk profile.')
 extra['installation_id']=valid['installation_id']
 r=request(form['action'],'POST',extra); body=r.read().decode(); assert r.status==200 and extra_name in body,(r.status,r.geturl(),body)
-characters,_=parse(request('/LorkhanServer/ui/core/character_manager.php'))
+characters,_=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 bulk_generate=next(f for f in characters.forms if f['action'].endswith('/forms/profile-bulk-generate'))
 r=request(bulk_generate['action'],'POST',dict(bulk_generate['fields'],_csrf=csrf,confirm='wrong')); body=r.read().decode(); assert r.status==422 and 'confirmation_mismatch' in body
 r=request(bulk_generate['action'],'POST',dict(bulk_generate['fields'],_csrf=csrf,confirm='Generate')); assert r.status==200
-characters,_=parse(request('/LorkhanServer/ui/core/character_manager.php'))
+characters,_=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 delete_all=next(f for f in characters.forms if f['action'].endswith('/forms/profile-bulk-delete'))
 r=request(delete_all['action'],'POST',dict(delete_all['fields'],_csrf=csrf,confirm='Delete')); body=r.read().decode()
 bulk_preserved=json.loads(request('/LorkhanServer/manage/exports/profiles/'+profile_id+'.json').read().decode())
@@ -1338,7 +1349,7 @@ assert narrative_title not in narrative_filtered
 _,narrative_filtered=parse(request('/LorkhanServer/ui/narrative_manager.php?q='+urllib.parse.quote(narrative_title)))
 assert narrative_title in narrative_filtered and '1 entries · Page 1 of 1' in narrative_filtered
 # A real diary must appear in the calendar and escaped modal, and stay playthrough-scoped.
-diary_url='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'diaries','installation_id':valid['installation_id'],'playthrough_id':playthrough_id})
+diary_url='/LorkhanServer/ui/diarylog.php?'+urllib.parse.urlencode({'tab':'diaries','installation_id':valid['installation_id'],'playthrough_id':playthrough_id})
 _,diary_unselected=parse(request(diary_url))
 assert 'Select a date to view diary entries.' in diary_unselected and 'has-event' in diary_unselected
 diary_url+='&q='+urllib.parse.quote(narrative_title)
@@ -1454,7 +1465,7 @@ SELECT rowid,'{valid['installation_id']}','{adventure_scope}','ui_fixture','adve
 """
 adventure_psql=['psql','-h','127.0.0.1','-p',sys.argv[3] if len(sys.argv)>3 else '55463','-d','lorkhan_management_http','-v','ON_ERROR_STOP=1']
 subprocess.run(adventure_psql,input=adventure_sql,text=True,capture_output=True,check=True)
-adventure_url='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'adventure','installation_id':valid['installation_id'],'playthrough_id':adventure_scope,'date':'2020-12-31'})
+adventure_url='/LorkhanServer/ui/adventurelog.php?'+urllib.parse.urlencode({'tab':'adventure','installation_id':valid['installation_id'],'playthrough_id':adventure_scope,'date':'2020-12-31'})
 _,adventure_page_html=parse(request(adventure_url))
 adventure_html=re.search(r'<table class="calendar-event-table adventure-event-table".*?</table>',adventure_page_html,re.S).group(0)
 assert adventure_html.count('data-adventure-row=')==24 and adventure_html.index('Adventure fixture 01')<adventure_html.index('Adventure fixture 02')<adventure_html.index('Adventure fixture 10'),(adventure_html.count('data-adventure-row='),re.findall(r'Adventure fixture \d+',adventure_html))
@@ -1536,7 +1547,7 @@ WITH inserted AS (
 INSERT INTO lorkhan_internal.log_metadata(rowid,turn_id,request_id) SELECT rowid,'{response_turn}',gen_random_uuid() FROM inserted;
 """
 subprocess.run(adventure_psql,input=response_sql,text=True,capture_output=True,check=True)
-response_page_path='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'responselog','installation_id':valid['installation_id'],'playthrough_id':playthrough_id,'q':'ResponseExportFixture'})
+response_page_path='/LorkhanServer/ui/ai-response.php?'+urllib.parse.urlencode({'tab':'responselog','installation_id':valid['installation_id'],'playthrough_id':playthrough_id,'q':'ResponseExportFixture'})
 _,response_page=parse(request(response_page_path))
 assert response_page.count('data-log-open=')==50 and '61 rows' in response_page
 assert response_page.index('ResponseExportFixture 061')<response_page.index('ResponseExportFixture 060')<response_page.index('ResponseExportFixture 012')
@@ -1603,14 +1614,14 @@ _,cleared_narratives=parse(request('/LorkhanServer/ui/narrative_manager.php'))
 assert bulk_diary_title not in cleared_narratives and revised_title in cleared_narratives
 r=json_request(clear_path,'POST',clear_values,csrf); assert r.status==200 and json.loads(r.read())['cleared']==0
 r=request('/LorkhanServer/manage/forms/narrative-delete','POST',{'_csrf':csrf,'narrative_id':narrative_id}); body=r.read().decode(); assert r.status==200 and revised_title not in body,(r.status,r.geturl())
-globals_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+globals_page,_=parse(request('/LorkhanServer/ui/global_settings.php'))
 settings_form=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-save'))
 values=dict(settings_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],rechat_mode='group',
     rechat_allow_actions='1',relationship_enabled='1',relationship_update_chance_percent='75',context_location_blacklist='Balmora',
     auto_lock_profile='1',autofill_custom_profiles='1',autofill_custom_profiles_trigger='25',
     prompt_head='Global roleplay <&> sentinel.',emote_moods='curious, guarded',change_reason='HTTP layered global settings')
 r=request(settings_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'tab=globals-page' in r.geturl(),(r.status,r.geturl(),body)
-globals_page,body=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+globals_page,body=parse(request('/LorkhanServer/ui/global_settings.php'))
 assert '<option value="group" selected>Group</option>' in body and 'name="rechat_allow_actions" value="1" checked' in body and 'name="recent_turn_limit"' not in body and 'name="knowledge_limit"' not in body and 'name="relationship_enabled" value="1" checked' in body and 'name="relationship_update_chance_percent" value="75"' in body and 'name="auto_lock_profile" value="1" checked' in body and 'name="autofill_custom_profiles" value="1" checked' in body and 'name="autofill_custom_profiles_trigger" value="25"' in body
 assert all('<h2>'+section in body for section in ['Prompt &amp; Rechat','Memory','Misc','Translation','Oghma','Context Selections','Global Connectors']) and all(name in body for name in ['auto_lock_profile','autofill_custom_profiles','autofill_custom_profiles_trigger','oghma_enabled','translation_provider','context_location_blacklist','profile_generation_configuration_id','memory_embedding_enabled','memory_summary_enabled','memory_summary_interval']) and not any(name in body for name in ['player_worst_memory_game_days','chim_ai_quest_progression','Background Life Trigger Time'])
 assert all(re.search(r'<(?:input|select)[^>]*name="'+re.escape(name)+r'"[^>]*data-translation-control=',body) for name in ['translation_provider','translation_text','translation_audio','translation_save_text','translation_source_language','translation_target_language','translation_endpoint_url'])
@@ -1626,16 +1637,16 @@ context_values=dict(values); context_values.pop('context_section_world',None); c
 context_values.update(context_detail_npc_goals='1',context_detail_npc_relationships='1')
 context_values.pop('context_detail_npc_moods',None); context_values.pop('context_detail_npc_notes',None)
 r=request(settings_form['action'],'POST',context_values); assert r.status==200,r.status
-_,context_body=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+_,context_body=parse(request('/LorkhanServer/ui/global_settings.php'))
 assert all(('name="context_detail_'+key+'" value="1" checked' in context_body)==enabled for key,enabled in [('npc_goals',True),('npc_relationships',True),('npc_moods',False),('npc_notes',False)])
 assert 'name="context_section_world" value="1" checked' not in context_body and 'name="context_detail_npc_summary" value="1" checked' not in context_body
 r=request(settings_form['action'],'POST',translation_values); invalid_body=r.read().decode()
 assert r.status==422 and 'invalid_translation_activation' in invalid_body,(r.status,invalid_body)
 r=request(settings_form['action'],'POST',dict(translation_values,translation_target_language='de',translation_endpoint_url='https://api.deepl.com/v2/translate')); body=r.read().decode(); assert r.status==200,(r.status,body)
-_,body=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+_,body=parse(request('/LorkhanServer/ui/global_settings.php'))
 assert '<option value="deepl" selected>DeepL</option>' in body and 'name="translation_target_language" data-translation-control="target"' in body and 'value="DE"' in body and '<option value="https://api.deepl.com/v2/translate" selected>Pro account (api.deepl.com)</option>' in body
 r=request(settings_form['action'],'POST',dict(values,translation_provider='none')); assert r.status==200,r.status
-globals_page,body=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+globals_page,body=parse(request('/LorkhanServer/ui/global_settings.php'))
 assert '<option value="none" selected>None</option>' in body and '<option value="https://api-free.deepl.com/v2/translate" selected>Free account (api-free.deepl.com)</option>' in body
 global_import=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-import'))
 global_export_match=re.search(r'/manage/exports/global-settings/([0-9a-f-]{36})\.json',body); assert global_export_match,body
@@ -1690,7 +1701,7 @@ r=preset_request(preset_values); result=json.loads(r.read()); assert r.status==2
 named_id=result['preset_id']; assert any(p['preset_id']==named_id and p['revision']==1 for p in result['presets'])
 unchanged=json.loads(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json').read())
 assert unchanged['settings']==rolled_export['settings'] and unchanged['memory_policies']==rolled_export['memory_policies']
-_,preset_html=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+_,preset_html=parse(request('/LorkhanServer/ui/global_settings.php'))
 assert 'HTTP &lt;named&gt; preset' in preset_html and 'data-preset-operation="overwrite"' in preset_html
 r=preset_request(preset_values); assert r.status==422,r.status
 overwrite=dict(preset_values,operation='overwrite',preset_id=named_id,preset_revision='1',confirm='Overwrite',emote_moods='alert')
@@ -1972,12 +1983,12 @@ playthroughs,_=parse(request('/LorkhanServer/ui/playthrough_manager.php'))
 restore=next(f for f in playthroughs.forms if f['action'].endswith('/forms/playthrough-import'))
 values=dict(restore['fields'],_csrf=csrf,profile_id=profile_id,playthrough_id=playthrough_id,playthrough_json=json.dumps(backup))
 r=request(restore['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/playthrough_manager.php?status=saved'),(r.status,r.geturl(),values,backup['scope'],body)
-characters,body=parse(request('/LorkhanServer/ui/core/character_manager.php'))
+characters,body=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 bio_form=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
 current_profile=json.loads(request('/LorkhanServer/manage/exports/profiles/'+profile_id+'.json').read().decode())
 values=dict(bio_form['fields'],_csrf=csrf,profile_id=profile_id,base_content_json=json.dumps(current_profile['content']),biography='Updated from Character Manager.',change_reason='HTTP biography test',oghma_knowledge_tags='Tribunal; Ashlanders, Tribunal')
 r=request(bio_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
-body=request('/LorkhanServer/ui/core/character_manager.php').read().decode(); assert 'Updated from Character Manager.' in body and 'Preserved personality field.' in body
+body=request('/LorkhanServer/ui/core/npc_master.php').read().decode(); assert 'Updated from Character Manager.' in body and 'Preserved personality field.' in body
 saved_tags=json.loads(request('/LorkhanServer/manage/exports/profiles/'+profile_id+'.json').read().decode())
 assert saved_tags['content']['oghma_knowledge_tags']=='Tribunal, Ashlanders'
 
@@ -2018,7 +2029,7 @@ assert next(row for row in configuration_backup['data']['configurations'] if row
 saved_policy=next(row for row in configuration_backup['data']['configurations'] if row['kind']=='memory_policy')
 assert saved_policy['content']['enabled'] is True and saved_policy['content']['provider_configuration_id']==summary_connector_id
 summary_values.pop('enabled'); r=request(summary_form['action'],'POST',summary_values); assert r.status==200
-characters,_=parse(request('/LorkhanServer/ui/core/character_manager.php'))
+characters,_=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 bio_form=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
 current_profile=json.loads(request('/LorkhanServer/manage/exports/profiles/'+profile_id+'.json').read().decode())
 values=dict(bio_form['fields'],_csrf=csrf,profile_id=profile_id,base_content_json=json.dumps(current_profile['content']),biography='Changed after the configuration backup.',change_reason='HTTP pre-restore mutation')
@@ -2034,7 +2045,7 @@ restored_policy=next(f for f in policy_page.forms if f['action'].endswith('/form
 assert restored_policy['fields']['enabled']=='1' and restored_policy['fields']['provider_configuration_id']==summary_connector_id
 summary_values['provider_configuration_id']=''; r=request(summary_form['action'],'POST',summary_values); assert r.status==200
 r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':summary_connector_id}); assert r.status==200
-body=request('/LorkhanServer/ui/core/character_manager.php').read().decode(); assert 'Updated from Character Manager.' in body and 'Changed after the configuration backup.' not in body
+body=request('/LorkhanServer/ui/core/npc_master.php').read().decode(); assert 'Updated from Character Manager.' in body and 'Changed after the configuration backup.' not in body
 r=request('/LorkhanServer/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':profile_id}); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
 descriptions,body=parse(request('/LorkhanServer/ui/description_manager.php'))
 description_form=next(f for f in descriptions.forms if f['action'].endswith('/forms/description-save'))
@@ -2448,7 +2459,7 @@ assert len(VoiceProvider.llm_requests)==provider_calls_before_routing_save
 
 # System connectors are installation-owned Global Settings, never NPC profile fields.
 for timestamp_enabled in [True, False]:
-    timestamp_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+    timestamp_page,_=parse(request('/LorkhanServer/ui/global_settings.php'))
     timestamp_form=next(f for f in timestamp_page.forms if f['action'].endswith('/forms/global-settings-save'))
     timestamp_values=dict(timestamp_form['fields'],_csrf=csrf,change_reason='HTTP temporal context toggle')
     timestamp_values.pop('context_prompt_timestamp',None)
@@ -2463,7 +2474,7 @@ for timestamp_enabled in [True, False]:
     if timestamp_enabled: timestamp_values['context_inventory_items_descriptions_only']='1'
     timestamp_response=request(timestamp_form['action'],'POST',timestamp_values)
     assert timestamp_response.status==200,(timestamp_response.status,timestamp_response.read().decode())
-    timestamp_saved,timestamp_body=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+    timestamp_saved,timestamp_body=parse(request('/LorkhanServer/ui/global_settings.php'))
     timestamp_fields=next(f['fields'] for f in timestamp_saved.forms if f['action'].endswith('/forms/global-settings-save'))
     assert ('context_prompt_timestamp' in timestamp_fields)==timestamp_enabled,timestamp_enabled
     assert ('context_power_awareness_enabled' in timestamp_fields)==timestamp_enabled,timestamp_enabled
@@ -2471,7 +2482,7 @@ for timestamp_enabled in [True, False]:
     assert ('context_ground_items_descriptions_only' in timestamp_fields)==timestamp_enabled,timestamp_enabled
     assert ('context_inventory_items_descriptions_only' in timestamp_fields)==timestamp_enabled,timestamp_enabled
     assert '<h2>Context</h2>' in timestamp_body and '<h2>Context Selections' in timestamp_body
-global_route_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+global_route_page,_=parse(request('/LorkhanServer/ui/global_settings.php'))
 global_route_form=next(f for f in global_route_page.forms if f['action'].endswith('/forms/global-settings-save'))
 global_route_values=dict(global_route_form['fields'],_csrf=csrf,profile_generation_configuration_id=slot_id,
     relationship_configuration_id=slot_id,change_reason='HTTP global connector ownership')
@@ -2968,7 +2979,7 @@ assert set(stored['content']['actions']['inspect.report'])==set([
     'available_to_narrator','is_activated','parameters_json','metadata','game_function','import_version',
     'script_proxy_program'])
 r=request('/LorkhanServer/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':policy_id,'kind':'action_policy'}); assert r.status==200
-global_generation_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+global_generation_page,_=parse(request('/LorkhanServer/ui/global_settings.php'))
 global_generation_form=next(f for f in global_generation_page.forms if f['action'].endswith('/forms/global-settings-save'))
 r=request(global_generation_form['action'],'POST',dict(global_generation_form['fields'],_csrf=csrf,profile_generation_configuration_id=slot_id,change_reason='HTTP special profile generation route')); assert r.status==200,(r.status,r.read().decode())
 player,text=parse(request('/LorkhanServer/ui/core/player_management.php'))
@@ -3170,7 +3181,7 @@ assert unchecked_preset['settings']['latest_diary_context_enabled'] is False
 assert unchecked_preset['settings']['only_diary_access'] is False
 assert legacy_narrator_export['settings']['only_diary_access'] is True
 assert '<option selected>Text Only</option>' in imported_narrator_body and 'profile_generation_configuration_id' not in imported_narrator_form['fields'],imported_narrator_form['fields']
-global_generation_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+global_generation_page,_=parse(request('/LorkhanServer/ui/global_settings.php'))
 global_generation_form=next(f for f in global_generation_page.forms if f['action'].endswith('/forms/global-settings-save'))
 r=request(global_generation_form['action'],'POST',dict(global_generation_form['fields'],_csrf=csrf,profile_generation_configuration_id='',change_reason='HTTP special profile generation cleanup')); assert r.status==200,(r.status,r.read().decode())
 r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':slot_id}); body=r.read().decode()

@@ -30,6 +30,8 @@ exec timeout --kill-after=5s 600s bwrap \
     --ro-bind "$source_root/scripts/sql-import-reader.py" /reader.py \
     --ro-bind "$source_root/scripts/sql-import-upgrade.php" /upgrade.php \
     --ro-bind "$source_root/lib/Infrastructure/MigrationRunner.php" /MigrationRunner.php \
+    --ro-bind "$source_root/lib/Infrastructure/PlaythroughTablePolicy.php" /PlaythroughTablePolicy.php \
+    --ro-bind "$source_root/data/playthrough-table-policy.json" /data/playthrough-table-policy.json \
     --ro-bind "$source_root/data/migrations" /migrations \
     --setenv PATH /usr/lib/postgresql/15/bin:/usr/bin:/bin --setenv HOME /scratch \
     --setenv LANG C --setenv USER importer --setenv LOGNAME importer \

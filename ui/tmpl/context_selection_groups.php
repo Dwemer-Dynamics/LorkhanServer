@@ -3,19 +3,11 @@ declare(strict_types=1);
 // Shared context labels and help for Global Settings and profile overrides.
 return [
     'Top-Level Sections' => ['sections', [
-        'player_narrator' => ['Player & Narrator', 'Player profile and narrator context.'],
         'world' => ['World', 'Recorded location, weather and world state.'],
-        'people_present' => ['People Present', 'People participating in the current scene.'],
         'nearby_actors' => ['Nearby Actors', 'Details about other nearby characters.'],
         'nearby_items' => ['Nearby Items', 'Items observed around the speaker.'],
         'points_of_interest' => ['Points of Interest', 'Nearby doors, containers and activators.'],
-        'record_descriptions' => ['Record Descriptions', 'Saved descriptions for observed items.'],
         'oghma' => ['Oghma Knowledge', 'Retrieved, authorized world knowledge.'],
-        'relationships' => ['Relationships', 'Saved relationship context.'],
-        'memories' => ['Memories', 'Retrieved memories relevant to the conversation.'],
-        'narratives' => ['Narratives', 'Eligible diary and narrative context.'],
-        'conversation_history' => ['Conversation History', 'Previous dialogue and selected background events.'],
-        'recent_action_results' => ['Recent Action Results', 'Outcomes of recently requested actions.'],
     ]],
     'Character Subsections' => ['details', [
         'npc_summary' => ['<basic_summary>', 'Core background summary or short biography.'],
@@ -28,9 +20,6 @@ return [
         'npc_speech_style' => ['<speech_style>', 'Speaking style and communication habits.'],
         'npc_goals' => ['<goals>', 'Current ambitions, motivations, and long-term aims.'],
         'npc_group' => ['<group>', 'Profile-level group membership prompt fragment.'],
-        'npc_moods' => ['Allowed Moods & Emotes', 'Allowed moods and emotes from the speaker profile.'],
-        'npc_notes' => ['Notes', 'Additional notes from the speaker profile.'],
-        'npc_race_gender' => ['Race & Gender', 'The speaker’s race and gender.'],
     ]],
     'Appearance / State Subsections' => ['details', [
         'npc_appearance' => ['<appearance>', 'Physical appearance and identifying features.'],
@@ -41,10 +30,8 @@ return [
     ]],
     'Nearby Actor Details' => ['details', [
         'nearby_actor_summary' => ['Basic summary', 'Nearby actor profile summary or short biography.'],
-        'nearby_actor_personality' => ['Personality', 'Nearby actors’ personality traits.'],
         'nearby_actor_appearance' => ['Appearance', 'Nearby actor physical appearance and visible traits.'],
         'nearby_actor_equipment' => ['Equipment', 'Nearby actor currently equipped gear and worn items.'],
-        'nearby_actor_occupation' => ['Occupation', 'Nearby actors’ occupations.'],
         'nearby_actor_activity' => ['Current activity', 'What nearby actors are currently doing.'],
         'nearby_actor_power' => ['Power', 'Relative level assessments when Power Awareness is enabled and observed levels are available.'],
     ]],

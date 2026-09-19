@@ -54,12 +54,6 @@ try{
     $products->transaction(function()use($products,$installationId,$localSetup,$db):void{
         $first=$products->saveQuickstartLocalLlm($installationId,$localSetup,0,'2026-09-08T12:00:00Z');
         $id=$first['configuration_id'];
-        $db->exec('SAVEPOINT local_setup_down');
-        try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/096_quickstart_local_llm.down.sql'));throw new RuntimeException('populated Local LLM downgrade accepted');}
-        catch(PDOException $error){
-            $db->exec('ROLLBACK TO SAVEPOINT local_setup_down');
-            if(!str_contains($error->getMessage(),'Cannot remove Local LLM setup'))throw$error;
-        }
 
         if($first['connector']['content']['model']!=='fixture'||$first['connector']['current_revision']!==1)throw new RuntimeException('local setup creation failed');
         $next=$localSetup;unset($next['credential']);$next['server_type']='ollama';$next['scope']='all';$next['disable_streaming']=true;
@@ -241,8 +235,9 @@ $defaultModels=[];$defaultPromptFormat=null;foreach($defaultConfigurations as$co
     if($configuration['name']==='Roleplay Dialogue')$defaultPromptFormat=$content['format']??null;
     if(($content['driver']??null)==='configured')$defaultModels[(string)$configuration['name']]=$content['model']??null;}
 $assert($defaultModels===[
-    'DeepSeek Chat V3.2'=>'deepseek/deepseek-v3.2','GLM 4.7'=>'z-ai/glm-4.7','GLM 5'=>'z-ai/glm-5',
-    'Gemini 2.5 Flash Lite'=>'google/gemini-2.5-flash-lite'],
+    'DeepSeek V4 Flash'=>'deepseek/deepseek-v4-flash','DeepSeek V4 Pro'=>'deepseek/deepseek-v4-pro','GLM 5.2'=>'z-ai/glm-5.2',
+    'Gemini 2.5 Flash Lite'=>'google/gemini-2.5-flash-lite','Gemma 3N E4B'=>'google/gemma-3n-e4b-it',
+    'Mistral Small 3.2 24B'=>'mistralai/mistral-small-3.2-24b-instruct'],
     'new installation did not receive the pinned CHIM LLM connector set: '.json_encode($defaultModels));
 $defaultCore=(new ProductRepository($db))->defaultCoreProfileForInstallation($defaultInstallationId);
 $defaultRouting=$defaultCore['content']['routing']??[];
@@ -254,8 +249,8 @@ $assert(count(array_filter($defaultRouting,static fn(mixed$value,string$key):boo
     &&isset($defaultRouting['tts_configuration_id'],$defaultRouting['prompt_configuration_id'])
     &&!isset($defaultRouting['oghma_configuration_id'],$defaultRouting['profile_generation_configuration_id'],$defaultRouting['relationship_configuration_id'])
     &&($defaultSystemRouting['oghma_configuration_id']??null)===($defaultRouting['llm_fast_configuration_id']??null)
-    &&($defaultSystemRouting['profile_generation_configuration_id']??null)===($defaultRouting['llm_fast_configuration_id']??null)
-    &&($defaultSystemRouting['relationship_configuration_id']??null)===($defaultRouting['llm_fast_configuration_id']??null),
+    &&($defaultSystemRouting['profile_generation_configuration_id']??null)===($defaultRouting['llm_configuration_id']??null)
+    &&$products->getRevisioned('provider',$defaultSystemRouting['relationship_configuration_id'])['content']['model']==='mistralai/mistral-small-3.2-24b-instruct',
     'new installation routing was not split between Core Profiles and Global Settings');
 $defaultPrompt=$db->prepare("SELECT p.prompt_key,p.default_prompt,p.custom_prompt,p.description FROM prompts p WHERE p.installation_id=:installation AND p.prompt_key='roleplay_dialogue'");
 $defaultPrompt->execute(['installation'=>$defaultInstallationId]);$defaultPromptRow=$defaultPrompt->fetch();
@@ -394,7 +389,7 @@ $portableBiographyRow=['content_file'=>'HTTP Portability.esp','record_id'=>'port
     'core'=>'A careful guide with strong local boundaries.','biography'=>'Portable biography v1.','appearance'=>'Travel-worn clothes.',
     'personality'=>'Patient and observant.','relationships'=>'{"Player":{"aff":25}}','occupation'=>'Guide',
     'skills'=>'Local geography.','speech_style'=>'Direct and calm.','goals'=>'Help respectful travellers.',
-    'oghma_tags'=>'Balmora, common','voice_id'=>'mw_dark_elf_female','gender'=>'Female','race'=>'Dark Elf'];
+    'oghma_tags'=>'Balmora, common','voice_id'=>'mw_dark_elf_female','gender'=>'Female','race'=>'Dark Elf','tts_filter_preset'=>'warm'];
 $portableSaved=$biographyService->importBiographyTemplates($installationId,[$portableBiographyRow]);
 $portableTemplateId=$portableSaved[0]['profile_id'];$portableTemplate=$products->getRevisioned('profile',$portableTemplateId);
 $portableIdentity=json_decode((string)$portableTemplate['actor_identity'],true,16,JSON_THROW_ON_ERROR);
@@ -406,6 +401,7 @@ $portableContent=$portableTemplate['content'];$portableContent['notes']='Preserv
 $portableContent['routing']=['llm_configuration_id'=>$profileModelSlot['configuration_id']];
 $products->revise('profile',$portableTemplateId,$portableContent,'manual template settings',$now);
 $portableBiographyRow['biography']='Portable biography v2.';$portableBiographyRow['voice_id']='';
+unset($portableBiographyRow['tts_filter_preset']); // Older CSVs must retain the template's chosen filter.
 $portableSaved=$biographyService->importBiographyTemplates($installationId,[$portableBiographyRow]);
 $portableTemplate=$products->getRevisioned('profile',$portableTemplateId);
 $portableExport=array_values(array_filter($products->customBiographyTemplates($installationId),
@@ -415,7 +411,7 @@ $assert($portableSaved[0]['created']===false&&$portableSaved[0]['revision']===3
     &&($portableTemplate['content']['notes']??null)==='Preserve this nonportable field.'
     &&($portableTemplate['content']['routing']['llm_configuration_id']??null)===$profileModelSlot['configuration_id']
     &&!isset($portableTemplate['content']['voice'])&&count($portableExport)===1
-    &&$portableExport[0]['oghma_tags']==='Balmora',
+    &&$portableExport[0]['oghma_tags']==='Balmora'&&$portableExport[0]['tts_filter_preset']==='warm',
     'biography re-import did not revise the same template while preserving nonportable settings');
 $portableTarget=['kind'=>'npc','record_id'=>'portable_biography_npc','refnum'=>['index'=>99,'content_file'=>0],
     'content_file'=>'HTTP Portability.esp','cell'=>['kind'=>'interior','name'=>'Balmora'],
@@ -427,7 +423,7 @@ $portableProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessio
 $portableProfile=$products->getRevisioned('profile',$portableProfileId);
 $portableActorIdentity=json_decode((string)$portableProfile['actor_identity'],true,16,JSON_THROW_ON_ERROR);
 $assert($portableProfileId!==$portableTemplateId&&($portableProfile['content']['biography']??null)==='Portable biography v2.'
-    &&($portableActorIdentity['kind']??null)==='npc',
+    &&($portableActorIdentity['kind']??null)==='npc'&&($portableProfile['content']['tts_filter_preset']??null)==='warm',
     'first-seen OpenMW actor did not inherit the exact imported biography template');
 // Reset reusable biographies without deleting instantiated NPCs or another installation's templates.
 $db->beginTransaction();
@@ -468,7 +464,7 @@ $factoryRow=['npc_name'=>'factory_bosmer','oghma_knowledge_tags'=>'','core'=>'Fa
     'skills'=>'* Navigating the Bitter Coast\n* Identifying safe wilderness paths\n* Watching for nearby danger',
     'speechstyle'=>'He speaks in brief, practical observations with a cautious tone.',
     'goals'=>'* Keep travelers safe\n* Protect the paths near Seyda Neen\n* Avoid needless conflict',
-    'voiceid'=>null,'gender'=>'male','race'=>'Wood Elf','refid'=>'factory_bosmer'];
+    'voiceid'=>null,'gender'=>'male','race'=>'Wood Elf','refid'=>'factory_bosmer','tts_filter_preset'=>'warm'];
 file_put_contents($factoryBiographies,json_encode([$factoryRow],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));
 file_put_contents($factoryManifest,json_encode(['format'=>'lorkhan.morrowind-biography-preflight.v1','selected_count'=>1,
     'completed_count'=>1,'failed_count'=>0,'model'=>'fixture/model','builder_sha256'=>hash('sha256','fixture builder'),
@@ -484,7 +480,8 @@ $factoryProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$session
     'payload'=>['target'=>$factoryTarget]],$factoryVoice,$now);
 $factoryProfile=$products->getRevisioned('profile',$factoryProfileId);
 $assert(($factoryProfile['content']['biography']??null)===$factoryRow['npc_static_bio']
-    &&($factoryProfile['content']['speech_style']??null)===$factoryRow['speechstyle'],
+    &&($factoryProfile['content']['speech_style']??null)===$factoryRow['speechstyle']
+    &&($factoryProfile['content']['tts_filter_preset']??null)==='warm',
     'exact mod-source identity did not seed a typed profile from the active CHIM biography catalog');
 unlink($factoryBiographies);unlink($factoryManifest);rmdir($factoryDirectory);
 $automaticTarget=['kind'=>'npc','record_id'=>'automatic_bosmer','refnum'=>['index'=>101,'content_file'=>0],
@@ -604,10 +601,6 @@ $actionOnlyInput=$advancedInput;$actionOnlyInput['description']='Action only';$a
 $actionOnly=$products->saveProfileAssignmentRule($actionOnlyInput,$now);
 $listedActionOnly=array_values(array_filter($products->profileAssignmentRulesPlan($installationId)['rules'],static fn(array $row):bool=>$row['rule_id']===$actionOnly['rule_id']))[0];
 $assert($listedActionOnly['core_profile_id']==='','action-only rule missing from editor list');
-$db->beginTransaction();$db->exec('SAVEPOINT action_rule_down');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/104_action_only_profile_rules.down.sql'));$assert(false,'action-only rule downgrade discarded state');}
-catch(PDOException $error){$db->exec('ROLLBACK TO SAVEPOINT action_rule_down');$assert(str_contains($error->getMessage(),'Assign or remove action-only'),'wrong action-only downgrade guard');}
-$db->rollBack();
 
 $advancedTurn=['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],'payload'=>['target'=>$advancedTarget,'context'=>$automaticContext]];
 $advancedProfileId=$products->ensureMorrowindActorProfile($advancedTurn,$automaticVoice,$now);
@@ -659,7 +652,7 @@ $secondPlacementProfile=$products->getRevisioned('profile',$secondPlacementProfi
 $assert($secondPlacementProfileId!==$automaticProfileId
     &&str_contains((string)($secondPlacementProfile['content']['oghma_knowledge_tags']??''),'west_gash'),
     'generic NPC bases at different RefNums did not receive independent regional profiles');
-$movedTarget=$automaticTarget;$movedTarget['cell']=['kind'=>'interior','name'=>'Balmora, Guild of Mages'];
+$movedTarget=$automaticTarget;$movedTarget['cell']=['kind'=>'interior','name'=>'Balmora, Guild of Mages'];$movedTarget['refnum']['content_file']=7;
 $movedProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
     'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
     'payload'=>['target'=>$movedTarget]],$automaticVoice,$now);
@@ -668,6 +661,37 @@ $assert($movedProfileId===$automaticProfileId
     &&str_contains((string)($movedProfile['content']['oghma_knowledge_tags']??''),'bitter_coast')
     &&!str_contains((string)($movedProfile['content']['oghma_knowledge_tags']??''),'west_gash'),
     'walking into another region rewrote an NPC immutable home locality');
+$db->exec('SAVEPOINT reference_group_parity');
+$referenceGroup=['group_key'=>'test-ref-alias','name'=>'Test alternate reference','enabled'=>true,
+    'canonical_ref'=>\LorkhanServer\Domain\ProfileId::reference($automaticTarget),
+    'aliases'=>[\LorkhanServer\Domain\ProfileId::reference($secondPlacement)]];
+$products->saveReferenceGroup($installationId,$referenceGroup);
+$groupedPlacementId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'payload'=>['target'=>$secondPlacement]],$automaticVoice,$now);
+$assert($groupedPlacementId===$automaticProfileId,'explicit alternate reference did not share canonical profile');
+try{$products->saveReferenceGroup($installationId,array_replace($referenceGroup,['group_key'=>'test-ref-overlap']));throw new RuntimeException('overlapping reference group accepted');}
+catch(InvalidArgumentException $error){$assert($error->getMessage()==='reference_already_in_group','reference group overlap not rejected');}
+$products->saveReferenceGroup($installationId,array_replace($referenceGroup,['enabled'=>false]));
+$independentPlacementId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'payload'=>['target'=>$secondPlacement]],$automaticVoice,$now);
+$assert($independentPlacementId===$secondPlacementProfileId,'disabled group did not restore independent profile');
+$products->deleteReferenceGroup($installationId,'test-ref-alias');
+$assert(!in_array('test-ref-alias',array_column($products->referenceGroups($installationId),'group_key'),true),'reference group delete failed');
+$groups=new \LorkhanServer\Infrastructure\ReferenceGroupRepository($db);
+$namedGroup=$groups->save($installationId,['name'=>'Named actors','match_name'=>$automaticTarget['display_name'],
+    'canonical_ref'=>\LorkhanServer\Domain\ProfileId::reference($automaticTarget),'enabled'=>true]);
+$sameName=$automaticTarget;$sameName['refnum']['index']=4294000000;
+$assert(\LorkhanServer\Domain\ProfileId::reference($groups->resolve($installationId,$sameName))===$namedGroup['canonical_ref'],
+    'explicit name group did not map a new reference');
+$otherName=$sameName;$otherName['display_name']='Unrelated actor';
+$assert($groups->resolve($installationId,$otherName)===$otherName,'name group captured an unrelated actor');
+$groups->save($installationId,array_replace($namedGroup,['enabled'=>false]));
+$assert($groups->resolve($installationId,$sameName)===$sameName,'disabled name group still matched');
+$groups->delete($installationId,$namedGroup['group_key']);
+$assert($groups->resolve($installationId,$sameName)===$sameName,'deleted name group still matched');
+$db->exec('ROLLBACK TO SAVEPOINT reference_group_parity');
 $legacyLocalityTarget=$automaticTarget;$legacyLocalityTarget['record_id']='legacy_locality_bosmer';
 $legacyLocalityTarget['refnum']['index']=104;$legacyLocalityTarget['cell']=['kind'=>'interior','name'=>'Balmora, Guild of Mages'];
 $legacyLocality=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Legacy Locality Bosmer',
@@ -695,7 +719,7 @@ $rediscoveredProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$se
     'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
     'payload'=>['target'=>$rediscoveredTarget]],$automaticVoice,$now);
 $rediscoveredProfile=$products->getRevisioned('profile',$rediscoveredProfileId);
-$assert($rediscoveredProfileId!==$deletedProfile['profile_id']&&$rediscoveredProfile['name']==='Rediscovered Bosmer',
+$assert($rediscoveredProfileId===$deletedProfile['profile_id']&&$rediscoveredProfile['name']==='Rediscovered Bosmer',
     'soft-deleted NPC name prevented automatic rediscovery');
 $legacyContent=$automaticProfile['content'];$legacyContent['voice']=['id'=>'automatic_bosmer','language'=>'en'];
 $legacyContent['management']['locked']=true;$products->revise('profile',$automaticProfileId,$legacyContent,'legacy automatic voice fixture',$now);
@@ -1552,7 +1576,7 @@ $moodProjectionStatement=$db->prepare('SELECT e.data,m.payload,se.payload AS sou
 $moodProjectionStatement->execute(['turn'=>$turn['turn_id']]);$moodProjection=$moodProjectionStatement->fetch();
 $moodProjectionPayload=$moodProjection?json_decode((string)$moodProjection['payload'],true,64,JSON_THROW_ON_ERROR):[];
 $moodSourcePayload=$moodProjection?json_decode((string)$moodProjection['source_payload'],true,64,JSON_THROW_ON_ERROR):[];
-$traceStatement=$db->prepare('SELECT core_profile_id,core_profile_revision,effective_settings_sha256,settings_sources FROM prompt_traces WHERE turn_id=:turn');
+$traceStatement=$db->prepare('SELECT algorithm,core_profile_id,core_profile_revision,effective_settings_sha256,settings_sources FROM prompt_traces WHERE turn_id=:turn');
 $traceStatement->execute(['turn'=>$turn['turn_id']]);$layerTrace=$traceStatement->fetch();
 $traceSources=$layerTrace?json_decode((string)$layerTrace['settings_sources'],true,64,JSON_THROW_ON_ERROR):[];
 $promptSectionStatement=$db->prepare('SELECT section_order,section_key,inclusion_reason,source_refs,source_sha256 FROM prompt_trace_sections WHERE prompt_trace_id=(SELECT prompt_trace_id FROM prompt_traces WHERE turn_id=:turn) ORDER BY section_order');
@@ -1685,11 +1709,12 @@ try{
 $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&is_array($promptMessages)&&array_is_list($promptMessages)&&count($promptMessages)>=2
     &&($promptMessages[0]['role']??null)==='system'
-    &&str_contains((string)($promptMessages[0]['content']??''),'# Roleplay Context')
-    &&str_contains((string)($promptMessages[0]['content']??''),'- **Roleplay Instructions:**')
-    &&str_contains((string)($promptMessages[0]['content']??''),'## NPC Context')
-    &&str_contains((string)($promptMessages[0]['content']??''),'- **General Instructions:**')
-    &&($snapshot['trace']['algorithm']??null)==='chim-compact-roleplay-prompt-v3-markdown'
+    &&str_contains((string)($promptMessages[0]['content']??''),'# Roleplay Instructions')
+    &&str_contains((string)($promptMessages[0]['content']??''),'# World')
+    &&str_contains((string)($promptMessages[0]['content']??''),'# Character')
+    &&str_contains((string)($promptMessages[0]['content']??''),'# General Instructions')
+    &&($snapshot['trace']['algorithm']??null)==='lorkhan-markdown'
+    &&($layerTrace['algorithm']??null)==='lorkhan-markdown'
     &&($promptMessages[array_key_last($promptMessages)]['role']??null)==='user'
     &&str_contains((string)($promptMessages[array_key_last($promptMessages)]['content']??''),'Please follow me. (Player answers in a playful voice.)')
     &&str_contains($promptHistoryJson,'[Background dialogue] Fargoth: Ambient captured sentinel.')
@@ -1955,6 +1980,17 @@ $relationDate=$db->prepare("UPDATE turns SET context=jsonb_set(context,'{world}'
     ||jsonb_build_object('calendar',CAST(:calendar AS jsonb))) WHERE turn_id=:id");
 $relationDate->execute(['id'=>$turn['turn_id'],'calendar'=>'{"year":427,"month":7,"day":16,"hour":12}']);
 $db->exec('SAVEPOINT relationship_timeline_seed');
+$retentionGlobal=$products->globalSettingsForInstallation($installationId);
+$retentionContent=$retentionGlobal['content'];
+$retentionContent['relationship']['never_clear_relationship_data']=true;
+$products->revise('global_settings',$retentionGlobal['configuration_id'],$retentionContent,'relationship retention fixture',$now);
+$assert($relationshipTimeline->invalidate($relationLoad)['relationships']===0,'never-clear setting rolled back relationship data');
+$relationRead->execute(['id'=>$relationId]);
+$assert($relationRead->fetch()['deleted_at']===null,'never-clear setting retired automatic relationship');
+$products->deleteRelationship($relationId,$now,(int)$relationBefore['revision']);
+$relationRead->execute(['id'=>$relationId]);
+$assert($relationRead->fetch()['deleted_at']!==null,'never-clear setting blocked explicit manual deletion');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_timeline_seed');
 $relationCounts=$relationshipTimeline->invalidate($relationLoad);
 $relationRead->execute(['id'=>$relationId]);$relationRemoved=$relationRead->fetch();
 $assert($relationCounts['relationships']===1&&$relationRemoved['deleted_at']!==null
@@ -1962,6 +1998,42 @@ $assert($relationCounts['relationships']===1&&$relationRemoved['deleted_at']!==n
     'loaded save retained an automatic-only relationship or decreased its revision: '.json_encode([$relationCounts,$relationRemoved['revision'],$relationBefore['revision'],$relationRemoved['deleted_at'],$products->getRevisioned('profile',$actorProfile['profile_id'])['actor_identity']]));
 $assert($relationshipTimeline->invalidate($relationLoad)['relationships']===0,'repeated load reapplied relationship retirement');
 $db->exec('ROLLBACK TO SAVEPOINT relationship_timeline_seed');
+// Only player-owned worst memories fade, measured in game days from the text change.
+$db->exec('SAVEPOINT relationship_worst_lifespan');
+$db->prepare("UPDATE profiles SET actor_identity=jsonb_set(actor_identity,'{kind}','\"player\"'::jsonb) WHERE profile_id=:id")
+    ->execute(['id'=>$actorProfile['profile_id']]);
+$db->prepare("UPDATE relationship_records SET actor_identity=CAST(:identity AS jsonb) WHERE relationship_id=:id")
+    ->execute(['id'=>$relationId,'identity'=>json_encode($turn['payload']['target'])]);
+$relationRead->execute(['id'=>$relationId]);$worstBase=$relationRead->fetch();
+$worstInput=['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'relationship_id'=>$relationId,'expected_revision'=>(int)$worstBase['revision'],'disposition'=>21,'affinity'=>19,
+    'details'=>['worst'=>'An insult','best'=>'A gift'],'source_mode'=>'manual'];
+$worstSaved=$products->setRelationship($worstInput,$now);
+$worstScope=array_intersect_key($worstInput,array_flip(['installation_id','profile_id','playthrough_id']));
+$worstRead=static function()use($products,$worstScope,$relationId):array{
+    foreach($products->relationships($worstScope)as$row)if($row['relationship_id']===$relationId)return$row;
+    throw new RuntimeException('worst memory fixture missing');
+};
+$assert($worstRead()['details']['worst']==='An insult','fresh player worst memory expired');
+$relationDate->execute(['id'=>$turn['turn_id'],'calendar'=>'{"year":427,"month":7,"day":22,"hour":12}']);
+$assert($worstRead()['details']['worst']==='An insult','player worst memory expired before seven game days');
+$relationDate->execute(['id'=>$turn['turn_id'],'calendar'=>'{"year":427,"month":7,"day":23,"hour":12}']);
+$assert($worstRead()['details']['worst']===''&&$worstRead()['details']['best']==='A gift','worst lifespan did not expire only worst text');
+$worstInput['expected_revision']=$worstSaved['revision'];$worstInput['affinity']=20;
+$products->setRelationship($worstInput,$now);
+$assert($worstRead()['details']['worst']==='','unrelated relationship update renewed worst memory age');
+$retentionContent=$retentionGlobal['content'];$retentionContent['relationship']['worst_memory_lifespan_days']=0;
+$products->revise('global_settings',$retentionGlobal['configuration_id'],$retentionContent,'worst memory never forget fixture',$now);
+$assert($worstRead()['details']['worst']==='An insult','zero lifespan did not retain worst memory');
+$retentionContent['relationship']['worst_memory_lifespan_days']=7;
+$products->revise('global_settings',$retentionGlobal['configuration_id'],$retentionContent,'worst memory lifespan fixture',$now);
+$relationDate->execute(['id'=>$turn['turn_id'],'calendar'=>'{"year":427,"month":7,"day":15,"hour":12}']);
+$assert($worstRead()['details']['worst']==='An insult','loading an earlier game date expired a future worst memory');
+$relationDate->execute(['id'=>$turn['turn_id'],'calendar'=>'{"year":427,"month":7,"day":23,"hour":12}']);
+$db->prepare("UPDATE profiles SET actor_identity=jsonb_set(actor_identity,'{kind}','\"npc\"'::jsonb) WHERE profile_id=:id")
+    ->execute(['id'=>$actorProfile['profile_id']]);
+$assert($worstRead()['details']['worst']==='An insult','NPC to NPC worst memory expired');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_worst_lifespan');
 $relationManual=$products->setRelationship(['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],
     'playthrough_id'=>$session['playthrough_id'],'relationship_id'=>$relationId,'expected_revision'=>(int)$relationBefore['revision'],
     'disposition'=>21,'affinity'=>19,'custom_info'=>'Keep my manual canon','details'=>['note'=>'Manual relationship'],
@@ -2054,11 +2126,6 @@ $db->prepare("UPDATE durable_jobs SET state='queued',completed_at=NULL,next_run_
 $assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===1
     &&(int)$db->query('SELECT count(*) FROM relationship_evaluation_results')->fetchColumn()===1,
     'a retried job reapplied an already committed relationship receipt');
-$db->exec('SAVEPOINT relationship_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/064_relationship_evaluation_results.down.sql'));
-    throw new RuntimeException('relationship downgrade discarded receipts');}
-catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship evaluation'),
-    'unexpected relationship downgrade error');$db->exec('ROLLBACK TO SAVEPOINT relationship_downgrade');}
 $db->exec('ROLLBACK TO SAVEPOINT relationship_queued');
 $disabledRelationshipContent=$relationshipContent;$disabledRelationshipContent['relationship']['enabled']=false;
 $products->revise('global_settings',$relationshipGlobal['configuration_id'],$disabledRelationshipContent,'disable queued relationship',$now);
@@ -2230,9 +2297,6 @@ foreach(['installation_id','profile_id','playthrough_id'] as $previewScopeField)
     $assert($builds->draft(array_replace($buildScope,[$previewScopeField=>$newUuid(5780)]),$buildJob['job_id'])===null,'preview escaped scope');
 $db->prepare("UPDATE durable_jobs SET state='queued',completed_at=NULL,next_run_at=clock_timestamp() WHERE job_id=:id")->execute(['id'=>$buildJob['job_id']]);
 $assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1&&$builds->draft($buildScope,$buildJob['job_id'])===$preview,'preview reran on retry');
-$db->exec('SAVEPOINT preview_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/095_relationship_build_drafts.down.sql'));throw new RuntimeException('draft was discarded on downgrade');}
-catch(PDOException $error){$assert(str_contains($error->getMessage(),'Review and remove relationship build drafts'),'unexpected preview downgrade error');$db->exec('ROLLBACK TO SAVEPOINT preview_downgrade');}
 $db->exec('ROLLBACK TO SAVEPOINT relationship_preview');$buildProvider->calls=0;
 $db->exec('SAVEPOINT history_queued');
 $assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1,'offline history build did not run at chance zero');
@@ -2265,11 +2329,6 @@ $assert($builds->enqueue($buildScope,$buildRequest,100,$buildDirection)['job_id'
 $db->prepare("UPDATE durable_jobs SET state='queued',completed_at=NULL,next_run_at=clock_timestamp() WHERE job_id=:id")
     ->execute(['id'=>$buildJob['job_id']]);
 $assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1,'committed history receipt was reapplied on retry');
-$db->exec('SAVEPOINT history_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/065_relationship_build_results.down.sql'));
-    throw new RuntimeException('history downgrade discarded receipts');}
-catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship build'),'unexpected history downgrade error');
-    $db->exec('ROLLBACK TO SAVEPOINT history_downgrade');}
 $db->exec('ROLLBACK TO SAVEPOINT history_queued');
 $buildProvider->during=static function()use($db,$historyDelivery):void{
     $db->prepare('UPDATE eventlog_metadata SET suppressed_at=clock_timestamp() WHERE projection_key=:key')
@@ -2430,11 +2489,6 @@ $conversionWorker();
 $assert($products->relationships($conversionRecordScope)===$beforeConversion
     &&(int)$db->query('SELECT count(*) FROM relationship_conversion_results')->fetchColumn()===$receiptCount,
     'an invented target allowed a partial profile-text conversion');
-$db->exec('SAVEPOINT conversion_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/067_relationship_text_conversion.down.sql'));
-    throw new RuntimeException('conversion downgrade discarded receipts');}
-catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship conversion'),
-    'unexpected conversion downgrade error');$db->exec('ROLLBACK TO SAVEPOINT conversion_downgrade');}
 $db->rollBack();
 // Exercise prompt privacy against real source projections without altering later turn fixtures.
 $db->beginTransaction();
@@ -2515,16 +2569,6 @@ $assert(!in_array($ownedRelationship['relationship_id'],array_column($currentRel
 $historyRows=array_values(array_filter($relationshipUi->rows('relationship_logs'),static fn(array$row):bool=>$row['relationship_id']===$ownedRelationship['relationship_id']));
 $assert(!str_contains(json_encode($historyRows,JSON_THROW_ON_ERROR),'PLAYER PRIVATE RELATIONSHIP NOTE'),
     'private relationship text was copied into audit history');
-$db->exec('SAVEPOINT relationship_details_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/089_relationship_details.down.sql'));
-    throw new RuntimeException('downgrade discarded saved relationship details');}
-catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove saved relationship details'),
-    'unexpected relationship details downgrade error');$db->exec('ROLLBACK TO SAVEPOINT relationship_details_downgrade');}
-$db->exec('SAVEPOINT custom_info_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/066_relationship_custom_info.down.sql'));
-    throw new RuntimeException('downgrade discarded deleted relationship notes');}
-catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove player-authored relationship Custom Info'),
-    'unexpected Custom Info downgrade error');$db->exec('ROLLBACK TO SAVEPOINT custom_info_downgrade');}
 $assert(count($historyRows)===3&&($historyRows[0]['after_value']['deleted']??false)===true
     &&$historyRows[0]['before_value']['revision']===2&&$historyRows[1]['after_value']['disposition']===31
     &&$historyRows[1]['after_value']['relationship_type']==='trusted_companion',
@@ -2611,11 +2655,6 @@ $legacyRows=$products->exportScope($legacyRestore['scope'])['relationships'];
 $assert(count($legacyRows)===1&&$legacyRows[0]['actor_identity']['record_id']==='legacy_restore'
     &&$legacyRows[0]['custom_info']==='legacy private note'&&$legacyRows[0]['relationship_type']==='neutral',
     'legacy relationship restore was not stable and idempotent');
-$db->exec('SAVEPOINT relationship_type_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/068_relationship_types.down.sql'));
-    throw new RuntimeException('relationship type downgrade discarded custom types');}
-catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove saved non-neutral relationship types'),
-    'unexpected relationship type downgrade error');$db->exec('ROLLBACK TO SAVEPOINT relationship_type_downgrade');}
 $db->exec('ROLLBACK TO SAVEPOINT custom_info_restore');
 $assert(str_contains(json_encode($relationshipPrompt['provider_input'],JSON_THROW_ON_ERROR),'Saved the traveller'), 'relationship detail missing from AI prompt and trace');
 $relationshipSources=array_values(array_filter($relationshipPrompt['trace']['sources'],
@@ -2874,11 +2913,30 @@ try {
             'mode'=>'profile_evolution','playthrough_id'=>$turn['playthrough_id'],'source_turn_ids'=>$sources];
         $generatedJob->execute(['id'=>$jobId,'key'=>$jobId,'token'=>\LorkhanServer\Infrastructure\Uuid::v4(),'payload'=>json_encode($jobPayload)]);
         $generatedContent=$current['content'];$generatedContent['personality']='GENERATED PROFILE '.$generationIndex;
+        $generatedContent['relationships']='GENERATED RELATIONSHIPS '.$generationIndex;
         $assert($products->reviseGeneratedProfileIfCurrent($actorProfile['profile_id'],$current['current_revision'],$generatedContent,
             'reason is not provenance',gmdate('c'),$sources,$jobId,1),'leased automatic profile revision was not published');
     }
     $generatedHead=$products->getRevisioned('profile',$actorProfile['profile_id']);
     $timeline=new \LorkhanServer\Infrastructure\LoadedSaveTimeline($db);
+    $db->exec('SAVEPOINT timeline_high_water');
+    foreach($timelineTurns as$index=>$row){
+        $date=['year'=>999,'month'=>7,'day'=>$index===0?20:18,'hour'=>12];
+        $db->prepare("UPDATE turns SET context=jsonb_set(context,'{world,calendar}',CAST(:date AS jsonb)),accepted_at=clock_timestamp() WHERE turn_id=:id")
+            ->execute(['date'=>json_encode($date),'id'=>$row['turn_id']]);
+    }
+    $assert($timeline->highWaterCalendar($installationId,$turn['playthrough_id'])['day']===20,'rollback clock used latest arrival instead of highest valid date');
+    $assert($timeline->highWaterCalendar($installationId,Uuid::v4())===null,'rollback clock included another playthrough');
+    $db->exec('ROLLBACK TO SAVEPOINT timeline_high_water');
+    $db->exec('SAVEPOINT profile_relationship_retention');
+    $retentionGlobal=$products->globalSettingsForInstallation($installationId);
+    $retentionContent=$retentionGlobal['content'];$retentionContent['relationship']['never_clear_relationship_data']=true;
+    $products->revise('global_settings',$retentionGlobal['configuration_id'],$retentionContent,'profile relationship retention fixture',$now);
+    $timeline->invalidate($load);
+    $retainedProfile=$products->getRevisioned('profile',$actorProfile['profile_id']);
+    $assert($retainedProfile['content']['relationships']==='GENERATED RELATIONSHIPS 2'
+        &&$retainedProfile['content']['personality']==='GENERATED PROFILE 0','relationship retention prevented unrelated profile rollback or lost relationships');
+    $db->exec('ROLLBACK TO SAVEPOINT profile_relationship_retention');
     foreach(['manual','locked','other_playthrough','unknown','player','narrator','creature']as$boundary){
         $db->exec('SAVEPOINT profile_boundary_probe');
         if($boundary==='manual')$products->revise('profile',$actorProfile['profile_id'],$generatedHead['content'],'manual edit',gmdate('c'));
@@ -3039,6 +3097,23 @@ $assert($products->promptContext($memoryProbe,$memoryNow)['history']===[], 'Core
 $assert((int)$db->query('SELECT count(*) FROM eventlog')->fetchColumn()===$eventCountBefore,'profile context filtering must not delete event history');
 $db->exec('ROLLBACK TO SAVEPOINT profile_event_filter_probe');
 $assert($products->promptContext($memoryProbe,$memoryNow)['history']===$limitedHistory,'removing Core event filter restores inherited history');
+$db->exec('SAVEPOINT custom_event_filter_probe');
+$customEvent=$db->prepare("SELECT rowid FROM eventlog_metadata WHERE source_event_id=:source AND projection_kind='turn'");
+$customEvent->execute(['source'=>$sharedSource]);$customEventRow=$customEvent->fetchColumn();
+$db->prepare("UPDATE eventlog SET type='custom_parity_event',data='CUSTOM EVENT PARITY SENTINEL' WHERE rowid=:rowid")->execute(['rowid'=>$customEventRow]);
+$filteredContent=$limitedContent;unset($filteredContent['settings_overrides']['context']['event_types']);
+$filteredContent['settings_overrides']['context']['event_types_excluded']=[];
+$products->revise('core_profile',$actorCoreProfile['core_profile_id'],$filteredContent,'empty exclusions include custom events',$memoryNow);
+$assert(in_array('event:'.$customEventRow,array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
+    'empty exclusion filter did not include a witnessed custom event');
+$assert(str_contains((new PromptAssembler())->assemble($memoryProbe,$products->promptContext($memoryProbe,$memoryNow))['provider_input']['_assembled_prompt'],
+    'CUSTOM EVENT PARITY SENTINEL'),'custom event text was lost before prompt assembly');
+$filteredContent['settings_overrides']['context']['event_types_excluded']=['custom_parity_event'];
+$products->revise('core_profile',$actorCoreProfile['core_profile_id'],$filteredContent,'exclude custom event',$memoryNow);
+$assert(!in_array('event:'.$customEventRow,array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
+    'checked custom event was not excluded from history');
+$assert((int)$db->query('SELECT count(*) FROM eventlog')->fetchColumn()===$eventCountBefore,'custom exclusion deleted event history');
+$db->exec('ROLLBACK TO SAVEPOINT custom_event_filter_probe');
 $limitedTurns=array_values(array_unique(array_column(array_column($limitedHistory,'content'),'turn_id')));
 $assert($limitedTurns===[$sharedTurn]&&count($limitedHistory)===2,
     'profile recent-turn limit must count one conversation turn with both input and world context');
@@ -5065,7 +5140,7 @@ $dragonRoot=sys_get_temp_dir().'/lorkhan-dragon-'.bin2hex(random_bytes(8));
 $dragonConfig=['database_dsn'=>$dsn,'database_user'=>getenv('LORKHAN_TEST_DB_USER')?:'',
     'database_password'=>getenv('LORKHAN_TEST_DB_PASSWORD')?:'','backup_storage_path'=>$dragonRoot];
 $dragonCapture=new \LorkhanServer\Infrastructure\DragonBreakSnapshot($dragonConfig);
-$dragonCount=static fn():int=>(int)$db->query("SELECT count(*) FROM backup_records WHERE jsonb_exists(scope,'dragon_break')")->fetchColumn();
+$dragonCount=static fn():int=>(int)$db->query("SELECT count(*) FROM playthrough_saves WHERE kind='dragon_break'")->fetchColumn();
 $dragonBefore=$dragonCount();
 try {
     $under=$dragonMessage;$under['loaded_save']['day']=17;$dragonCapture->capture($under);
@@ -5084,19 +5159,12 @@ try {
     $assert($dragonCount()===$dragonBefore+1,'three-day rollback did not capture a real database snapshot');
     $dragonCapture->capture($dragonMessage);
     $assert($dragonCount()===$dragonBefore+1,'repeated loaded-save snapshot was not deduplicated');
-    $dragonRecord=$db->query("SELECT backup_id,scope FROM backup_records WHERE jsonb_exists(scope,'dragon_break') ORDER BY created_at DESC LIMIT 1")->fetch();
-    $dragonScope=json_decode($dragonRecord['scope'],true,64,JSON_THROW_ON_ERROR);
-    $dragonPath=(new \LorkhanServer\Infrastructure\DatabaseSqlBackup($dragonConfig))->path($dragonRecord['backup_id']);
-    $assert(is_file($dragonPath.'.dump')&&filesize($dragonPath)>0
-        &&str_starts_with($dragonScope['snapshot']['name'],'Dragon Break ('),'automatic snapshot archive or stored presentation missing');
-    $dragonSql=(string)file_get_contents($dragonPath);
-    $assert(preg_match('/COPY lorkhan_internal\.sessions \(([^)]+)\) FROM stdin;\n(.*?)\n\\\\\./s',$dragonSql,$sessionCopy)===1,
-        'snapshot lacks the native session COPY data');
-    $sessionColumns=explode(', ',$sessionCopy[1]);$capturedOldState=null;
-    foreach(explode("\n",$sessionCopy[2]) as $line){
-        $values=explode("\t",$line);
-        if(($values[array_search('session_id',$sessionColumns,true)]??null)===$dragonCurrent)
-            $capturedOldState=$values[array_search('state',$sessionColumns,true)]??null;
+    $dragonRecord=$db->query("SELECT save_id,name,document FROM playthrough_saves WHERE kind='dragon_break' ORDER BY created_at DESC LIMIT 1")->fetch();
+    $document=json_decode($dragonRecord['document'],true,64,JSON_THROW_ON_ERROR);
+    $assert($document['format']==='lorkhan.playthrough-save' && str_starts_with($dragonRecord['name'],'Dragon Break ('),'gameplay save missing');
+    $capturedOldState=null;
+    foreach($document['tables']['lorkhan_internal.sessions'] as $savedSession) {
+        if ($savedSession['session_id']===$dragonCurrent) $capturedOldState=$savedSession['state'];
     }
     $assert($capturedOldState==='active','archive captured the old session after replacement');
     $busyConnection=Connection::open($dragonConfig,false);
@@ -5568,7 +5636,8 @@ $db->exec("CREATE TABLE public.archive_unknown_probe(id integer); COMMENT ON TAB
 \LorkhanServer\Infrastructure\PlaythroughTablePolicy::synchronize($db);
 $policyComment=$db->query("SELECT obj_description('lorkhan_internal.profiles'::regclass,'pg_class')")->fetchColumn();
 \LorkhanServer\Infrastructure\PlaythroughTablePolicy::synchronize($db);
-$assert(str_contains($policyComment,'Keep unrelated table note')&&$db->query("SELECT obj_description('lorkhan_internal.profiles'::regclass,'pg_class')")->fetchColumn()===$policyComment,'policy sync replaced unrelated comments or was not idempotent');
+$assert($policyComment==='Playthrough Manager Backed Up'&&$db->query("SELECT obj_description('lorkhan_internal.profiles'::regclass,'pg_class')")->fetchColumn()===$policyComment,'policy comments do not match CHIM or sync was not idempotent');
+$assert($db->query("SELECT obj_description('lorkhan_internal.core_profiles'::regclass,'pg_class') IS NULL")->fetchColumn(),'excluded table retained a policy comment');
 $unknownPolicy=array_values(array_filter(\LorkhanServer\Infrastructure\PlaythroughTablePolicy::inventory($db),static fn($row)=>$row['table']==='public.archive_unknown_probe'))[0];
 $assert($unknownPolicy['portable']===false&&$unknownPolicy['category']==='unclassified','unknown table silently became portable');$db->rollBack();
 $archivePendingAction=Uuid::v4();$archivePendingDialogue=Uuid::v4();
@@ -5597,6 +5666,10 @@ foreach(['checksum','foreign_scope','global_revision','column']as$attack){
 $beforeArchiveSession=(new \LorkhanServer\Infrastructure\ProfileOwnershipRepository($db))->activePlaythrough($characterSession['installation_id']);
 $archiveCopy=$archiveService->importCopy($characterSession['installation_id'],$archiveJson);
 $archiveSecondCopy=$archiveService->importCopy($characterSession['installation_id'],$archiveJson);
+$projectionCheck=$db->prepare('SELECT count(*) FROM memory_records m LEFT JOIN memory_metadata p USING(memory_id) WHERE m.playthrough_id=:world AND m.deleted_at IS NULL AND p.memory_id IS NULL');
+$projectionCheck->execute(['world'=>$archiveCopy['playthrough_id']]);$assert((int)$projectionCheck->fetchColumn()===0,'import left memory read models missing');
+$projectionCheck=$db->prepare('SELECT count(*) FROM knowledge_documents d LEFT JOIN oghma_metadata p USING(document_id) WHERE d.playthrough_id=:world AND d.deleted_at IS NULL AND p.document_id IS NULL');
+$projectionCheck->execute(['world'=>$archiveCopy['playthrough_id']]);$assert((int)$projectionCheck->fetchColumn()===0,'import left Oghma read models missing');
 $assert($archiveSecondCopy['playthrough_id']!==$archiveCopy['playthrough_id'],'repeated import did not create a distinct inactive copy');
 $assert($archiveCopy['active']===false&&$archiveCopy['playthrough_id']!==$characterSession['playthrough_id'],'archive did not create inactive copy');
 $assert((new \LorkhanServer\Infrastructure\ProfileOwnershipRepository($db))->activePlaythrough($characterSession['installation_id'])===$beforeArchiveSession,'archive changed selected character');
@@ -5613,6 +5686,18 @@ $assert($archiveSideEffects()===$beforeReceipts,'archival receipt created source
 
 // Web lifecycle edits never activate a world; an approved character link applies at the next admission.
 $characters=new \LorkhanServer\Infrastructure\CharacterPlaythroughRepository($db);
+$localSaves=new \LorkhanServer\Infrastructure\PlaythroughSaveRepository($db);
+$sharedHash=static fn()=>$db->query("SELECT md5(string_agg(to_jsonb(c)::text,'' ORDER BY configuration_id)) FROM configuration_sets c")->fetchColumn();
+$beforeShared=$sharedHash();
+$localSaveId=$localSaves->capture($characterSession['installation_id'],$characterSession['playthrough_id'],'Gameplay-only regression');
+$localCopy=$localSaves->restore($characterSession['installation_id'],$characterSession['playthrough_id'],$localSaveId);
+$assert($sharedHash()===$beforeShared&&$localCopy['active']===false,'local gameplay restore changed shared settings or activated its copy');
+$coreAssignments=$db->prepare('SELECT core_profile_id,count(*) FROM profiles WHERE playthrough_id=:world GROUP BY core_profile_id ORDER BY core_profile_id');
+$coreAssignments->execute(['world'=>$characterSession['playthrough_id']]);$originalAssignments=$coreAssignments->fetchAll();
+$coreAssignments->execute(['world'=>$localCopy['playthrough_id']]);
+$assert($coreAssignments->fetchAll()===$originalAssignments,'local gameplay restore changed Core Profile assignments');
+$characters->cancelAssociation($characterSession['installation_id'],$localCopy['association']['association_id']);
+$localSaves->delete($characterSession['installation_id'],$localSaveId);
 $managed=$characters->createEmpty($characterSession['installation_id'],'Managed empty world');
 $renamed=$characters->renamePlaythrough($characterSession['installation_id'],$managed['playthrough_id'],'Renamed inactive world',1);
 $assert($renamed['current_revision']===2,'rename did not record a revision');

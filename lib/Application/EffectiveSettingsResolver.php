@@ -103,6 +103,10 @@ final class EffectiveSettingsResolver
         $this->markLeaves($settings['narrator'], 'default', 'settings.narrator', $sources);
         $this->markLeaves($settings['diary'], 'default', 'settings.diary', $sources);
         $this->markLeaves($settings['profile_evolution'], 'default', 'settings.profile_evolution', $sources);
+        foreach(['short_term_enabled','mid_term_enabled'] as $field){
+            $settings['memory'][$field]=false;
+            $sources['settings.memory.'.$field]='default';
+        }
         $settings['memory']['short_term_max_summaries'] = 10;
         $sources['settings.memory.short_term_max_summaries'] = 'default';
         $settings['quest_comments'] = $global['quest_comments'];
@@ -150,7 +154,7 @@ final class EffectiveSettingsResolver
             'rechat_strict_targeting', 'open_rechat', 'end_conversation_cooldown_seconds'] as $field) {
             if (array_key_exists($field, $coreOverrides['behavior'] ?? [])) $allowedOverrides['behavior'][$field] = $coreOverrides['behavior'][$field];
         }
-        foreach (['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled', 'short_term_max_summaries', 'oghma_knowledge_tags'] as $field) {
+        foreach (['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled', 'short_term_max_summaries', 'summary_interval', 'oghma_knowledge_tags'] as $field) {
             if (array_key_exists($field, $coreOverrides['memory'] ?? [])) $allowedOverrides['memory'][$field] = $coreOverrides['memory'][$field];
         }
         if (isset($coreOverrides['diary'])) $allowedOverrides['diary'] = $coreOverrides['diary'];
@@ -296,7 +300,7 @@ final class EffectiveSettingsResolver
             throw new InvalidArgumentException('invalid_core_profile');
         }
         self::validateRouting($content['routing']);
-        self::validateSettingsOverrides($content['settings_overrides']);
+        $content['settings_overrides'] = self::validateSettingsOverrides($content['settings_overrides']);
         return $content;
     }
 
@@ -326,7 +330,7 @@ final class EffectiveSettingsResolver
         }
         $content += ['backup'=>$expected['backup']];
         self::assertExactKeys($content['backup'], $expected['backup'], 'invalid_global_settings');
-        if(!is_int($content['backup']['dragon_break_days'])||$content['backup']['dragon_break_days']<1||$content['backup']['dragon_break_days']>365)throw new InvalidArgumentException('invalid_global_settings');
+        if(!is_int($content['backup']['dragon_break_days'])||$content['backup']['dragon_break_days']<1||$content['backup']['dragon_break_days']>3650)throw new InvalidArgumentException('invalid_global_settings');
         $content += ['task_availability'=>$expected['task_availability']];
         self::assertExactKeys($content, $expected, 'invalid_global_settings');
         if (($content['schema'] ?? null) !== SettingsCatalog::GLOBAL_SCHEMA) throw new InvalidArgumentException('invalid_global_settings');
@@ -355,7 +359,10 @@ final class EffectiveSettingsResolver
         $content['translation'] = TranslationPolicy::validate($content['translation']);
         self::validateGlobalOghma($content['oghma']);
         $content['context'] = self::validateContextPolicy($content['context']);
+        if (is_array($content['relationship'] ?? null)) $content['relationship'] += ['worst_memory_lifespan_days'=>7, 'never_clear_relationship_data'=>false];
         self::assertExactKeys($content['relationship'], $expected['relationship'], 'invalid_global_settings');
+        if (!is_int($content['relationship']['worst_memory_lifespan_days']) || $content['relationship']['worst_memory_lifespan_days'] < 0 || $content['relationship']['worst_memory_lifespan_days'] > 365
+            || !is_bool($content['relationship']['never_clear_relationship_data'])) throw new InvalidArgumentException('invalid_global_settings');
         if (!is_bool($content['relationship']['enabled']) || !is_int($content['relationship']['update_chance_percent'])
             || $content['relationship']['update_chance_percent'] < 0 || $content['relationship']['update_chance_percent'] > 100) {
             throw new InvalidArgumentException('invalid_global_settings');
@@ -379,7 +386,7 @@ final class EffectiveSettingsResolver
             $events = $policy['events'];
             if (!is_array($events) || !array_is_list($events)) throw new InvalidArgumentException('invalid_rpg_comments');
             foreach ($events as $event) {
-                if (!is_string($event) || !in_array($event, ['levelup', 'combat_end', 'sleep', 'wait'], true))
+                if (!is_string($event) || !in_array($event, ['levelup', 'combat_end', 'sleep', 'wait', 'lockpick'], true))
                     throw new InvalidArgumentException('invalid_rpg_comments');
             }
             if (count($events) !== count(array_unique($events))) throw new InvalidArgumentException('invalid_rpg_comments');
@@ -433,6 +440,7 @@ final class EffectiveSettingsResolver
         if (!is_array($overrides) || ($overrides !== [] && array_is_list($overrides)) || array_key_exists('schema', $overrides)) {
             throw new InvalidArgumentException('invalid_settings_overrides');
         }
+        if (is_array($overrides['context'] ?? null)) $overrides['context'] = SettingsCatalog::normalizeEventFilter($overrides['context']);
         $validation=$overrides;
         if (array_key_exists('profile_management', $validation)) {
             $policy=$validation['profile_management'];
@@ -449,7 +457,7 @@ final class EffectiveSettingsResolver
         if (array_key_exists('context', $validation)) {
             $context = $validation['context'];
             if (!is_array($context) || array_is_list($context)
-                || array_diff(array_keys($context), ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','transformation_detection','short_term_in_compact_chat','hide_ambient_combat','detect_magic_events','item_pickup_min_value','location_blacklist','item_blacklist','magic_effects_blacklist','event_types','sections','details']) !== [])
+                || array_diff(array_keys($context), ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','transformation_detection','short_term_in_compact_chat','hide_ambient_combat','detect_magic_events','item_pickup_min_value','location_blacklist','item_blacklist','magic_effects_blacklist','event_types_excluded','sections','details']) !== [])
                 throw new InvalidArgumentException('invalid_settings_overrides');
             foreach ($context as $key=>$value) {
                 if (in_array($key,['location_blacklist','item_blacklist','magic_effects_blacklist'],true)) {
@@ -459,10 +467,8 @@ final class EffectiveSettingsResolver
                     if (!is_array($value)||array_is_list($value)||array_diff_key($value,$defaults)!==[]||array_diff_key($defaults,$value)!==[])
                         throw new InvalidArgumentException('invalid_settings_overrides');
                     foreach($value as $selected)if(!is_bool($selected))throw new InvalidArgumentException('invalid_settings_overrides');
-                } elseif ($key==='event_types') {
-                    if (!is_array($value)||!array_is_list($value)||count($value)>count(SettingsCatalog::eventTypes())) throw new InvalidArgumentException('invalid_settings_overrides');
-                    foreach($value as $type) if(!is_string($type)||!in_array($type,SettingsCatalog::eventTypes(),true)) throw new InvalidArgumentException('invalid_settings_overrides');
-                    $overrides['context'][$key]=array_values(array_filter(SettingsCatalog::eventTypes(),static fn($type)=>in_array($type,$value,true)));
+                } elseif ($key==='event_types_excluded') {
+                    $overrides['context'][$key] = SettingsCatalog::normalizeEventFilter([$key=>$value])[$key];
                 } elseif ($key==='item_pickup_min_value') {
                     if(!is_int($value)||$value<0||$value>2147483647)throw new InvalidArgumentException('invalid_settings_overrides');
                 } elseif (!is_bool($value)) throw new InvalidArgumentException('invalid_settings_overrides');
@@ -511,6 +517,11 @@ final class EffectiveSettingsResolver
             if (!is_int($limit) || $limit < 1 || $limit > 50) throw new InvalidArgumentException('invalid_settings_overrides');
             unset($validation['memory']['short_term_max_summaries']);
         }
+        if(array_key_exists('summary_interval',$validation['memory']??[])){
+            $interval=$validation['memory']['summary_interval'];
+            if(!is_int($interval)||$interval<0||$interval>100)throw new InvalidArgumentException('invalid_settings_overrides');
+            unset($validation['memory']['summary_interval']);
+        }
         // Retrieval switches are server-owned and do not enlarge the client controls contract.
         foreach (['short_term_enabled', 'mid_term_enabled', 'long_term_enabled'] as $field) {
             if (!array_key_exists($field, $validation['memory'] ?? [])) continue;
@@ -549,6 +560,7 @@ final class EffectiveSettingsResolver
     {
         $expected = SettingsCatalog::globalDefaults()['context'];
         if (!is_array($context) || array_is_list($context)) throw new InvalidArgumentException('invalid_global_settings');
+        $context = SettingsCatalog::normalizeEventFilter($context);
         $context += ['prompt_timestamp' => false, 'ground_items_descriptions_only' => false, 'inventory_items_descriptions_only' => false, 'power_awareness_enabled'=>false, 'transformation_detection'=>true, 'short_term_in_compact_chat'=>true, 'hide_ambient_combat'=>false, 'detect_magic_events'=>true, 'item_pickup_min_value'=>500];
         self::assertExactKeys($context, $expected, 'invalid_global_settings');
         if(!is_int($context['item_pickup_min_value'])||$context['item_pickup_min_value']<0||$context['item_pickup_min_value']>2147483647)throw new InvalidArgumentException('invalid_global_settings');
@@ -558,14 +570,6 @@ final class EffectiveSettingsResolver
             self::assertExactKeys($context[$group], $expected[$group], 'invalid_global_settings');
             foreach ($context[$group] as $value) if (!is_bool($value)) throw new InvalidArgumentException('invalid_global_settings');
         }
-        if (!is_array($context['event_types']) || !array_is_list($context['event_types'])
-            || count($context['event_types']) > count(SettingsCatalog::eventTypes())) throw new InvalidArgumentException('invalid_global_settings');
-        $eventTypes = [];
-        foreach ($context['event_types'] as $value) {
-            if (!is_string($value) || !in_array($value, SettingsCatalog::eventTypes(), true)) throw new InvalidArgumentException('invalid_global_settings');
-            $eventTypes[$value] = true;
-        }
-        $context['event_types'] = array_values(array_filter(SettingsCatalog::eventTypes(), static fn(string $type): bool => isset($eventTypes[$type])));
         foreach (['location_blacklist', 'item_blacklist', 'magic_effects_blacklist'] as $field) {
             $context[$field] = self::validateTextList($context[$field]);
         }

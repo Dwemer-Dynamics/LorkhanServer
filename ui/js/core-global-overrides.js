@@ -14,10 +14,10 @@
             if (!Object.hasOwn(value[section] || {}, key)) continue;
             const item = value[section][key];
             if (definition.type === 'boolean' ? typeof item !== 'boolean'
-                : definition.type === 'booleanmap' ? !item || Array.isArray(item) || typeof item !== 'object' || Object.keys(item).length !== Object.keys(definition.choices).length || Object.keys(definition.choices).some(key => typeof item[key] !== 'boolean')
+                : definition.type === 'booleanmap' ? !item || Array.isArray(item) || typeof item !== 'object' || Object.keys(item).length !== Object.keys(definition.value).length || Object.keys(definition.value).some(key => typeof item[key] !== 'boolean')
                 : definition.type === 'choice' ? !definition.choices.includes(item)
                 : definition.type === 'string' ? typeof item !== 'string' || new TextEncoder().encode(item).length > definition.maxBytes
-                : definition.type === 'textlist' ? !Array.isArray(item) || item.length > (definition.choices?.length ?? 256) || item.some(entry => typeof entry !== 'string' || new TextEncoder().encode(entry).length > 256 || (definition.choices && !definition.choices.includes(entry)))
+                : definition.type === 'textlist' ? !Array.isArray(item) || item.length > (definition.choices?.length ?? 256) || item.some(entry => typeof entry !== 'string' || new TextEncoder().encode(entry).length > 256 || (key === 'event_types_excluded' && !/^[a-zA-Z0-9_.:-]{1,128}$/.test(entry)) || (definition.choices && !definition.choices.includes(entry)))
                 : !Number.isInteger(item) || item < definition.range[0] || item > definition.range[1]) throw Error('Invalid value for ' + definition.label + '.');
         }
         return value;
@@ -48,10 +48,10 @@
             try {
                 const value = read(); control.disabled = !toggle.checked;
                 control.setCustomValidity(toggle.checked && definition.type === 'string' && new TextEncoder().encode(control.value).length > definition.maxBytes ? 'Maximum ' + definition.maxBytes + ' UTF-8 bytes.' : '');
-                const entries = definition.type === 'textlist' ? control.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean) : null;
-                if (toggle.checked && entries && (entries.length > (definition.choices?.length ?? 256) || entries.some(entry => new TextEncoder().encode(entry).length > 256 || (definition.choices && !definition.choices.includes(entry))))) control.setCustomValidity(definition.choices ? 'Use only the listed event types, one per line.' : 'Use at most 256 entries, each at most 256 UTF-8 bytes.');
+                const entries = definition.type === 'textlist' ? control.value.split(key === 'event_types_excluded' ? /[,\r\n]+/ : /\r?\n/).map(value => value.trim()).filter(Boolean) : null;
+                if (toggle.checked && entries && (entries.length > (definition.choices?.length ?? 256) || entries.some(entry => new TextEncoder().encode(entry).length > 256 || (key === 'event_types_excluded' && !/^[a-zA-Z0-9_.:-]{1,128}$/.test(entry)) || (definition.choices && !definition.choices.includes(entry))))) control.setCustomValidity(key === 'event_types_excluded' ? 'Use at most 256 event names, each up to 128 letters, numbers, underscores, periods, colons or hyphens.' : 'Use at most 256 entries, each at most 256 UTF-8 bytes.');
                 if (toggle.checked && !control.checkValidity()) { status.textContent = 'Correct ' + definition.label + ' before saving.'; return; }
-                if (toggle.checked) { value[section] ||= {}; value[section][key] = definition.type === 'booleanmap' ? Object.fromEntries([...control.querySelectorAll('[data-context-key]')].map(input => [input.dataset.contextKey,input.checked])) : definition.type === 'boolean' ? control.checked : definition.type === 'integer' ? Number(control.value) : entries ?? control.value; }
+                if (toggle.checked) { value[section] ||= {}; value[section][key] = definition.type === 'booleanmap' ? {...(value[section][key] ?? definition.value), ...Object.fromEntries([...control.querySelectorAll('[data-context-key]')].map(input => [input.dataset.contextKey,input.checked]))} : definition.type === 'boolean' ? control.checked : definition.type === 'integer' ? Number(control.value) : entries ?? control.value; }
                 else if (value[section]) { delete value[section][key]; if (!Object.keys(value[section]).length) delete value[section]; }
                 raw.value = JSON.stringify(value, null, 2); raw.dispatchEvent(new Event('input', {bubbles:true})); status.textContent = 'Unsaved changes. Save All to apply these overrides.';
             } catch (exception) { error(exception); }

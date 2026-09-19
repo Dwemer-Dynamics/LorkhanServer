@@ -23,6 +23,7 @@ use LorkhanServer\Infrastructure\EventLogRepository;
 use LorkhanServer\Infrastructure\OghmaCatalogImporter;
 use LorkhanServer\Infrastructure\ProductRepository;
 use LorkhanServer\Infrastructure\Uuid;
+use LorkhanServer\Domain\ProfileId;
 use LorkhanServer\Security\BrowserSession;
 use InvalidArgumentException;
 use RuntimeException;
@@ -30,12 +31,12 @@ use Throwable;
 
 final class ManagementRouter
 {
-    private const PAGES=['quickstart','roleplay','configuration','control-panel','characters','profiles','player','npc-biographies','providers','ai-voice','prompts-actions','action-editor','world','descriptions','traces','memory','relationships','knowledge','playthroughs','narrative-autonomy','jobs','response-queue','oghma-audit','provider-usage','cache','backup-health','database-manager','server-logs','diagnostics','game-debug'];
+    private const PAGES=['quickstart','roleplay','configuration','control-panel','characters','profiles','player','npc-biographies','providers','ai-voice','prompts-actions','action-editor','world','descriptions','traces','memory','relationships','knowledge','playthroughs','narrative-autonomy','response-queue','oghma-audit','provider-usage','cache','backup-health','database-manager','server-logs','diagnostics'];
     /** One pronunciation term never needs a long clip, so an oversized answer is treated as a failure. */
     private const MAX_PREVIEW_AUDIO_BYTES=8_388_608;
     private const PREVIEW_AUDIO_MIME_TYPES=['audio/wav','audio/mpeg','audio/ogg','audio/webm','audio/flac','audio/mp4'];
     private const BIOGRAPHY_CSV_HEADER=['content_file','record_id','name','core','biography','appearance','personality',
-        'relationships','occupation','skills','speech_style','goals','oghma_tags','voice_id','gender','race'];
+        'relationships','occupation','skills','speech_style','goals','oghma_tags','voice_id','gender','race','tts_filter_preset'];
     private const UI_PAGES=[
         'quickstart'=>'/ui/home.php',
         'roleplay'=>'/ui/events-memories.php',
@@ -62,7 +63,6 @@ final class ManagementRouter
         'playthroughs'=>'/ui/control_panel.php?tab=playthrough-page',
         'playthrough-form'=>'/ui/playthrough_manager.php',
         'narrative-autonomy'=>'/ui/narrative_manager.php',
-        'jobs'=>'/ui/control_panel.php?tab=jobs-page',
         'response-queue'=>'/ui/control_panel.php?tab=queue-page',
         'oghma-audit'=>'/ui/control_panel.php?tab=oghma-audit-page',
         'provider-usage'=>'/ui/control_panel.php?tab=usage-page',
@@ -71,7 +71,6 @@ final class ManagementRouter
         'database-manager'=>'/ui/database_manager.php',
         'server-logs'=>'/ui/control_panel.php?tab=server-logs-page',
         'diagnostics'=>'/ui/control_panel.php?tab=srvlogs',
-        'game-debug'=>'/ui/control_panel.php?tab=game-debug',
     ];
 
     public function __construct(private readonly ManagementRepository $management,private readonly ProductRepository $repository,
@@ -104,12 +103,12 @@ final class ManagementRouter
                 $stream=fopen($file,'rb');if($stream===false)throw new RuntimeException('backup_storage_unavailable');
                 return new Response(200,'',['Content-Type'=>'application/sql','Content-Disposition'=>'attachment; filename="LorkhanServer-'.$m[1].'.sql"'],$stream);
             }
-            if($r->method==='GET'&&preg_match('#^/exports/profiles/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProfile($m[1]);
-            if($r->method==='GET'&&preg_match('#^/api/v1/npc-profile-versions/([0-9a-f-]{36})/([1-9][0-9]{0,8})$#D',$path,$m))return Response::json(200,$this->npcProfileVersion($m[1],(int)$m[2]));
+            if($r->method==='GET'&&preg_match('#^/exports/profiles/([^/]+)\.json$#D',$path,$m))return$this->exportProfile(rawurldecode($m[1]));
+            if($r->method==='GET'&&preg_match('#^/api/v1/npc-profile-versions/([^/]+)/([1-9][0-9]{0,8})$#D',$path,$m))return Response::json(200,$this->npcProfileVersion(rawurldecode($m[1]),(int)$m[2]));
             if($r->method==='GET'&&preg_match('#^/exports/core-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportCoreProfileSettings($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/core-profiles/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportCoreProfileBundle($m[1]);
-            if($r->method==='GET'&&preg_match('#^/exports/player-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportSpecialProfileSettings($m[1],'player');
-            if($r->method==='GET'&&preg_match('#^/exports/narrator-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportSpecialProfileSettings($m[1],'narrator');
+            if($r->method==='GET'&&preg_match('#^/exports/player-profile-settings/([^/]+)\.json$#D',$path,$m))return$this->exportSpecialProfileSettings(rawurldecode($m[1]),'player');
+            if($r->method==='GET'&&preg_match('#^/exports/narrator-profile-settings/([^/]+)\.json$#D',$path,$m))return$this->exportSpecialProfileSettings(rawurldecode($m[1]),'narrator');
             if($r->method==='GET'&&preg_match('#^/exports/global-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportGlobalSettings($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/playthrough-archives/([0-9a-f-]{36})\.json$#D',$path,$m)){
                 $installation=$this->need($r->query,'installation_id');$this->uuid($installation,'installation_id');
@@ -345,7 +344,8 @@ final class ManagementRouter
             return Response::json(200, ['cleared'=>$this->management->clearRoleplayLog(
                 $body['installation_id'], $body['playthrough_id'], $body['kind'])]);
         }
-        if(preg_match('#^/api/v1/profiles/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/eventlog(?:/([1-9][0-9]*))?$#D',$path,$m)){
+        if(preg_match('#^/api/v1/profiles/([^/]+)/eventlog(?:/([1-9][0-9]*))?$#D',$path,$m)){
+            $m[1]=rawurldecode($m[1]);$this->profileId($m[1]);
             $events=$this->eventLogRepository??throw new RuntimeException('not_found');
             if($r->method==='GET'&&!isset($m[2]))return Response::json(200,['data'=>$events->profileHistory(
                 $m[1],$this->queryUuid($r,'playthrough_id'),isset($r->query['type'])?(string)$r->query['type']:null,
@@ -357,11 +357,13 @@ final class ManagementRouter
             }
         }
         if($path==='/api/v1/eventlog'){
+            $m[1]=rawurldecode($m[1]);$this->profileId($m[1]);
             $events=$this->eventLogRepository??throw new RuntimeException('not_found');
             if($r->method==='GET')return Response::json(200,$events->page($r->query));
             if($r->method==='DELETE')return Response::json(200,$events->suppress($this->json($r)));
         }
         if($r->method==='POST'&&$path==='/api/v1/eventlog/hidden-types'){
+            $m[1]=rawurldecode($m[1]);$this->profileId($m[1]);
             $events=$this->eventLogRepository??throw new RuntimeException('not_found');$body=$this->json($r);
             $scope=$events->scope(is_string($body['installation_id']??null)?$body['installation_id']:null,
                 is_string($body['playthrough_id']??null)?$body['playthrough_id']:null);
@@ -401,7 +403,7 @@ final class ManagementRouter
                 $body=$this->json($r);$keys=array_keys($body);sort($keys);
                 if($keys!==['operation','profile_id']||!is_string($body['profile_id'])||!is_string($body['operation']))
                     throw new InvalidArgumentException('invalid_npc_manager_request');
-                $this->uuid($body['profile_id'],'profile_id');
+                $this->profileId($body['profile_id'],'profile_id');
                 return Response::json(202,['command'=>$this->repository->queueNpcManagerCommand($body['profile_id'],$body['operation'])]);
             }
         }
@@ -455,8 +457,8 @@ final class ManagementRouter
             $kind=$this->singular($m[1]);if($r->method==='GET')return Response::json(200,['items'=>$this->repository->listRevisioned($kind,$this->queryUuid($r,'installation_id'))]);
             if($r->method==='POST')return Response::json(201,$this->service->createRevisioned($kind,$this->json($r)));
         }
-        if($r->method==='POST'&&preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([0-9a-f-]{36})/(revisions|rollback)$#D',$path,$m)){$b=$this->json($r);return$m[3]==='revisions'?Response::json(201,$this->service->revise($this->singular($m[1]),$m[2],$b['content']??[],$b['reason']??'updated')):Response::json(200,$this->service->rollback($this->singular($m[1]),$m[2],(int)($b['revision']??0),(string)($b['reason']??'rollback')));}
-        if($r->method==='DELETE'&&preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([0-9a-f-]{36})$#D',$path,$m)){$this->service->deleteRevisioned($this->singular($m[1]),$m[2]);return Response::json(200,['deleted'=>true]);}
+        if($r->method==='POST'&&preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([^/]+)/(revisions|rollback)$#D',$path,$m)){$b=$this->json($r);return$m[3]==='revisions'?Response::json(201,$this->service->revise($this->singular($m[1]),rawurldecode($m[2]),$b['content']??[],$b['reason']??'updated')):Response::json(200,$this->service->rollback($this->singular($m[1]),rawurldecode($m[2]),(int)($b['revision']??0),(string)($b['reason']??'rollback')));}
+        if($r->method==='DELETE'&&preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([^/]+)$#D',$path,$m)){$this->service->deleteRevisioned($this->singular($m[1]),rawurldecode($m[2]));return Response::json(200,['deleted'=>true]);}
         if($path==='/api/v1/connector-selections'){
             if($r->method==='GET')return Response::json(200,['items'=>$this->repository->connectorSelections($this->queryUuid($r,'installation_id'))]);
             if($r->method==='POST')return Response::json(200,$this->service->selectConnector($this->json($r)));
@@ -484,6 +486,18 @@ final class ManagementRouter
     private function submit(string $domain,Request $r):Response
     {
         $v=$this->form($r);$scope=$this->scopeForm($v);
+        if(in_array($domain,['reference-group-save','reference-group-delete'],true)){
+            $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+            if($domain==='reference-group-delete')$this->repository->deleteReferenceGroup($installation,$this->need($v,'group_key'));
+            else $this->repository->saveReferenceGroup($installation,[
+                'group_key'=>(string)($v['group_key']??''),'name'=>$this->need($v,'name'),
+                'match_name'=>(string)($v['match_name']??''),
+                'enabled'=>in_array($v['enabled']??false,[true,1,'1','on'],true),
+                'canonical_ref'=>(string)($v['canonical_ref']??''),'aliases'=>(string)($v['aliases']??'')]);
+            return$this->redirect($this->uiPath('characters').'?'.http_build_query([
+                'installation_id'=>$installation,'tab'=>'reference-groups','status'=>'saved']));
+        }
+
         if ($domain === 'narrator-prompt-save') {
             $revision = filter_var($v['expected_revision'] ?? null, FILTER_VALIDATE_INT);
             if ($revision === false || !is_string($v['custom_prompt'] ?? null)) throw new InvalidArgumentException('invalid_narrator_prompt');
@@ -519,7 +533,7 @@ final class ManagementRouter
         }
         if($domain==='playthrough-backup-settings'){
             $installation=$this->need($scope,'installation_id');$days=filter_var($v['dragon_break_days']??null,FILTER_VALIDATE_INT);
-            if($days===false||$days<1||$days>365)throw new InvalidArgumentException('invalid_dragon_break_days');
+            if($days===false||$days<1||$days>3650)throw new InvalidArgumentException('invalid_dragon_break_days');
             $existing=$this->repository->globalSettingsForInstallation($installation);
             $revision=filter_var($v['expected_revision']??null,FILTER_VALIDATE_INT);
             if($revision===false||$revision!==(int)($existing['current_revision']??0))throw new RuntimeException('revision_conflict');
@@ -549,18 +563,32 @@ final class ManagementRouter
         }
         if($domain==='playthrough-snapshot'){
             $operation=$this->need($v,'operation');
+            $installation=$this->need($v,'installation_id');$this->uuid($installation,'installation_id');
+            $saves=$this->management->playthroughSaves();
             try{
-                if($operation==='create'){
-                    $this->management->queueDatabaseBackup(false,['name'=>$this->need($v,'name'),'notes'=>$v['notes']??'']);$status='snapshot-save-queued';
+                if($operation==='setup'){
+                    $world=$this->need($v,'playthrough_id');$this->uuid($world,'playthrough_id');
+                    $saves->setup($installation,$world);$status='snapshot-setup';
+                }elseif($operation==='create'){
+                    $world=$this->need($v,'playthrough_id');$this->uuid($world,'playthrough_id');
+                    $saves->capture($installation,$world,$this->need($v,'name'),$v['notes']??'');$status='snapshot-saved';
                 }elseif(in_array($operation,['copy','delete'],true)){
                     if(($v['confirm']??'')!==($operation==='copy'?'Copy':'Delete'))throw new InvalidArgumentException('confirmation_mismatch');
-                    $id=$this->need($v,'backup_id');$this->uuid($id,'backup_id');$record=$this->repository->configurationBackupRecord($id);
-                    if(!isset($record['scope']['snapshot']))throw new RuntimeException('not_found');
-                    if($operation==='copy'){$this->management->queueDatabaseRestore($id);$status='snapshot-copy-queued';}
-                    else{$this->management->deleteStoredDatabaseBackup($id,$this->providerConfig,'snapshot');$status='snapshot-deleted';}
+                    $id=$this->need($v,'backup_id');$this->uuid($id,'backup_id');
+                    if($operation==='copy'){
+                        $world=$this->need($v,'playthrough_id');$this->uuid($world,'playthrough_id');
+                        $saves->restore($installation,$world,$id);$status='snapshot-copy-queued';
+                    }else{$saves->delete($installation,$id);$status='snapshot-deleted';}
                 }else throw new InvalidArgumentException('invalid_snapshot_operation');
-            }catch(RuntimeException $error){$status=match($error->getMessage()){'maintenance_busy'=>'snapshot-busy','snapshot_name_exists'=>'snapshot-name-exists','backup_restore_pending'=>'snapshot-protected','default_snapshot_protected'=>'snapshot-default-protected','active_snapshot_protected'=>'snapshot-active-protected','backup_delete_failed'=>'snapshot-delete-failed',default=>throw $error};}
-            return $this->redirect($this->webRoot().'/ui/playthrough_manager.php?'.http_build_query(['status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
+            }catch(RuntimeException $error){$status=match($error->getMessage()){
+                'maintenance_busy'=>'snapshot-busy',
+                'association_conflict'=>'snapshot-switch-pending',
+                'character_binding_conflict'=>'snapshot-character-required',
+                'snapshot_protected_or_missing','not_found'=>'snapshot-protected',
+                'archive_schema_mismatch','archive_shared_dependency_missing'=>'snapshot-incompatible',
+                'archive_too_large','archive_timeout'=>'snapshot-limit',
+                default=>throw $error};}
+            return $this->redirect($this->webRoot().'/ui/playthrough_manager.php?'.http_build_query(['installation_id'=>$installation,'playthrough_id'=>$v['playthrough_id']??'','status'=>$status,'embed'=>($v['embed']??'')==='1'?'1':'0']));
         }
         if($domain==='database-backup-delete'){
             if(($v['confirm']??'')!=='Delete')throw new InvalidArgumentException('confirmation_mismatch');
@@ -992,7 +1020,6 @@ final class ManagementRouter
             'control-panel'=>$this->hubHtml([
                 ['traces','Events & Traces','Inspect scoped operational traces.'],
                 ['playthroughs','Playthroughs','Create and manage playthrough state.'],
-                ['jobs','Workers & Jobs','Review queue and worker health.'],
                 ['backup-health','Operations','Run bounded retention operations.'],
                 ['diagnostics','Diagnostics','Review server health and the action catalog.'],
             ]),
@@ -1008,7 +1035,6 @@ final class ManagementRouter
             'knowledge'=>$this->formHtml('knowledge','Create knowledge',$csrf,$scope.$this->input('title','Title').$this->area('content','Knowledge').$this->input('provenance','Provenance source')),
             'narrative-autonomy'=>$this->formHtml('narratives','Create narrative',$csrf,$scope.$this->select('kind','Narrative kind',['narrator','diary','summary']).$this->input('title','Title').$this->area('content','Narrative').$this->input('provenance','Provenance source')).'<section class="feature-status"><h2>Automatic diaries <span class="status-badge">Live</span></h2><p>Timer, sleep, and optional wait events queue diaries for eligible Player, Narrator, and nearby NPC profiles.</p></section>',
             'traces'=>'<section><h2>Events and traces</h2><p>Use the authenticated traces API with installation scope. Provider and prompt details remain redacted.</p></section>',
-            'jobs'=>'<section><h2>Workers and jobs</h2><p>Queue and dead-letter counts are shown in diagnostics. Worker leases and retries are bounded.</p></section>',
             'backup-health'=>$this->formHtml('retention','Run bounded retention',$csrf,$this->input('days','Retention days','number','30').'<p>This removes expired operational metadata and never accepts a filesystem path.</p>'),
             'diagnostics'=>$this->quickstart().$this->actionCatalog(),
             default=>''};
@@ -1095,7 +1121,8 @@ final class ManagementRouter
             $header=fgetcsv($handle,131072,',','"','\\');if(!is_array($header))throw new InvalidArgumentException('biography_csv_header');
             if(isset($header[0]))$header[0]=preg_replace('/^\xEF\xBB\xBF/','',(string)$header[0])??(string)$header[0];
             $header=array_map(static fn(mixed$value):string=>strtolower(trim((string)$value)),$header);
-            if($header!==self::BIOGRAPHY_CSV_HEADER&&$header!==[...self::BIOGRAPHY_CSV_HEADER,'scope'])throw new InvalidArgumentException('biography_csv_header');
+            $legacyHeader=array_values(array_diff(self::BIOGRAPHY_CSV_HEADER,['tts_filter_preset']));
+            if(!in_array($header,[self::BIOGRAPHY_CSV_HEADER,[...self::BIOGRAPHY_CSV_HEADER,'scope'],$legacyHeader,[...$legacyHeader,'scope']],true))throw new InvalidArgumentException('biography_csv_header');
             $rows=[];
             while(($values=fgetcsv($handle,131072,',','"','\\'))!==false){
                 if($values===[null]||count($values)===0)continue;
@@ -1117,7 +1144,7 @@ final class ManagementRouter
             'appearance'=>'A slight Bosmer wearing common clothes.','personality'=>'Nervous, friendly, and grateful.',
             'relationships'=>'{}','occupation'=>'Commoner','skills'=>'Sneaking and light commerce.',
             'speech_style'=>'Hesitant and earnest.','goals'=>'Recover what was taken and stay out of trouble.',
-            'oghma_tags'=>'Seyda Neen, Bosmer','voice_id'=>'','gender'=>'Male','race'=>'Wood Elf',
+            'oghma_tags'=>'Seyda Neen, Bosmer','voice_id'=>'','gender'=>'Male','race'=>'Wood Elf','tts_filter_preset'=>'none',
         ]]);
     }
 
@@ -1210,8 +1237,9 @@ final class ManagementRouter
     private function json(Request $r):array{if(strlen($r->body)>$this->maxJsonBytes)throw new InvalidArgumentException('payload_too_large');try{$v=json_decode($r->body,true,32,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new InvalidArgumentException('invalid_json');}if(!is_array($v)||array_is_list($v))throw new InvalidArgumentException('invalid_json');return$v;}
     private function form(Request $r):array{if($r->form!==[])return$r->form;if(strlen($r->body)>$this->maxJsonBytes)throw new InvalidArgumentException('payload_too_large');parse_str($r->body,$v);return is_array($v)?$v:[];}
     private function scopeQuery(Request $r):array{return['installation_id'=>$this->queryUuid($r,'installation_id'),'profile_id'=>$this->queryUuid($r,'profile_id'),'playthrough_id'=>$this->queryUuid($r,'playthrough_id')];}
-    private function scopeForm(array $v):array{$out=[];foreach(['installation_id','profile_id','playthrough_id']as$k)if(isset($v[$k])){$value=trim((string)$v[$k]);if($value==='')continue;$this->uuid($value,$k);$out[$k]=$value;}return$out;}
-    private function queryUuid(Request $r,string $k):string{$v=(string)($r->query[$k]??'');$this->uuid($v,$k);return$v;}
+    private function scopeForm(array $v):array{$out=[];foreach(['installation_id','profile_id','playthrough_id']as$k)if(isset($v[$k])){$value=trim((string)$v[$k]);if($value==='')continue;$k==='profile_id'?$this->profileId($value,$k):$this->uuid($value,$k);$out[$k]=$value;}return$out;}
+    private function queryUuid(Request $r,string $k):string{$v=(string)($r->query[$k]??'');$k==='profile_id'?$this->profileId($v,$k):$this->uuid($v,$k);return$v;}
+    private function profileId(string $v,string $k='profile_id'):void{if(!ProfileId::isValid($v))throw new InvalidArgumentException('invalid_'.$k);}
     private function uuid(string $v,string $k):void{if(preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$v)!==1)throw new InvalidArgumentException('invalid_'.$k);}
     /** Accept the legacy deterministic UUID shape used by persisted Core Profiles. */
     private function persistentUuid(string $v,string $k):void{if(preg_match('/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/D',$v)!==1)throw new InvalidArgumentException('invalid_'.$k);}
@@ -1406,7 +1434,7 @@ final class ManagementRouter
     {
         $installation=$this->queryUuid($request,'installation_id');
         $profile=trim((string)($request->query['profile_id']??''));
-        if($profile==='')$profile=null;else$this->uuid($profile,'profile_id');
+        if($profile==='')$profile=null;else$this->profileId($profile,'profile_id');
         return['catalog'=>$this->repository->actionCatalogDefinitions(),
             'policies'=>$this->repository->actionPoliciesForEditor($installation,$profile)];
     }
@@ -1422,7 +1450,7 @@ final class ManagementRouter
             throw new InvalidArgumentException('invalid_action_policy_editor');
         $installation=(string)$values['installation_id'];$this->uuid($installation,'installation_id');
         $profile=$values['profile_id'];
-        if($profile!==null){if(!is_string($profile))throw new InvalidArgumentException('invalid_profile_id');$this->uuid($profile,'profile_id');}
+        if($profile!==null){if(!is_string($profile))throw new InvalidArgumentException('invalid_profile_id');$this->profileId($profile,'profile_id');}
         $configuration=$values['configuration_id'];$revision=$values['expected_revision'];
         if(($configuration===null)!==($revision===null))throw new InvalidArgumentException('invalid_expected_revision');
         $content=['enabled'=>$values['enabled'],'max_tier'=>$values['max_tier'],'actions'=>$values['actions']];
@@ -1455,7 +1483,7 @@ final class ManagementRouter
     /** Download one portable NPC profile without installation IDs, revisions, bindings, or connector secrets. */
     private function exportProfile(string $profileId):Response
     {
-        $this->uuid($profileId,'profile_id');$row=$this->repository->getRevisioned('profile',$profileId);
+        $this->profileId($profileId,'profile_id');$row=$this->repository->getRevisioned('profile',$profileId);
         $identity=$row['actor_identity']??[];
         if(is_string($identity)){
             try{$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new RuntimeException('not_found');}
@@ -1473,7 +1501,7 @@ final class ManagementRouter
     /** Clone an NPC profile in place without copying actor bindings or profile-owned portrait files. */
     private function cloneProfile(array $values):array
     {
-        $profileId=$this->need($values,'profile_id');$this->uuid($profileId,'profile_id');
+        $profileId=$this->need($values,'profile_id');$this->profileId($profileId,'profile_id');
         $row=$this->repository->getRevisioned('profile',$profileId);$identity=$row['actor_identity']??[];
         if(is_string($identity))$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);
         if(!is_array($identity)||array_is_list($identity)||in_array($identity['kind']??'actor',['player','narrator'],true))
@@ -1619,7 +1647,7 @@ final class ManagementRouter
     /** Download the editable, ownership-free portion of the Player or Narrator singleton. */
     private function exportSpecialProfileSettings(string $profileId,string $kind):Response
     {
-        $this->uuid($profileId,'profile_id');$row=$this->repository->getRevisioned('profile',$profileId);
+        $this->profileId($profileId,'profile_id');$row=$this->repository->getRevisioned('profile',$profileId);
         $identity=$row['actor_identity']??[];
         if(is_string($identity)){
             try{$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new RuntimeException('not_found');}
@@ -2142,7 +2170,7 @@ final class ManagementRouter
             if($keys!==$expectedProfileKeys||!is_string($row['profile_id'])||!is_string($row['name'])||trim($row['name'])===''||strlen($row['name'])>256
                 ||($format===2&&($row['core_profile_id']!==null&&(!is_string($row['core_profile_id'])||!isset($coreIds[$row['core_profile_id']]))))
                 ||!$this->objectArray($row['actor_identity'])||!$this->objectArray($row['content'])||array_key_exists('portrait',$row['content']))throw new RuntimeException('backup_integrity_failed');
-            $this->uuid($row['profile_id'],'profile_id');if(isset($profileIds[$row['profile_id']]))throw new RuntimeException('backup_integrity_failed');$profileIds[$row['profile_id']]=true;}
+            $this->profileId($row['profile_id'],'profile_id');if(isset($profileIds[$row['profile_id']]))throw new RuntimeException('backup_integrity_failed');$profileIds[$row['profile_id']]=true;}
 
         $configurationIds=[];$configurationKinds=[];$allowed=['prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'];
         foreach($data['configurations']as$row){if(!$this->objectArray($row)){throw new RuntimeException('backup_integrity_failed');}$keys=array_keys($row);sort($keys);
@@ -2199,7 +2227,7 @@ final class ManagementRouter
     /** Read one NPC snapshot and its predecessor for the version viewer without exposing private credentials. */
     private function npcProfileVersion(string $id,int $revision):array
     {
-        $this->uuid($id,'profile_id');$profile=$this->repository->getRevisioned('profile',$id);
+        $this->profileId($id,'profile_id');$profile=$this->repository->getRevisioned('profile',$id);
         $identity=$profile['actor_identity'];if(is_string($identity))$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);
         if(!is_array($identity)||!in_array($identity['kind']??'actor',['actor','npc','creature'],true))throw new InvalidArgumentException('profile_not_editable');
         $content=$this->repository->revisionContent('profile',$id,$revision);
@@ -2220,7 +2248,7 @@ final class ManagementRouter
     /** Import biography fields into a revision-guarded existing NPC without changing its identity or routing. */
     private function importNpcBiography(array $values):array
     {
-        $id=$this->need($values,'profile_id');$this->uuid($id,'profile_id');
+        $id=$this->need($values,'profile_id');$this->profileId($id,'profile_id');
         $revision=filter_var($values['base_revision']??null,FILTER_VALIDATE_INT);
         if($revision===false||$revision<1)throw new InvalidArgumentException('invalid_expected_revision');
         $import=$this->profileImportDocument($values);
@@ -2484,10 +2512,10 @@ final class ManagementRouter
         $summary=['schema'=>'lorkhan.memory-policy.v1','enabled'=>isset($values['memory_summary_enabled']),
             'provider_configuration_id'=>trim((string)($values['memory_summary_connector']??'')),
             'summary_interval'=>filter_var($values['memory_summary_interval']??0,FILTER_VALIDATE_INT),
-            'minimum_events'=>filter_var($values['memory_summary_minimum_events']??4,FILTER_VALIDATE_INT)];
+            'minimum_events'=>filter_var($values['memory_summary_minimum_events']??($this->repository->memorySummaryPolicyForInstallation($installation)['content']['minimum_events']??4),FILTER_VALIDATE_INT)];
         $embedding=['schema'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::SCHEMA,
             'enabled'=>isset($values['memory_embedding_enabled']),'endpoint'=>trim((string)($values['memory_embedding_endpoint']??'')),
-            'timeout_ms'=>filter_var($values['memory_embedding_timeout']??1500,FILTER_VALIDATE_INT)];
+            'timeout_ms'=>filter_var($values['memory_embedding_timeout']??($this->repository->memoryEmbeddingPolicyForInstallation($installation)['content']['timeout_ms']??1500),FILTER_VALIDATE_INT)];
         $payload=\LorkhanServer\Application\GlobalSettingsPreset::capture($this->globalSettingsContent($values),$summary,$embedding,$this->repository->coreSettingsSnapshot($installation));
         $id=$this->management->saveGlobalSettingsPreset($installation,$this->need($values,'preset_name'),$payload,
             $operation==='overwrite'?$id:null,(int)($values['preset_revision']??0));
@@ -2504,13 +2532,13 @@ final class ManagementRouter
             $summary=['schema'=>'lorkhan.memory-policy.v1','enabled'=>isset($values['memory_summary_enabled']),
                 'provider_configuration_id'=>trim((string)($values['memory_summary_connector']??'')),
                 'summary_interval'=>filter_var($values['memory_summary_interval']??0,FILTER_VALIDATE_INT),
-                'minimum_events'=>filter_var($values['memory_summary_minimum_events']??4,FILTER_VALIDATE_INT)];
+                'minimum_events'=>filter_var($values['memory_summary_minimum_events']??($this->repository->memorySummaryPolicyForInstallation($installation)['content']['minimum_events']??4),FILTER_VALIDATE_INT)];
             \LorkhanServer\Application\MemorySummaryPolicy::validate($summary);
             $embedding=\LorkhanServer\Application\MemoryEmbeddingPolicy::validate([
                 'schema'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::SCHEMA,
                 'enabled'=>isset($values['memory_embedding_enabled']),
                 'endpoint'=>trim((string)($values['memory_embedding_endpoint']??'')),
-                'timeout_ms'=>filter_var($values['memory_embedding_timeout']??1500,FILTER_VALIDATE_INT)]);
+                'timeout_ms'=>filter_var($values['memory_embedding_timeout']??($this->repository->memoryEmbeddingPolicyForInstallation($installation)['content']['timeout_ms']??1500),FILTER_VALIDATE_INT)]);
             $summaryValues=$summary;unset($summaryValues['enabled']);if($summary['enabled'])$summaryValues['enabled']='1';
             $embeddingValues=$embedding;unset($embeddingValues['enabled']);if($embedding['enabled'])$embeddingValues['enabled']='1';
             $this->saveMemoryPolicy($summaryValues,$scope);$this->saveMemoryEmbeddingPolicy($embeddingValues,$scope);
@@ -2593,11 +2621,16 @@ final class ManagementRouter
     /** Convert Herika-style labelled controls into the bounded Core Profile revision document. */
     private function coreProfileContent(array $values):array
     {
+        $previousContent=isset($values['core_profile_id'])
+            ? $this->repository->getRevisioned('core_profile',$values['core_profile_id'])['content'] : [];
         $routing=[];
         foreach(['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
             'llm_experimental_configuration_id','llm_fallback_configuration_id','diary_generation_configuration_id','tts_configuration_id']as$field){
             $value=trim((string)($values[$field]??''));if($value==='')continue;$this->uuid($value,$field);$routing[$field]=$value;
         }
+        // The prompt picker is no longer exposed; retain its assignment on unrelated saves.
+        if(!array_key_exists('prompt_configuration_id',$values)&&isset($previousContent['routing']['prompt_configuration_id']))
+            $routing['prompt_configuration_id']=$previousContent['routing']['prompt_configuration_id'];
         $routing['llm_randomizer_enabled']=isset($values['llm_randomizer_enabled']);
         $routing['llm_fallback_enabled']=isset($values['llm_fallback_enabled']);
 
@@ -2610,23 +2643,25 @@ final class ManagementRouter
                 'rechat_probability_percent'=>$number($values,'setting_behavior_rechat_probability_percent',50),
                 'rechat_allow_actions'=>isset($values['setting_behavior_rechat_allow_actions'])]
                 + (isset($values['setting_behavior_combat_bark_period_seconds'])
-                    ? ['combat_bark_period_seconds'=>$number($values,'setting_behavior_combat_bark_period_seconds',20)] : []),
+                    ? ['combat_bark_period_seconds'=>$number($values,'setting_behavior_combat_bark_period_seconds',30)] : []),
             'memory'=>['recent_turn_limit'=>$number($values,'setting_memory_recent_turn_limit',20),
                 'short_term_max_summaries'=>$number($values,'setting_memory_short_term_max_summaries',10)]
                 + (isset($values['memory_switches_present']) ? [
                     'short_term_enabled'=>isset($values['setting_memory_short_term_enabled']),
                     'mid_term_enabled'=>isset($values['setting_memory_mid_term_enabled']),
-                    'long_term_enabled'=>isset($values['setting_memory_long_term_enabled']),
                 ] : []),
-            'diary'=>['enabled'=>isset($values['setting_diary_enabled']),
-                'automatic_enabled'=>isset($values['setting_diary_automatic_enabled']),
+            'diary'=>['automatic_enabled'=>isset($values['setting_diary_automatic_enabled']),
                 'automatic_wait_enabled'=>isset($values['setting_diary_automatic_wait_enabled']),
                 'automatic_interval_seconds'=>$number($values,'setting_diary_automatic_interval_seconds',120),
-                'include_in_context'=>isset($values['setting_diary_include_in_context']),
                 'latest_entry_in_context'=>isset($values['setting_diary_latest_entry_in_context']),
                 'context_turn_limit'=>$number($values,'setting_diary_context_turn_limit',20),
                 'prompt'=>trim((string)($values['setting_diary_prompt']??DiaryGenerationPolicy::defaults()['prompt']))],
         ];
+
+        // Removed controls must not clear stored compatibility values on a normal form save.
+        foreach(['memory'=>['long_term_enabled'],'diary'=>['enabled','include_in_context']] as $section=>$fields)
+            foreach($fields as $field)if(array_key_exists($field,$previousContent['settings_overrides'][$section]??[]))
+                $overrides[$section][$field]=$previousContent['settings_overrides'][$section][$field];
 
         if (isset($values['diary_materialize_present'])) {
             $overrides['diary']['materialize_enabled']=isset($values['setting_diary_materialize_enabled']);
@@ -2645,6 +2680,9 @@ final class ManagementRouter
             EffectiveSettingsResolver::validateSettingsOverrides(['bored_event'=>$overrides['bored_event']]);
         }
         if (isset($values['rpg_comments_present'])) {
+            // Wait comments are no longer offered; preserve an existing explicit selection.
+            if(in_array('wait',$previousContent['settings_overrides']['rpg_comments']['events']??[],true))
+                $values['profile_rpg_events']=array_values(array_unique(array_merge($values['profile_rpg_events']??[],['wait'])));
             $overrides['rpg_comments']=['events'=>$values['profile_rpg_events']??[],
                 'chance_percent'=>$number($values,'setting_rpg_comments_chance_percent',50)];
             EffectiveSettingsResolver::validateSettingsOverrides(['rpg_comments'=>$overrides['rpg_comments']]);
@@ -2688,7 +2726,7 @@ final class ManagementRouter
     private function globalSettingsContent(array $values):array
     {
         $integer=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
-        $content=SettingsCatalog::globalDefaults();$client=&$content['client'];
+        $content=SettingsCatalog::globalDefaults();$client=&$content['client'];$saved=[];
         if(isset($values['installation_id'])){
             $saved=$this->repository->globalSettingsForInstallation($values['installation_id'])['content'];
             $content['backup']=$saved['backup']??$content['backup'];
@@ -2718,8 +2756,12 @@ final class ManagementRouter
             'knowledge_tags'=>isset($values['installation_id'])?$this->repository->oghmaKnowledgeTags($values['installation_id']):'',
             'extractor_enabled'=>isset($values['oghma_extractor_enabled']),
         ];
-        foreach(SettingsCatalog::contextSectionDefaults()as$key=>$default)$content['context']['sections'][$key]=isset($values['context_section_'.$key]);
-        foreach(SettingsCatalog::contextDetailDefaults()as$key=>$default)$content['context']['details'][$key]=isset($values['context_detail_'.$key]);
+        foreach (['sections'=>'section','details'=>'detail'] as $group=>$prefix) {
+            foreach ($content['context'][$group] as $key=>$default) {
+                $content['context'][$group][$key] = in_array($key,SettingsCatalog::hiddenContextFields()[$group],true)
+                    ? ($saved['context'][$group][$key]??$default) : isset($values['context_'.$prefix.'_'.$key]);
+            }
+        }
         if(isset($values['context_detail_npc_equipment_inventory'])&&!isset($values['context_detail_npc_equipment'])&&!isset($values['context_detail_npc_inventory'])){
             $content['context']['details']['npc_equipment']=true;$content['context']['details']['npc_inventory']=true;
         }
@@ -2749,12 +2791,23 @@ final class ManagementRouter
         $content['context']['ground_items_descriptions_only'] = isset($values['context_ground_items_descriptions_only']);
         $content['context']['inventory_items_descriptions_only'] = isset($values['context_inventory_items_descriptions_only']);
         $eventTypes=$values['context_event_types']??[];if(!is_array($eventTypes))throw new InvalidArgumentException('invalid_context_event_types');
-        $content['context']['event_types']=array_values($eventTypes);
+        if(isset($values['context_event_filter_exclusions'])) {
+            $custom=$values['context_event_types_custom']??'';
+            if(!is_string($custom)||strlen($custom)>32768)throw new InvalidArgumentException('invalid_context_event_types');
+            $eventTypes=array_merge(array_values($eventTypes),array_values(array_filter(array_map('trim',preg_split('/[,\r\n]+/',$custom)?:[]),static fn($type)=>$type!=='')));
+            $content['context']['event_types_excluded']=SettingsCatalog::normalizeEventFilter(['event_types_excluded'=>$eventTypes])['event_types_excluded'];
+        } else {
+            // A form opened before the exclusion UI was deployed still posts an inclusion list.
+            $content['context']['event_types_excluded']=SettingsCatalog::normalizeEventFilter(['event_types'=>array_values($eventTypes)])['event_types_excluded'];
+        }
         foreach(['location_blacklist','item_blacklist','magic_effects_blacklist']as$field){
             $raw=(string)($values['context_'.$field]??'');$content['context'][$field]=preg_split('/\R/u',$raw)?:[];
         }
         $content['relationship']=['enabled'=>isset($values['relationship_enabled']),
-            'update_chance_percent'=>$integer($values,'relationship_update_chance_percent',0)];
+            'update_chance_percent'=>$integer($values,'relationship_update_chance_percent',0),
+            'worst_memory_lifespan_days'=>$integer($values,'relationship_worst_memory_lifespan_days',$saved['relationship']['worst_memory_lifespan_days']??7),
+            'never_clear_relationship_data'=>isset($values['relationship_never_clear_relationship_data_present'])
+                ? isset($values['relationship_never_clear_relationship_data']) : ($saved['relationship']['never_clear_relationship_data']??false)];
         if(isset($values['task_availability_present']))$content['task_availability']=['background_memory'=>isset($values['background_memory_enabled']),'profile_generation'=>isset($values['profile_tasks_enabled']),'scene_classifier'=>isset($values['scene_classifier_enabled']),'director'=>isset($values['director_enabled'])];
         elseif(is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id']))$content['task_availability']=$this->repository->globalSettingsForInstallation($values['installation_id'])['content']['task_availability']??SettingsCatalog::globalDefaults()['task_availability'];
         if(!isset($values['scene_classifier_present'])&&is_string($values['installation_id']??null)&&Uuid::isValid($values['installation_id'])){
@@ -2801,15 +2854,14 @@ final class ManagementRouter
         // Only an explicit override-editor submission changes these leaves; ordinary saves preserve them.
         if ($allowSpecialTtsRouting) unset($content['settings_overrides']);
         elseif (array_key_exists('npc_settings_overrides_json', $values)) {
-            $submitted = $this->jsonField($values, 'npc_settings_overrides_json');
+            $submitted = EffectiveSettingsResolver::validateSettingsOverrides($this->jsonField($values, 'npc_settings_overrides_json'), true);
             $catalog = SettingsCatalog::npcOverrideFields();
             foreach ($submitted as $section => $fields) {
                 if (!isset($catalog[$section]) || !is_array($fields)
                     || array_diff(array_keys($fields), $catalog[$section]) !== [])
                     throw new InvalidArgumentException('invalid_npc_settings_override');
             }
-            $submitted = EffectiveSettingsResolver::validateSettingsOverrides($submitted, true);
-            $overrides = $content['settings_overrides'] ?? [];
+            $overrides = EffectiveSettingsResolver::validateSettingsOverrides($content['settings_overrides'] ?? [], true);
             foreach ($catalog as $section => $fields) {
                 foreach ($fields as $field) unset($overrides[$section][$field]);
                 if (($overrides[$section] ?? null) === []) unset($overrides[$section]);
@@ -2938,7 +2990,7 @@ final class ManagementRouter
     /** Explicit template reset is a reversible profile revision, never a save-game reset. */
     private function resetNpcBiography(array $values):array
     {
-        $id=$this->need($values,'profile_id');$this->uuid($id,'profile_id');
+        $id=$this->need($values,'profile_id');$this->profileId($id,'profile_id');
         $expected=filter_var($values['base_revision']??null,FILTER_VALIDATE_INT);
         if($expected===false||$expected<1||($values['confirm_reset']??'')!=='1')throw new InvalidArgumentException('invalid_profile_reset');
         return$this->repository->transaction(function()use($id,$expected):array{
@@ -3256,7 +3308,7 @@ final class ManagementRouter
     private function profileVoicePreview(array $values,string $browserSession):Response
     {
         if(!$this->management->allowTtsPreview($browserSession))return Response::json(429,['error'=>'tts_preview_rate_limited']);
-        $id=$this->need($values,'profile_id');$this->uuid($id,'profile_id');
+        $id=$this->need($values,'profile_id');$this->profileId($id,'profile_id');
         $profile=$this->repository->getRevisioned('profile',$id);
         $installation=(string)$profile['installation_id'];
         $filter=\LorkhanServer\Application\TtsFilterPresets::validate($values['tts_filter_preset']??$profile['content']['tts_filter_preset']??'none');
@@ -3394,7 +3446,7 @@ final class ManagementRouter
             $input['expected_revision']=$this->relationshipRevision($values);
         }else{
             if(isset($values['actor_profile_id'])&&$values['actor_profile_id']!==''){
-                $id=$this->need($values,'actor_profile_id');$this->uuid($id,'actor_profile_id');
+                $id=$this->need($values,'actor_profile_id');$this->profileId($id,'actor_profile_id');
                 $profile=$this->repository->getRevisioned('profile',$id);
                 if($profile['installation_id']!==($scope['installation_id']??null))throw new InvalidArgumentException('invalid_actor_profile');
                 $identity=is_array($profile['actor_identity'])?$profile['actor_identity']:json_decode($profile['actor_identity'],true,32,JSON_THROW_ON_ERROR);
@@ -3409,7 +3461,7 @@ final class ManagementRouter
     {
         if(($values['relationship_page']??null)==='npc'){
             $profile=(string)($values['profile_id']??'');$playthrough=(string)($values['playthrough_id']??'');
-            $this->uuid($profile,'profile_id');$this->uuid($playthrough,'playthrough_id');
+            $this->profileId($profile,'profile_id');$this->uuid($playthrough,'playthrough_id');
             return $this->characterPageLocation($values,$status).'&'.http_build_query(['rel_profile'=>$profile,'rel_playthrough'=>$playthrough]);
         }
         $query=['status'=>$status];

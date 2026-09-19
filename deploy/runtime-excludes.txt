@@ -1,0 +1,4 @@
+# Optional voice design tooling is not part of the player-facing server.
+/ui/voice_review.php
+/ui/css/voice-review.css
+/ui/js/voice-review.js

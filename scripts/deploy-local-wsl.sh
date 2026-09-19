@@ -83,9 +83,8 @@ cleanup_stage() {
 }
 trap cleanup_stage EXIT
 
-# Ship only maintained runtime files, not the test suite, development notes, or build tools.
-rsync -ar --files-from="${source_root}/deploy/runtime-files.txt" \
-    "${source_root}/" "${stage_root}/"
+# Both fresh installs and updates stage the same runtime payload.
+bash "${source_root}/scripts/stage-runtime.sh" "${source_root}" "${stage_root}"
 
 # Fail before changing the live tree when a staged PHP file is syntactically invalid.
 while IFS= read -r -d '' php_file; do
@@ -123,6 +122,7 @@ runuser -u postgres -- psql --dbname=lorkhan --set=ON_ERROR_STOP=1 \
     --command='CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS vector;' >/dev/null
 
 LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${target_root}/scripts/migrate.php" up
+LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${target_root}/scripts/check-prompt-trace-labels.php"
 LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${target_root}/scripts/provision-default-connectors.php"
 LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${target_root}/scripts/provision-default-descriptions.php"
 LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${target_root}/scripts/provision-default-biographies.php"

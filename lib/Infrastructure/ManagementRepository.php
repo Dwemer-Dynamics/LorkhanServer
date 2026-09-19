@@ -20,6 +20,9 @@ final class ManagementRepository
 
     public function __construct(private readonly PDO $db) {}
 
+    public function playthroughSaves(): PlaythroughSaveRepository
+    {return new PlaythroughSaveRepository($this->db);}
+
     public function playthroughTablePolicy():array
     {return PlaythroughTablePolicy::inventory($this->db);}
 

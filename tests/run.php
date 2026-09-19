@@ -57,6 +57,30 @@ $check = static function (bool $condition, string $message) use (&$failures, &$c
     }
 };
 
+// Rechat uses the same reference identity as profile routing without needing database access.
+$rechatProducts=(new ReflectionClass(\LorkhanServer\Infrastructure\ProductRepository::class))->newInstanceWithoutConstructor();
+$rechatCoordinator=(new ReflectionClass(\LorkhanServer\Application\RechatCoordinator::class))->newInstanceWithoutConstructor();
+(new ReflectionProperty($rechatCoordinator,'products'))->setValue($rechatCoordinator,$rechatProducts);
+$rechatKey=new ReflectionMethod($rechatCoordinator,'identityKey');
+$rechatActor=['kind'=>'npc','record_id'=>'hlaalu guard_outside','content_file'=>'Morrowind.esm',
+    'refnum'=>['index'=>428719,'content_file'=>0],'display_name'=>'Hlaalu Guard','cell'=>['kind'=>'interior','name'=>'A']];
+$rechatMoved=$rechatActor;
+$rechatMoved['content_file']='morrowind.esm';$rechatMoved['refnum']['content_file']=4;
+$rechatMoved['display_name']='Renamed Guard';$rechatMoved['cell']['name']='B';
+$check($rechatKey->invoke($rechatCoordinator,$rechatActor)===$rechatProducts->actorKey($rechatActor)
+    &&$rechatKey->invoke($rechatCoordinator,$rechatActor)===$rechatKey->invoke($rechatCoordinator,$rechatMoved),
+    'Rechat shares profile identity across movement, renames and load-order changes');
+$rechatOther=$rechatActor;$rechatOther['refnum']['index']++;
+$check($rechatKey->invoke($rechatCoordinator,$rechatActor)!==$rechatKey->invoke($rechatCoordinator,$rechatOther),
+    'Rechat keeps same-name same-base actors separate by placed reference');
+$rechatOther=$rechatActor;$rechatOther['content_file']='Tribunal.esm';
+$check($rechatKey->invoke($rechatCoordinator,$rechatActor)!==$rechatKey->invoke($rechatCoordinator,$rechatOther),
+    'Rechat keeps equal local reference numbers from different mods separate');
+$rechatPlayer=$rechatActor;$rechatPlayer['kind']='player';
+$rechatNarrator=$rechatActor;$rechatNarrator['kind']='narrator';
+$check(count(array_unique(array_map(fn($actor)=>$rechatKey->invoke($rechatCoordinator,$actor),
+    [$rechatActor,$rechatPlayer,$rechatNarrator])))===3,'Rechat keeps Player and Narrator separate from placed NPCs');
+
 $recordedCalendar=\LorkhanServer\Application\MorrowindCalendar::parse(['year'=>427,'month'=>7,'day'=>16,'hour'=>9.5]);
 $check($recordedCalendar['date']==='0427-08-16' && $recordedCalendar['label']==='16 Last Seed, 3E 427 · 09:30', 'Morrowind zero-based calendar month and hour');
 $calendarEnd=\LorkhanServer\Application\MorrowindCalendar::parse(['year'=>427,'month'=>11,'day'=>31,'hour'=>23.5]);
@@ -225,7 +249,7 @@ $diaryMock=(new \LorkhanServer\Application\MockProfileGenerationProvider())->gen
     ['generation_mode'=>'diary_generation','name'=>'Fargoth','witnessed_context'=>[['type'=>'inputtext']]],new NeverCancelledToken());
 $check($diaryDefaults['enabled']===false&&$diaryDefaults['automatic_enabled']===false
     &&$diaryDefaults['automatic_wait_enabled']===false&&$diaryDefaults['automatic_interval_seconds']===120
-    &&$diaryDefaults['include_in_context']===true&&$diaryDefaults['latest_entry_in_context']===false&&$diaryDefaults['context_turn_limit']===20
+    &&$diaryDefaults['include_in_context']===true&&$diaryDefaults['latest_entry_in_context']===false&&$diaryDefaults['context_turn_limit']===100
     &&\LorkhanServer\Application\DiaryGenerationPolicy::validateOverrides($diaryOverrides)===$diaryOverrides
     &&$diaryMock===['title'=>'Fargoth diary','content'=>'Fargoth records 1 witnessed Morrowind event.']
     &&in_array('narrative.generate',\LorkhanServer\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
@@ -676,6 +700,19 @@ $decodedError = json_decode($response->body, true, 16, JSON_THROW_ON_ERROR);
 $check($decodedError['message'] === 'Request rejected', 'generic client error');
 
 $validator = new Validator();
+$futureRuntime = json_decode(file_get_contents(dirname(__DIR__) . '/protocol/fixtures/v1/valid/session-future-runtime.json'), true, 64, JSON_THROW_ON_ERROR)['instance'];
+$validator->validate($futureRuntime, 'lorkhan.session.init.v1');
+$check(true, 'compatible sessions are not gated by engine, commit, Lua API or client release labels');
+foreach (['openmw_version' => '', 'openmw_commit' => [], 'lua_api_revision' => 0] as $field => $invalid) {
+    $invalidRuntime = $futureRuntime;
+    $invalidRuntime['runtime'][$field] = $invalid;
+    try {
+        $validator->validate($invalidRuntime, 'lorkhan.session.init.v1');
+        $check(false, 'invalid runtime metadata accepted: ' . $field);
+    } catch (ValidationException $error) {
+        $check(true, 'runtime metadata remains structurally validated: ' . $field);
+    }
+}
 $fixtureRoot = dirname(__DIR__) . '/protocol/fixtures/v1/valid';
 foreach ([
     'session-init.json' => 'lorkhan.session.init.v1',
@@ -990,10 +1027,10 @@ $promptTurn['_item_descriptions']=[['description_id'=>'private','record_id'=>'ir
 $assembler=new PromptAssembler(4096,1024);$assembled=$assembler->assemble($promptTurn,$promptSelection);$repeat=$assembler->assemble($promptTurn,$promptSelection);
 $systemMessage=$assembled['provider_input']['_messages'][0]??[];$finalMessage=$assembled['provider_input']['_messages'][array_key_last($assembled['provider_input']['_messages'])]??[];
 $check($assembled===$repeat && ($systemMessage['role']??null)==='system'
-    &&str_contains((string)($systemMessage['content']??''),'- **Roleplay Instructions:**')
-    &&str_contains((string)($systemMessage['content']??''),'### Character')
-    &&strpos((string)$systemMessage['content'],'## Output Contract')<strpos((string)$systemMessage['content'],'## NPC Context')
-    &&strpos((string)$systemMessage['content'],'## NPC Context')<strpos((string)$systemMessage['content'],'## Current Turn')
+    &&str_contains((string)($systemMessage['content']??''),'# Roleplay Instructions')
+    &&str_contains((string)($systemMessage['content']??''),'# Character')
+    &&strpos((string)$systemMessage['content'],'# Roleplay Instructions')<strpos((string)$systemMessage['content'],'# Character')
+    &&strpos((string)$systemMessage['content'],'# Character')<strpos((string)$systemMessage['content'],'# General Instructions')
     &&($finalMessage['role']??null)==='user', 'compact Markdown prompt assembly is deterministic and role-separated');
 $globalPromptSelection=$promptSelection;
 $tagSelection=$promptSelection;
@@ -1122,11 +1159,13 @@ $disabledPresetSource=$corePresetSource;
 $disabledPresetSource['settings_overrides']['diary']['enabled']=false;
 $disabledPresetSource['settings_overrides']['behavior']['rechat']=false;
 $followerPreset=\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn('builtin:follower',$disabledPresetSource);
-$check($followerPreset['settings_overrides']['diary']['enabled']===true
-    &&$followerPreset['settings_overrides']['behavior']['rechat']===true,'Follower opens the native diary and Rechat gates');
+$check($followerPreset['settings_overrides']['diary']['automatic_enabled']===true
+    &&$followerPreset['settings_overrides']['diary']['materialize_enabled']===true
+    &&$followerPreset['settings_overrides']['behavior']['rechat']===true,'Follower enables automatic and physical diaries and Rechat');
 foreach(['builtin:default','builtin:local_llm','builtin:passive'] as $builtin){
     $after=\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn($builtin,$followerPreset);
-    $check($after['settings_overrides']['diary']['enabled']===true
+    $check($after['settings_overrides']['diary']['enabled']===false
+        &&$after['settings_overrides']['diary']['materialize_enabled']===false
         &&$after['settings_overrides']['diary']['automatic_enabled']===false
         &&$after['settings_overrides']['behavior']['rechat']===true,$builtin.' stops automatic diaries while retaining manual generation and configured Rechat');
 }
@@ -1204,15 +1243,45 @@ foreach ([['context'=>['prompt_timestamp'=>'true']], ['context'=>['sections'=>[]
 
 $filterCore=['settings_overrides'=>['context'=>['event_types'=>['book','chat','chat']], 'prompt'=>['emote_moods'=>'wary, hopeful']]];
 $filterResolved=(new EffectiveSettingsResolver())->resolve([],$filterCore,[]);
-$check($filterResolved['context']['event_types']===['chat','book'],'Core event types are canonicalized against the supported catalog');
+$check($filterResolved['context']['event_types_excluded']===array_values(array_diff(\LorkhanServer\Application\SettingsCatalog::eventTypes(),['chat','book'])),'Core event types are canonicalized against the supported catalog');
 $filterSelection=$promptSelection;$filterSelection['effective_settings']=$filterResolved;
 $check(str_contains((new PromptAssembler())->assemble($promptTurn,$filterSelection)['provider_input']['_assembled_prompt'],'wary, hopeful'),'Core mood override reaches the actual prompt');
 $filterNpc=['settings_overrides'=>['context'=>['event_types'=>[]],'prompt'=>['emote_moods'=>'']]];
 $filterSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve([],$filterCore,$filterNpc);
-$check($filterSelection['effective_settings']['context']['event_types']===[]
+$check($filterSelection['effective_settings']['context']['event_types_excluded']===\LorkhanServer\Application\SettingsCatalog::eventTypes()
     &&!str_contains((new PromptAssembler())->assemble($promptTurn,$filterSelection)['provider_input']['_assembled_prompt'],'wary, hopeful'),'NPC empty event and mood overrides clear inherited selections');
 $filterPreset=\LorkhanServer\Application\CoreProfilePreset::capture($filterCore);
-$check($filterPreset['settings_overrides']['context']['event_types']===['chat','book']&&$filterPreset['settings_overrides']['prompt']['emote_moods']==='wary, hopeful','event and mood overrides survive named presets');
+$check($filterPreset['settings_overrides']['context']['event_types_excluded']===$filterResolved['context']['event_types_excluded']&&$filterPreset['settings_overrides']['prompt']['emote_moods']==='wary, hopeful','event and mood overrides survive named presets');
+$customEventRenderer=new ReflectionMethod(PromptAssembler::class,'semanticHistoryEvent');
+$check($customEventRenderer->invoke(new PromptAssembler(),'ext_custom_event',['text'=>'Custom event sentinel'],[])==='[Event] Custom event sentinel','custom event display text reaches prompt formatting');
+$customFilter=['context'=>['event_types_excluded'=>['chat','ext_custom_event','chat']]];
+$check(EffectiveSettingsResolver::validateSettingsOverrides($customFilter)['context']['event_types_excluded']===['chat','ext_custom_event'], 'custom event exclusions are retained and deduplicated');
+$emptyFilter=(new EffectiveSettingsResolver())->resolve([],$filterCore,['settings_overrides'=>['context'=>['event_types_excluded'=>[]]]]);
+$check($emptyFilter['context']['event_types_excluded']===[], 'empty NPC exclusion override clears inherited filtering');
+$legacyGlobal=\LorkhanServer\Application\SettingsCatalog::globalDefaults();unset($legacyGlobal['context']['event_types_excluded']);
+$legacyGlobal['context']['event_types']=['infoaction'];unset($legacyGlobal['relationship']['worst_memory_lifespan_days'],$legacyGlobal['relationship']['never_clear_relationship_data']);
+$migratedFilter=EffectiveSettingsResolver::validateGlobalSettings($legacyGlobal);
+$check(!in_array('spellcast',$migratedFilter['context']['event_types_excluded'],true)&&in_array('chat',$migratedFilter['context']['event_types_excluded'],true), 'legacy action filter preserves spell and item aliases');
+$check($migratedFilter['relationship']['worst_memory_lifespan_days']===7&&!$migratedFilter['relationship']['never_clear_relationship_data'], 'older settings acquire relationship controls safely');
+$legacyNamed=['schema'=>'lorkhan.named-core-preset.v1','settings_overrides'=>$filterCore['settings_overrides'],'routing'=>[]];
+$check(\LorkhanServer\Application\CoreProfilePreset::validate($legacyNamed)['settings_overrides']['context']['event_types_excluded']===$filterResolved['context']['event_types_excluded'], 'legacy named preset imports normalize event filtering');
+$coreLegacyTarget=['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>$filterCore['settings_overrides']];
+$coreApplied=\LorkhanServer\Application\CoreProfilePreset::apply($filterPreset,$coreLegacyTarget);
+$check(!isset($coreApplied['settings_overrides']['context']['event_types'])&&$coreApplied['settings_overrides']['context']['event_types_excluded']===$filterResolved['context']['event_types_excluded'],'applying a new Core preset replaces a legacy inclusion filter');
+$globalLegacyPreset=\LorkhanServer\Application\GlobalSettingsPreset::defaults();
+unset($globalLegacyPreset['settings']['context']['event_types_excluded'],$globalLegacyPreset['settings']['relationship']['worst_memory_lifespan_days'],$globalLegacyPreset['settings']['relationship']['never_clear_relationship_data']);
+$globalLegacyPreset['settings']['context']['event_types']=['chat'];
+$globalApplied=\LorkhanServer\Application\GlobalSettingsPreset::apply($globalLegacyPreset,\LorkhanServer\Application\SettingsCatalog::globalDefaults(),['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''],\LorkhanServer\Application\MemoryEmbeddingPolicy::defaults());
+$check(in_array('book',$globalApplied['settings']['context']['event_types_excluded'],true)&&!in_array('chat',$globalApplied['settings']['context']['event_types_excluded'],true),'older Global Settings presets import their known filter meaning');
+foreach ([['event_types_excluded'=>'chat'],['event_types_excluded'=>['bad type']],['event_types_excluded'=>[str_repeat('a',129)]],['event_types_excluded'=>array_fill(0,257,'chat')],['event_types'=>['chat'],'event_types_excluded'=>[]]] as $badFilter) {
+    try {EffectiveSettingsResolver::validateSettingsOverrides(['context'=>$badFilter]);$check(false,'invalid exclusion list rejected');}
+    catch(InvalidArgumentException){$check(true,'invalid exclusion list rejected');}
+}
+foreach ([-1,366,'7'] as $badLifespan) {
+    $badSettings=\LorkhanServer\Application\SettingsCatalog::globalDefaults();$badSettings['relationship']['worst_memory_lifespan_days']=$badLifespan;
+    try {EffectiveSettingsResolver::validateGlobalSettings($badSettings);$check(false,'invalid memory lifespan rejected');}
+    catch(InvalidArgumentException){$check(true,'invalid memory lifespan rejected');}
+}
 $npcPromptOverrides=$corePromptOverrides;$npcPromptOverrides['prompt']['prompt_head']='NPC override sentinel.';
 $npcPromptOverrides['context']['prompt_timestamp']=false;
 $corePromptSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>$corePromptOverrides],['settings_overrides'=>$npcPromptOverrides]);
@@ -1273,7 +1342,7 @@ foreach (['Narrator'=>'narrator','NPC'=>'npc','Text Only'=>'npc','Disabled'=>'']
     $directMessages=$assembler->assemble($inlineTurn,$promptSelection)['provider_input']['_messages'];
     $check(!str_contains($directMessages[array_key_last($directMessages)]['content'],'block sentinel'),'direct Narrator dialogue skips inline templates');
 }
-$check(str_contains($assembled['provider_input']['_assembled_prompt'],'### Player Character')
+$check(str_contains($assembled['provider_input']['_assembled_prompt'],'# Player Character')
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'Freed from the Imperial prison.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe'),
     'server-owned player profile is included in turn context with an explicit field allowlist');
@@ -1285,7 +1354,7 @@ $narratorPlayerTurn=$restrictedPlayerTurn;$narratorPlayerTurn['payload']['target
 $narratorPlayerPrompt=$assembler->assemble($narratorPlayerTurn,$promptSelection)['provider_input']['_assembled_prompt'];
 $check(str_contains($narratorPlayerPrompt,'Freed from the Imperial prison.'),
     'restricted player biography remains available to the Narrator');
-$check(str_contains($assembled['provider_input']['_assembled_prompt'],'### Record Descriptions')
+$check(str_contains($assembled['provider_input']['_assembled_prompt'],'# Record Descriptions')
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'A short iron blade.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe either'),
     'server-owned record descriptions are included with an explicit field allowlist');
@@ -1338,15 +1407,25 @@ $tablePolicy=\LorkhanServer\Infrastructure\PlaythroughTablePolicy::tables();
 $portableTables=array_keys(array_filter($tablePolicy,static fn(array $row):bool=>$row['portable']));sort($portableTables);
 $archiveTables=\LorkhanServer\Infrastructure\PlaythroughArchive::tableNames();sort($archiveTables);
 $check($portableTables===$archiveTables,'Portable policy exactly matches archive allowlist');
+$localTables=array_keys(array_filter($tablePolicy,static fn(array $row):bool=>$row['local_save']));sort($localTables);
+$localExpected=array_values(array_unique(array_merge(\LorkhanServer\Infrastructure\PlaythroughArchive::tableNames(true),\LorkhanServer\Infrastructure\PlaythroughLocalState::tableNames())));sort($localExpected);
+$check($localTables===$localExpected,'Local-save labels exactly match graph and staged gameplay tables');
+foreach([
+    ['public.general_settings','PLAYER_NAME',[],true],['public.general_settings','AUTO_DIARY_LAST_caius',[],true],
+    ['public.general_settings','CONTEXT_HISTORY',[],false],['public.general_settings','custom_option',[],false],
+    ['public.conf_opts','custom_gameplay',[],true],['public.conf_opts','custom_option',['custom_option'],false],
+    ['public.conf_opts','COMBAT_BARK_COOLDOWN',[],false],['public.conf_opts','inworld_voice_caius',[],false],
+    ['public.conf_opts','Network/provider',[],false],['public.conf_opts','DYNAMIC_PROFILE_CLOCK',[],true],
+] as [$table,$key,$global,$expected])$check(\LorkhanServer\Infrastructure\PlaythroughLocalState::gameplaySetting($table,$key,$global)===$expected,'CHIM gameplay setting filter: '.$table.'.'.$key);
 $check(array_filter($tablePolicy,static fn(array $row):bool=>in_array($row['category'],['shared','operational','derived'],true)&&$row['portable'])===[],'Shared operational and derived tables never enter portable archive');
 $backupGlobal=SettingsCatalog::globalDefaults();
 $check($backupGlobal['backup']['dragon_break_days']===3,'Dragon Break default remains three days');
 unset($backupGlobal['backup']);
 $check(EffectiveSettingsResolver::validateGlobalSettings($backupGlobal)['backup']['dragon_break_days']===3,'Legacy settings gain default backup threshold');
-foreach([1,365,0,366,'3'] as $days){
+foreach([1,365,3650,0,3651,'3'] as $days){
     $backupGlobal=SettingsCatalog::globalDefaults();$backupGlobal['backup']['dragon_break_days']=$days;$accepted=true;
     try{EffectiveSettingsResolver::validateGlobalSettings($backupGlobal);}catch(InvalidArgumentException){$accepted=false;}
-    $check($accepted===(is_int($days)&&$days>=1&&$days<=365),'Dragon Break threshold is a bounded integer');
+    $check($accepted===(is_int($days)&&$days>=1&&$days<=3650),'Dragon Break threshold is a bounded integer');
 }
 $ambientGlobal=SettingsCatalog::globalDefaults();
 foreach ([false,true] as $hideAmbient) {
@@ -1383,13 +1462,13 @@ $powerSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve
 $powerTurn['payload']['context']['nearbyActors']['items'][1]['refnum']=['index'=>999,'content_file'=>'Morrowind.esm'];
 $powerPrompt=(new PromptAssembler(16384,1024))->assemble($powerTurn,$powerSelection)['provider_input']['_assembled_prompt'];
 $check(!str_contains($powerPrompt,'appears overwhelmingly powerful'),'Power Awareness does not reuse a namesake actor observation');
-$check(str_contains($contextPrompt,'### World')&&str_contains($contextPrompt,'- **Location:** Seyda Neen')
+$check(str_contains($contextPrompt,'# World')&&str_contains($contextPrompt,'- **Location:** Seyda Neen')
     &&str_contains($contextPrompt,"- **Date:** 16 Sun's Height 3E 427")
-    &&str_contains($contextPrompt,'### People Present')&&str_contains($contextPrompt,'### Nearby Actors')
+    &&str_contains($contextPrompt,'# People Present')&&str_contains($contextPrompt,'# Nearby Actors')
     &&str_contains($contextPrompt,'- **Current Activity:** wander')
     &&str_contains($contextPrompt,'- **Basic Summary:** A watchful Imperial guard.')
-    &&str_contains($contextPrompt,'### Nearby Items')&&str_contains($contextPrompt,'- **Count:** 2')
-    &&str_contains($contextPrompt,'### Points Of Interest')&&str_contains($contextPrompt,'- **Lock Level:** 20')
+    &&str_contains($contextPrompt,'# Nearby Items')&&str_contains($contextPrompt,'- **Count:** 2')
+    &&str_contains($contextPrompt,'# Points Of Interest')&&str_contains($contextPrompt,'- **Lock Level:** 20')
     &&!str_contains($contextPrompt,'**Position:**')&&!str_contains($contextPrompt,'**X:**'),
     'OpenMW world, actors, items, and points of interest render as bounded semantic Markdown');
 $presetContextTurn=$contextTurn;
@@ -1406,12 +1485,13 @@ $check(str_contains($defaultContextPrompt,'Census and Excise Office')&&str_conta
 $inventoryTurn=$contextTurn;
 $inventoryTurn['payload']['context']['inventory']=['items'=>[['record_id'=>'native_inventory_ring','display_name'=>'Native Inventory Ring','count'=>3]]];
 $inventoryPrompt=(new PromptAssembler(16384,1024))->assemble($inventoryTurn,$promptSelection)['provider_input']['_assembled_prompt'];
-$check(str_contains($inventoryPrompt,'Native Inventory Ring x3'), 'player prompt consumes the actual top-level OpenMW inventory lane');
+$check(!str_contains($inventoryPrompt,'Native Inventory Ring'), 'player carried inventory is excluded from dialogue prompts');
 $filteredInventorySelection=$promptSelection;
 $filteredInventorySelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
 $filteredInventorySelection['effective_settings']['context']['inventory_items_descriptions_only']=true;
 $filteredInventorySelection['effective_settings']['context']['sections']['record_descriptions']=false;
 $filteredInventoryTurn=$inventoryTurn;
+$filteredInventoryTurn['payload']['context']['targetState']['inventory']=$inventoryTurn['payload']['context']['inventory'];
 $filteredInventoryTurn['payload']['context']['playerState']['equipment']=[['record_id'=>'equipped_ring','display_name'=>'Equipped Ring']];
 $filteredInventoryPrompt=(new PromptAssembler(16384,1024))->assemble($filteredInventoryTurn,$filteredInventorySelection)['provider_input']['_assembled_prompt'];
 $check(!str_contains($filteredInventoryPrompt,'Native Inventory Ring') && str_contains($filteredInventoryPrompt,'Equipped Ring')
@@ -1420,7 +1500,7 @@ $filteredInventoryTurn['_item_descriptions']=[['record_id'=>'native_inventory_ri
 $filteredInventoryPrompt=(new PromptAssembler(16384,1024))->assemble($filteredInventoryTurn,$filteredInventorySelection)['provider_input']['_assembled_prompt'];
 $check(str_contains($filteredInventoryPrompt,'Native Inventory Ring x3') && !str_contains($filteredInventoryPrompt,'Hidden ring description.'),
     'inventory availability filtering retains counts independently of description text visibility');
-$filteredInventoryTurn['payload']['context']['inventory']['items'][0]['count']=6;
+$filteredInventoryTurn['payload']['context']['targetState']['inventory']['items'][0]['count']=6;
 $filteredInventoryPrompt=(new PromptAssembler(16384,1024))->assemble($filteredInventoryTurn,$filteredInventorySelection)['provider_input']['_assembled_prompt'];
 $check(!str_contains($filteredInventoryPrompt,'Native Inventory Ring'), 'inventory descriptions-only matches Herika omission of stacks larger than five');
 $splitTurn=$inventoryTurn;
@@ -1433,7 +1513,7 @@ foreach([[true,true],[true,false],[false,true],[false,false]] as [$equipment,$in
     $splitSelection['effective_settings']['context']['details']['npc_inventory']=$inventory;
     $splitPrompt=(new PromptAssembler(16384,1024))->assemble($splitTurn,$splitSelection)['provider_input']['_assembled_prompt'];
     $check(str_contains($splitPrompt,'Player Equipped Boots')===$equipment&&str_contains($splitPrompt,'NPC Equipped Boots')===$equipment
-        &&str_contains($splitPrompt,'Native Inventory Ring')===$inventory&&str_contains($splitPrompt,'NPC Inventory Coin')===$inventory,'equipment and inventory toggle independently for player and NPC');
+        &&!str_contains($splitPrompt,'Native Inventory Ring')&&str_contains($splitPrompt,'NPC Inventory Coin')===$inventory,'player equipment stays visible while only the NPC own inventory follows the inventory setting');
 }
 unset($splitSelection['effective_settings']['context']['details']['npc_equipment'],$splitSelection['effective_settings']['context']['details']['npc_inventory']);
 $splitSelection['effective_settings']['context']['details']['npc_equipment_inventory']=false;
@@ -1507,9 +1587,9 @@ $inventorySelection['effective_settings']['context']=\LorkhanServer\Application\
 $inventorySelection['effective_settings']['context']['details']['npc_inventory']=false;
 $inventoryPrompt=(new PromptAssembler(16384,1024))->assemble($inventoryTurn,$inventorySelection)['provider_input']['_assembled_prompt'];
 $check(!str_contains($inventoryPrompt,'Native Inventory Ring'), 'inventory context selection also gates the native top-level inventory lane');
-$inventoryTurn['payload']['context']['playerState']['inventory']=[];
+$inventoryTurn['payload']['context']['playerState']['inventory']=$inventoryTurn['payload']['context']['inventory'];
 $inventoryPrompt=(new PromptAssembler(16384,1024))->assemble($inventoryTurn,$promptSelection)['provider_input']['_assembled_prompt'];
-$check(!str_contains($inventoryPrompt,'Native Inventory Ring'), 'explicit nested player inventory takes precedence over top-level fallback');
+$check(!str_contains($inventoryPrompt,'Native Inventory Ring'), 'nested player inventory is also excluded from dialogue prompts');
 $groundSelection=$promptSelection;
 $groundSelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
 $groundSelection['effective_settings']['context']['ground_items_descriptions_only']=true;
@@ -1520,17 +1600,17 @@ $groundTurn['_item_descriptions']=[['record_id'=>'ingred_bc_bungler_bane_01','co
 $groundPrompt=(new PromptAssembler(16384,1024))->assemble($groundTurn,$groundSelection)['provider_input']['_assembled_prompt'];
 $check(str_contains($groundPrompt,"Bungler's Bane") && str_contains($groundPrompt,'- **Count:** 2')
     && !str_contains($groundPrompt,'Undescribed Ring') && !str_contains($groundPrompt,'Secret mushroom description.')
-    && str_contains($groundPrompt,'### Points Of Interest'),
+    && str_contains($groundPrompt,'# Points Of Interest'),
     'ground description filtering preserves described counts and points of interest without exposing hidden descriptions');
 $groundTurn['payload']['context']['nearbyObjects']['items'][0]['content_file']='Other.esp';
 $groundPrompt=(new PromptAssembler(16384,1024))->assemble($groundTurn,$groundSelection)['provider_input']['_assembled_prompt'];
-$check(!str_contains($groundPrompt,'### Nearby Items'), 'ground descriptions cannot match an item from another content file');
+$check(!str_contains($groundPrompt,'# Nearby Items'), 'ground descriptions cannot match an item from another content file');
 $groundTurn['payload']['context']['nearbyObjects']['items'][0]['content_file']='morrowind.ESM';
 $groundPrompt=(new PromptAssembler(16384,1024))->assemble($groundTurn,$groundSelection)['provider_input']['_assembled_prompt'];
-$check(str_contains($groundPrompt,'### Nearby Items'), 'ground description identity comparison normalizes content file case');
+$check(str_contains($groundPrompt,'# Nearby Items'), 'ground description identity comparison normalizes content file case');
 $groundTurn['_item_descriptions'][0]['description']='   ';
 $groundPrompt=(new PromptAssembler(16384,1024))->assemble($groundTurn,$groundSelection)['provider_input']['_assembled_prompt'];
-$check(!str_contains($groundPrompt,'### Nearby Items'), 'blank descriptions do not qualify ground items');
+$check(!str_contains($groundPrompt,'# Nearby Items'), 'blank descriptions do not qualify ground items');
 $groundSelection['effective_settings']['context']['ground_items_descriptions_only']=false;
 $groundPrompt=(new PromptAssembler(16384,1024))->assemble($groundTurn,$groundSelection)['provider_input']['_assembled_prompt'];
 $check(str_contains($groundPrompt,'Undescribed Ring'), 'disabled ground description filtering retains undescribed items');
@@ -1540,10 +1620,10 @@ $knowledgeSelection['knowledge']=[['document_id'=>'oghma-auriel','topic'=>'aurie
     'content'=>'Auriel\'s Bow is an ancient artifact associated with the elven god Auri-El.'],
     ['document_id'=>'oghma-sixth-house','topic'=>'sixth_house','access_level'=>'denied','content'=>'']];
 $knowledgePrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$knowledgeSelection)['provider_input']['_assembled_prompt'];
-$check(str_contains($knowledgePrompt,"## Oghma Context\n\n- **Contract:** oghma-parity-v1\n- **Status:** fallback_grounded")
-    &&str_contains($knowledgePrompt,'### Article: auriel_s_bow')
+$check(str_contains($knowledgePrompt,"# Knowledge\n\n- **Contract:** oghma-parity-v1\n- **Status:** fallback_grounded")
+    &&str_contains($knowledgePrompt,'## Article: auriel_s_bow')
     &&str_contains($knowledgePrompt,"- **Content:** Auriel's Bow is an ancient artifact")
-    &&str_contains($knowledgePrompt,'### Article: sixth_house')
+    &&str_contains($knowledgePrompt,'## Article: sixth_house')
     &&str_contains($knowledgePrompt,'- **Denial Reason:** knowledge_classes_not_authorized'),
     'authorized and denied Oghma knowledge render as compact Markdown');
 $markdownSelection=$knowledgeSelection;
@@ -1553,29 +1633,38 @@ $markdownSelection['history']=[['history_id'=>'markdown-history','content'=>['ki
     'speaker_identity'=>['record_id'=>'npc','display_name'=>'Fargoth']]]];
 $markdownAssembled=(new PromptAssembler(16384,1024))->assemble($promptTurn,$markdownSelection);
 $markdownPrompt=$markdownAssembled['provider_input']['_assembled_prompt'];
-$check(str_contains($markdownPrompt,"# Roleplay Context\n\n## Output Contract\n\n- **Response Contract:**")
-    &&str_contains($markdownPrompt,'## NPC Context')
-    &&str_contains($markdownPrompt,'- **Roleplay Instructions:** You are Fargoth')
-    &&str_contains($markdownPrompt,'## Conversation Context')
-    &&str_contains($markdownPrompt,'- **Message:** Fargoth: I remember our last conversation.')
-    &&str_contains($markdownPrompt,"## Oghma Context\n\n- **Contract:** oghma-parity-v1")
+$check(str_contains($markdownPrompt,"# Roleplay Instructions\n\nYou are Fargoth")
+    &&str_contains($markdownPrompt,'# Character')
+    &&str_contains($markdownPrompt,'You are Fargoth')
+    &&str_contains($markdownPrompt,'# Conversation History')
+    &&str_contains($markdownPrompt,'- Fargoth: I remember our last conversation.')
+    &&str_contains($markdownPrompt,"# Knowledge\n\n- **Contract:** oghma-parity-v1")
     &&str_contains($markdownPrompt,'- **Action Contract:**')
     &&!str_contains($markdownPrompt,'<roleplay_context>')
     &&!str_contains($markdownPrompt,'<npc_context>')
     &&!str_contains($markdownPrompt,'<response_contract>')
     &&!str_contains($markdownPrompt,'<action_contract>')
     &&!str_contains($markdownPrompt,'<oghma ')
-    &&$markdownAssembled['trace']['algorithm']==='chim-compact-roleplay-prompt-v3-markdown'
+    &&$markdownAssembled['trace']['algorithm']==='lorkhan-markdown'
     &&$markdownAssembled['trace']['prompt_format']==='markdown'
     &&array_column($markdownAssembled['trace']['sections'],'section_key')===array_column($assembled['trace']['sections'],'section_key'),
     'compact chat and all prompt contracts use the single Markdown presentation');
+$orderedSystem=(new PromptAssembler(32768,1024))->assemble($contextTurn,$markdownSelection)['provider_input']['_messages'][0]['content'];
+preg_match_all('/^# (.+)$/m',$orderedSystem,$orderedHeadings);
+$chimHeadings=['Roleplay Instructions','World','Character','Knowledge','General Instructions','Available Actions',
+    'People Present','Player Character','Narrator','Nearby Actors','Nearby Items','Points Of Interest','Record Descriptions',
+    'Paralinguistic Tags','Conversation History'];
+$check($orderedHeadings[1]===array_values(array_filter($chimHeadings,static fn(string $heading):bool=>in_array($heading,$orderedHeadings[1],true)))
+    &&$orderedHeadings[1][0]==='Roleplay Instructions'&&end($orderedHeadings[1])==='Conversation History'
+    &&!str_contains($orderedSystem,'# Roleplay Context')&&!str_contains($orderedSystem,'## NPC Context'),
+    'CHIM Markdown headings follow roleplay world character knowledge instructions actions nearby and history order');
 $providerMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,
     ['_prompt'=>$assembled['provider_input']]);
 $check(array_column($providerMessages,'role')===array_column($assembled['provider_input']['_messages'],'role')
     &&str_contains($providerMessages[0]['content'],'- **Action Contract:**')
     &&str_contains($providerMessages[0]['content'],'may have an optional "mood" before "text"')
-    &&strpos($providerMessages[0]['content'],'- **Action Contract:**')<strpos($providerMessages[0]['content'],'## Current Turn')
-    &&str_starts_with($providerMessages[0]['content'],'# Roleplay Context'),
+    &&strpos($providerMessages[0]['content'],'# General Instructions')<strpos($providerMessages[0]['content'],'# Available Actions')
+    &&str_starts_with($providerMessages[0]['content'],'# Roleplay Instructions'),
     'OpenAI-compatible provider sends frozen split messages with compact Markdown prompt context');
 $validateProviderResult=new ReflectionMethod($actionProvider,'validateResultShape');
 $validateProviderResult->invoke($actionProvider,['utterances'=>[['mood'=>'whispering','text'=>'Quiet words.']],'action'=>null]);
@@ -1591,7 +1680,7 @@ foreach (['inspect.report'=>0, 'ai.follow'=>1, 'ai.stop'=>1, 'item.use'=>2] as $
     $actionDefinitions[] = ['name'=>$name, 'tier'=>$tier, 'client_capability'=>'action.'.$name,
         'available_to_npc'=>true,'available_to_narrator'=>false,'game_function'=>true,'source'=>'base',
         'description'=>'', 'continuation_capable'=>$name==='ai.follow',
-        'display_name'=>ucwords(str_replace('.',' ',$name)),'confirmation_mode'=>$tier>=2?'required':($tier===0?'none':'optional'),
+        'display_name'=>ucwords(str_replace('.',' ',$name)),'confirmation_mode'=>$tier===0?'none':'optional','confirmation_default'=>$tier>=2,
         'followup_default'=>false,'followup_prompt'=>'React to the completed action result.',
         'followup_actions_supported'=>$name==='ai.follow','cooldown_seconds'=>0,
         'parameter_schema'=>['type'=>'object', 'additionalProperties'=>false]];
@@ -1649,6 +1738,13 @@ $check($herikaFollow['display_name']==='Herika-shaped Follow'&&$herikaFollow['de
     &&$herikaFollow['followup_prompt']==='React to the typed result.'
     &&$herikaFollow['followup_actions_allowed']===true&&$herikaFollow['cooldown_seconds']===7,
     'complete Herika action rows normalize into the bounded LORKHAN runtime contract');
+$inheritedConfirmation=$herikaContext;
+$inheritedConfirmation['definitions']=array_map(static function(array $definition):array{
+    $definition['confirmation_default']=true;return $definition;
+},$inheritedConfirmation['definitions']);
+unset($inheritedConfirmation['policy']['content']['actions']['ai.follow']['metadata']['custom_config']['confirmation_required']);
+$check($policy->validate($proposal,$inheritedConfirmation)['confirmation_required']===true,
+    'full action rows without a confirmation override retain catalog default');
 $continuationContext=$overrideContext;$continuationContext['continuation']=['depth'=>1,'allow_action'=>true];
 $continued=$policy->validate($proposal,$continuationContext);
 $requiredContext=$overrideContext;$requiredContext['session']['capabilities'][]='action.item.use';
@@ -1656,12 +1752,12 @@ $requiredContext['policy']['content']=['actions'=>['item.use'=>['enabled'=>true,
 $required=$policy->validate(['name'=>'item.use','tier'=>2,'actor'=>['kind'=>'npc'],'target'=>['kind'=>'player'],
     'parameters'=>[]],$requiredContext);
 $check($continued['followup_enabled']===false&&$continued['followup_actions_allowed']===false
-    &&$continued['followup_depth']===1&&$required['confirmation_required']===true,
-    'one extra action is the hard follow-up cap and required confirmations cannot be disabled');
+    &&$continued['followup_depth']===1&&$required['confirmation_required']===false,
+    'one extra action is the hard follow-up cap and Action Editor can disable confirmation');
 $actionTurn = $promptTurn;
 $worldTurn['context']['advanced_actions']['items']=[$worldTurn['context']['advanced_actions']['items'][0]];
 $worldDefinition=['name'=>'item.create','tier'=>2,'available_to_npc'=>false,'available_to_narrator'=>true,
-    'client_capability'=>'action.item.create','confirmation_mode'=>'required','parameter_schema'=>[
+    'client_capability'=>'action.item.create','confirmation_mode'=>'optional','confirmation_default'=>true,'parameter_schema'=>[
         'type'=>'object','additionalProperties'=>false,'required'=>['record_id','count'],
         'properties'=>['record_id'=>['type'=>'string','minLength'=>1,'maxLength'=>256],
             'count'=>['type'=>'integer','minimum'=>1,'maximum'=>100]]]];
@@ -1684,7 +1780,34 @@ $check($worldNormalized['action']['actor']===$transferPlayer&&$worldNormalized['
 $worldLoaded=['session'=>['capabilities'=>['action.confirmation','action.item.create'],'enabled_actions'=>['item.create']],
     'definitions'=>[$worldDefinition],'turn_payload'=>$worldTurn,'policy'=>['content'=>['actions'=>['item.create'=>['confirmation_required'=>false]]]]];
 $worldApproved=$policy->validate($worldNormalized['action'],$worldLoaded);
-$check($worldApproved['confirmation_required']===true,'world per-action approval cannot be disabled in policy');
+$check($worldApproved['confirmation_required']===false,'world action respects disabled Action Editor confirmation');
+$worldDefault=$worldLoaded;$worldDefault['policy']['content']=['enabled'=>true];
+$check($policy->validate($worldNormalized['action'],$worldDefault)['confirmation_required']===true,
+    'world action retains enabled confirmation default without an override');
+$worldAllowed=$policy->allowedDefinitions($worldLoaded);
+$check($worldAllowed[0]['confirmation_required']===false,
+    'prompt catalogue and execution agree on disabled confirmation');
+foreach(['gold.give','spell.cast'] as $confirmationName){
+    $confirmationDefinition=$worldDefinition;
+    $confirmationDefinition['name']=$confirmationName;
+    $confirmationDefinition['client_capability']='action.'.$confirmationName;
+    $confirmationDefinition['available_to_npc']=true;
+    $confirmationDefinition['parameter_schema']=['type'=>'object','additionalProperties'=>false,
+        'properties'=>$confirmationName==='spell.cast'?['spell_id'=>['type'=>'string']]:['amount'=>['type'=>'integer']]];
+    $confirmationContext=$worldLoaded;
+    $confirmationContext['definitions']=[$confirmationDefinition];
+    $confirmationContext['session']=['capabilities'=>['action.confirmation','action.'.$confirmationName],
+        'enabled_actions'=>[$confirmationName]];
+    $confirmationContext['turn_payload']=$confirmationName==='spell.cast'?$spellTurn:$transferTurn;
+    $confirmationProposal=['name'=>$confirmationName,'tier'=>2,'actor'=>$transferActor,
+        'target'=>$confirmationName==='spell.cast'?$transferActor:$transferPlayer,
+        'parameters'=>$confirmationName==='spell.cast'?['spell_id'=>'fireball']:['amount'=>1]];
+    foreach([false,true] as $confirmation){
+        $confirmationContext['policy']['content']=['actions'=>[$confirmationName=>['confirmation_required'=>$confirmation]]];
+        $check($policy->validate($confirmationProposal,$confirmationContext)['confirmation_required']===$confirmation,
+            'transfer and spell dispatch respect Action Editor confirmation');
+    }
+}
 $worldLoaded['continuation']=['depth'=>1];
 try{$policy->validate($worldNormalized['action'],$worldLoaded);$check(false,'world actions cannot execute from action followups');}
 catch(DomainException){$check(true,'world actions cannot execute from action followups');}
@@ -1805,9 +1928,9 @@ $roleHistory['history']=[
 $rolePrompt=(new PromptAssembler(8192,1024))->assemble($promptTurn,$roleHistory)['provider_input'];
 $roleMessages=$rolePrompt['_messages'];
 $check(array_column($roleMessages,'role')===['system','user']
-    &&str_contains($roleMessages[0]['content'],'- **Message:** RANGROO: Where is my ring?')
-    &&str_contains($roleMessages[0]['content'],'- **Message:** Fargoth: I have not seen it.')
-    &&str_contains($roleMessages[0]['content'],'- **Message:** Guard: Move along.')
+    &&str_contains($roleMessages[0]['content'],'- RANGROO: Where is my ring?')
+    &&str_contains($roleMessages[0]['content'],'- Fargoth: I have not seen it.')
+    &&str_contains($roleMessages[0]['content'],'- Guard: Move along.')
     &&substr_count($rolePrompt['_assembled_prompt'],'Where is my ring?')===1
     &&!str_contains(json_encode($roleMessages,JSON_THROW_ON_ERROR),'smoke test'),
     'compact chat history is included once with explicit speakers and control noise filtered');
@@ -1841,8 +1964,8 @@ $check(substr_count($coveredPrompt['provider_input']['_assembled_prompt'],'Fargo
 $restoredHistory=$coveredHistory;
 $restoredHistory['history'][]=['history_id'=>'history-pressure','content'=>['kind'=>'speech','text'=>str_repeat('H',1000),'speaker'=>'Guard']];
 $restoredPrompt=(new PromptAssembler(3072,1024))->assemble($promptTurn,$restoredHistory);
-$check(!str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'## Conversation Context')
-    &&str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'## Memory Context')
+$check(!str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'# Conversation History')
+    &&str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'## Memory')
     &&str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'- **Item:** Fargoth: I have not seen it.'),
     'dropping history for the total prompt budget restores its otherwise-covered memory');
 $fallbackPrompt=(new PromptAssembler(512,256))->assemble($promptTurn,$coveredHistory);
@@ -1883,12 +2006,12 @@ foreach(range(1,45)as$index)$extendedHistory['history'][]=['id'=>'history-limit-
     'content'=>['kind'=>'speech','text'=>'Distinct history line '.$index,'speaker'=>'Fargoth',
         'speaker_identity'=>$promptTurn['payload']['target']]];
 $extendedPrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$extendedHistory)['provider_input']['_assembled_prompt'];
-$check(substr_count($extendedPrompt,'- **Message:**')===45&&str_contains($extendedPrompt,'Distinct history line 45'),
+$check(substr_count($extendedPrompt,'- Fargoth: Distinct history line ')===45&&str_contains($extendedPrompt,'Distinct history line 45'),
     'profile-selected history above 32 messages was silently capped by the assembler');
 foreach($extendedHistory['history']as&$entry)$entry['content']['text'].=' '.str_repeat('&',300);
 unset($entry);
 $boundedPrompt=(new PromptAssembler())->assemble($promptTurn,$extendedHistory)['provider_input']['_assembled_prompt'];
-preg_match('~\n## Conversation Context\n\n(.*?)(?:\n\n## Audience Speaker Rules)~s',$boundedPrompt,$boundedHistory);
+preg_match('~\n# Conversation History\n\n(.*?)(?:\n\nUSER:)~s',$boundedPrompt,$boundedHistory);
 $check(strlen($boundedHistory[1]??'')<=32768
     &&str_contains($boundedHistory[1]??'','Distinct history line 45')
     &&!str_contains($boundedHistory[1]??'','Distinct history line 1 '),
@@ -1910,7 +2033,7 @@ $largeWorldTurn['payload']['context']=['world'=>['cell'=>'WORLD CONTEXT SENTINEL
 $protectedKnowledge=(new PromptAssembler(4096,1024))->assemble($largeWorldTurn,$knowledgeSelection);
 $protectedSections=array_column($protectedKnowledge['trace']['sections'],'inclusion_reason','section_key');
 $check(!str_contains($protectedKnowledge['provider_input']['_assembled_prompt'],'WORLD CONTEXT SENTINEL')
-    &&str_contains($protectedKnowledge['provider_input']['_assembled_prompt'],"## Oghma Context\n\n- **Contract:** oghma-parity-v1")
+    &&str_contains($protectedKnowledge['provider_input']['_assembled_prompt'],"# Knowledge\n\n- **Contract:** oghma-parity-v1")
     &&($protectedSections['morrowind_context']??null)==='byte_limit'
     &&($protectedSections['oghma_context']??null)==='included',
     'Oghma remains in its protected section when lower-priority Morrowind context is trimmed');
@@ -2647,7 +2770,7 @@ foreach ([['events'=>[]], ['chance_percent'=>0], ['events'=>['combat_end'],'chan
     $check(!isset(EffectiveSettingsResolver::controlsProjection($resolvedRpg)['settings']['rpg_comments']),
         'server RPG policy does not enlarge native controls');
 }
-foreach ([null, [], ['events'=>['lockpick']], ['events'=>['sleep','sleep']], ['events'=>[1]],
+foreach ([null, [], ['events'=>['learn_shout']], ['events'=>['sleep','sleep']], ['events'=>[1]],
     ['events'=>['x'=>'sleep']], ['chance_percent'=>-1], ['chance_percent'=>101], ['chance_percent'=>'50'],
     ['chance_percent'=>false], ['unknown'=>true]] as $invalidRpg) {
     try { EffectiveSettingsResolver::validateSettingsOverrides(['rpg_comments'=>$invalidRpg]); $check(false, 'invalid Core RPG policy rejected'); }
@@ -2894,6 +3017,10 @@ $check($npcCombatResolved['settings']['behavior']['combat_bark_period_seconds']=
     &&$npcCombatResolved['settings']['behavior']['combat_barks']===false,
     'NPC combat cooldown overrides Core and reaches native controls without enabling combat barks');
 $combatPreset=\LorkhanServer\Application\CoreProfilePreset::capture($combatCore);
+$check((new EffectiveSettingsResolver())->resolve([],[],[])['settings']['behavior']['combat_bark_period_seconds']===30,
+    'combat bark cooldown defaults to thirty seconds like CHIM');
+$check((new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['behavior'=>['combat_bark_period_seconds'=>20]]],[])['settings']['behavior']['combat_bark_period_seconds']===20,
+    'explicit twenty-second combat cooldown is preserved');
 $check(\LorkhanServer\Application\CoreProfilePreset::apply($combatPreset,$corePresetSource)['settings_overrides']['behavior']['combat_bark_period_seconds']===600,
     'combat cooldown survives named presets');
 $check(EffectiveSettingsResolver::validateSettingsOverrides(['behavior'=>['combat_bark_period_seconds'=>5]])['behavior']['combat_bark_period_seconds']===5,
@@ -3252,7 +3379,14 @@ foreach (['identity','connector','invalid_id'] as $invalidSnapshotKind) {
 $quickLocal=\LorkhanServer\Application\GlobalSettingsPreset::applyBuiltIn('builtin:local_llm',$presetCurrent);
 $check(!$quickLocal['profile_management']['autofill_custom_profiles']&&!$quickLocal['relationship']['enabled']&&$quickLocal['relationship']['update_chance_percent']===0,'Local preset stops backfill and relationship updates');
 $check($quickLocal['context']['ground_items_descriptions_only']&&$quickLocal['context']['inventory_items_descriptions_only']&&!$quickLocal['context']['prompt_timestamp'],'Local preset uses descriptions without timestamp headings');
+$check(!$quickLocal['context']['detect_magic_events']&&$quickLocal['context']['item_pickup_min_value']===1000
+    &&!$quickLocal['context']['transformation_detection']&&!$quickLocal['context']['details']['nearby_actor_power'],'Local preset matches CHIM context defaults');
+$check($quickLocal['task_availability']===['background_memory'=>false,'profile_generation'=>false,'scene_classifier'=>false,'director'=>true],'Local preset keeps director but disables optional background tasks');
 $quickDefault=\LorkhanServer\Application\GlobalSettingsPreset::applyBuiltIn('builtin:default',$quickLocal);
+$check($quickDefault['context']['detect_magic_events']&&$quickDefault['context']['transformation_detection']
+    &&$quickDefault['context']['item_pickup_min_value']===500,'Default preset restores CHIM context defaults');
+$check(!in_array(false,$quickDefault['task_availability'],true),'Default preset restores task availability');
+
 $check($quickDefault['profile_management']['autofill_custom_profiles']&&$quickDefault['relationship']['enabled']&&$quickDefault['relationship']['update_chance_percent']===50,'Default preset restores reference backfill and relationship chance');
 $check(!$quickDefault['context']['ground_items_descriptions_only']&&!$quickDefault['context']['inventory_items_descriptions_only'],'Default restores full item context');
 $check($quickDefault['context']['location_blacklist']===$presetCurrent['context']['location_blacklist']&&$quickDefault['system_routing']===$presetCurrent['system_routing']&&$quickDefault['client']===$presetCurrent['client'],'Quickstart global presets retain blacklists, routes and unrelated controls');
@@ -3775,6 +3909,65 @@ catch(RuntimeException $error){$check($error->getMessage()==='evolution-observed
 $evolutionInput['dynamic_field_prompts']=['occupation'=>'Unrequested field'];
 try{$auditProvider->generate($evolutionInput,new NeverCancelledToken());$check(false,'unselected evolution prompt accepted');}
 catch(InvalidArgumentException $error){$check($error->getMessage()==='invalid_profile_evolution_prompts','unselected evolution prompt rejected before network');}
+
+// NPC profile identity is a scoped physical reference, independent of labels and load order.
+$referenceInstallation='00000000-0000-4000-8000-000000000001';
+$referenceWorld='00000000-0000-4000-8000-000000000002';
+$referenceActor=['kind'=>'npc','record_id'=>'guard','content_file'=>'Morrowind.esm','refnum'=>['index'=>42,'content_file'=>0]];
+$referenceProfile=\LorkhanServer\Domain\ProfileId::forActor($referenceInstallation,$referenceWorld,$referenceActor);
+$check($referenceProfile==='ref:'.$referenceInstallation.':'.$referenceWorld.':morrowind.esm|42','NPC profile uses scoped canonical reference');
+$referenceMoved=$referenceActor;$referenceMoved['refnum']['content_file']=8;$referenceMoved['cell']=['name'=>'Other cell'];$referenceMoved['display_name']='Renamed Guard';
+$check(\LorkhanServer\Domain\ProfileId::forActor($referenceInstallation,$referenceWorld,$referenceMoved)===$referenceProfile,'movement, name and load order do not change profile key');
+$check(\LorkhanServer\Domain\ProfileId::isValid($referenceInstallation),'existing persona UUID remains valid');
+foreach([strtoupper($referenceProfile),$referenceProfile."\n",str_replace('|42','|042',$referenceProfile),str_replace('|42','|4294967296',$referenceProfile),str_replace('morrowind.esm','../morrowind.esm',$referenceProfile)]as$invalidReference)
+    $check(!\LorkhanServer\Domain\ProfileId::isValid($invalidReference),'malformed or ambiguous reference profile is rejected');
+
+$intervalCore=['settings_overrides'=>['memory'=>['summary_interval'=>0]]];
+$intervalNpc=['settings_overrides'=>['memory'=>['summary_interval'=>12]]];
+$intervalResolved=(new EffectiveSettingsResolver())->resolve([],$intervalCore,$intervalNpc);
+$check($intervalResolved['settings']['memory']['summary_interval']===12
+    &&$intervalResolved['sources']['settings.memory.summary_interval']==='npc','NPC summary interval overrides Core zero');
+$check((new EffectiveSettingsResolver())->resolve([],$intervalCore,[])['settings']['memory']['summary_interval']===0,
+    'explicit Core zero summary interval is not discarded');
+$check(\LorkhanServer\Application\CoreProfilePreset::capture($intervalCore)['settings_overrides']['memory']['summary_interval']===0,
+    'summary interval survives preset capture');
+foreach([-1,101,'10'] as $badInterval){
+    try{EffectiveSettingsResolver::validateSettingsOverrides(['memory'=>['summary_interval'=>$badInterval]]);$check(false,'invalid summary interval rejected');}
+    catch(InvalidArgumentException){$check(true,'invalid summary interval rejected');}
+}
+// Profile parity: absent switches are off, explicit overrides survive, and history accepts CHIM's endpoints.
+$profileDefaults=(new EffectiveSettingsResolver())->resolve([],[],[]);
+$check($profileDefaults['settings']['memory']['short_term_enabled']===false
+    &&$profileDefaults['settings']['memory']['mid_term_enabled']===false,'new profiles default optional memory tiers off');
+foreach([0,200] as $eventCount){
+    $eventSettings=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['memory'=>['recent_turn_limit'=>$eventCount]]],[]);
+    $check($eventSettings['settings']['memory']['recent_turn_limit']===$eventCount,'history event endpoints preserve zero and 200');
+}
+$lockpickSettings=EffectiveSettingsResolver::validateSettingsOverrides(['rpg_comments'=>['events'=>['lockpick']]]);
+$check($lockpickSettings['rpg_comments']['events']===['lockpick'],'successful lockpicking is an eligible RPG comment');
+
+$dagothCatalog=\LorkhanServer\Application\MorrowindVoiceCatalog::bundled();
+$dagothFirst=$dagothCatalog->resolve(['kind'=>'creature','record_id'=>'dagoth_ur_1']);
+$dagothSecond=$dagothCatalog->resolve(['kind'=>'creature','record_id'=>'dagoth_ur_2']);
+$check($dagothFirst['id']==='dagoth_ur_1'&&$dagothSecond===$dagothFirst,'both Dagoth Ur forms share the original voice sample');
+
+// Review approvals only reference generated candidates and survive a fresh reader.
+$reviewRoot=sys_get_temp_dir().'/lorkhan-voice-review-'.bin2hex(random_bytes(8));mkdir($reviewRoot,0700);
+try{
+    $review=new \LorkhanServer\Application\VoiceDesignReview($reviewRoot);
+    $check($review->document()['characters']===[],'voice review is empty before generation');
+    $fixture=['characters'=>[['key'=>'vivec','candidates'=>[['id'=>'candidate-a'],['id'=>'candidate-b']]]]];
+    \LorkhanServer\Application\VoiceDesignReview::writeJson($reviewRoot.'/candidates.json',$fixture);
+    $review->choose('vivec','candidate-b');
+    $check((new \LorkhanServer\Application\VoiceDesignReview($reviewRoot))->decisions()['vivec']['candidate']==='candidate-b','voice approval persists');
+    foreach([['vivec','forged'],['unknown','candidate-a']] as [$actor,$candidate]){
+        try{$review->choose($actor,$candidate);$check(false,'unknown review choice rejected');}
+        catch(InvalidArgumentException){$check(true,'unknown review choice rejected');}
+    }
+    $review->choose('vivec','none');$check($review->decisions()['vivec']['candidate']==='none','both candidates can be rejected');
+    $review->choose('vivec','pending');$check($review->decisions()['vivec']['candidate']==='pending','review decision can be cleared');
+    $check($review->document()===$fixture,'approvals do not mutate generated voice data');
+}finally{foreach(glob($reviewRoot.'/*') as $file)unlink($file);rmdir($reviewRoot);}
 
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");

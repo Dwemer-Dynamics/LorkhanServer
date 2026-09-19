@@ -24,7 +24,7 @@ final class RelationshipBuildJobHandler implements JobHandler
     {
         RelationshipBuildPolicy::direction($payload['direction']??'');
         foreach(['installation_id','profile_id','playthrough_id','request_id','provider_configuration_id'] as $field)
-            if(!is_string($payload[$field]??null)||!Uuid::isValid($payload[$field]))
+            if(!is_string($payload[$field]??null)||!($field === 'profile_id' ? \LorkhanServer\Domain\ProfileId::isValid($payload[$field]) : Uuid::isValid($payload[$field])))
                 throw new \InvalidArgumentException('invalid_relationship_build_job');
         if($idempotencyKey!=='relationship.build:'.$payload['request_id']||!is_int($payload['provider_revision']??null)
             ||$payload['provider_revision']<1||!is_array($payload['source_ids']??null)||!array_is_list($payload['source_ids'])

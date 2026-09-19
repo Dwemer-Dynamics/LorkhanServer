@@ -17,7 +17,7 @@ $products=new ProductRepository($database);$service=new ProductService($products
 /** Load only ordinary NPC profiles and normalize their current content. */
 function lorkhan_portrait_profile(ProductRepository $products,string $profileId):array
 {
-    if(preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$profileId)!==1)throw new InvalidArgumentException('invalid_profile_id');
+    if(!\LorkhanServer\Domain\ProfileId::isValid($profileId))throw new InvalidArgumentException('invalid_profile_id');
     $profile=$products->getRevisioned('profile',$profileId);$identity=$profile['actor_identity']??[];
     if(is_string($identity))$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);
     if(!is_array($identity)||array_is_list($identity)||in_array($identity['kind']??'actor',['player','narrator'],true))throw new InvalidArgumentException('profile_not_portraitable');
@@ -28,7 +28,7 @@ function lorkhan_portrait_profile(ProductRepository $products,string $profileId)
 function lorkhan_portrait_path(string $root,string $profileId,array $portrait):?string
 {
     $filename=(string)($portrait['filename']??'');
-    if(!str_starts_with($filename,$profileId.'-')||preg_match('/^[0-9a-f-]{36}-[0-9a-f]{16}\.(?:png|jpg|webp)$/D',$filename)!==1)return null;
+    if(!str_starts_with($filename,hash('sha256',$profileId).'-')||preg_match('/^[0-9a-f]{64}-[0-9a-f]{16}\.(?:png|jpg|webp)$/D',$filename)!==1)return null;
     return rtrim($root,DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$filename;
 }
 
@@ -55,7 +55,7 @@ try{
         $extensions=['image/png'=>'png','image/jpeg'=>'jpg','image/webp'=>'webp'];
         if(!is_int($bytes)||$bytes<1||$bytes>5_242_880||!is_array($size)||($size[0]??0)<1||($size[0]??0)>2048
             ||($size[1]??0)<1||($size[1]??0)>2048||!isset($extensions[$mime]))throw new InvalidArgumentException('invalid_profile_portrait');
-        $sha=hash_file('sha256',$tmp);$filename=$profileId.'-'.substr($sha,0,16).'.'.$extensions[$mime];$path=$portraitRoot.DIRECTORY_SEPARATOR.$filename;
+        $sha=hash_file('sha256',$tmp);$filename=hash('sha256',$profileId).'-'.substr($sha,0,16).'.'.$extensions[$mime];$path=$portraitRoot.DIRECTORY_SEPARATOR.$filename;
         if(!is_file($path)&&!move_uploaded_file($tmp,$path))throw new RuntimeException('portrait_upload_failed');@chmod($path,0640);
         $content['portrait']=['filename'=>$filename,'mime'=>$mime,'bytes'=>$bytes,'width'=>(int)$size[0],'height'=>(int)$size[1],
             'sha256'=>$sha,'updated_at'=>gmdate('Y-m-d\TH:i:s\Z')];

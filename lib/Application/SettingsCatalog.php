@@ -27,11 +27,11 @@ final class SettingsCatalog
             'boredom' => false,
             'boredom_delay_seconds' => 180,
             'combat_barks' => false,
-            'combat_bark_period_seconds' => 20,
+            'combat_bark_period_seconds' => 30,
         ],
-        'memory' => ['recent_turn_limit' => 20, 'knowledge_limit' => 5],
+        'memory' => ['recent_turn_limit' => 50, 'knowledge_limit' => 5],
         'narrator' => [
-            'enabled' => false,
+            'enabled' => true,
             'name' => 'The Narrator',
             'context_visibility' => true,
             'inline_mode' => 'Disabled',
@@ -103,14 +103,15 @@ final class SettingsCatalog
         'nearby_actor_activity' => true,
         'nearby_actor_power' => true,
         'nearby_actor_equipment' => true,
-        'group_duplicate_items' => true,
+        'group_duplicate_items' => false,
         'item_descriptions' => true,
     ];
 
-    private const EVENT_TYPES = [
+    private const LEGACY_EVENT_TYPES = [
         'inputtext', 'chat', 'chat_background', 'location', 'weather', 'death',
         'infoaction', 'rechat', 'narration', 'quest', 'book',
     ];
+    private const EVENT_TYPES = [...self::LEGACY_EVENT_TYPES, 'info', 'itemfound', 'spellcast', 'npcspellcast'];
 
     private const CORE_ROUTING_FIELDS = [
         'prompt_configuration_id', 'llm_configuration_id', 'llm_fast_configuration_id',
@@ -171,7 +172,7 @@ final class SettingsCatalog
         'narrator.bored_chance_percent' => [1, 100],
         'narrator.quest_chance_percent' => [1, 100],
         'narrator.quest_cooldown_minutes' => [1, 60],
-        'memory.recent_turn_limit' => [1, 100],
+        'memory.recent_turn_limit' => [0, 200],
         'memory.knowledge_limit' => [0, 20],
         'relationship.update_chance_percent' => [0, 100],
         'presentation.transcript_rows' => [2, 20],
@@ -208,7 +209,7 @@ final class SettingsCatalog
                 'autofill_custom_profiles_trigger' => 40,
             ],
             'rpg_comments' => ['events'=>['levelup','combat_end'],'chance_percent'=>50],
-            'bored_event' => ['chance_percent'=>50],
+            'bored_event' => ['chance_percent'=>30],
             'quest_comments' => ['enabled'=>false,'chance_percent'=>10],
             'translation' => TranslationPolicy::defaults(),
             'oghma' => self::OGHMA_DEFAULTS + ['knowledge_tags' => '', 'extractor_enabled' => false],
@@ -224,12 +225,13 @@ final class SettingsCatalog
                 'inventory_items_descriptions_only' => false,
                 'sections' => self::CONTEXT_SECTION_DEFAULTS,
                 'details' => self::CONTEXT_DETAIL_DEFAULTS,
-                'event_types' => self::EVENT_TYPES,
+                'event_types_excluded' => [],
                 'location_blacklist' => [],
                 'item_blacklist' => [],
                 'magic_effects_blacklist' => [],
             ],
-            'relationship' => ['enabled' => false, 'update_chance_percent' => 0],
+            'relationship' => ['enabled' => true, 'update_chance_percent' => 50,
+                'worst_memory_lifespan_days' => 7, 'never_clear_relationship_data' => false],
             'task_availability' => ['background_memory'=>true, 'profile_generation'=>true, 'scene_classifier'=>true, 'director'=>true],
             'system_routing' => [
                 'oghma_configuration_id' => '',
@@ -282,6 +284,43 @@ final class SettingsCatalog
         return self::EVENT_TYPES;
     }
 
+    /** Convert legacy inclusion lists once; newly saved filters always contain exclusions. */
+    public static function normalizeEventFilter(array $context): array
+    {
+        if (array_key_exists('event_types', $context)) {
+            $included = $context['event_types'];
+            if (array_key_exists('event_types_excluded', $context) || !is_array($included) || !array_is_list($included))
+                throw new \InvalidArgumentException('invalid_context_event_types');
+            foreach ($included as $type) if (!is_string($type) || !in_array($type, self::LEGACY_EVENT_TYPES, true))
+                throw new \InvalidArgumentException('invalid_context_event_types');
+            if (in_array('infoaction', $included, true)) $included = array_merge($included, ['info', 'itemfound', 'spellcast', 'npcspellcast']);
+            $context['event_types_excluded'] = array_values(array_diff(self::EVENT_TYPES, $included));
+            unset($context['event_types']);
+        }
+        if (array_key_exists('event_types_excluded', $context)) {
+            $values = $context['event_types_excluded'];
+            if (!is_array($values) || !array_is_list($values) || count($values) > 256)
+                throw new \InvalidArgumentException('invalid_context_event_types');
+            $normalized = [];
+            foreach ($values as $value) {
+                if (!is_string($value) || preg_match('/^[a-zA-Z0-9_.:-]{1,128}$/D', trim($value)) !== 1)
+                    throw new \InvalidArgumentException('invalid_context_event_types');
+                $normalized[] = trim($value);
+            }
+            $context['event_types_excluded'] = array_values(array_unique($normalized));
+        }
+        return $context;
+    }
+
+    /** Hidden compatibility switches keep their saved values when a visible form is submitted. */
+    public static function hiddenContextFields(): array
+    {
+        return [
+            'sections' => ['player_narrator', 'people_present', 'record_descriptions', 'relationships', 'memories', 'narratives', 'conversation_history', 'recent_action_results'],
+            'details' => ['npc_moods', 'npc_notes', 'npc_race_gender', 'nearby_actor_personality', 'nearby_actor_occupation'],
+        ];
+    }
+
     public static function coreRoutingFields(): array
     {
         return self::CORE_ROUTING_FIELDS;
@@ -325,12 +364,12 @@ final class SettingsCatalog
             'quest_comments' => ['enabled','chance_percent'],
             'behavior' => ['rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_allow_actions', 'rechat_mode',
                 'rechat_strict_targeting', 'open_rechat', 'end_conversation_cooldown_seconds', 'combat_bark_period_seconds'],
-            'memory' => ['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled', 'short_term_max_summaries'],
+            'memory' => ['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled', 'short_term_max_summaries', 'summary_interval'],
             'response' => ['max_words', 'core_lang', 'lang_llm_xtts'],
             'diary' => ['prompt', 'automatic_interval_seconds', 'context_turn_limit'],
             'profile_evolution' => ['history_limit','interval_days','min_events','cooldown_minutes'],
             'profile_management' => ['autofill_custom_profiles','autofill_custom_profiles_trigger'],
-            'context' => ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','transformation_detection','short_term_in_compact_chat','hide_ambient_combat','detect_magic_events','item_pickup_min_value','location_blacklist','item_blacklist','magic_effects_blacklist','event_types','sections','details'],
+            'context' => ['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','transformation_detection','short_term_in_compact_chat','hide_ambient_combat','detect_magic_events','item_pickup_min_value','location_blacklist','item_blacklist','magic_effects_blacklist','event_types_excluded','sections','details'],
             'prompt' => ['prompt_head','emote_moods'],
             'oghma' => ['location_context_enabled','topic_count','extractor_fallback_enabled','extractor_timeout_ms','enabled','result_limit','racial_context_enabled'],
             'relationship' => ['enabled','update_chance_percent'],

@@ -250,3 +250,19 @@ function lorkhan_ui_table(array $rows, string $emptyMessage = 'No records are av
 }
 
 require_once __DIR__ . '/ui_features.php';
+
+/** Resolve roleplay navigation and reader links to their canonical page, preserving scoped filters. */
+function lorkhan_ui_roleplay_url(string $webRoot, string $tab, array $query = []): string
+{
+    $page = match ($tab) {
+        'responselog' => 'ai-response.php',
+        'adventure' => 'adventurelog.php',
+        'diaries' => 'diarylog.php',
+        default => 'events-memories.php',
+    };
+    unset($query['tab']);
+    if (($_GET['embed'] ?? '') === '1') $query['embed'] = '1';
+    if ($page === 'events-memories.php') $query = ['tab' => $tab] + $query;
+    $suffix = http_build_query($query);
+    return $webRoot.'/ui/'.$page.($suffix !== '' ? '?'.$suffix : '');
+}

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LorkhanServer\Application;
 
 use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Domain\ProfileId;
 use InvalidArgumentException;
 
 final class ProductService
@@ -40,7 +41,7 @@ final class ProductService
     /** @param array<string,mixed> $content */
     public function revise(string $kind, string $id, array $content, string $reason, ?int $expectedRevision = null): array
     {
-        $this->uuid($id);
+        $kind === 'profile' ? $this->profileId($id) : $this->uuid($id);
         if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         if ($reason === '' || strlen($reason) > 512) throw new InvalidArgumentException('invalid_reason');
         if ($kind !== 'provider') $this->assertNoSecrets(in_array($kind, ['tts_provider','stt_provider'], true) ? array_diff_key($content, ['credential'=>true]) : $content);
@@ -60,7 +61,7 @@ final class ProductService
     /** Save the Player editor's name and content as one validated revision. */
     public function revisePlayer(string $installation,string $id,string $name,array $content,string $reason,int $expectedRevision):array
     {
-        $this->uuid($installation);$this->uuid($id);$name=trim($name);$this->boundedString(['name'=>$name],'name',1,256);
+        $this->uuid($installation);$this->profileId($id);$name=trim($name);$this->boundedString(['name'=>$name],'name',1,256);
         if(preg_match('/[\x00-\x1f\x7f]/',$name)||$expectedRevision<1)throw new InvalidArgumentException('invalid_player_name');
         if($reason===''||strlen($reason)>512)throw new InvalidArgumentException('invalid_reason');
         $this->assertNoSecrets($content);$content=$this->validateConfiguration('profile',$content);
@@ -70,7 +71,7 @@ final class ProductService
     /** Save the Narrator display name, persona and Core Profile as one validated revision. */
     public function reviseNarrator(string $installation,string $id,string $name,array $content,string $reason,string $coreProfileId,int $expectedRevision):array
     {
-        $this->uuid($installation);$this->uuid($id);if($coreProfileId!=='')$this->uuid($coreProfileId);
+        $this->uuid($installation);$this->profileId($id);if($coreProfileId!=='')$this->uuid($coreProfileId);
         $name=trim($name);$this->boundedString(['name'=>$name],'name',1,256);
         if(preg_match('/[\x00-\x1f\x7f]/',$name)||$expectedRevision<1)throw new InvalidArgumentException('invalid_narrator_name');
         if($reason===''||strlen($reason)>512)throw new InvalidArgumentException('invalid_reason');
@@ -103,7 +104,7 @@ final class ProductService
     /** Save a persona and its Core Profile together so a failed edit cannot change routing. */
     public function revisePersona(string $id,array $content,string $reason,string $coreProfileId=''):array
     {
-        $this->uuid($id);if($coreProfileId!=='')$this->uuid($coreProfileId);
+        $this->profileId($id);if($coreProfileId!=='')$this->uuid($coreProfileId);
         if($this->repository->resourceKind($id)!=='profile')throw new InvalidArgumentException('resource_kind_mismatch');
         if($reason===''||strlen($reason)>512)throw new InvalidArgumentException('invalid_reason');
         $this->assertNoSecrets($content);$content=$this->validateConfiguration('profile',$content);
@@ -113,7 +114,7 @@ final class ProductService
     public function rollback(string $kind, string $id, int $revision, string $reason): array
     {
         if ($revision < 1) throw new InvalidArgumentException('invalid_revision');
-        $this->uuid($id);if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'],true)
+        $kind === 'profile' ? $this->profileId($id) : $this->uuid($id);if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'],true)
             ||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         $content=$this->repository->revisionContent($kind,$id,$revision);
         if ($kind !== 'provider') $this->assertNoSecrets(in_array($kind, ['tts_provider','stt_provider'], true) ? array_diff_key($content, ['credential'=>true]) : $content);
@@ -173,6 +174,8 @@ final class ProductService
                 if(!is_string($value)||strlen($value)>$limit||!mb_check_encoding($value,'UTF-8')||str_contains($value,"\0"))
                     throw new InvalidArgumentException('invalid_biography_'.$field);
             }
+            if(array_key_exists('tts_filter_preset',$row))
+                $row['tts_filter_preset']=TtsFilterPresets::validate($row['tts_filter_preset']===''?'none':$row['tts_filter_preset']);
             $relationships=trim($row['relationships']);
             if($relationships==='')$relationships='{}';
             try{$relationshipObject=json_decode($relationships,false,64,JSON_THROW_ON_ERROR);}
@@ -190,12 +193,14 @@ final class ProductService
                     'appearance'=>'appearance','personality'=>'personality','relationships'=>'relationships',
                     'occupation'=>'occupation','skills'=>'skills','speech_style'=>'speechstyle','goals'=>'goals',
                     'oghma_tags'=>'oghma_knowledge_tags','voice_id'=>'voiceid','gender'=>'gender','race'=>'race']as$from=>$to)$values[$to]=$row[$from];
+                if(isset($row['tts_filter_preset']))$values['tts_filter_preset']=$row['tts_filter_preset'];
                 $global[]=$values;continue;
             }
             $content=[];
             foreach(['core','biography','appearance','personality','relationships','occupation','skills','speech_style','goals','gender','race']as$field){
                 $value=trim($row[$field]);if($value!=='')$content[$field]=$value;
             }
+            if(isset($row['tts_filter_preset']))$content['tts_filter_preset']=$row['tts_filter_preset'];
             if($row['oghma_tags']!=='')$content['oghma_knowledge_tags']=$row['oghma_tags'];
             $voice=trim($row['voice_id']);if($voice!=='')$content['voice']=['id'=>$voice,'language'=>'en'];
             $this->validateProfile($content);
@@ -235,7 +240,7 @@ final class ProductService
     /** Soft-delete one versioned management resource without removing its audit revisions. */
     public function deleteRevisioned(string $kind,string $id):void
     {
-        $this->uuid($id);
+        $kind === 'profile' ? $this->profileId($id) : $this->uuid($id);
         if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'],true)
             ||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         $this->repository->deleteRevisioned($kind,$id,$this->clock->iso());
@@ -281,7 +286,7 @@ final class ProductService
     {
         $this->requireUuid($input, 'installation_id');
         $input=$this->knowledgeInput($input);
-        foreach (['profile_id', 'playthrough_id'] as $field) if (isset($input[$field]) && $input[$field] !== null) $this->uuid((string) $input[$field]);
+        foreach (['profile_id', 'playthrough_id'] as $field) if (isset($input[$field]) && $input[$field] !== null) $field === 'profile_id' ? $this->profileId((string) $input[$field]) : $this->uuid((string) $input[$field]);
         $input['provenance'] = $this->provenance($input);
         return $this->repository->createKnowledge($input, DeterministicRetrieval::terms(implode(' ',[$input['topic'],$input['title'],$input['aliases'],$input['content'],$input['topic_desc_basic'],$input['tags']])), $this->clock->iso());
     }
@@ -294,7 +299,7 @@ final class ProductService
         foreach($inputs as$input){
             if(!is_array($input)||array_is_list($input))throw new InvalidArgumentException('invalid_knowledge_import');
             $this->requireUuid($input,'installation_id');$input=$this->knowledgeInput($input);
-            foreach(['profile_id','playthrough_id']as$field)if(isset($input[$field])&&$input[$field]!==null)$this->uuid((string)$input[$field]);
+            foreach(['profile_id','playthrough_id']as$field)if(isset($input[$field])&&$input[$field]!==null)$field === 'profile_id' ? $this->profileId((string)$input[$field]) : $this->uuid((string)$input[$field]);
             $input['provenance']=$this->provenance($input);
             $prepared[]=['input'=>$input,'terms'=>DeterministicRetrieval::terms(implode(' ',[
                 $input['topic'],$input['title'],$input['aliases'],$input['content'],$input['topic_desc_basic'],$input['tags']]))];
@@ -318,7 +323,7 @@ final class ProductService
         foreach(['profile_id','playthrough_id']as$field)
             $input[$field]=($current[$field]??null)===null?null:(string)$current[$field];
         $this->requireUuid($input,'installation_id');
-        foreach(['profile_id','playthrough_id']as$field)if($input[$field]!==null)$this->uuid($input[$field]);
+        foreach(['profile_id','playthrough_id']as$field)if($input[$field]!==null)$field === 'profile_id' ? $this->profileId($input[$field]) : $this->uuid($input[$field]);
         $terms=DeterministicRetrieval::terms(implode(' ',[$input['topic'],$input['title'],$input['aliases'],$input['content'],$input['topic_desc_basic'],$input['tags']]));
         return$this->repository->createKnowledge($input,$terms,$this->clock->iso());
     }
@@ -327,7 +332,7 @@ final class ProductService
     public function searchKnowledge(array $scope, string $query, int $limit = 10): array
     {
         $this->requireUuid($scope, 'installation_id');
-        foreach (['profile_id', 'playthrough_id'] as $field) if (isset($scope[$field]) && $scope[$field] !== null) $this->uuid((string) $scope[$field]);
+        foreach (['profile_id', 'playthrough_id'] as $field) if (isset($scope[$field]) && $scope[$field] !== null) $field === 'profile_id' ? $this->profileId((string) $scope[$field]) : $this->uuid((string) $scope[$field]);
         $this->boundedQuery($query, $limit);
         $rows = $this->repository->knowledgeCandidates($scope);
         foreach ($rows as &$row) {
@@ -472,8 +477,9 @@ final class ProductService
         if ($query === '' || strlen($query) > 4096 || $limit < 1 || $limit > 50) throw new InvalidArgumentException('invalid_query');
     }
 
-    private function requireUuid(array $input, string $field): void { if (!isset($input[$field]) || !is_string($input[$field])) throw new InvalidArgumentException('invalid_' . $field); $this->uuid($input[$field]); }
+    private function requireUuid(array $input, string $field): void { if (!isset($input[$field]) || !is_string($input[$field])) throw new InvalidArgumentException('invalid_' . $field); $field === 'profile_id' ? $this->profileId($input[$field]) : $this->uuid($input[$field]); }
     /** Accept canonical PostgreSQL UUIDs, including legacy deterministic Core Profile identifiers. */
+    private function profileId(string $value): void { if (!ProfileId::isValid($value)) throw new InvalidArgumentException('invalid_profile_id'); }
     private function uuid(string $value): void { if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D', $value) !== 1) throw new InvalidArgumentException('invalid_uuid'); }
     private function boundedString(array $input, string $field, int $min, int $max): void { if (!isset($input[$field]) || !is_string($input[$field]) || strlen($input[$field]) < $min || strlen($input[$field]) > $max || !mb_check_encoding($input[$field], 'UTF-8')) throw new InvalidArgumentException('invalid_' . $field); }
 

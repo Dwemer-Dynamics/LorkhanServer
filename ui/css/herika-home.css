@@ -1,7 +1,7 @@
 /* Pinned HerikaServer dashboard presentation, kept external for LORKHAN's CSP. */
 .home-version-info {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
     gap: 10px;
     padding: 8px 10px;
@@ -10,7 +10,6 @@
     font: .9em Arial, sans-serif;
 }
 
-.home-version-stack { display: flex; flex-direction: column; gap: 2px; }
 .home-social-links { display: flex; align-items: center; gap: 12px; }
 .home-social-links img { display: block; width: 20px; height: 20px; }
 

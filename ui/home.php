@@ -59,10 +59,6 @@ include __DIR__ . '/tmpl/head.html';
 if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
 <div class="container home-version-info">
-    <div class="home-version-stack">
-        <span>Server: LorkhanServer · PostgreSQL <?php echo lorkhan_ui_h($dashboard['database_version']); ?></span>
-        <span>Client: <?php echo $dashboard['current'] === null ? 'Not connected' : lorkhan_ui_h('OpenMW '.$dashboard['current']['openmw_version'].' / Lua API '.$dashboard['current']['lua_api_revision']); ?></span>
-    </div>
     <div class="home-social-links" aria-label="Dwemer Dynamics links">
         <a href="https://www.youtube.com/@DwemerDynamics" target="_blank" rel="noopener noreferrer" title="Dwemer Dynamics on YouTube"><img src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/youtube.png" alt="YouTube"></a>
         <a href="https://discord.gg/NDn9qud2ug" target="_blank" rel="noopener noreferrer" title="Dwemer Dynamics Discord"><img src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/discord.png" alt="Discord"></a>

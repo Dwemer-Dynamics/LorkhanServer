@@ -5,6 +5,19 @@ and approval gate. A complete package contains `biographies.json`, `manifest.jso
 `catalog-version.txt`. Deployment validates canonical OpenMW identity and the exact CHIM biography
 field order, then provisions the catalog idempotently after migrations.
 
+## Voice filters
+
+Biographies can preset `tts_filter_preset` using an exposed Voice Filter ID from
+`tts/TtsFilterPresets.php`, for example `warm` or `none`. The NPC Biographies add/edit
+dialog includes the same preset selector. New NPC profiles inherit the preset;
+editing a biography does not overwrite existing NPC voice-filter choices.
+
+CSV exports include `tts_filter_preset` after `race` (before optional `scope`).
+Older CSVs without the column remain supported and preserve an existing template's
+filter. A blank CSV value explicitly means `none`. Factory JSON packages may append
+`tts_filter_preset` after `refid`; omitted values default to `none`. Invalid or internal
+presets are rejected before import. Filter presets travel with biography exports.
+
 Factory biographies project into CHIM's `bio_templates` table. Installation-specific edits remain in
 typed revisioned profiles and the `bio_templates_custom` compatibility projection.
 

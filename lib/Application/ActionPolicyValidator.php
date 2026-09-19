@@ -101,7 +101,7 @@ final class ActionPolicyValidator
         }
         if (in_array('action.confirmation', $capabilities, true)) {
             $mode=(string)($definition['confirmation_mode']??'optional');
-            $normalized['confirmation_required'] = $mode==='required'||($mode==='optional'&&($override['confirmation_required']??false)===true);
+            $normalized['confirmation_required'] = $mode==='required'||($mode==='optional'&&($override['confirmation_required']??$definition['confirmation_default']??false)===true);
         }
         if (in_array('action.result-followup', $capabilities, true)) {
             $normalized['followup_enabled'] = $followupDepth===0&&($definition['continuation_capable'] ?? false) === true
@@ -114,8 +114,6 @@ final class ActionPolicyValidator
                 ($override['followup_prompt']??$definition['followup_prompt']??'');
         }
         $normalized['cooldown_seconds']=$cooldown;
-        if (in_array($proposal['name'], TransferActionPolicy::NAMES, true)) $normalized['confirmation_required']=true;
-        if ($proposal['name']==='spell.cast'||in_array($proposal['name'],AdvancedActionPolicy::NAMES,true)) $normalized['confirmation_required']=true;
         return $normalized;
     }
 
@@ -156,7 +154,7 @@ final class ActionPolicyValidator
                 $definition['description'] = (string) ($override['description'] ?? ($definition['description']??''));
                 if (in_array('action.confirmation', $capabilities, true)) {
                     $mode=(string)($definition['confirmation_mode']??'optional');
-                    $definition['confirmation_required']=$mode==='required'||($mode==='optional'&&($override['confirmation_required']??false)===true);
+                    $definition['confirmation_required']=$mode==='required'||($mode==='optional'&&($override['confirmation_required']??$definition['confirmation_default']??false)===true);
                 }
                 if (in_array('action.result-followup', $capabilities, true)) {
                     $definition['followup_enabled'] = ($definition['continuation_capable'] ?? false) === true
@@ -342,7 +340,7 @@ final class ActionPolicyValidator
             'display_name'=>$value['action_name'],
             'description'=>$value['description'],
             'return_message'=>$value['return_message'],
-            'confirmation_required'=>$config['confirmation_required']??false,
+            ...(array_key_exists('confirmation_required',$config)?['confirmation_required'=>$config['confirmation_required']]:[]),
             'followup_enabled'=>$config['followup_enabled']??false,
             'followup_prompt'=>$config['followup_prompt']??($metadata['followup']['prompt']??''),
             'allow_followup_action'=>$config['followup_use_functions_again']??false,

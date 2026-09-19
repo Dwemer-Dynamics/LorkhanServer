@@ -16,7 +16,7 @@ final class DiaryGenerationPolicy
     public static function defaults(): array
     {
         return ['materialize_enabled'=>false,'enabled'=>false,'automatic_enabled'=>false,'automatic_wait_enabled'=>false,
-            'automatic_interval_seconds'=>120,'include_in_context'=>true,'latest_entry_in_context'=>false,'context_turn_limit'=>20,
+            'automatic_interval_seconds'=>120,'include_in_context'=>true,'latest_entry_in_context'=>false,'context_turn_limit'=>100,
             'prompt'=>self::DEFAULT_PROMPT];
     }
 

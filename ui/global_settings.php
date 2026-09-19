@@ -67,19 +67,13 @@ if ($installationId !== '') {
 }
 $settingsConfigurationId = (string) ($globalSettingsRow['configuration_id'] ?? $stored['configuration_id'] ?? '');
 $settingsRevision = (int) ($globalSettingsRow['current_revision'] ?? $stored['current_revision'] ?? 0);
-$settingsSavedAt = trim((string) ($globalSettingsRow['created_at'] ?? ''));
-$revisionHistory = is_array($globalSettingsRow['revisions'] ?? null) ? $globalSettingsRow['revisions'] : [];
 $hasStoredSettings = $settingsConfigurationId !== '' && $settingsRevision > 0;
-$earlierRevisions = array_values(array_filter(
-    $revisionHistory,
-    static fn(mixed $revision): bool => is_array($revision) && (int) ($revision['revision'] ?? 0) > 0 && (int) ($revision['revision'] ?? 0) < $settingsRevision
-));
-$portableScopeNote = 'A portable file includes shared prompt context, blacklists, automatic dialogue, Rechat, Oghma, translation, relationship evaluation, Auto Lock Profile, and system connector assignments. Memory summary scheduling, its connector reference, and MiniMe settings are included. Older presets preserve these local settings. It never includes installation identity, revision history, API keys, Core Profile response connectors, NPC profiles, voices, or assignments.';
+$portableScopeNote = 'A portable file includes shared prompt context, blacklists, automatic dialogue, Rechat, Oghma, translation, relationship evaluation, Auto Lock Profile, and system connector assignments. Memory summary scheduling, its connector reference, and MiniMe settings are included. Older presets preserve these local settings. It never includes installation identity, API keys, Core Profile response connectors, NPC profiles, voices, or assignments.';
 $statusMessages = [
-    'preset-applied' => 'Settings preset applied as a new revision.',
+    'preset-applied' => 'Settings preset applied.',
     'saved' => 'Global settings saved to the database.',
-    'imported' => 'Preset imported as a new Global Settings revision.',
-    'rolled-back' => 'Earlier revision restored as a new Global Settings revision.',
+    'imported' => 'Settings imported.',
+    'rolled-back' => 'Settings restored.',
 ];
 
 $sections = [
@@ -96,10 +90,10 @@ $sections = [
         'Memory' => [
             ['memory_embedding_enabled', 'Memory Embedding', '&#x1F9E0;', 'boolean', $memoryEmbedding['enabled'] ?? false, 'Use semantic memory retrieval. Existing lexical retrieval remains available if the service cannot be reached.', []],
             ['memory_embedding_endpoint', 'MiniMe / TXT2VEC URL', '&#x1F517;', 'url', $memoryEmbedding['endpoint'] ?? '', 'Address of your memory embedding service. Use a loopback HTTP address or an HTTPS endpoint.', []],
-            ['context_short_term_in_compact_chat', 'Short Term Memory in Compact Chat', '&#x1F9E0;', 'boolean', $contextPolicy['short_term_in_compact_chat'] ?? true, 'Keep injecting short-term memory summaries while Compact Chat is active. Turn this off to keep the prompt small. Has no effect on profiles that do not have Short Term Memory enabled.', []],
             ['memory_summary_interval', 'Summary Interval', '&#x23F3;', 'integer', $memorySummary['summary_interval'] ?? 0, 'Each point represents 0.24 in-game hours. 10 = 2.4 hours; 50 = 12 hours. Zero uses event-count grouping.', ['min'=>0,'max'=>100]],
-            ['memory_embedding_timeout', 'Memory Query Timeout', '&#x23F1;', 'integer', $memoryEmbedding['timeout_ms'] ?? 1500, 'Maximum wait for one semantic query, in milliseconds.', ['min'=>250,'max'=>5000,'advanced'=>true]],
-            ['memory_summary_minimum_events', 'Minimum Summary Events', '&#x1F4AC;', 'integer', $memorySummary['minimum_events'] ?? 4, 'Minimum eligible memories before a summary group is created.', ['min'=>2,'max'=>16,'advanced'=>true]],
+            ['relationship_worst_memory_lifespan_days', 'Worst Memory Lifespan', '&#x23F3;', 'integer', $relationshipSettings['worst_memory_lifespan_days'] ?? 7, 'In-game days to retain the player’s worst memories of NPCs. Zero keeps them forever. NPC relationships are unaffected.', ['min'=>0,'max'=>365]],
+            ['context_short_term_in_compact_chat', 'Short Term Memory in Compact Chat', '&#x1F9E0;', 'boolean', $contextPolicy['short_term_in_compact_chat'] ?? true, 'Keep injecting short-term memory summaries while Compact Chat is active. Turn this off to keep the prompt small. Has no effect on profiles that do not have Short Term Memory enabled.', []],
+            ['relationship_never_clear_relationship_data', 'Never Clear Relationship Data', '&#x1F512;', 'boolean', $relationshipSettings['never_clear_relationship_data'] ?? false, 'Keep relationship data when loading an earlier save.', []],
         ],
         'Misc' => [
             ['auto_lock_profile', 'Auto Lock Profile', '&#x1F512;', 'boolean', $autoLockProfile, 'When enabled, saving an NPC profile automatically locks it to prevent automatic updates from overwriting manual edits.', []],
@@ -120,29 +114,29 @@ $sections = [
             ['oghma_extractor_timeout_ms', 'Extractor Timeout (ms)', '&#x23F1;&#xFE0F;', 'integer', $oghmaSettings['extractor_timeout_ms'], 'Maximum connector-fallback time in milliseconds.', ['min' => 250, 'max' => 3000]],
         ],
         'Context' => [
-            ['context_detect_magic_events', 'Detect Magic Events', '&#x2728;', 'boolean', $contextPolicy['detect_magic_events'] ?? true, 'Include observed successful spell casts in conversation context. Respects the Infoaction event filter and Magic & Effects Blacklist. Original observations remain in the event log.', []],
-            ['context_item_pickup_min_value', 'Item Pickup Detection Value', '&#x1F4B0;', 'integer', $contextPolicy['item_pickup_min_value'] ?? 500, 'Minimum total gold value (quantity times item value) for observed pickups in conversation context. Zero includes all pickups. Original observations remain in the event log.', ['min'=>0,'max'=>2147483647]],
+            ['context_detect_magic_events', 'Detect Magic Events', '&#x2728;', 'boolean', $contextPolicy['detect_magic_events'] ?? true, 'Include observed successful spell casts in conversation context. Respects the Event Type Filter and Magic & Effects Blacklist. Original observations remain in the event log.', []],
+            ['context_ground_items_descriptions_only', 'Ground Items Descriptions Only', '&#x1FAA8;', 'boolean', $contextPolicy['ground_items_descriptions_only'] ?? false, 'Only include nearby ground items that have a saved description. Description text can remain hidden through Context Selections. Does not filter equipment or inventory.', []],
+            ['context_inventory_items_descriptions_only', 'Inventory Items Descriptions Only', '&#x1F392;', 'boolean', $contextPolicy['inventory_items_descriptions_only'] ?? false, 'Only include inventory items with a saved description and a stack of five or fewer. Description text can remain hidden through Context Selections. Does not filter equipped or nearby ground items.', []],
             ['context_hide_ambient_combat', 'Hide Ambient Combat', '&#x1F54A;&#xFE0F;', 'boolean', $contextPolicy['hide_ambient_combat'] ?? false, 'Hide ambient death events containing has killed from conversation context. Other death events and the stored event log are retained.', []],
             ['context_transformation_detection', 'Transformation Detection', '&#x1F43A;', 'boolean', $contextPolicy['transformation_detection'] ?? true, 'Include an observed werewolf form in player and NPC current-state context. Requires a current OpenMW observation; does not infer transformations from race or biography.', []],
             ['context_power_awareness_enabled', 'Power Awareness Enabled', '&#x2694;&#xFE0F;', 'boolean', $contextPolicy['power_awareness_enabled'] ?? false, 'Compare observed character levels so NPCs can assess relative threats. Missing levels produce no assessment.', []],
-            ['context_ground_items_descriptions_only', 'Ground Items Descriptions Only', '&#x1FAA8;', 'boolean', $contextPolicy['ground_items_descriptions_only'] ?? false, 'Only include nearby ground items that have a saved description. Description text can remain hidden through Context Selections. Does not filter equipment or inventory.', []],
-            ['context_inventory_items_descriptions_only', 'Inventory Items Descriptions Only', '&#x1F392;', 'boolean', $contextPolicy['inventory_items_descriptions_only'] ?? false, 'Only include inventory items with a saved description and a stack of five or fewer. Description text can remain hidden through Context Selections. Does not filter equipped or nearby ground items.', []],
+            ['context_item_pickup_min_value', 'Item Pickup Detection Value', '&#x1F4B0;', 'integer', $contextPolicy['item_pickup_min_value'] ?? 500, 'Minimum total gold value (quantity times item value) for observed pickups in conversation context. Zero includes all pickups. Original observations remain in the event log.', ['min'=>0,'max'=>2147483647]],
             ['context_prompt_timestamp', 'Prompt Timestamp', '&#x1F552;', 'boolean', $contextPolicy['prompt_timestamp'] ?? false, 'Adds relative time dividers between conversation history groups, such as Moments Ago and Earlier in the day. Uses elapsed game time, not real-world time.', []],
         ],
         'Context Selections' => [
-            ['context_event_types', 'Event Type Filter', '&#x1F4CB;', 'multiselect', $contextPolicy['event_types'], 'Only selected event types enter conversation history.', ['values' => array_combine(SettingsCatalog::eventTypes(), array_map(static fn(string $type): string => ucwords(str_replace('_', ' ', $type)), SettingsCatalog::eventTypes()))]],
+            ['context_magic_effects_blacklist', 'Magic & Effects Blacklist', '&#x2728;', 'textarea', implode("\n", $contextPolicy['magic_effects_blacklist']), 'One exact spell or active-effect name per line.', ['maxlength' => 32768]],
             ['context_location_blacklist', 'Location Blacklist', '&#x1F5FA;&#xFE0F;', 'textarea', implode("\n", $contextPolicy['location_blacklist']), 'One exact location or cell name per line. Matching history and world context are excluded.', ['maxlength' => 32768]],
             ['context_item_blacklist', 'Item Blacklist', '&#x1F6AB;', 'textarea', implode("\n", $contextPolicy['item_blacklist']), 'One exact item display name or record ID per line. Matching nearby, equipped, inventory, and description entries are excluded.', ['maxlength' => 32768]],
-            ['context_magic_effects_blacklist', 'Magic & Effects Blacklist', '&#x2728;', 'textarea', implode("\n", $contextPolicy['magic_effects_blacklist']), 'One exact spell or active-effect name per line.', ['maxlength' => 32768]],
+            ['context_event_types', 'Event Type Filter', '&#x1F4CB;', 'multiselect', $contextPolicy['event_types_excluded'], 'Checked types are excluded from AI context. Uncheck to include them. Save All applies your changes.', ['values' => array_combine(SettingsCatalog::eventTypes(), array_map(static fn(string $type): string => (['inputtext'=>'Player Dialogue','chat'=>'Dialogue','chat_background'=>'Background Dialogue','itemfound'=>'Item Pickups','spellcast'=>'Spellcasting','npcspellcast'=>'NPC Spellcasting','book'=>'Book Content','infoaction'=>'Actions'][$type] ?? ucwords(str_replace('_', ' ', $type))), SettingsCatalog::eventTypes()))]],
         ],
     ],
     'global-connectors' => [
         'Global Connectors' => [
-            ['director_configuration_id', 'Director', '&#x1F3AC;', 'select', $systemRouting['director_configuration_id'], 'Plans instructions for nearby NPCs in Director mode. Requires this dedicated connector; no other connector is used as a fallback.', ['values'=>$llmOptions,'toggle'=>['director_enabled','Director',$globalDocument['task_availability']['director']]]],
             ['memory_summary_connector', 'Summaries', '&#x1F4DD;', 'select', $memorySummary['provider_configuration_id'] ?? '', 'Summarize consolidated memories with the selected LLM. Original memories are retained.', ['values'=>$llmOptions, 'toggle'=>['memory_summary_enabled','Automatic Memory Summaries',$memorySummary['enabled'] ?? false]]],
             ['background_memory_configuration_id', 'Background & Memory Tasks', '&#x1F9E0;', 'select', $systemRouting['background_memory_configuration_id'], 'Generates NPC evolution reports from saved history. Disabled never calls a provider. Separate from automatic memory summaries.', ['values'=>$llmOptions,'toggle'=>['background_memory_enabled','Background & Memory Tasks',$globalDocument['task_availability']['background_memory']]]],
             ['scene_classifier_configuration_id', 'Scene Classifier', '&#x1F3AD;', 'select', $systemRouting['scene_classifier_configuration_id'], 'Classifies recent dialogue after a response. Uses a named Scene Classifier connector or enabled Background Tasks when no connector is selected. Romance adds a scene note for 60 seconds.', ['values'=>array_replace($llmOptions,[''=>'Automatic fallback']),'toggle'=>['scene_classifier_enabled','Scene Classifier',$globalDocument['task_availability']['scene_classifier']]]],
             ['profile_generation_configuration_id', 'Profile Tasks', '&#x1F58B;&#xFE0F;', 'select', $systemRouting['profile_generation_configuration_id'], 'Creates requested NPC, player, and narrator profile text. Disabled never calls a provider.', ['values' => $llmOptions,'toggle'=>['profile_tasks_enabled','Profile Tasks',$globalDocument['task_availability']['profile_generation']]]],
+            ['director_configuration_id', 'Director', '&#x1F3AC;', 'select', $systemRouting['director_configuration_id'], 'Plans instructions for nearby NPCs in Director mode. Requires this dedicated connector; no other connector is used as a fallback.', ['values'=>$llmOptions,'toggle'=>['director_enabled','Director',$globalDocument['task_availability']['director']]]],
             ['relationship_configuration_id', 'Relationship Management', '&#x1F91D;', 'select', $systemRouting['relationship_configuration_id'], 'Evaluates eligible completed conversations using Relationship Update Chance.', ['values'=>$llmOptions, 'toggle'=>['relationship_enabled','Relationship Evaluation',$relationshipSettings['enabled']]]],
         ],
     ],
@@ -204,48 +198,6 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <input type="hidden" name="preset_json" value="">
         <input id="gs-preset-file" type="file" accept="application/json,.json" aria-label="Import Global Settings file">
     </form>
-    <section class="gs-portability-panel" id="gs-portability-panel" aria-label="Global Settings revision history">
-        <details class="gs-disclosure" data-gs-disclosure="history">
-            <summary>Revision history<?php if ($revisionHistory !== []): ?> (<?php echo count($revisionHistory); ?>)<?php endif; ?></summary>
-            <div class="gs-disclosure-body">
-                <?php if (!$hasStoredSettings): ?>
-                <p class="gs-help">No Global Settings revision is saved for this installation yet. Save All creates the first revision, and history and Export become available after that.</p>
-                <?php else: ?>
-                <ul class="gs-revision-list">
-                    <?php foreach ($revisionHistory as $revision): if (!is_array($revision)) continue; $revisionNumber = (int) ($revision['revision'] ?? 0); ?>
-                    <li>
-                        <span class="gs-revision-no">Revision <?php echo $revisionNumber; ?></span>
-                        <?php if ($revisionNumber === $settingsRevision): ?><span class="gs-current-tag">Current</span><?php endif; ?>
-                        <span class="gs-revision-reason"><?php echo lorkhan_ui_h(trim((string) ($revision['reason'] ?? '')) !== '' ? (string) $revision['reason'] : 'No revision note'); ?></span>
-                        <span class="gs-revision-time"><?php echo lorkhan_ui_h((string) ($revision['created_at'] ?? '')); ?></span>
-                    </li>
-                    <?php endforeach; ?>
-                    <?php if ($revisionHistory === []): ?><li><span class="gs-revision-no">Revision <?php echo $settingsRevision; ?></span><span class="gs-current-tag">Current</span><span class="gs-revision-reason">No revision history is recorded for this document.</span></li><?php endif; ?>
-                </ul>
-                <?php if ($earlierRevisions === []): ?>
-                <p class="gs-help">Revision <?php echo $settingsRevision; ?> is the only saved revision, so there is nothing earlier to restore.</p>
-                <?php else: ?>
-                <form class="gs-rollback-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/global-settings-rollback">
-                    <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
-                    <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
-                    <input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($settingsConfigurationId); ?>">
-                    <?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
-                    <div class="gs-field">
-                        <label for="gs-rollback-revision">Restore revision</label>
-                        <select id="gs-rollback-revision" name="revision" aria-describedby="gs-rollback-help gs-portability-scope">
-                            <?php foreach ($earlierRevisions as $revision): $revisionNumber = (int) $revision['revision']; ?>
-                            <option value="<?php echo $revisionNumber; ?>">Revision <?php echo $revisionNumber; ?><?php $reason = trim((string) ($revision['reason'] ?? '')); if ($reason !== ''): ?> &mdash; <?php echo lorkhan_ui_h($reason); ?><?php endif; ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <p class="gs-help" id="gs-rollback-help">Only revisions earlier than the current one can be restored. Restoring copies that document into a new revision on top of revision <?php echo $settingsRevision; ?>; nothing is deleted and no earlier revision is removed from this list.</p>
-                    <div class="gs-actions-row"><button type="submit" class="btn-action-blue" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.globals.revision-history')['description']); ?>">Restore Revision</button></div>
-                </form>
-                <?php endif; ?>
-                <?php endif; ?>
-            </div>
-        </details>
-    </section>
     <?php endif; ?>
 
     <div class="settings-tabs" role="tablist" aria-label="Global settings categories">
@@ -257,6 +209,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
     <?php if ($installations === []): ?><section class="content-section">Connect OpenMW once before configuring installation settings.</section><?php else: ?>
     <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/global-settings-save" id="gs_form">
         <input type="hidden" name="memory_settings_present" value="1">
+        <input type="hidden" name="context_event_filter_exclusions" value="1">
+        <input type="hidden" name="relationship_never_clear_relationship_data_present" value="1">
         <input type="hidden" name="task_availability_present" value="1">
         <input type="hidden" name="scene_classifier_present" value="1">
         <input type="hidden" name="director_present" value="1">
@@ -306,7 +260,13 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                             <?php endif; ?>
                             <?php if ($type === 'integer'): ?><input type="number" name="<?php echo lorkhan_ui_h($name); ?>" value="<?php echo lorkhan_ui_h($value); ?>" min="<?php echo lorkhan_ui_h($options['min']); ?>" max="<?php echo lorkhan_ui_h($options['max']); ?>" step="1" aria-label="<?php echo lorkhan_ui_h($label); ?>">
                             <?php elseif ($type === 'select'): ?><select name="<?php echo lorkhan_ui_h($name); ?>"<?php echo $controlAttr; ?> aria-label="<?php echo lorkhan_ui_h($label); ?>"<?php echo $describeAttr; ?>><?php foreach ($options['values'] as $optionKey => $optionLabel): $option = is_int($optionKey) ? (string) $optionLabel : (string) $optionKey; ?><option value="<?php echo lorkhan_ui_h($option); ?>"<?php echo $option === (string) $value ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($optionLabel); ?></option><?php endforeach; ?></select>
-                            <?php elseif ($type === 'multiselect'): ?><div class="gs-checklist" role="group" aria-label="<?php echo lorkhan_ui_h($label); ?>"><?php foreach ($options['values'] as $optionKey => $optionLabel): ?><label><input type="checkbox" name="<?php echo lorkhan_ui_h($name); ?>[]" value="<?php echo lorkhan_ui_h($optionKey); ?>"<?php echo in_array((string)$optionKey, $value, true) ? ' checked' : ''; ?>> <?php echo lorkhan_ui_h($optionLabel); ?></label><?php endforeach; ?></div>
+                            <?php elseif ($type === 'multiselect'): ?><div class="gs-event-filter"><div class="gs-checklist" role="group" aria-label="<?php echo lorkhan_ui_h($label); ?>"><?php foreach ($options['values'] as $optionKey => $optionLabel): ?><label title="<?php echo lorkhan_ui_h($optionKey); ?>"><input type="checkbox" name="<?php echo lorkhan_ui_h($name); ?>[]" value="<?php echo lorkhan_ui_h($optionKey); ?>"<?php echo in_array((string)$optionKey, $value, true) ? ' checked' : ''; ?>> <?php echo lorkhan_ui_h($optionLabel); ?></label><?php endforeach; ?></div>
+                            <?php if ($name === 'context_event_types'): ?>
+                            <label for="context-event-types-custom">Custom event types to exclude</label>
+                            <textarea id="context-event-types-custom" name="context_event_types_custom" rows="2" maxlength="32768" placeholder="my_custom_event, another_event" aria-describedby="context-event-types-custom-help"><?php echo lorkhan_ui_h(implode(', ', array_diff($value, SettingsCatalog::eventTypes()))); ?></textarea>
+                            <p class="gs-help" id="context-event-types-custom-help">Separate names with commas. Types do not need to appear in the log first.</p>
+                            <?php endif; ?>
+                            </div>
                             <?php elseif ($type === 'textarea'): ?><textarea name="<?php echo lorkhan_ui_h($name); ?>" rows="6" maxlength="<?php echo (int)($options['maxlength'] ?? 32768); ?>" spellcheck="false" aria-label="<?php echo lorkhan_ui_h($label); ?>"><?php echo lorkhan_ui_h($value); ?></textarea>
                             <?php elseif ($type === 'text' || $type === 'url'): ?><input type="<?php echo $type; ?>" name="<?php echo lorkhan_ui_h($name); ?>"<?php echo $controlAttr; ?> value="<?php echo lorkhan_ui_h($value); ?>" maxlength="<?php echo (int) ($options['maxlength'] ?? 512); ?>"<?php if (isset($options['pattern'])): ?> pattern="<?php echo lorkhan_ui_h($options['pattern']); ?>"<?php endif; ?> aria-label="<?php echo lorkhan_ui_h($label); ?>"<?php echo $describeAttr; ?>>
                             <?php endif; ?>
@@ -324,12 +284,6 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
     <?php endif; ?>
     <?php if ($installations !== []): ?>
         <div class="gs-portability-row">
-            <?php if ($hasStoredSettings): ?>
-            <span class="gs-revision-chip">Revision <?php echo $settingsRevision; ?><?php if ($settingsSavedAt !== ''): ?> &middot; saved <?php echo lorkhan_ui_h($settingsSavedAt); ?><?php endif; ?></span>
-            <?php else: ?>
-            <span class="gs-revision-chip is-empty">No saved revision &middot; showing built-in defaults</span>
-            <?php endif; ?>
-            <button type="button" class="btn-settings-transfer preset-btn-compact" data-gs-portability-toggle="history" aria-controls="gs-portability-panel" aria-expanded="false">Revision history<?php if ($revisionHistory !== []): ?> (<?php echo count($revisionHistory); ?>)<?php endif; ?></button>
             <details class="gs-scope-details">
                 <summary id="gs-portability-scope">What portable settings include</summary>
                 <p class="gs-portability-note"><?php echo lorkhan_ui_h($portableScopeNote); ?></p>

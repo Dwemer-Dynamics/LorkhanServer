@@ -135,7 +135,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <input id="narrator-name" name="name" type="text" maxlength="256" required value="<?php echo lorkhan_ui_h($profile['name'] ?? 'The Narrator'); ?>">
                         <span class="narrator-hint">Changes the display name in prompts, context and future subtitles. Internal identity and recorded history stay unchanged.</span>
                         <?php
-                        lorkhan_narrator_toggle('enabled', 'Enable Narrator', ($content['enabled'] ?? false) === true, 'Enable or disable the narrator system entirely.');
+                        lorkhan_narrator_toggle('enabled', 'Enable Narrator', ($content['enabled'] ?? true) === true, 'Enable or disable the narrator system entirely.');
                         echo '<span class="narrator-hint">Book event summaries and Read Aloud use the Narrator profile. Read Aloud is enabled separately in the in-game Sound settings.</span>';
                         lorkhan_narrator_toggle('book_events', 'Narrate Book Events', ($content['book_events'] ?? false) === true, 'Allow the narrator to respond to supported book events.');
                         echo '<input type="hidden" name="narrator_visibility_present" value="1">';

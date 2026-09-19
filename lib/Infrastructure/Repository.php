@@ -147,7 +147,8 @@ final class Repository
             $previous = $latest->fetchColumn();
             if ($previous !== null && $message['generation'] <= (int) $previous) throw new \UnexpectedValueException('stale_generation');
             // The installation fence and generation checks precede backup capture; no prior session work has been cancelled yet.
-            if($beforeReplace!==null)$beforeReplace($message);
+            $rollbackSafe=$beforeReplace===null || $beforeReplace($message)!==false;
+            (new PlaythroughLocalState($this->db))->activate($message['installation_id'],$message['playthrough_id']);
             $characters->bind($message,$characterId);
             $active=$this->db->prepare("SELECT session_id FROM sessions WHERE installation_id=:id AND state='active' FOR UPDATE");
             $active->execute(['id'=>$message['installation_id']]);$activeSessions=$active->fetchAll(PDO::FETCH_COLUMN);
@@ -174,7 +175,8 @@ final class Repository
                 'created' => $message['created_at'],'character'=>$characterId]);
             $this->source($message['message_id'], $message['installation_id'], $sessionId, $message['generation'], 'session.init',
                 $message['created_at'], $message['schema'], null, null, null, $sourceMessage);
-            if (array_key_exists('loaded_save',$message)) (new LoadedSaveTimeline($this->db))->invalidate($message);
+            // CHIM skips destructive rollback when recovery capture fails, but keeps the session usable.
+            if ($rollbackSafe && array_key_exists('loaded_save',$message)) (new LoadedSaveTimeline($this->db))->invalidate($message);
             return ['session_id' => $sessionId, 'generation' => $message['generation'], 'capabilities' => $capabilities]
                 +($characterId===null?[]:['character_id'=>$characterId,'profile_id'=>$message['profile_id'],'playthrough_id'=>$message['playthrough_id']]);
         });
@@ -307,7 +309,8 @@ final class Repository
                 $lock=$this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))');
                 $lock->execute(['key'=>'combat-bark:'.$m['installation_id']]);
                 $effective=(new ProductRepository($this->db))->effectiveSettingsForActor($m['installation_id'],$m['playthrough_id'],$p['target']);
-                $period=max(5,min(600,(int)($effective['settings']['behavior']['combat_bark_period_seconds']??20)));
+                // Normal resolved defaults are 30; match CHIM's defensive 90-second fallback if absent.
+                $period=max(5,min(600,(int)($effective['settings']['behavior']['combat_bark_period_seconds']??90)));
                 $recent=$this->db->prepare("SELECT 1 FROM sessions s JOIN source_events e ON e.session_id=s.session_id "
                     ."WHERE s.installation_id=:installation "
                     ."AND e.received_at>clock_timestamp()-make_interval(secs=>:period) "
@@ -590,10 +593,6 @@ final class Repository
             $physical['context']['targetState']=\LorkhanServer\Application\ExecutionModePolicy::actorState($payload,$actor);
             $narratorLoaded=$loaded+['turn_payload'=>$physical];
             $narratorAllowed=$this->actionPolicy->allowedDefinitions($narratorLoaded);
-            foreach($narratorAllowed as &$definition){
-                if(($definition['confirmation_required']??false)===true)$definition['confirmation_mode']='required';
-            }
-            unset($definition);
             $actorLoaded=$narratorLoaded;
             $effective=$products->effectiveSettingsForActor($loaded['session']['installation_id'],$loaded['session']['playthrough_id'],$actor);
             $actorLoaded['policy']=$this->actionCatalog->currentPolicy($loaded['session']['installation_id'],$effective['npc_profile']['profile_id']??null);

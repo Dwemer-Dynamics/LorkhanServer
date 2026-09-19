@@ -52,94 +52,45 @@ sort($expectedVersions, SORT_NUMERIC);
 $latestVersion = $expectedVersions[array_key_last($expectedVersions)] ?? throw new RuntimeException('no source migrations found');
 $check($runner->up() === $expectedVersions, 'fresh up did not apply ordered migrations');
 fwrite(STDOUT,'Fresh schema head: '.$latestVersion.'; applied migrations: '.count($expectedVersions)."\n");
+require dirname(__DIR__) . '/scripts/check-prompt-trace-labels.php';
 $advancedDefinitions=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),
     array_fill_keys(\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true));
 $check(count($advancedDefinitions)===8,'advanced upgrade omitted world actions');
 foreach($advancedDefinitions as$name=>$definition)$check($definition['available_to_npc']===false
     &&$definition['available_to_narrator']===true&&$definition['metadata']['tier']===2
-    &&$definition['metadata']['confirmation_mode']==='required'&&!$definition['metadata']['continuation_capable'],
-    'world action must retain explicit authority and mandatory confirmation: '.$name);
-$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/118_advanced_world_actions.down.sql'));
-$check(!isset(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['actor.kill']),'world downgrade retained action');
-$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/118_advanced_world_actions.up.sql'));
-$check(array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),$advancedDefinitions)===$advancedDefinitions,
-    'world actions changed on reapply');
+    &&$definition['metadata']['confirmation_mode']==='optional'&&$definition['confirmation_default']===true&&!$definition['metadata']['continuation_capable'],
+    'world action must retain explicit authority and editable confirmation enabled by default: '.$name);
 $serviceDefinitions=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),
     array_fill_keys(\LorkhanServer\Application\ServiceActionPolicy::NAMES,true));
 $check(count($serviceDefinitions)===7,'service upgrade omitted menu types');
 foreach($serviceDefinitions as$name=>$definition)$check($definition['metadata']['tier']===1
     &&$definition['metadata']['client_capability']==='action.'.$name&&$definition['metadata']['confirmation_mode']==='optional'
     &&$definition['parameters_json']===['type'=>'object','additionalProperties'=>false], 'service catalogue changed its empty parameters or optional confirmation: '.$name);
-$db->beginTransaction();
-try{
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.down.sql'));
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/115_service_actions.down.sql'));
-    $check(array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),$serviceDefinitions)===[], 'service downgrade retained menu entries');
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/115_service_actions.up.sql'));
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.up.sql'));
-    $check(array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),$serviceDefinitions)===$serviceDefinitions,'service reapply changed catalogue');
-}finally{$db->rollBack();}
 $sheatheDefinition=array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['weapon.sheathe']??null;
 $check(is_array($sheatheDefinition)&&$sheatheDefinition['metadata']['client_capability']==='action.weapon.sheathe'
     &&$sheatheDefinition['metadata']['confirmation_mode']==='optional'&&$sheatheDefinition['parameters_json']===['type'=>'object','additionalProperties'=>false]
     &&$sheatheDefinition['metadata']['terminal_result_required']===true,'sheathe catalog definition lost its bounded empty parameters or optional confirmation');
-$db->beginTransaction();
-try{
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.down.sql'));
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/112_weapon_sheathe.down.sql'));
-    $check((int)$db->query("SELECT count(*) FROM action_catalog WHERE action_name='weapon.sheathe'")->fetchColumn()===0,
-        'sheathe downgrade retained its catalog entry');
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/112_weapon_sheathe.up.sql'));
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.up.sql'));
-    $sheatheReapplied=array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['weapon.sheathe']??null;
-    $check($sheatheReapplied===$sheatheDefinition,'sheathe reapply changed its catalog definition');
-}finally{$db->rollBack();}
 $transferDefinitions=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),
     array_fill_keys(['item.give','item.take','item.pickup','gold.give','gold.take'],true));
 $check(count($transferDefinitions)===5,'transfer upgrade omitted a typed action family');
 foreach($transferDefinitions as$name=>$definition){
     $required=str_starts_with($name,'gold.')?['amount']:($name==='item.pickup'?['item_id']:['item_id','count']);
     $check($definition['metadata']['tier']===2&&$definition['metadata']['client_capability']==='action.'.$name
-        &&$definition['metadata']['confirmation_mode']==='required'&&$definition['metadata']['terminal_result_required']===true
+        &&$definition['metadata']['confirmation_mode']==='optional'&&$definition['confirmation_default']===true&&$definition['metadata']['terminal_result_required']===true
         &&$definition['parameters_json']['additionalProperties']===false&&$definition['parameters_json']['required']===$required,
-        'transfer catalogue omitted its exact bounded parameters or forced approval: '.$name);
+        'transfer catalogue omitted its exact bounded parameters or default approval: '.$name);
 }
-$db->beginTransaction();
-try{
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.down.sql'));
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/113_transfer_actions.down.sql'));
-    $remaining=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),$transferDefinitions);
-    $check($remaining===[],'transfer downgrade retained typed transfer entries');
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/113_transfer_actions.up.sql'));
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.up.sql'));
-    $reapplied=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),$transferDefinitions);
-    $check($reapplied===$transferDefinitions,'transfer reapply changed catalogue definitions');
-}finally{$db->rollBack();}
 $db->beginTransaction();
 try{
     $check($db->query("SELECT to_regclass('lorkhan_internal.director_plans') IS NOT NULL AND to_regclass('lorkhan_internal.director_instructions') IS NOT NULL")->fetchColumn()===true,
         'Director upgrade omitted its durable instruction tables');
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/114_director_plans.down.sql'));
-    $check($db->query("SELECT to_regclass('lorkhan_internal.director_plans') IS NULL AND to_regclass('lorkhan_internal.director_instructions') IS NULL")->fetchColumn()===true,
-        'empty Director downgrade retained instruction tables');
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/114_director_plans.up.sql'));
     $directorEventConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='lorkhan_internal.response_events'::regclass AND conname='response_events_event_type_check'")->fetchColumn();
     $check(str_contains($directorEventConstraint,'director.instructions'),'Director reapply lost its event contract');
 }finally{$db->rollBack();}
 $spellDefinition=array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['spell.cast']??null;
-$check(is_array($spellDefinition)&&$spellDefinition['metadata']['tier']===2&&$spellDefinition['metadata']['confirmation_mode']==='required'
+$check(is_array($spellDefinition)&&$spellDefinition['metadata']['tier']===2&&$spellDefinition['metadata']['confirmation_mode']==='optional'&&$spellDefinition['confirmation_default']===true
     &&$spellDefinition['metadata']['client_capability']==='action.spell.cast'&&$spellDefinition['parameters_json']['required']===['spell_id']
     &&$spellDefinition['available_to_narrator']===true,'spell catalogue lost bounded identifier, approval or Narrator eligibility');
-$db->beginTransaction();
-try{
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.down.sql'));
-    foreach((new ActionCatalogRepository($db))->enabledDefinitions()as$definition)$check($definition['available_to_narrator']===false,'pre117 catalogue silently enabled Narrator execution');
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/116_spell_cast.down.sql'));
-    $check(!isset(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['spell.cast']),'spell downgrade retained action');
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/116_spell_cast.up.sql'));
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/117_narrator_action_authority.up.sql'));
-    $check(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name')['spell.cast']===$spellDefinition,'spell/Narrator reapply changed authority');
-}finally{$db->rollBack();}
 $dialogueIndexConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
     ."WHERE conrelid='lorkhan_internal.dialogue_utterances'::regclass "
     ."AND conname='dialogue_utterances_utterance_index_check'")->fetchColumn();
@@ -209,36 +160,18 @@ $check($runner->down(1) === [$latestVersion], 'down did not revert latest migrat
 $check($runner->up() === [$latestVersion], 'up did not restore reverted migration');
 $check($runner->rerun() === $latestVersion, 'rerun did not cycle latest migration');
 $check($runner->fresh() === $expectedVersions, 'fresh did not rebuild all migrations');
-$check($runner->replayFrom($latestVersion-1)===[$latestVersion-1,$latestVersion], 'atomic replay omitted dependent migrations');
+$check($runner->replayFrom(1)===$expectedVersions, 'atomic replay omitted dependent migrations');
 foreach([0,$latestVersion+1]as$invalidReplay){
     try{$runner->replayFrom($invalidReplay);$check(false,'invalid replay target accepted');}
     catch(RuntimeException $error){$check(str_contains($error->getMessage(),'applied migration'),'wrong invalid replay error');}
 }
-// A real downgrade guard fails after later migrations were reverted. All earlier DDL/data/ledger work must roll back.
-$replayInstallation=Uuid::v4();$replayDescription=Uuid::v4();
-$db->prepare('INSERT INTO installations(installation_id,token_fingerprint) VALUES(:id,:token)')->execute(['id'=>$replayInstallation,'token'=>str_repeat('b',64)]);
-$db->prepare("INSERT INTO item_descriptions(description_id,installation_id,content_file,record_id,display_name,description) VALUES(:id,:installation,'Replay.esp','replay_blank','','')")->execute(['id'=>$replayDescription,'installation'=>$replayInstallation]);
+// A failed replay callback must roll back both baseline DDL and its migration ledger.
 $replayLedger=$db->query('SELECT * FROM lorkhan_internal.schema_migrations ORDER BY version')->fetchAll();
-try{$runner->replayFrom(90);$check(false,'lossy replay was accepted');}
-catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot restore required catalog fields'),'unexpected atomic replay failure');}
-$check(!$db->inTransaction()&&$db->query('SELECT * FROM lorkhan_internal.schema_migrations ORDER BY version')->fetchAll()===$replayLedger,'failed replay changed ledger or retained transaction');
-$check($db->query("SELECT to_regclass('lorkhan_internal.action_intents_conversation_end_session')")->fetchColumn()!==null,'failed replay lost later migration index');
-$check($db->query("SELECT count(*) FROM lorkhan_internal.action_catalog WHERE action_name='conversation.end'")->fetchColumn()===1,'failed replay lost later migration seed');
-$check($db->query("SELECT display_name='' AND description='' FROM item_descriptions WHERE record_id='replay_blank'")->fetchColumn()===true,'failed replay changed guarded data');
-$db->prepare('DELETE FROM item_descriptions WHERE description_id=:id')->execute(['id'=>$replayDescription]);
-$db->prepare('DELETE FROM installations WHERE installation_id=:id')->execute(['id'=>$replayInstallation]);
-$check($runner->replayFrom($latestVersion)===[$latestVersion],'replay could not recover after rollback');
-// Fail an up step after its down step succeeded; the same transaction must restore both.
-$db->exec("CREATE FUNCTION pg_temp.reject_replay_seed() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action_name='conversation.end' THEN RAISE EXCEPTION 'isolated_replay_seed_failure'; END IF; RETURN NEW; END $$");
-$db->exec('CREATE TRIGGER reject_replay_seed BEFORE INSERT ON lorkhan_internal.action_catalog FOR EACH ROW EXECUTE FUNCTION pg_temp.reject_replay_seed()');
-$replayLedger=$db->query('SELECT * FROM lorkhan_internal.schema_migrations ORDER BY version')->fetchAll();
-try{$runner->replayFrom(101);$check(false,'failed up replay was accepted');}
-catch(PDOException $error){$check(str_contains($error->getMessage(),'isolated_replay_seed_failure'),'unexpected up replay failure');}
-$check($db->query('SELECT * FROM lorkhan_internal.schema_migrations ORDER BY version')->fetchAll()===$replayLedger,'failed up replay changed ledger');
-$check($db->query("SELECT count(*) FROM lorkhan_internal.action_catalog WHERE action_name='conversation.end'")->fetchColumn()===1,'failed up replay lost original seed');
-$check($db->query("SELECT to_regclass('lorkhan_internal.action_intents_conversation_end_session')")->fetchColumn()!==null,'failed up replay lost original index');
-$db->exec('DROP TRIGGER reject_replay_seed ON lorkhan_internal.action_catalog');
-$db->exec('DROP FUNCTION pg_temp.reject_replay_seed()');
+try{$runner->replayFrom(1,null,static function():void{throw new RuntimeException('isolated_replay_failure');});$check(false,'failed replay was accepted');}
+catch(RuntimeException $error){$check($error->getMessage()==='isolated_replay_failure','unexpected replay error');}
+$check($db->query('SELECT * FROM lorkhan_internal.schema_migrations ORDER BY version')->fetchAll()===$replayLedger,'failed replay changed ledger');
+$check((int)$db->query("SELECT count(*) FROM action_catalog WHERE action_name='conversation.end'")->fetchColumn()===1,'failed replay lost seeded actions');
+
 
 
 
@@ -260,53 +193,10 @@ $check((int)$db->query('SELECT count(*) FROM pairing_tokens')->fetchColumn()===1
 $check((int)$db->query('SELECT count(*) FROM backup_records')->fetchColumn()===1,'replay lost rollback catalog');
 $preservedJobs->succeed($preservedJob,$preservedClaim['lease_token']);
 $check($db->query("SELECT state FROM durable_jobs WHERE job_type='database.replay'")->fetchColumn()==='succeeded','preserved replay job could not finish');
-$runner->replayFrom(101,[$preservation,'capture'],[$preservation,'restore']);
-$check((int)$db->query('SELECT count(*) FROM browser_sessions')->fetchColumn()===1,'late replay changed retained login');
 $runner->fresh();
 
-// Optional catalog fields must not be filled with invented text by a downgrade.
-$db->beginTransaction();
-$optionalInstallation=Uuid::v4();
-$db->prepare('INSERT INTO installations(installation_id,token_fingerprint) VALUES(:id,:token)')->execute(['id'=>$optionalInstallation,'token'=>str_repeat('a',64)]);
-$db->prepare("INSERT INTO item_descriptions(description_id,installation_id,content_file,record_id,display_name,description) VALUES(:id,:installation,'Test.esp','blank_item','','')")->execute(['id'=>Uuid::v4(),'installation'=>$optionalInstallation]);
-$db->exec('SAVEPOINT optional_catalog_rollback');
-try {$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/090_catalog_optional_fields.down.sql'));$check(false,'blank catalog downgrade should be refused');}
-catch(PDOException $error) {$check(str_contains($error->getMessage(),'Cannot restore required catalog fields'),'unexpected optional catalog rollback failure');$db->exec('ROLLBACK TO SAVEPOINT optional_catalog_rollback');}
-$check($db->query("SELECT display_name='' AND description='' FROM item_descriptions WHERE record_id='blank_item'")->fetchColumn()===true,'refused downgrade changed blank fields');
-$db->rollBack();
 
-// Prove the latest data migration round-trips legacy sparse overrides into complete Herika action rows.
-$formatInstallation=Uuid::v4();$formatConfiguration=Uuid::v4();
-$db->prepare('INSERT INTO installations(installation_id,token_fingerprint) VALUES(:installation,:token)')
-    ->execute(['installation'=>$formatInstallation,'token'=>hash('sha256','herika-action-format')]);
-$db->prepare("INSERT INTO configuration_sets(configuration_id,installation_id,kind,name) VALUES(:configuration,:installation,'action_policy','Migration format fixture')")
-    ->execute(['configuration'=>$formatConfiguration,'installation'=>$formatInstallation]);
-$legacyActionContent=['enabled'=>true,'max_tier'=>3,'actions'=>['ai.follow'=>[
-    'enabled'=>false,'display_name'=>'Legacy Follow','description'=>'Legacy sparse override.',
-    'confirmation_required'=>true,'followup_enabled'=>true,'allow_followup_action'=>true,'cooldown_seconds'=>9]]];
-$db->prepare("INSERT INTO configuration_revisions(configuration_id,revision,content,change_reason) VALUES(:configuration,1,CAST(:content AS jsonb),'migration fixture')")
-    ->execute(['configuration'=>$formatConfiguration,'content'=>json_encode($legacyActionContent,JSON_THROW_ON_ERROR)]);
-$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/076_herika_action_policy_format.up.sql'));
-$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/077_action_followup_prompt.up.sql'));
-$formatRow=json_decode((string)$db->query("SELECT content->'actions'->'ai.follow' FROM configuration_revisions WHERE configuration_id='{$formatConfiguration}'")->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
-$check(($formatRow['code_name']??null)==='ai.follow'&&($formatRow['action_name']??null)==='Legacy Follow'
-    &&($formatRow['is_activated']??null)===false&&($formatRow['metadata']['custom_config']['followup_enabled']??null)===true
-    &&($formatRow['metadata']['custom_config']['followup_use_functions_again']??null)===true
-    &&($formatRow['metadata']['custom_config']['followup_prompt']??null)==='Respond briefly to the completed action result. Acknowledge the observed outcome without proposing or performing another action.'
-    &&($formatRow['metadata']['cooldown_seconds']??null)===9,
-    '076 up did not convert a legacy sparse override into the Herika action row contract');
-$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/077_action_followup_prompt.down.sql'));
-$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/076_herika_action_policy_format.down.sql'));
-$legacyRoundTrip=json_decode((string)$db->query("SELECT content->'actions'->'ai.follow' FROM configuration_revisions WHERE configuration_id='{$formatConfiguration}'")->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
-$check(($legacyRoundTrip['display_name']??null)==='Legacy Follow'&&($legacyRoundTrip['enabled']??null)===false
-    &&($legacyRoundTrip['followup_enabled']??null)===true&&($legacyRoundTrip['allow_followup_action']??null)===true
-    &&($legacyRoundTrip['cooldown_seconds']??null)===9,
-    '076 down did not preserve the effective legacy override');
-$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/076_herika_action_policy_format.up.sql'));
-$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/077_action_followup_prompt.up.sql'));
-$db->prepare('DELETE FROM installations WHERE installation_id=:installation')->execute(['installation'=>$formatInstallation]);
-
-// The exact migration from catalog draft #9 must refuse a lossy rollback of a larger catalog.
+// The baseline retains the supported biography catalog capacity.
 $db->beginTransaction();
 $db->exec("INSERT INTO lorkhan_internal.biography_catalogs(catalog_id,catalog_version,source_kind,biographies_sha256,row_count,state,imported_at,activated_at) "
     ."VALUES('30000000-0000-4000-8000-000000000060','capacity-guard-fixture','legacy_snapshot',repeat('0',64),20000,'superseded',now(),now())");
@@ -314,44 +204,24 @@ $db->exec('SAVEPOINT capacity_guard');
 try{$db->exec("UPDATE lorkhan_internal.biography_catalogs SET row_count=20001 WHERE catalog_version='capacity-guard-fixture'");
     throw new RuntimeException('biography capacity became unbounded');}
 catch(PDOException $error){$check($error->getCode()==='23514','unexpected biography capacity failure');$db->exec('ROLLBACK TO SAVEPOINT capacity_guard');}
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/060_biography_catalog_capacity.down.sql'));
-    throw new RuntimeException('larger biography catalog was rolled back');}
-catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot restore the 10,000-row biography limit'),'unexpected biography rollback failure');$db->exec('ROLLBACK TO SAVEPOINT capacity_guard');}
-$check((int)$db->query("SELECT row_count FROM lorkhan_internal.biography_catalogs WHERE catalog_version='capacity-guard-fixture'")->fetchColumn()===20000,
-    'refused rollback changed the biography catalog');
 $db->rollBack();
 
-// Upgrade a populated 004 database: preserve the legacy session while materializing scoped owners.
-$upgradeVersions = array_values(array_filter($expectedVersions, static fn(int $version): bool => $version > 4));
-$downVersions = array_reverse($upgradeVersions);
-$check($runner->down(count($downVersions)) === $downVersions, 'could not prepare populated 004 upgrade fixture');
+// Populate the supported baseline directly; prototype upgrade paths are retired.
 $legacyInstallation=Uuid::v4();$legacyProfile=Uuid::v4();$legacyPlaythrough=Uuid::v4();$legacySession=Uuid::v4();
-$db->prepare('INSERT INTO installations (installation_id,token_fingerprint) VALUES (:id,:token)')->execute(['id'=>$legacyInstallation,'token'=>hash('sha256','legacy')]);
-$db->prepare("INSERT INTO sessions (session_id,installation_id,profile_id,playthrough_id,generation,content_fingerprint,openmw_version,openmw_commit,lua_api_revision,client_version,platform,created_at) VALUES (:session,:installation,:profile,:playthrough,1,:fingerprint,'0.51.0',:commit,129,'legacy-test','linux','2025-01-01T00:00:00Z')")->execute(['session'=>$legacySession,'installation'=>$legacyInstallation,'profile'=>$legacyProfile,'playthrough'=>$legacyPlaythrough,'fingerprint'=>'sha256:'.str_repeat('a',64),'commit'=>str_repeat('b',40)]);
-$check($runner->up() === $upgradeVersions, 'populated 004 upgrade did not apply product migrations');
-$check((int)$db->query("SELECT count(*) FROM sessions WHERE session_id='{$legacySession}'")->fetchColumn()===1, 'legacy session was lost');
-$check((int)$db->query("SELECT count(*) FROM profiles WHERE profile_id='{$legacyProfile}' AND installation_id='{$legacyInstallation}'")->fetchColumn()===1, 'legacy profile owner missing');
-$check((int)$db->query("SELECT count(*) FROM playthroughs WHERE playthrough_id='{$legacyPlaythrough}' AND profile_id='{$legacyProfile}'")->fetchColumn()===1, 'legacy playthrough owner missing');
-// Upgrade relationship data without merging ambiguous identities or losing existing audit entries.
+$db->prepare('INSERT INTO installations(installation_id,token_fingerprint) VALUES(:id,:token)')->execute(['id'=>$legacyInstallation,'token'=>hash('sha256','baseline')]);
+$db->prepare("INSERT INTO profiles(profile_id,installation_id,name) VALUES(:id,:installation,'Baseline player')")->execute(['id'=>$legacyProfile,'installation'=>$legacyInstallation]);
+$db->prepare("INSERT INTO playthroughs(playthrough_id,installation_id,profile_id,name) VALUES(:id,:installation,:profile,'Baseline playthrough')")->execute(['id'=>$legacyPlaythrough,'installation'=>$legacyInstallation,'profile'=>$legacyProfile]);
+$db->prepare("INSERT INTO sessions(session_id,installation_id,profile_id,playthrough_id,generation,content_fingerprint,openmw_version,openmw_commit,lua_api_revision,client_version,platform,created_at) VALUES(:session,:installation,:profile,:playthrough,1,:fingerprint,'0.51.0',:commit,129,'baseline-test','linux','2025-01-01T00:00:00Z')")->execute(['session'=>$legacySession,'installation'=>$legacyInstallation,'profile'=>$legacyProfile,'playthrough'=>$legacyPlaythrough,'fingerprint'=>'sha256:'.str_repeat('a',64),'commit'=>str_repeat('b',40)]);
+// Relationship writes retain audit and revision protection.
 $db->beginTransaction();
-$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/063_relationship_record_revisions.down.sql'));
 $legacyRelationship=Uuid::v4();$legacyDuplicate=Uuid::v4();
 $legacyInsert=$db->prepare("INSERT INTO relationship_records(relationship_id,installation_id,profile_id,playthrough_id,actor_identity,disposition,affinity,source_mode) "
     ."VALUES(:id,:installation,:profile,:playthrough,'{\"record_id\":\"legacy_duplicate\",\"display_name\":\"Legacy actor\"}',17,-3,'manual')");
 foreach([$legacyRelationship,$legacyDuplicate] as $id)$legacyInsert->execute(['id'=>$id,'installation'=>$legacyInstallation,'profile'=>$legacyProfile,'playthrough'=>$legacyPlaythrough]);
 $db->exec("INSERT INTO relationship_audit(audit_id,relationship_id,mode,after_value,reason) VALUES('".Uuid::v4()."','{$legacyRelationship}','manual','{\"disposition\":17,\"affinity\":-3}','Legacy reason')");
 $legacyRows=$db->query('SELECT relationship_id,actor_identity,disposition,affinity FROM relationship_records ORDER BY relationship_id')->fetchAll();
-$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/063_relationship_record_revisions.up.sql'));
-$check($db->query('SELECT relationship_id,actor_identity,disposition,affinity FROM relationship_records ORDER BY relationship_id')->fetchAll()===$legacyRows
-    &&(int)$db->query('SELECT count(*) FROM relationship_records WHERE revision=1')->fetchColumn()===2
-    &&$db->query("SELECT reason FROM relationship_audit WHERE relationship_id='{$legacyRelationship}'")->fetchColumn()==='Legacy reason',
-    'relationship upgrade changed legacy rows or history');
 $db->exec("UPDATE relationship_records SET disposition=18 WHERE relationship_id='{$legacyRelationship}'");
 $check((int)$db->query("SELECT revision FROM relationship_records WHERE relationship_id='{$legacyRelationship}'")->fetchColumn()===2,'direct relationship writes bypass revision protection');
-$db->exec('SAVEPOINT relationship_rollback_guard');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/063_relationship_record_revisions.down.sql'));
-    throw new RuntimeException('edited relationship lost revision protection');}
-catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove relationship revision protection'),'unexpected relationship rollback failure');$db->exec('ROLLBACK TO SAVEPOINT relationship_rollback_guard');}
 $db->rollBack();
 $journalTurn=Uuid::v4();$journalRequest=Uuid::v4();$journalMessage=Uuid::v4();
 $journalContext=json_encode(['journal'=>['items'=>[['quest_id'=>'A1_1_FindSpymaster','id'=>'10','text'=>'Report to Caius Cosades.','content_file'=>'Morrowind.esm']]]],JSON_THROW_ON_ERROR);
@@ -373,60 +243,6 @@ $discovered=$db->query("SELECT content_file,record_id,display_name,reference_con
 $check($discovered&&$discovered['content_file']==='custom-items.omwaddon'&&$discovered['record_id']==='iron_dagger'
     &&$discovered['display_name']==='Renamed Blade'&&$discovered['reference_content_file']==='morrowind.esm',
     'canonical custom item identity was not discovered independently of its display name or live reference source');
-$check($runner->down(count($downVersions)) === $downVersions, 'product migration down failed after upgrade');
-$check((int)$db->query("SELECT count(*) FROM profiles WHERE profile_id='{$legacyProfile}'")->fetchColumn()===1, '005 down deleted backfilled profile');
-$check((int)$db->query("SELECT count(*) FROM playthroughs WHERE playthrough_id='{$legacyPlaythrough}'")->fetchColumn()===1, '005 down deleted backfilled playthrough');
-$check($runner->up() === $upgradeVersions, 'product migrations could not reapply after preservation down');
-
-// Populate migration-008-only structures, then prove the documented lossy-compatible down policy:
-// all data is archived while 007 can expose only one media per turn, processing STT is returned to
-// accepted, legacy delivery rows survive NOT VALID FKs, and 008 reapply restores every row.
-$migrationTurn=Uuid::v4();$migrationRequest=Uuid::v4();$migrationMessage=Uuid::v4();
-$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','multi','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")
-    ->execute(['turn'=>$migrationTurn,'request'=>$migrationRequest,'message'=>$migrationMessage,'session'=>$legacySession]);
-$dialogueIds=[];$mediaIds=[];
-for($i=1;$i<=3;++$i){$dialogueIds[$i]=Uuid::v4();$mediaIds[$i]=Uuid::v4();
-    $db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,response_line_id,utterance_id,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,:idx,3,:line,:utterance,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,:text,'2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
-        ->execute(['dialogue'=>$dialogueIds[$i],'session'=>$legacySession,'turn'=>$migrationTurn,'request'=>$migrationRequest,
-            'idx'=>$i,'line'=>$dialogueIds[$i],'utterance'=>Uuid::v4(),'text'=>'utterance '.$i]);
-    $db->prepare("INSERT INTO media_objects(media_id,installation_id,session_id,turn_id,generation,sha256,byte_count,codec,mime_type,duration_ms,expires_at,dialogue_message_id) VALUES(:media,:installation,:session,:turn,1,:sha,44,'wav','audio/wav',1,'2026-01-01T00:05:00Z',:dialogue)")
-        ->execute(['media'=>$mediaIds[$i],'installation'=>$legacyInstallation,'session'=>$legacySession,'turn'=>$migrationTurn,'sha'=>hash('sha256','media-'.$i),'dialogue'=>$dialogueIds[$i]]);}
-$deliverySource=Uuid::v4();$deliveryMessage=Uuid::v4();
-$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery','2026-01-01T00:00:01Z','lorkhan.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
-    ->execute(['source'=>$deliverySource,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>$migrationRequest,'turn'=>$migrationTurn]);
-$db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','ok','2026-01-01T00:00:01Z')")
-    ->execute(['dialogue'=>$dialogueIds[1],'source'=>$deliverySource,'message'=>$deliveryMessage,'request'=>$migrationRequest,'turn'=>$migrationTurn,'session'=>$legacySession]);
-$sttMessage=Uuid::v4();$sttRequest=Uuid::v4();$sttTurn=Uuid::v4();$sttMedia=Uuid::v4();
-$db->prepare("INSERT INTO stt_requests(message_id,request_id,turn_id,session_id,generation,codec,language,audio_bytes,sha256,state,created_at,storage_media_id,semantic_hash,accepted_cursor) VALUES(:message,:request,:turn,:session,1,'wav','en',44,:sha,'processing','2026-01-01T00:00:00Z',:media,:semantic,0)")
-    ->execute(['message'=>$sttMessage,'request'=>$sttRequest,'turn'=>$sttTurn,'session'=>$legacySession,'sha'=>hash('sha256','stt-audio'),'media'=>$sttMedia,'semantic'=>hash('sha256','stt-semantic')]);
-$acceptedSttMessage=Uuid::v4();$acceptedSttRequest=Uuid::v4();$acceptedSttTurn=Uuid::v4();$acceptedSttMedia=Uuid::v4();
-$db->prepare("INSERT INTO stt_requests(message_id,request_id,turn_id,session_id,generation,codec,language,audio_bytes,sha256,state,created_at,storage_media_id,semantic_hash,accepted_cursor) VALUES(:message,:request,:turn,:session,1,'wav','en',44,:sha,'accepted','2026-01-01T00:00:00Z',:media,:semantic,0)")
-    ->execute(['message'=>$acceptedSttMessage,'request'=>$acceptedSttRequest,'turn'=>$acceptedSttTurn,'session'=>$legacySession,'sha'=>hash('sha256','accepted-stt-audio'),'media'=>$acceptedSttMedia,'semantic'=>hash('sha256','accepted-stt-semantic')]);
-$legacyDialogue=Uuid::v4();$legacySource=Uuid::v4();$legacyDeliveryMessage=Uuid::v4();
-$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery','2025-01-01T00:00:01Z','lorkhan.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
-    ->execute(['source'=>$legacySource,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>$migrationRequest,'turn'=>$migrationTurn]);
-$db->exec('ALTER TABLE dialogue_delivery_results DISABLE TRIGGER ALL');
-$db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','legacy','2025-01-01T00:00:01Z')")
-    ->execute(['dialogue'=>$legacyDialogue,'source'=>$legacySource,'message'=>$legacyDeliveryMessage,'request'=>$migrationRequest,'turn'=>$migrationTurn,'session'=>$legacySession]);
-$db->exec('ALTER TABLE dialogue_delivery_results ENABLE TRIGGER ALL');
-$downThroughEight=range($latestVersion,8);
-$check($runner->down(count($downThroughEight))===$downThroughEight,'populated 008 down failed');
-$check((int)$db->query("SELECT count(*) FROM media_objects WHERE turn_id='{$migrationTurn}'")->fetchColumn()===1,'008 down did not expose one 007 media row');
-$check((int)$db->query("SELECT count(*) FROM migration_008_media_archive WHERE turn_id='{$migrationTurn}'")->fetchColumn()===3,'008 down lost multi-utterance media archive');
-$check($db->query("SELECT state FROM stt_requests WHERE message_id='{$sttMessage}'")->fetchColumn()==='accepted','processing STT was not safely downgraded');
-$check($db->query("SELECT state FROM stt_requests WHERE message_id='{$acceptedSttMessage}'")->fetchColumn()==='accepted','accepted STT changed during downgrade');
-$check((int)$db->query("SELECT count(*) FROM dialogue_delivery_results WHERE dialogue_message_id='{$legacyDialogue}'")->fetchColumn()===1,'legacy delivery row was lost on down');
-try{$db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','invalid','2026-01-01T00:00:01Z')")
-    ->execute(['dialogue'=>Uuid::v4(),'source'=>Uuid::v4(),'message'=>Uuid::v4(),'request'=>$migrationRequest,'turn'=>$migrationTurn,'session'=>$legacySession]);throw new RuntimeException('new orphan dialogue delivery accepted');}
-catch(PDOException $error){$check($error->getCode()==='23503','unexpected legacy delivery FK error');}
-$check($runner->up()===range(8,$latestVersion),'populated 008 reapply failed');
-$check((int)$db->query("SELECT count(*) FROM media_objects WHERE turn_id='{$migrationTurn}'")->fetchColumn()===3,'008 reapply did not restore multi-utterance media');
-$check((int)$db->query("SELECT count(*) FROM media_objects WHERE turn_id='{$migrationTurn}' AND dialogue_message_id IS NOT NULL")->fetchColumn()===3,'008 reapply lost media dialogue links');
-$restoredStt=$db->query("SELECT state,storage_media_id,semantic_hash FROM stt_requests WHERE message_id='{$sttMessage}'")->fetch();
-$check($restoredStt['state']==='accepted'&&$restoredStt['storage_media_id']===$sttMedia&&rtrim($restoredStt['semantic_hash'])===hash('sha256','stt-semantic'),'008 reapply did not restore processing STT metadata');
-$restoredAcceptedStt=$db->query("SELECT state,storage_media_id,semantic_hash FROM stt_requests WHERE message_id='{$acceptedSttMessage}'")->fetch();
-$check($restoredAcceptedStt['state']==='accepted'&&$restoredAcceptedStt['storage_media_id']===$acceptedSttMedia&&rtrim($restoredAcceptedStt['semantic_hash'])===hash('sha256','accepted-stt-semantic'),'008 reapply did not restore accepted STT metadata');
-$check((int)$db->query("SELECT count(*) FROM dialogue_delivery_results WHERE dialogue_message_id='{$legacyDialogue}'")->fetchColumn()===1,'legacy delivery row was lost on reapply');
 
 $driftDirectory = sys_get_temp_dir() . '/lorkhan-migrations-' . bin2hex(random_bytes(8));
 mkdir($driftDirectory, 0700, true);
@@ -435,6 +251,15 @@ foreach (glob(dirname(__DIR__) . '/data/migrations/*.sql') ?: [] as $migrationFi
 }
 $driftRunner = new MigrationRunner($db, $driftDirectory);
 $check(count($driftRunner->status()) === count($expectedVersions), 'copied source migration status failed');
+// A normal follow-up migration must preserve populated baseline rows.
+$nextVersion=$latestVersion+1;$nextName=sprintf('%03d_test_column',$nextVersion);
+file_put_contents($driftDirectory.'/'.$nextName.'.up.sql','ALTER TABLE lorkhan_internal.installations ADD COLUMN baseline_probe text;');
+file_put_contents($driftDirectory.'/'.$nextName.'.down.sql','ALTER TABLE lorkhan_internal.installations DROP COLUMN baseline_probe;');
+$check($driftRunner->up()===[$nextVersion],'incremental migration after baseline failed');
+$check((int)$db->query("SELECT count(*) FROM sessions WHERE session_id='{$legacySession}'")->fetchColumn()===1,'incremental migration lost existing session');
+$check($driftRunner->down()===[$nextVersion],'incremental migration rollback failed');
+unlink($driftDirectory.'/'.$nextName.'.up.sql');unlink($driftDirectory.'/'.$nextName.'.down.sql');
+fwrite(STDOUT,"Baseline replay, rollback, control-state preservation and incremental upgrade checks passed.\n");
 $driftTarget = glob($driftDirectory . '/*.up.sql')[0] ?? throw new RuntimeException('copied source migration missing');
 file_put_contents($driftTarget, "\n-- unauthorized drift\n", FILE_APPEND);
 try {
@@ -459,7 +284,7 @@ $service = new ProductService($products, $clock);
 $check($products->profileAutoLockEnabled($installation),'profile auto-lock did not default on');
 $products->setProfileAutoLock($installation,false,$clock->iso());$check(!$products->profileAutoLockEnabled($installation),'profile auto-lock preference did not persist off');
 $products->setProfileAutoLock($installation,true,$clock->iso());$check($products->profileAutoLockEnabled($installation),'profile auto-lock preference did not persist on');
-$profile = $service->createRevisioned('profile', ['installation_id'=>$installation,'name'=>'Nerevarine','actor_identity'=>['record_id'=>'player'],
+$profile = $service->createRevisioned('profile', ['installation_id'=>$installation,'name'=>'Nerevarine','actor_identity'=>['kind'=>'player','record_id'=>'player'],
     'content'=>['role'=>'player'],'change_reason'=>'created']);
 $description=$service->saveItemDescription(['installation_id'=>$installation,'content_file'=>'Morrowind.esm','record_id'=>'iron_dagger','display_name'=>'Iron Dagger','description'=>'A serviceable iron blade.']);
 $descriptionTurn=['installation_id'=>$installation,'payload'=>['context'=>[
@@ -1002,12 +827,6 @@ $check($relationship['disposition'] === 20 && count($products->relationships($np
 $relationshipRevision=$db->prepare('SELECT provenance FROM relationship_revisions WHERE relationship_id=:id AND revision=1');
 $relationshipRevision->execute(['id'=>$relationship['relationship_id']]);
 $check($relationshipRevision->fetchColumn()==='{}','manual relationship revision was mislabeled automatic');
-$db->beginTransaction();
-try{
-    $db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/111_relationship_timeline.down.sql'));
-    $check(false,'relationship timeline downgrade discarded retained history');
-}catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove relationship timeline history'),'unexpected relationship timeline downgrade error');}
-finally{$db->rollBack();}
 $relationshipProjection=$db->prepare("SELECT npc.extended_data#>>'{relationships,player,disposition}' FROM npc_metadata metadata JOIN public.core_npc_master npc ON npc.id=metadata.npc_id WHERE metadata.source_profile_id=:profile");
 $relationshipProjection->execute(['profile'=>$npcProfile['profile_id']]);
 $check($relationshipProjection->fetchColumn()==='20','relationship did not project into the Herika NPC contract');
@@ -1460,7 +1279,7 @@ foreach([[$playerProfile['profile_id'],'enqueuePlayerSpeechStyleGeneration'],[$n
 $modeRouteStats=(new Worker($jobs,$generationRegistry,'profile-modes-route-test',5,2,2,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
 $check($modeRouteStats['succeeded']===2,'narrator or player speech-style generation ignored its routed connector');
 
-// Queue one manual diary only after an explicit opt-in, a dedicated connector route, and witnessed context exist.
+// Queue one manual diary only after a dedicated connector route and witnessed context exist.
 $diaryConnector=$service->createRevisioned('provider',['installation_id'=>$installation,'name'=>'Diary connector',
     'content'=>['driver'=>'mock','model'=>'diary-v1']]);
 $diaryCoreContent=['schema'=>'lorkhan.core-profile.v1','prompt'=>'','settings_overrides'=>[],'routing'=>[]];
@@ -1471,8 +1290,8 @@ $diaryProfile=$service->createRevisioned('profile',['installation_id'=>$installa
     'content'=>['biography'=>'Witnesses events in Balmora.']]);
 $diaryScope=['installation_id'=>$installation,'profile_id'=>$diaryProfile['profile_id'],
     'playthrough_id'=>$playthrough['playthrough_id'],'request_id'=>Uuid::v4()];
-try{$products->enqueueDiaryGeneration($diaryScope);throw new RuntimeException('default diary policy queued work');}
-catch(InvalidArgumentException $error){$check($error->getMessage()==='diary_generation_disabled','manual diary did not default off');}
+try{$products->enqueueDiaryGeneration($diaryScope);throw new RuntimeException('manual diary without a connector queued work');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='diary_generation_connector_unavailable','manual diary did not require its dedicated connector');}
 $jobsBeforeDiarySave=(int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='narrative.generate'")->fetchColumn();
 $diaryCoreContent['settings_overrides']['diary']=['enabled'=>true,'include_in_context'=>true,'context_turn_limit'=>12,
     'prompt'=>'Record only witnessed events.'];
@@ -1758,6 +1577,36 @@ $derivePlayedMemory=static function(int $ordinal)use($db,$derive,$legacyInstalla
         'memory.derive:played:'.$ordinal,static fn():bool=>true);
 };
 foreach(range(2,4)as$ordinal)$derivePlayedMemory($ordinal);
+// Queued recent memories use the current Core/NPC interval and preserve installation inheritance.
+$db->beginTransaction();
+try {
+    $intervalPolicy=$service->createRevisioned('memory_policy',['installation_id'=>$legacyInstallation,'name'=>'Interval inheritance',
+        'content'=>['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>'','summary_interval'=>10]]);
+    $intervalCoreContent=['schema'=>'lorkhan.core-profile.v1','prompt'=>'','settings_overrides'=>[],'routing'=>[]];
+    $intervalCore=$service->createRevisioned('core_profile',['installation_id'=>$legacyInstallation,'name'=>'Interval Core','content'=>$intervalCoreContent]);
+    $products->assignCoreProfile($legacyProfile,$intervalCore['core_profile_id']);
+    $intervalScope=['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough];
+    $intervalJobs=new \LorkhanServer\Infrastructure\FirstPartyJobRepository($db);
+    $check($intervalJobs->consolidateMemories($intervalScope,'recent',$derivedMemoryId,$clock->iso())===null,
+        'missing profile interval did not inherit the open installation time bucket');
+    $intervalCoreContent['settings_overrides']['memory']['summary_interval']=0;
+    $service->revise('core_profile',$intervalCore['core_profile_id'],$intervalCoreContent,'use event count after enqueue');
+    $db->exec('SAVEPOINT interval_core_result');
+    $check($intervalJobs->consolidateMemories($intervalScope,'recent',$derivedMemoryId,$clock->iso())!==null,
+        'explicit Core zero did not override the inherited time interval for queued memories');
+    $db->exec('ROLLBACK TO SAVEPOINT interval_core_result');
+    $intervalProfile=$products->getRevisioned('profile',$legacyProfile)['content'];
+    $intervalProfile['settings_overrides']['memory']['summary_interval']=10;
+    $service->revise('profile',$legacyProfile,$intervalProfile,'NPC interval overrides Core zero');
+    $check($intervalJobs->consolidateMemories($intervalScope,'recent',$derivedMemoryId,$clock->iso())===null,
+        'NPC interval did not override Core interval at worker execution');
+    unset($intervalProfile['settings_overrides']['memory']['summary_interval']);
+    $service->revise('profile',$legacyProfile,$intervalProfile,'restore Core interval inheritance');
+    $check($intervalJobs->consolidateMemories($intervalScope,'recent',$derivedMemoryId,$clock->iso())!==null,
+        'removing the NPC interval did not restore Core event-count grouping');
+} finally {
+    $db->rollBack();
+}
 $consolidationWorker=new Worker($jobs,$firstPartyRegistry,'memory-consolidation-four',5,1,20,0,10,['memory.consolidate'],static fn(int $microseconds):mixed=>null);
 $fourStats=$consolidationWorker->run();
 $check($fourStats['retried']===0&&$fourStats['dead']===0
@@ -1898,13 +1747,6 @@ $check($duringStats['succeeded']===1
     &&(int)$db->query("SELECT count(*) FROM memory_model_summaries WHERE memory_id='{$liveMemory['memory_id']}'")->fetchColumn()===0
     &&$products->memory($liveMemory['memory_id'])['content']===$liveMemory['content'],
     'disabling model memory during the call did not discard its output');
-$db->beginTransaction();$db->exec('SAVEPOINT model_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/062_model_memory_summaries.down.sql'));
-    throw new RuntimeException('model summary downgrade discarded data');}
-catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove model memory support'),'unexpected model downgrade failure');
-    $db->exec('ROLLBACK TO SAVEPOINT model_downgrade');}
-$check((int)$db->query('SELECT count(*) FROM memory_model_summaries')->fetchColumn()===2,'guarded downgrade changed model summaries');
-$db->rollBack();
 $summaryPolicyContent['enabled']=true;
 $service->revise('memory_policy',$summaryPolicy['configuration_id'],$summaryPolicyContent,'enable future consolidation');
 foreach(range(17,20)as$ordinal)$derivePlayedMemory($ordinal);
@@ -2014,27 +1856,12 @@ $check($queuedRevision===1&&$disabledEmbeddingStats['succeeded']===1&&$embedding
     &&(int)$db->query("SELECT count(*) FROM provider_attempts WHERE operation='embed_memory'")->fetchColumn()===$attemptsBeforeDisabled
     &&(int)$db->query("SELECT count(*) FROM memory_embeddings WHERE memory_id='{$summaryMemory['memory_id']}' AND memory_revision=2")->fetchColumn()===0,
     'disabling semantic memory did not cancel queued provider work or preserve the deterministic fallback');
-$db->beginTransaction();$db->exec('SAVEPOINT semantic_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/069_semantic_memory_embeddings.down.sql'));
-    throw new RuntimeException('semantic memory downgrade discarded data');}
-catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove semantic memory support'),'unexpected semantic downgrade failure');
-    $db->exec('ROLLBACK TO SAVEPOINT semantic_downgrade');}
-$check((int)$db->query('SELECT count(*) FROM memory_embeddings')->fetchColumn()===1,'guarded semantic downgrade changed projections');
-$db->rollBack();
 
 $translationPolicy=$service->createRevisioned('translation_policy',['installation_id'=>$legacyInstallation,
     'name'=>'NPC Output Translation','content'=>\LorkhanServer\Application\TranslationPolicy::defaults()]);
 $check(($translationPolicy['current_revision']??null)===1
     &&$products->translationPolicyForInstallation($legacyInstallation)['configuration_id']===$translationPolicy['configuration_id'],
     'revisioned translation policy was not persisted as one installation-scoped document');
-$db->beginTransaction();$db->exec('SAVEPOINT translation_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/071_translation_policy.down.sql'));
-    throw new RuntimeException('translation downgrade discarded policy history');}
-catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove translation support'),'unexpected translation downgrade failure');
-    $db->exec('ROLLBACK TO SAVEPOINT translation_downgrade');}
-$check($products->translationPolicyForInstallation($legacyInstallation)['configuration_id']===$translationPolicy['configuration_id'],
-    'guarded translation downgrade changed saved policy');
-$db->rollBack();
 
 $failedSource=Uuid::v4();$failedDialogue=Uuid::v4();$failedMessage=Uuid::v4();$failedTurn=Uuid::v4();$failedRequest=Uuid::v4();
 $db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES(:turn,:request,:message,:session,1,'text','en','failed memory source','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")
@@ -2100,13 +1927,6 @@ $traceId=$products->recordPromptTrace($traceInput,$traceMeta,$clock->iso());
 $check((int)$db->query("SELECT count(*) FROM prompt_trace_sources WHERE prompt_trace_id='{$traceId}' AND reason IN('covered_by_history','covered_by_memory') AND included=false")->fetchColumn()===2
     &&$db->query("SELECT reasons->'_context'->>'selection' FROM retrieval_traces WHERE turn_id='{$traceTurn}' AND domain='memory'")->fetchColumn()==='exact-rendered-coverage-v1',
     'coverage source reasons or retrieval metadata were not persisted');
-$db->beginTransaction();
-$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/061_memory_prompt_coverage.down.sql'));
-$check((int)$db->query("SELECT count(*) FROM prompt_trace_sources WHERE prompt_trace_id='{$traceId}' AND reason='section_limit'")->fetchColumn()===2
-    &&$db->query("SELECT inclusion_reason FROM prompt_trace_sections WHERE prompt_trace_id='{$traceId}'")->fetchColumn()==='empty',
-    'coverage migration rollback lost audit rows or left incompatible reasons');
-$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/061_memory_prompt_coverage.up.sql'));
-$db->rollBack();
 $storedTrace=$db->query("SELECT input_sha256,input_bytes FROM prompt_traces WHERE prompt_trace_id='{$traceId}'")->fetch();
 $check($storedTrace['input_sha256']===hash('sha256','secret prompt body') && (int)$storedTrace['input_bytes']===18, 'prompt trace metadata was not persisted');
 $check((int)$db->query("SELECT count(*) FROM information_schema.columns WHERE table_name='prompt_traces' AND column_name IN ('prompt','content','payload')")->fetchColumn()===0, 'prompt trace schema can persist raw prompts');

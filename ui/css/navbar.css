@@ -12,13 +12,13 @@
     font-style: normal;
 }
 
-/* Define the scrolling animation */
+/* Scroll one complete background tile so the animation resets at the same position. */
 @keyframes scrollBackground {
     from {
         background-position-x: 0;
     }
     to {
-        background-position-x: -7680px;
+        background-position-x: -2524px;
     }
 }
 
@@ -34,9 +34,9 @@ body.auto-refresh .chim-status-nav {
     left: 0;
     right: 0;
     z-index: 1030;
-    background: url('../images/navbarback.png');
+    background: url('../images/navbarback.png?v=lorkhan-moon-20260918');
     background-repeat: repeat-x;
-    background-position: 0 0;
+    background-position: 0 center;
     font-family: 'Futura CondensedLight', Arial, sans-serif;
     animation: scrollBackground 240s linear infinite;
 }
@@ -47,9 +47,9 @@ body.auto-refresh .chim-status-nav {
 }
 
 .chim-status-nav {
-    background: url('../images/navbarback.png');
+    background: url('../images/navbarback.png?v=lorkhan-moon-20260918');
     background-repeat: repeat-x;
-    background-position: 0 0;
+    background-position: 0 center;
     width: 100%;
     padding: 10px 0;
     animation: scrollBackground 240s linear infinite;

@@ -631,7 +631,7 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         lorkhan_ui_management_form(['route'=>'profile-clone','id'=>'profile-clone-'.$profileId,'legend'=>'Create independent profile copy',
             'hidden'=>['profile_id'=>$profileId],'fields'=>[['name','New profile name','text',(string)($row['name']??'').' Copy']]],$managementBasePath,$csrf);
         echo'<p class="management-note">The copy starts at revision 1 with the same roleplay details and voice. Actor bindings and the private portrait file stay with the original.</p></details>';
-        echo '<div class="connector-actions"><a class="btn-base" href="'.lorkhan_ui_h($managementBasePath.'/exports/profiles/'.$profileId.'.json').'">Export profile</a>';
+        echo '<div class="connector-actions"><a class="btn-base" href="'.lorkhan_ui_h($managementBasePath.'/exports/profiles/'.rawurlencode($profileId).'.json').'">Export profile</a>';
         if(!$locked)echo '<form method="post" action="'.lorkhan_ui_h($managementBasePath.'/forms/profile-generate').'"><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'"><input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'"><button class="btn-base btn-primary" type="submit">Generate profile with AI</button></form>';
         echo'</div>';
         echo '<p class="management-note">'.($locked?'This profile is locked. Automatic AI generation cannot replace it; manual edits and relationship updates remain available.':'Generation creates a new revision and preserves the configured voice and custom fields. A later manual edit wins if the job is still running.').'</p>';
@@ -639,6 +639,14 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         echo '</article>';
     }
     echo '</div>';
+}
+
+/** Display the placed reference without confusing it with the shared NPC base record. */
+function lorkhan_ui_npc_refid(array $identity):string
+{
+    $file=trim((string)($identity['content_file']??''));$index=$identity['refnum']['index']??null;
+    if($file===''||!(is_int($index)&&$index>=0||is_string($index)&&ctype_digit($index)))return 'Not observed';
+    return (string)$index;
 }
 
 /** Render one typed NPC revision form inside the tabbed NPC editor. */
@@ -694,8 +702,14 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     else$field('name','NPC Name','text',(string)($row['name']??''),[],'span-2');
     $field('core_profile_id','Profile','select',$coreProfileId,$coreProfileOptions);$checkbox('locked','Lock This NPC',$locked,'Prevents automatic AI profile generation from replacing manual edits.');
     $field('gender','Gender','select',(string)($content['gender']??''),[''=>'Unspecified','Male'=>'Male','Female'=>'Female','Other'=>'Other']);$field('race','Race','text',(string)($content['race']??''));
-    if($creating){$field('content_file','Base / Content File','text','Morrowind.esm');$field('record_id','Ref ID','text','');$field('refnum','Reference Number','text','');}
-    else{$field('record_id','Ref ID','text',(string)($identity['record_id']??''),[],'','Profile record ID. Does not rename the game actor or change existing actor bindings.');}
+    if($creating){$field('content_file','Mod','text','Morrowind.esm');$field('record_id','Base','text','');$field('refnum','Ref ID','text','');}
+    else{$field('record_id','Base','text',(string)($row['base']??$identity['record_id']??''),[],'','In-game NPC base ID. Does not change the placed reference or existing actor bindings.');}
+    if(!$creating){
+        $baseFieldId='npc-base-'.substr(hash('sha256',$profileId),0,14);
+        echo '<div class="form-item"><label for="'.$baseFieldId.'">Mod</label><input id="'.$baseFieldId.'" type="text" readonly value="'.lorkhan_ui_h((string)($identity['content_file']??'Not observed')).'" title="Source mod / content file"></div>';
+        $refFieldId='npc-refid-'.substr(hash('sha256',$profileId),0,14);
+        echo '<div class="form-item"><label for="'.$refFieldId.'">Ref ID</label><input id="'.$refFieldId.'" type="text" readonly value="'.lorkhan_ui_h((string)($row['refid']??lorkhan_ui_npc_refid($identity))).'" title="Placed reference number. Assigned by the game."></div>';
+    }
     $knowledgeTags=$content['oghma_knowledge_tags']??$content['oghma_tags']??'';
     $field('oghma_knowledge_tags','Oghma Tags','text',is_array($knowledgeTags)?implode(', ',array_map('strval',$knowledgeTags)):(string)$knowledgeTags,[],'','Used by Oghma systems for knowledge lookup restrictions.','Comma-separated knowledge tags');
     $field('voice_id','Voice ID','datalist',(string)($voice['id']??''),$voiceOptions);
@@ -820,7 +834,8 @@ function lorkhan_ui_chim_profile_cards(array $rows,array $voiceOptions,array $pr
         echo'<div class="npc-line"><span class="npc-muted">Gender:</span> '.lorkhan_ui_h($gender?:'Unspecified').'</div>';
         echo'<div class="npc-line"><span class="npc-muted">Race:</span> '.lorkhan_ui_h($content['race']??'Unspecified').'</div>';
         echo'<div class="npc-line"><span class="npc-muted">Voice:</span> '.lorkhan_ui_h($voice['id']??'Connector default').'</div>';
-        echo'<div class="npc-line"><span class="npc-muted">RefID:</span> '.lorkhan_ui_h($recordId).'</div>';
+        echo'<div class="npc-line"><span class="npc-muted">Base:</span> '.lorkhan_ui_h((string)($row['base']??$identity['record_id']??'Not observed')).'</div>';
+        echo'<div class="npc-line"><span class="npc-muted">Ref ID:</span> '.lorkhan_ui_h((string)($row['refid']??lorkhan_ui_npc_refid($identity))).'</div>';
         echo'<div class="npc-line"><span class="npc-muted">Oghma Tags:</span> '.lorkhan_ui_h($tags?:'none').'</div>';
         echo'<div class="npc-line"><span class="npc-muted">Profile:</span> '.lorkhan_ui_h($coreProfileLabel).'</div></div><div class="npc-right">';
         $portraitUrl=$portraitEndpoint.'?profile_id='.rawurlencode($profileId).'&revision='.(int)($row['current_revision']??1);
@@ -828,7 +843,7 @@ function lorkhan_ui_chim_profile_cards(array $rows,array $voiceOptions,array $pr
         echo'<img class="npc-race-art" src="'.lorkhan_ui_h($portraitUrl).'" alt="Portrait of '.lorkhan_ui_h($name).'" width="200" height="200" loading="lazy">';
         echo'</div></div></article>';
 
-        $exportUrl=$managementBasePath.'/exports/profiles/'.$profileId.'.json';
+        $exportUrl=$managementBasePath.'/exports/profiles/'.rawurlencode($profileId).'.json';
         $diaryUrl=(preg_replace('#/manage$#','/ui/diary_book.php',$managementBasePath)?:'/LorkhanServer/ui/diary_book.php').'?'.http_build_query(['installation_id'=>(string)$row['installation_id'],'person'=>$profileId]);
         echo'<div class="npc-modal-overlay" id="'.$modalKey.'-edit" data-npc-modal hidden><section class="npc-modal npc-editor-modal" role="dialog" aria-modal="true" aria-labelledby="'.$modalKey.'-edit-title"><header class="npc-editor-header"><h2 id="'.$modalKey.'-edit-title">Edit NPC</h2><div class="npc-modal-actions">';
         echo'<button type="submit" class="btn-save" form="management-form-profile-'.lorkhan_ui_h($profileId).'">Save</button>';
@@ -871,7 +886,7 @@ function lorkhan_ui_character_manager(array $rows,array $observedNpcs,array $pro
     $hidden=function(array$omit=[])use($uiState):void{foreach($uiState as$name=>$value)if($value!==''&&!in_array($name,$omit,true))echo'<input type="hidden" name="'.lorkhan_ui_h($name).'" value="'.lorkhan_ui_h($value).'">';};
     $postState=[];foreach($uiState as$name=>$value)if($value!=='')$postState['ui_'.$name]=$value;
     echo'<section class="npc-manager-shell"><div class="pagination npc-toolbar"><div class="npc-toolbar-main"><div class="npc-toolbar-actions">';
-    foreach([['npc-create-modal','+ Create NPC','',true],['npc-import-modal','&#128229; Import NPC','Import an LORKHAN profile from JSON',true],['npc-relationships-modal','&#128279; Build Relationships','Convert saved profile Relationships text into relationship records',true],['npc-generate-modal','&#10024; Generate Profiles','Generate unlocked NPC profiles with AI',true],['npc-switch-modal','&#128256; Mass Switch Profile','Switch all NPCs from one Core Profile to another',true],['npc-unlock-modal','&#128275; Unlock All Profiles','Unlock NPC profiles',true],['npc-delete-all-modal','&#10060; Delete All Profiles','Delete all unlocked NPC profiles',true]]as$index=>$button)
+    foreach([['npc-create-modal','+ Create NPC','',true],['npc-import-modal','&#128229; Import NPC','Import an LORKHAN profile from JSON',true],['npc-relationships-modal','&#128279; Build Relationships','Convert saved profile Relationships text into relationship records',true],['npc-generate-modal','&#10024; Generate Profiles','Generate unlocked NPC profiles with AI',true],['npc-switch-modal','&#128256; Mass Switch Profile','Switch all NPCs from one Core Profile to another',true],['npc-unlock-modal','&#128275; Unlock All Profiles','Unlock NPC profiles',true],['npc-delete-all-modal','&#10060; Delete All Profiles','Delete all unlocked NPC profiles',true],['reference-groups','Reference Groups','Group actors by reference or name',true]]as$index=>$button)
         echo'<button type="button" class="npc-toolbar-btn npc-toolbar-btn-uniform '.($index===6?'npc-toolbar-btn-danger':'npc-toolbar-btn-action').'"'.($button[3]?' data-npc-modal-target="'.$button[0].'"':' disabled aria-disabled="true"').($button[2]!==''?' title="'.lorkhan_ui_h($button[2]).'"':'').'>'.$button[1].'</button>';
     echo'</div><form class="npc-toolbar-tools" method="get" data-npc-filter-form>';$hidden(['q','profile']);
     echo'<label class="visually-hidden" for="npc_search">Search NPCs</label><input id="npc_search" type="text" name="q" maxlength="100" placeholder="Search..." aria-label="Search NPCs" value="'.lorkhan_ui_h($query).'">';
@@ -889,6 +904,7 @@ function lorkhan_ui_character_manager(array $rows,array $observedNpcs,array $pro
     echo'<label><input type="checkbox" name="lock" value="1"'.($lockedOnly?' checked':'').'> &#128274; Locked</label>';
     echo'</form></div><div class="npc-total-pill" title="Total NPC profiles"><span class="npc-total-pill-icon">&#128101;</span><strong class="npc-total-pill-value">'.$totalRows.'</strong></div></div></div></div>';
     echo'<aside class="npc-history-pullback"><strong>History Pullback:</strong> LORKHAN preserves every NPC revision. Loading an older save restores eligible automatic NPC profile changes by adding a new revision; locked profiles and manual edits are preserved.<br><span>Lock a profile (&#128274;) to protect it from automatic AI generation.</span> Use Profile Versions in the edit modal to inspect and restore an earlier version, and the History tab to read recorded narrative events.</aside>';
+    include __DIR__.'/reference_groups.php';
     echo'<div class="npc-profile-results">';lorkhan_ui_chim_profile_cards($pageRows,$voiceOptions,$promptRows,$llmRows,$ttsRows,$coreProfileRows,$effectiveProfileSettings,$managementBasePath,$csrf,$playthroughOptionsByInstallation,$postState);echo'</div>';
 
     $biographiesUrl=preg_replace('#/manage$#','/ui/core/npc_biographies.php',$managementBasePath)?:'/LorkhanServer/ui/core/npc_biographies.php';
@@ -897,14 +913,13 @@ function lorkhan_ui_character_manager(array $rows,array $observedNpcs,array $pro
     echo'<details class="npc-observed-picker"><summary>Observed OpenMW NPCs <span class="npc-toolbar-count">'.count($observedNpcs).'</span></summary>';lorkhan_ui_observed_npcs($observedNpcs,$managementBasePath,$csrf);echo'</details></div></section></div>';
     echo'<div class="npc-modal-overlay" id="npc-import-modal" data-npc-modal hidden><section class="npc-modal" role="dialog" aria-modal="true" aria-labelledby="npc-import-title"><header><h2 id="npc-import-title">Import NPC</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body">';lorkhan_ui_management_form(['route'=>'profile-import','id'=>'npc-profile-import','legend'=>'Import LORKHAN profile','hidden'=>$postState,'fields'=>[['installation_id','Installation','select','',$installationOptions],['profile_json','Portable LORKHAN profile JSON','jsonfile']]],$managementBasePath,$csrf);echo'</div></section></div>';
     $relationshipUrl=preg_replace('#/manage$#','/ui/relationship_logs.php',$managementBasePath)?:'/LorkhanServer/ui/relationship_logs.php';
-    $jobsUrl=preg_replace('#/manage$#','/ui/jobs.php',$managementBasePath)?:'/LorkhanServer/ui/jobs.php';
     echo'<div class="npc-modal-overlay" id="npc-relationships-modal" data-npc-modal hidden><section class="npc-modal npc-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="npc-relationships-title"><header><h2 id="npc-relationships-title">&#128279; Build Relationships</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body"><p>Convert the Relationships text saved on NPC profiles into typed relationship records for one playthrough.</p><p>This uses each NPC&#39;s saved Relationship LLM and can cost provider tokens. It reads only Relationships text. It never reads Custom Info, and Custom Info on existing records is never changed.</p><p>Only this explicit form queues provider work. Opening this page or saving an NPC profile does not call a provider.</p>';
     if($playthroughOptions!==[])lorkhan_ui_management_form(['route'=>'relationship-text-convert','id'=>'npc-relationship-convert','legend'=>'Build relationships','hidden'=>$postState+['request_id'=>\LorkhanServer\Infrastructure\Uuid::v4()],
         'fields'=>[['playthrough_id','Playthrough','select','',$playthroughOptions],
             ['mode','Conversion mode','select','missing',['missing'=>'Only NPCs without relationship records','rebuild'=>'Rebuild matched relationship scores']],
             ['confirm','Type Build to confirm']]],$managementBasePath,$csrf);
     else echo'<p class="empty-state">Create a playthrough before converting relationship text.</p>';
-    echo'<details><summary>How this works</summary><p>The default mode leaves every NPC that already has a relationship record alone. Rebuild mode may update the scores of explicitly matched records; omitted records and Custom Info remain unchanged.</p><p>NPCs whose Relationship LLM is Disabled or whose Relationship Lock is on are skipped. Targets must match OpenMW actors LORKHAN already knows. Unmatched names are skipped instead of invented, and relationships are never inferred between two other characters.</p><p>Each eligible NPC runs as a bounded background job. Reload Workers &amp; Jobs for current status; this page does not poll or refresh automatically.</p></details><p>This differs from Build with AI on Relationship Audit, which analyzes played conversations instead of profile text.</p><div class="connector-actions"><a class="btn-base btn-primary" href="'.lorkhan_ui_h($relationshipUrl).'" target="_blank" rel="noopener">Open Relationship Logs</a><a class="btn-base" href="'.lorkhan_ui_h($jobsUrl).'" target="_blank" rel="noopener">Open Workers &amp; Jobs</a></div>';
+    echo'<details><summary>How this works</summary><p>The default mode leaves every NPC that already has a relationship record alone. Rebuild mode may update the scores of explicitly matched records; omitted records and Custom Info remain unchanged.</p><p>NPCs whose Relationship LLM is Disabled or whose Relationship Lock is on are skipped. Targets must match OpenMW actors LORKHAN already knows. Unmatched names are skipped instead of invented, and relationships are never inferred between two other characters.</p><p>Each eligible NPC runs as a bounded background job. Check Dwemer Dashboard server logs for worker status; this page does not poll or refresh automatically.</p></details><p>This differs from Build with AI on Relationship Audit, which analyzes played conversations instead of profile text.</p><div class="connector-actions"><a class="btn-base btn-primary" href="'.lorkhan_ui_h($relationshipUrl).'" target="_blank" rel="noopener">Open Relationship Logs</a></div>';
     echo'</div></section></div>';
     echo'<div class="npc-modal-overlay" id="npc-generate-modal" data-npc-modal hidden><section class="npc-modal npc-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="npc-generate-title"><header><h2 id="npc-generate-title">&#10024; Generate NPC Profiles</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body"><p>Generate AI profile revisions for unlocked NPCs already observed by LORKHAN. This is separate from relationship conversion and can cost provider tokens.</p>';
     lorkhan_ui_management_form(['route'=>'profile-bulk-generate','id'=>'npc-bulk-generate','legend'=>'Generate unlocked NPC profiles','hidden'=>$postState,'fields'=>[['installation_id','Installation','select','',$installationOptions],['confirm','Type Generate to confirm']]],$managementBasePath,$csrf);
@@ -1174,7 +1189,7 @@ function lorkhan_ui_global_settings_form(?array $row,array $installationOptions,
             ['boredom','Bored events','checkbox','1',[],false,($behavior['boredom']??false)===true],
             ['boredom_delay_seconds','Boredom delay (seconds)','number',(string)($behavior['boredom_delay_seconds']??180)],
             ['combat_barks','Combat barks','checkbox','1',[],false,($behavior['combat_barks']??false)===true],
-            ['combat_bark_period_seconds','Combat bark period (seconds)','number',(string)($behavior['combat_bark_period_seconds']??20)],
+            ['combat_bark_period_seconds','Combat bark period (seconds)','number',(string)($behavior['combat_bark_period_seconds']??30)],
             ['recent_turn_limit','Recent turn context limit','number',(string)($memory['recent_turn_limit']??20)],
             ['knowledge_limit','Oghma result limit','number',(string)($memory['knowledge_limit']??5)],
             ['oghma_knowledge_tags','Oghma knowledge tags','text',(string)($memory['oghma_knowledge_tags']??'')],

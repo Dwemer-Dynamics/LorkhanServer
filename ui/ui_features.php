@@ -129,18 +129,16 @@ function lorkhan_ui_feature_registry(): array
         'roleplay.journal' => ['title' => 'Journal', 'state' => 'live', 'description' => 'Morrowind Journal entries received through bounded typed OpenMW context.'],
         'roleplay.destructive' => ['title' => 'Bulk Roleplay Deletion', 'state' => 'replaced', 'description' => 'LORKHAN preserves typed audit records and uses bounded retention and Database Manager backups instead of destructive browser bulk deletion.'],
 
-        'control.logs' => ['title' => 'Server Logs', 'state' => 'live', 'description' => 'Bounded redacted server logs.'],
+        'control.logs' => ['title' => 'Server Logs', 'state' => 'live', 'description' => 'Bounded redacted Lorkhan service logs in Dwemer Dashboard.'],
         'control.requests' => ['title' => 'Request Logs', 'state' => 'live', 'description' => 'LLM attempts, recorded prompt/result readers, token usage and protected log clearing.'],
         'control.oghma-audit' => ['title' => 'Oghma Audit', 'state' => 'live', 'description' => 'Knowledge retrieval audit records.'],
         'control.relationships' => ['title' => 'Relationship Logs', 'state' => 'live', 'description' => 'Relationship change audit.'],
         'control.usage' => ['title' => 'Cost Breakdown', 'state' => 'live', 'description' => 'Recorded provider token counts and reported costs; unavailable costs are identified explicitly.'],
         'control.responses' => ['title' => 'Response Queue', 'state' => 'live', 'description' => 'Queued dialogue, action and lifecycle messages, with recorded playback details and protected log removal.'],
         'control.providers' => ['title' => 'Provider Attempts', 'state' => 'live', 'description' => 'Provider latency and bounded error traces.'],
-        'control.jobs' => ['title' => 'Workers & Jobs', 'state' => 'live', 'description' => 'Durable worker and dead-letter status.'],
         'control.cache' => ['title' => 'Audio Cache', 'state' => 'live', 'description' => 'Authenticated playback of unexpired audio using opaque media IDs.'],
         'control.playthroughs' => ['title' => 'Playthrough Manager', 'state' => 'live', 'description' => 'Playthrough backup and restore.'],
         'control.database' => ['title' => 'Database Manager', 'state' => 'live', 'description' => 'Schema, backup, and retention operations.'],
-        'control.game-debug' => ['title' => 'Game Debug', 'state' => 'live', 'description' => 'Typed operator-only OpenMW diagnostics for the connected local game.'],
         'control.updater' => ['title' => 'Update Server', 'state' => 'replaced', 'description' => 'Server updates are performed through the guarded LORKHAN deployment workflow.', 'controls' => ['Check for Updates', 'Install Update']],
     ];
 

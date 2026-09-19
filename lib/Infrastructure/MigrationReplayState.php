@@ -57,7 +57,7 @@ final class MigrationReplayState
             if($this->db->query('SELECT EXISTS(SELECT '.$columnList.' FROM pg_temp.replay_'.$table.' EXCEPT SELECT '.$columnList.' FROM lorkhan_internal.'.$table.')')->fetchColumn())
                 throw new RuntimeException('replay_control_state_mismatch');
         }
-        // A replay from 107 retains source rows; an earlier replay may deliberately recreate them.
+        // Restore timeline markers only when their source rows survived the selected replay.
         if ($this->preserveTimeline) foreach (['turns'=>'turn_id','sources'=>'source_event_id'] as $kind=>$id) {
             $table='timeline_invalidated_'.$kind;
             if ($this->db->query("SELECT to_regclass('pg_temp.replay_$table')")->fetchColumn()===null) continue;
