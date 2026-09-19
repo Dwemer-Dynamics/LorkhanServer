@@ -24,3 +24,13 @@ rsync -ar --files-from="${source_root}/deploy/runtime-files.txt" \
     --exclude-from="${source_root}/deploy/runtime-excludes.txt" "${source_root}/" "${stage_root}/"
 # Retain only the selected catalog; historical catalogs remain available in source for rollback.
 rsync -arR "${source_root}/./${catalog_base}/catalogs/${catalog}/" "${stage_root}/"
+
+# Exercise bundled data loaders before deployment can stop the worker or replace live code.
+php /dev/stdin "${stage_root}" <<'PHP'
+<?php
+require $argv[1].'/lib/Autoload.php';
+\LorkhanServer\Infrastructure\PlaythroughTablePolicy::tables();
+\LorkhanServer\Infrastructure\FactoryDatabaseArchive::catalogFingerprint();
+\LorkhanServer\Application\MorrowindVoiceCatalog::bundled();
+\LorkhanServer\Application\MorrowindGeographyCatalog::bundled();
+PHP
