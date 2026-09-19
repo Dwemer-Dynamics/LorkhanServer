@@ -32,13 +32,16 @@ include __DIR__.'/tmpl/head.html';include __DIR__.'/tmpl/navbar.php';
 <header class="review-intro"><p class="review-eyebrow">LORKHAN / INWORLD VOICE DESIGN</p><h1>Character Voice Review</h1>
 <p>Two original voices per character. Listen, compare, and approve your favorite.</p>
 <p class="review-muted">Approvals are saved here only. Nothing is published to Inworld or assigned in-game yet. These are character-inspired designs, not imitations of the original actors.</p>
+<p class="review-muted">Dagoth Ur keeps his existing voice for both forms and is not part of this review.</p>
 <strong><?= $approved ?> / <?= count($document['characters']) ?> approved</strong>
 <?php if(isset($_GET['saved'])): ?><p role="status">Choice saved. Game voices are unchanged.</p><?php endif; ?>
 <?php if($notice!==''): ?><p role="alert"><?= lorkhan_ui_h($notice) ?></p><?php endif; ?>
 </header>
 <nav class="review-jump" aria-label="Characters"><?php foreach($document['characters'] as $row): ?><a href="#<?= lorkhan_ui_h($row['key']) ?>"><?= lorkhan_ui_h($row['name']) ?></a><?php endforeach; ?></nav>
 <?php if($document['characters']===[]): ?><p>No candidates generated yet.</p><?php endif; ?>
-<?php foreach($document['characters'] as $row): $choice=$decisions[$row['key']]['candidate']??'pending'; ?>
+<?php foreach($document['characters'] as $row): $choice=$decisions[$row['key']]['candidate']??'pending';
+    if(isset($row['generated_at'])&&($decisions[$row['key']]['updated_at']??'')<$row['generated_at'])$choice='pending';
+    if(!in_array($choice,['pending','none',...array_column($row['candidates'],'id')],true))$choice='pending'; ?>
 <section class="review-character" id="<?= lorkhan_ui_h($row['key']) ?>" aria-labelledby="title-<?= lorkhan_ui_h($row['key']) ?>">
 <h2 id="title-<?= lorkhan_ui_h($row['key']) ?>"><?= lorkhan_ui_h($row['name']) ?></h2>
 <p><?= lorkhan_ui_h($row['character']) ?></p>

@@ -21,10 +21,20 @@ try{
     if(!$lock||!flock($lock,LOCK_EX|LOCK_NB))throw new RuntimeException('Generation already running.');
     $review=new VoiceDesignReview($root);$saved=$review->document();
     $source=json_decode((string)file_get_contents(dirname(__DIR__).'/data/voices/morrowind-design-review.json'),true,32,JSON_THROW_ON_ERROR);
-    $limit=(int)($argv[1]??count($source['characters']));$completed=0;
+    $refresh=in_array('--refresh',$argv,true);
+    $limit=isset($argv[1])&&ctype_digit($argv[1])?(int)$argv[1]:count($source['characters']);$completed=0;
+    if($refresh){
+        // Preserve previews and decisions before replacing only changed creative directions.
+        VoiceDesignReview::writeJson($root.'/archive-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(4)).'.json',
+            ['document'=>$saved,'decisions'=>$review->decisions()]);
+        $keys=array_column($source['characters'],'key');
+        $saved['characters']=array_values(array_filter($saved['characters'],static fn(array $row):bool=>in_array($row['key'],$keys,true)));
+        VoiceDesignReview::writeJson($root.'/candidates.json',$saved);
+    }
     foreach($source['characters'] as $character){
-        $exists=false;foreach($saved['characters'] as $row)if($row['key']===$character['key'])$exists=true;
-        if($exists)continue;
+        $existing=null;foreach($saved['characters'] as $index=>$row)if($row['key']===$character['key'])$existing=$index;
+        if($existing!==null&&(!$refresh||($saved['characters'][$existing]['design_prompt']===$character['design_prompt']
+            &&$saved['characters'][$existing]['preview_text']===$character['preview_text'])))continue;
         if($completed++ >= $limit)break;
         echo 'Generating '.$character['name']." (2 candidates)...\n";
         if($completed>1)sleep(25);
@@ -54,7 +64,9 @@ try{
             $character['candidates'][]=['id'=>$id,'label'=>$index===0?'A':'B','voice_id'=>$voice,
                 'duration_ms'=>$duration,'sha256'=>hash('sha256',$audio)];
         }
-        $saved['characters'][]=$character;$saved['generated_at']=gmdate('c');$saved['provider']='inworld';
+        $character['generated_at']=gmdate('c');
+        if($existing===null)$saved['characters'][]=$character;else $saved['characters'][$existing]=$character;
+        $saved['generated_at']=gmdate('c');$saved['provider']='inworld';
         $saved['configuration_id']=$connector['configuration_id'];
         VoiceDesignReview::writeJson($root.'/candidates.json',$saved);
         echo 'Saved '.$character['name']."\n";

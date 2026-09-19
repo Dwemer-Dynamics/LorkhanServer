@@ -3903,6 +3903,11 @@ foreach([0,200] as $eventCount){
 $lockpickSettings=EffectiveSettingsResolver::validateSettingsOverrides(['rpg_comments'=>['events'=>['lockpick']]]);
 $check($lockpickSettings['rpg_comments']['events']===['lockpick'],'successful lockpicking is an eligible RPG comment');
 
+$dagothCatalog=\LorkhanServer\Application\MorrowindVoiceCatalog::bundled();
+$dagothFirst=$dagothCatalog->resolve(['kind'=>'creature','record_id'=>'dagoth_ur_1']);
+$dagothSecond=$dagothCatalog->resolve(['kind'=>'creature','record_id'=>'dagoth_ur_2']);
+$check($dagothFirst['id']==='dagoth_ur_1'&&$dagothSecond===$dagothFirst,'both Dagoth Ur forms share the original voice sample');
+
 // Review approvals only reference generated candidates and survive a fresh reader.
 $reviewRoot=sys_get_temp_dir().'/lorkhan-voice-review-'.bin2hex(random_bytes(8));mkdir($reviewRoot,0700);
 try{

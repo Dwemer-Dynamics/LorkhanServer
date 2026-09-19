@@ -21,6 +21,11 @@ with authorization. It checkpoints each completed character and skips those alre
 Requests are sequential and spaced; HTTP 429 receives at most two retries. Other failures stop
 without retrying potentially accepted generation requests. A process lock prevents duplicate runs.
 
+Use `--refresh` to replace candidates only when their source voice direction or preview text
+changed. The previous manifest and decisions are archived first; existing WAVs are retained.
+Removed characters are retired from the review. Unchanged candidates and approvals are preserved.
+An approval of a replaced candidate is displayed as pending until the new pair is reviewed.
+
 The manifest, opaque WAV previews and decisions are kept under
 `<voice_storage_path>/design-review`, outside the web root and Git. Use web-account ownership.
 Do not commit generated voices, credentials or account-specific provider IDs. Audio is served
@@ -30,7 +35,7 @@ through the management page using allowlisted IDs; decisions require its CSRF to
 
 These are new character-inspired voices, not clones or actor impersonations. The seven ash-vampire
 directions are creative interpretations, not claims of unique canonical recorded voices. Alternate
-forms share one character review; Dagoth Ur is optional and his existing voice is left intact.
+forms share one character review. Dagoth Ur is excluded: both forms use his existing voice sample.
 
 References: [Inworld Voice Design](https://docs.inworld.ai/tts/voice-design) and
 [Design API](https://docs.inworld.ai/api-reference/voiceAPI/voiceservice/design-voice).
