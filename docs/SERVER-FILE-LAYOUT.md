@@ -31,7 +31,8 @@ Composer classmaps include the same feature directories. New feature classes mus
 to the explicit runtime autoload map; Composer is optional and is not the runtime loader. Worker.php is the worker class;
 worker-runner.php is the CLI entrypoint, avoiding a Windows case-insensitive filename collision.
 
-Protocol schemas stay in protocol/. Tests, docs and catalog-authoring tools stay in Git but are
+Protocol schemas stay in protocol/. Selected agent and operational docs ship through the manifest.
+Tests, historical docs and catalog-authoring tools stay in Git but are
 not installed in the runtime. deploy/runtime-files.txt is the deployment file manifest.
 Excluded Skyrim-only features, server extensions and ITT are not reintroduced for folder parity.
 

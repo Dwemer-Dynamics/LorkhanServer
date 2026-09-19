@@ -37,3 +37,12 @@ scripts/import-sql-sandbox.sh
 scripts/sql-import-capture.py
 scripts/sql-import-reader.py
 scripts/sql-import-upgrade.php
+AGENTS.md
+README.md
+docs/agent-guide.md
+docs/building.md
+docs/RUNTIME-LAYOUT.md
+docs/SERVER-FILE-LAYOUT.md
+docs/WSL-APACHE-SETUP.md
+docs/PROTOCOL.md
+docs/PLAYTHROUGH-PARITY.md

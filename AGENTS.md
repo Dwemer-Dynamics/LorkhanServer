@@ -1,5 +1,13 @@
 # LorkhanServer engineering rules
 
+## Start here
+
+- Source: https://github.com/RANGROO/LorkhanServer; client: https://github.com/RANGROO/LORKHAN.
+- Read [docs/agent-guide.md](docs/agent-guide.md) for installed/source boundaries, diagnostics and custom integrations.
+- Read [docs/building.md](docs/building.md) for portable validation and runtime staging.
+- In an installed server, obtain matching source before running source-only build/test commands.
+- Preserve the rules below; packaged guidance does not authorize deployment or publication.
+
 ## Scope and lineage
 
 - Read the root/sibling assignments and all server docs before importing code.

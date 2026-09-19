@@ -3,6 +3,12 @@
 LorkhanServer is the local Apache/PHP/PostgreSQL backend and browser management application for
 `RANGROO/LORKHAN`, designed around TES3/OpenMW semantics and the shared CHIM/Dialectic product model.
 
+## For AI assistants and coding agents
+
+Start at [AGENTS.md](AGENTS.md), then [the agent guide](docs/agent-guide.md) for architecture,
+diagnostics and custom integrations, or [building.md](docs/building.md) for validation.
+These files also ship in the installed server's explicit runtime manifest.
+
 ## Status
 
 The complete local provider vertical slice is implemented and deployed: authenticated sessions,
