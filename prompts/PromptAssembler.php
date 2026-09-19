@@ -681,12 +681,10 @@ Return a tones object before mood and text in every utterance. Include all eight
         }
         $state = is_array(($turn['payload']['context']['playerState'] ?? null))
             ? $turn['payload']['context']['playerState'] : [];
-        // The OpenMW context collector sends player inventory beside playerState.
-        if (!array_key_exists('inventory', $state)) {
-            $state['inventory'] = $turn['payload']['context']['inventory'] ?? [];
-        }
+        // NPCs can observe player equipment, not the contents of the player's bags.
+        // Retain raw inventory for authoritative item-action validation, never prompt it here.
         $stateXml = $this->actorStateXml($state, ['race', 'class', 'level', 'health', 'health_percent'],
-            $details['npc_equipment'], $details['npc_inventory'], $details['npc_magic_effects'], $itemBlacklist, $magicBlacklist, $details['transformation_detection']??true);
+            $details['npc_equipment'], false, $details['npc_magic_effects'], $itemBlacklist, $magicBlacklist, $details['transformation_detection']??true);
         if ($stateXml !== '') $xml .= '<current_state>' . $stateXml . '</current_state>';
         $assessment = PowerAwareness::describe($assessorLevel, $state['stats']['level'] ?? null);
         if ($assessment !== '') $xml .= $this->xmlTag('power_assessment', $assessment);

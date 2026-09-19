@@ -1472,12 +1472,13 @@ $check(str_contains($defaultContextPrompt,'Census and Excise Office')&&str_conta
 $inventoryTurn=$contextTurn;
 $inventoryTurn['payload']['context']['inventory']=['items'=>[['record_id'=>'native_inventory_ring','display_name'=>'Native Inventory Ring','count'=>3]]];
 $inventoryPrompt=(new PromptAssembler(16384,1024))->assemble($inventoryTurn,$promptSelection)['provider_input']['_assembled_prompt'];
-$check(str_contains($inventoryPrompt,'Native Inventory Ring x3'), 'player prompt consumes the actual top-level OpenMW inventory lane');
+$check(!str_contains($inventoryPrompt,'Native Inventory Ring'), 'player carried inventory is excluded from dialogue prompts');
 $filteredInventorySelection=$promptSelection;
 $filteredInventorySelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
 $filteredInventorySelection['effective_settings']['context']['inventory_items_descriptions_only']=true;
 $filteredInventorySelection['effective_settings']['context']['sections']['record_descriptions']=false;
 $filteredInventoryTurn=$inventoryTurn;
+$filteredInventoryTurn['payload']['context']['targetState']['inventory']=$inventoryTurn['payload']['context']['inventory'];
 $filteredInventoryTurn['payload']['context']['playerState']['equipment']=[['record_id'=>'equipped_ring','display_name'=>'Equipped Ring']];
 $filteredInventoryPrompt=(new PromptAssembler(16384,1024))->assemble($filteredInventoryTurn,$filteredInventorySelection)['provider_input']['_assembled_prompt'];
 $check(!str_contains($filteredInventoryPrompt,'Native Inventory Ring') && str_contains($filteredInventoryPrompt,'Equipped Ring')
@@ -1486,7 +1487,7 @@ $filteredInventoryTurn['_item_descriptions']=[['record_id'=>'native_inventory_ri
 $filteredInventoryPrompt=(new PromptAssembler(16384,1024))->assemble($filteredInventoryTurn,$filteredInventorySelection)['provider_input']['_assembled_prompt'];
 $check(str_contains($filteredInventoryPrompt,'Native Inventory Ring x3') && !str_contains($filteredInventoryPrompt,'Hidden ring description.'),
     'inventory availability filtering retains counts independently of description text visibility');
-$filteredInventoryTurn['payload']['context']['inventory']['items'][0]['count']=6;
+$filteredInventoryTurn['payload']['context']['targetState']['inventory']['items'][0]['count']=6;
 $filteredInventoryPrompt=(new PromptAssembler(16384,1024))->assemble($filteredInventoryTurn,$filteredInventorySelection)['provider_input']['_assembled_prompt'];
 $check(!str_contains($filteredInventoryPrompt,'Native Inventory Ring'), 'inventory descriptions-only matches Herika omission of stacks larger than five');
 $splitTurn=$inventoryTurn;
@@ -1499,7 +1500,7 @@ foreach([[true,true],[true,false],[false,true],[false,false]] as [$equipment,$in
     $splitSelection['effective_settings']['context']['details']['npc_inventory']=$inventory;
     $splitPrompt=(new PromptAssembler(16384,1024))->assemble($splitTurn,$splitSelection)['provider_input']['_assembled_prompt'];
     $check(str_contains($splitPrompt,'Player Equipped Boots')===$equipment&&str_contains($splitPrompt,'NPC Equipped Boots')===$equipment
-        &&str_contains($splitPrompt,'Native Inventory Ring')===$inventory&&str_contains($splitPrompt,'NPC Inventory Coin')===$inventory,'equipment and inventory toggle independently for player and NPC');
+        &&!str_contains($splitPrompt,'Native Inventory Ring')&&str_contains($splitPrompt,'NPC Inventory Coin')===$inventory,'player equipment stays visible while only the NPC own inventory follows the inventory setting');
 }
 unset($splitSelection['effective_settings']['context']['details']['npc_equipment'],$splitSelection['effective_settings']['context']['details']['npc_inventory']);
 $splitSelection['effective_settings']['context']['details']['npc_equipment_inventory']=false;
@@ -1573,9 +1574,9 @@ $inventorySelection['effective_settings']['context']=\LorkhanServer\Application\
 $inventorySelection['effective_settings']['context']['details']['npc_inventory']=false;
 $inventoryPrompt=(new PromptAssembler(16384,1024))->assemble($inventoryTurn,$inventorySelection)['provider_input']['_assembled_prompt'];
 $check(!str_contains($inventoryPrompt,'Native Inventory Ring'), 'inventory context selection also gates the native top-level inventory lane');
-$inventoryTurn['payload']['context']['playerState']['inventory']=[];
+$inventoryTurn['payload']['context']['playerState']['inventory']=$inventoryTurn['payload']['context']['inventory'];
 $inventoryPrompt=(new PromptAssembler(16384,1024))->assemble($inventoryTurn,$promptSelection)['provider_input']['_assembled_prompt'];
-$check(!str_contains($inventoryPrompt,'Native Inventory Ring'), 'explicit nested player inventory takes precedence over top-level fallback');
+$check(!str_contains($inventoryPrompt,'Native Inventory Ring'), 'nested player inventory is also excluded from dialogue prompts');
 $groundSelection=$promptSelection;
 $groundSelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
 $groundSelection['effective_settings']['context']['ground_items_descriptions_only']=true;
