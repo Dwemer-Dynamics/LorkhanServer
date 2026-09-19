@@ -12,7 +12,7 @@ try{(new \LorkhanServer\Infrastructure\ManagementRepository($database))->queueDa
 catch(Throwable){error_log('Lorkhan automatic backup scheduling unavailable.');}
 $dashboard = $uiRepository->dashboard();
 $serverVersionDisplay = trim((string) @file_get_contents(dirname(__DIR__) . '/version.txt'));
-if (!preg_match('/^[a-f0-9]{7,40}$/D', $serverVersionDisplay)) $serverVersionDisplay = 'Development';
+if (!preg_match('/^\d+\.\d+\.\d+$/D', $serverVersionDisplay)) $serverVersionDisplay = 'Development';
 $pluginVersionDisplay = trim((string) ($dashboard['current']['client_version'] ?? '')) ?: 'N/A';
 // Match the dashboard's readable dates and its UTC column label, regardless of database timezone.
 $dashboardTime = static function (mixed $value): string {

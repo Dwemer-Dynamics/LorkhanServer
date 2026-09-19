@@ -23,10 +23,6 @@ done
 rsync -ar --files-from="${source_root}/deploy/runtime-files.txt" \
     --exclude-from="${source_root}/deploy/runtime-excludes.txt" "${source_root}/" "${stage_root}/"
 # Retain only the selected catalog; historical catalogs remain available in source for rollback.
-# Git archives expand version.txt; source-checkout deployments stamp the same revision here.
-if [[ -e ${source_root}/.git ]]; then
-    git -C "${source_root}" rev-parse --short HEAD > "${stage_root}/version.txt"
-fi
 rsync -arR "${source_root}/./${catalog_base}/catalogs/${catalog}/" "${stage_root}/"
 
 # Exercise bundled data loaders before deployment can stop the worker or replace live code.
