@@ -3735,6 +3735,26 @@ catch(RuntimeException $error){$check($error->getMessage()==='provider_action_no
 $sceneLine['action']=['name'=>'ai.wait','parameters'=>['duration_seconds'=>90]];
 $sceneActions=['one'=>[['name'=>'ai.wait','tier'=>1,'parameter_schema'=>['type'=>'object','properties'=>[]]]]];
 $check(\LorkhanServer\Application\DirectorPolicy::output(['instructions'=>[$sceneLine]],$sceneActors,$sceneActions)['instructions'][0]['action']===$sceneLine['action'],'Director retains only catalog-backed typed action for fresh child validation');
+$authoredText='Balmora has a long history. We should tell its stories together.';
+$authoredSpeech=['utterances'=>[['text'=>$authoredText,'mood'=>'warm','tts_language'=>'en']],'action'=>$sceneLine['action']];
+$splitSpeech=\LorkhanServer\Application\DirectorPolicy::splitSpeech($canonicalTurn,$authoredSpeech);
+$check(array_column($splitSpeech['utterances'],'text')===['Balmora has a long history.','We should tell its stories together.']
+    &&$splitSpeech['action']===$sceneLine['action'],'Director splits authored speech with ordinary sentence boundaries and retains one action');
+foreach($splitSpeech['utterances'] as $line)$check($line['speaker']===$canonicalTurn['payload']['target']
+    &&$line['addressee']===$canonicalTurn['payload']['speaker']&&$line['mood']==='warm'&&$line['tts_language']==='en'
+    &&$line['_tts_text']===$line['text']&&$line['_history_text']===$line['text'],
+    'Director chunks preserve exact routing and speech metadata');
+$splitSpeech['action']+=['actor'=>$canonicalTurn['payload']['target'],'target'=>$canonicalTurn['payload']['speaker'],'tier'=>1];
+$splitResponse=(new CanonicalResponseNormalizer())->normalize($canonicalTurn,$splitSpeech);
+$check(array_column($splitResponse['lines'],'action')===['say','say','rolecommand']
+    &&array_column($splitResponse['lines'],'final_response_line')===[false,true,false]
+    &&count(array_unique(array_column($splitResponse['lines'],'utterance_id')))===3,
+    'Director canonical playback orders uniquely identified chunks before the attached action');
+$boundedText=str_repeat('A complete sentence that is long enough. ',40);
+$boundedSpeech=\LorkhanServer\Application\DirectorPolicy::splitSpeech($canonicalTurn,['text'=>$boundedText]);
+$check(count($boundedSpeech['utterances'])===DialoguePlanner::MAX_UTTERANCES
+    &&implode(' ',array_column($boundedSpeech['utterances'],'text'))===trim($boundedText),
+    'Director retains the final remainder at the ordinary speech chunk bound');
 
 // Evolution instructions reuse editable prompt rows while preserving strict provider output contracts.
 $evolutionDefinitions=\LorkhanServer\Application\NarratorEventPrompts::definitions();
