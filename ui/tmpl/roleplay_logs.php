@@ -8,7 +8,7 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
     $journal = $tab === 'journal';
     $books = $tab === 'books';
     $recordLabel = $responses ? 'Response' : ($journal ? 'Journal' : 'Book');
-    $link = static fn(array $changes): string => $webRoot.'/ui/events-memories.php?'.http_build_query(array_merge([
+    $link = static fn(array $changes): string => lorkhan_ui_roleplay_url($webRoot,$tab,array_merge([
         'tab'=>$tab,'installation_id'=>$state['installation'],'playthrough_id'=>$state['playthrough'],
         'reader_page'=>$state['page'],'q'=>$state['query'],'person'=>$state['person'],'date'=>$state['date'],
     ], $changes));

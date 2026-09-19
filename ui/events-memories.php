@@ -8,6 +8,15 @@ $pageTitle = 'Roleplay';
 $topNavSection = 'roleplay';
 $BODY_CLASS = 'hub-page';
 require __DIR__ . '/ui_bootstrap.php';
+$tabAliases = ['eventlog-tab'=>'eventlog','responses-tab'=>'responselog','memories-tab'=>'memory',
+    'relationships-tab'=>'journal','relationships'=>'journal','narratives-tab'=>'adventure',
+    'journal-tab'=>'journal','books-tab'=>'books'];
+$requestedTab = isset($_GET['tab']) ? (string) $_GET['tab'] : 'eventlog';
+$requestedTab = $tabAliases[$requestedTab] ?? $requestedTab;
+if(in_array($requestedTab,['responselog','adventure','diaries'],true)){
+    header('Location: '.lorkhan_ui_roleplay_url($webRoot,$requestedTab,$_GET),true,302);
+    exit;
+}
 require __DIR__ . '/tmpl/memory_policy.php';
 require __DIR__ . '/tmpl/roleplay_memory_table.php';
 require __DIR__ . '/tmpl/control_reader.php';
@@ -18,17 +27,11 @@ $eventLogState = $eventLogRepository->page([
     'installation_id'=>$_GET['installation_id']??$_GET['policy_installation_id']??null,'playthrough_id'=>$_GET['playthrough_id']??null,
     'page'=>$_GET['page']??1,'limit'=>$_GET['limit']??100,'event_type'=>$_GET['event_type']??'',
 ]);
-$allowedTabs = ['eventlog', 'responselog', 'adventure', 'memory', 'diaries', 'books', 'journal'];
+$allowedTabs = ['eventlog', 'memory', 'books', 'journal'];
 $roleplay = $uiRepository->roleplay($eventLogState['scope']??[]);
-$tabAliases = ['eventlog-tab'=>'eventlog','responses-tab'=>'responselog','memories-tab'=>'memory',
-    'relationships-tab'=>'journal','relationships'=>'journal','narratives-tab'=>'adventure',
-    'journal-tab'=>'journal','books-tab'=>'books'];
-$requestedTab = isset($_GET['tab']) ? (string) $_GET['tab'] : 'eventlog';
-$requestedTab = $tabAliases[$requestedTab] ?? $requestedTab;
 $activeTab = in_array($requestedTab, $allowedTabs, true) ? $requestedTab : 'eventlog';
 $pageTitle = match ($activeTab) {
-    'responselog'=>'AI Responses', 'adventure'=>'Adventure Log', 'memory'=>'Memories',
-    'diaries'=>'Diaries', 'books'=>'Books', 'journal'=>'Journal', default=>'Roleplay',
+    'memory'=>'Memories', 'books'=>'Books', 'journal'=>'Journal', default=>'Roleplay',
 };
 $memoryPolicies=$uiRepository->rows('memory_policy');
 $memoryEmbeddingPolicy=$uiRepository->rows('memory_embedding_policy');
@@ -37,7 +40,7 @@ $installationOptions=[];foreach($uiRepository->rows('installations')as$row){$id=
 $profileOptions=[];foreach(array_merge($uiRepository->rows('profiles'),$uiRepository->rows('player'))as$row){$id=(string)($row['profile_id']??'');if($id!=='')$profileOptions[$id]=(string)($row['name']??$id);}
 $playthroughOptions=[];foreach($uiRepository->rows('playthroughs')as$row){$id=(string)($row['playthrough_id']??'');if($id!=='')$playthroughOptions[$id]=(string)($row['playthrough']??$id);}
 $readerState = null; $readerPreview = [];
-if (in_array($activeTab, ['adventure', 'diaries', 'books', 'journal', 'responselog'], true)) {
+if (in_array($activeTab, ['books', 'journal'], true)) {
     $readerState = lorkhan_roleplay_reader_state($database, $installationOptions, $activeTab);
     $readerInstallation = $readerState['installation'];
     if ($readerInstallation !== '') {
@@ -228,7 +231,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
 <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/main.css">
 <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/hub-navigation.css?v=<?php echo lorkhan_ui_h((string)filemtime(__DIR__.'/css/hub-navigation.css')); ?>">
-<main class="container-fluid events-memories-page<?= $activeTab === 'responselog' ? ' ai-response-page' : '' ?>">
+<main class="container-fluid events-memories-page">
     <?php if(($_GET['status']??'')==='saved'): ?><p class="lorkhan-status" role="status">Changes saved.</p>
     <?php elseif(($_GET['status']??'')==='summary-requested'): ?><p class="lorkhan-status" role="status">Summary requested. Check Jobs for progress.</p>
     <?php elseif(($_GET['status']??'')==='summary-failed'): ?><p class="lorkhan-status" role="status">The previous summary job failed. Check the connector and retry it in Jobs.</p>
@@ -242,20 +245,16 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <?php
         $panels = [
             'eventlog' => ['Events', $roleplay['events'], 'No source events have been recorded yet.'],
-            'responselog' => ['AI Responses', $roleplay['responses'], 'No AI dialogue has been recorded yet.'],
-            'adventure' => ['Adventure Log', [], 'No adventure narratives are available yet.'],
             'memory' => ['Memories', $roleplay['memories'], 'No memories are available yet.'],
-            'diaries' => ['LORKHAN Diaries', [], 'No diary narratives are available yet.'],
             'books' => ['Books', $roleplay['books'], 'No books have been observed during an LORKHAN session yet.'],
             'journal' => ['Morrowind Journal', $roleplay['journal'], 'No Morrowind journal entries have been received from OpenMW yet.'],
         ];
         foreach ($panels as $tabId => [$heading, $rows, $emptyMessage]):
         ?>
             <section id="<?php echo lorkhan_ui_h($tabId); ?>-tab" class="tab-content<?php echo $activeTab === $tabId ? ' active' : ''; ?>">
-                <?php if(in_array($tabId,['adventure','diaries','books','journal','responselog'],true)){
+                <?php if(in_array($tabId,['books','journal'],true)){
                     if($tabId===$activeTab && $readerState!==null){
-                        if(in_array($tabId,['responselog','books','journal'],true))lorkhan_roleplay_log_table($readerState,$installationOptions,$tabId,$webRoot,$managementBasePath,$csrf);
-                        else {echo '<div class="calendar-reader-viewport" tabindex="0" role="region" aria-label="'.lorkhan_ui_h($heading).'">';lorkhan_roleplay_reader($readerState,$installationOptions,$tabId,$webRoot,$managementBasePath,$csrf,$readerPreview);echo '</div>';}
+                        lorkhan_roleplay_log_table($readerState,$installationOptions,$tabId,$webRoot,$managementBasePath,$csrf);
                     }
                 }elseif($tabId==='memory'){
                     if($tabId===$activeTab){echo '<div class="tab-panel-inner roleplay-panel"><h2 class="visually-hidden">Memories</h2>';

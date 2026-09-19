@@ -186,7 +186,7 @@ function lorkhan_roleplay_reader(array $state, array $installationOptions, strin
     $editable = $tab === 'diaries';
     $calendar = in_array($tab, ['diaries', 'adventure'], true);
     $ready = $editable || ($preview['default_connector_id'] ?? '') !== '' && ($preview['default_voice'] ?? '') !== '';
-    $link = static fn(array $extra): string => $webRoot.'/ui/events-memories.php?'.http_build_query(array_merge([
+    $link = static fn(array $extra): string => lorkhan_ui_roleplay_url($webRoot,$tab,array_merge([
         'tab' => $tab, 'installation_id' => $state['installation'], 'playthrough_id' => $state['playthrough'],
         'person' => $state['person'], 'date' => $state['date'], 'q' => $state['query'], 'reader_page' => $state['page'],
         'month' => $state['month'] ?? gmdate('Y-m'), 'calendar'=>$state['calendar_mode'],'game_year'=>$state['calendar_mode']==='tamrielic'?$state['game_year']:null,'game_month'=>$state['calendar_mode']==='tamrielic'?$state['game_month']:null,'game_date'=>$state['game_date'], 'view' => ($_GET['view'] ?? '') === 'people' ? 'people' : 'calendar',

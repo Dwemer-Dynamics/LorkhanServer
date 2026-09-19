@@ -23,3 +23,15 @@ review approvals are outside the web root. Previous code is backed up under
 Client license/notices and corresponding-source artifacts must be settled and verified
 before redistribution. Do not invent a license to satisfy the packaging audit. GitHub's
 server workflow remains disabled until explicitly re-enabled by the owner.
+
+## Canonical roleplay pages
+
+- `ui/events-memories.php`: Events, Memories, Books, Journal.
+- `ui/ai-response.php`: AI Responses.
+- `ui/adventurelog.php`: Adventure Log.
+- `ui/diarylog.php`: Diaries.
+
+The three readers use shared rendering/query helpers without executing the Event Log or
+memory controller. Old roleplay tab URLs redirect with their query filters intact.
+`ui/core/npc_master.php` and `ui/global_settings.php` are the sole NPC/Global Settings entry
+points. The old `core/character_manager.php` and `core/global_settings.php` wrappers are removed.

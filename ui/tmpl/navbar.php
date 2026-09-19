@@ -3,7 +3,7 @@ declare(strict_types=1);
 $currentPageName=basename((string)($_SERVER['PHP_SELF']??''));
 $topNavSection=$topNavSection??match(true){
     $currentPageName==='home.php'=>'home',
-    in_array($currentPageName,['events-memories.php'],true)=>'roleplay',
+    in_array($currentPageName,['events-memories.php','ai-response.php','adventurelog.php','diarylog.php'],true)=>'roleplay',
     in_array($currentPageName,['control_panel.php','database_manager.php','request_logs.php'],true)=>'control',
     default=>'configuration',
 };

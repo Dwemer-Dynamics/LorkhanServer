@@ -25,7 +25,7 @@ $roleplayGroups = [
             <div class="tab-buttons">
                 <?php foreach ($group['tabs'] as $tab): $isActive = $tab['key'] === $activeTab; $feature = lorkhan_ui_feature($tab['feature']); $isLive = $feature['state'] === 'live'; ?>
                 <?php if ($isLive): ?>
-                <a class="tab-button<?php echo $isActive ? ' active' : ''; ?>" href="<?php echo lorkhan_ui_h($webRoot . '/ui/events-memories.php?tab=' . rawurlencode($tab['key'])); ?>" data-tab="<?php echo lorkhan_ui_h($tab['key']); ?>" title="<?php echo lorkhan_ui_h($tab['label']); ?>"<?php echo $isActive ? ' aria-current="page"' : ''; ?>>
+                <a class="tab-button<?php echo $isActive ? ' active' : ''; ?>" href="<?php echo lorkhan_ui_h(lorkhan_ui_roleplay_url($webRoot, $tab['key'])); ?>" data-tab="<?php echo lorkhan_ui_h($tab['key']); ?>" title="<?php echo lorkhan_ui_h($tab['label']); ?>"<?php echo $isActive ? ' aria-current="page"' : ''; ?>>
                     <span class="tab-icon" aria-hidden="true"><?php echo $tab['icon']; ?></span><span class="tab-label"><?php echo lorkhan_ui_h($tab['label']); ?></span>
                 </a>
                 <?php else: // An unavailable page has nothing to open, so it is inert to pointer and keyboard alike and states why. ?>

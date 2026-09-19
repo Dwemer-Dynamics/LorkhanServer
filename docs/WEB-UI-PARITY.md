@@ -168,7 +168,7 @@ Current delivery order: close visible page structure and interactions directly f
 | `backup_health.php` | Herika Request Logs operational layout + Dashboard instruction panel; native backup data | Explicit backup columns, paging, safe CSV and explained retention scope. Populated/empty desktop/narrow comparison, native confirmation keyboard checks, HTTP and local deployment passed. Backup metadata does not claim file-integrity verification. |
 | `narrative_manager.php` | Herika `diarylog.php` entry table/editor; native create/generate extension | Replaced inline forms/cards with a compact searchable paged table, content-first editor, create/generate dialogs and separate delete confirmation. Source/reference editor and table styling compared; CRUD and generation refusal covered by existing HTTP tests. No equivalent standalone manual narrative manager exists in Herika. |
 
-Redirects `core/character_manager.php` and `core/global_settings.php` resolve to
+Retired wrappers `core/character_manager.php` and `core/global_settings.php` have been removed; use
 their canonical pages. Media routes (`cache_audio.php`, `core/profile_portrait.php`),
 bootstrap files and templates are not separate user pages. NPC knowledge needs
 an existing profile/installation identity when testing its direct route.
