@@ -3906,7 +3906,7 @@ try{
     $leaseDirector=$db->prepare("UPDATE durable_jobs SET state='leased',attempt_count=1,lease_token=:lease,lease_owner='director-integration',leased_at=clock_timestamp(),heartbeat_at=clock_timestamp(),lease_expires_at=clock_timestamp()+interval '60 seconds' WHERE job_id=:job");
     $leaseDirector->execute(['lease'=>$directorLease,'job'=>$directorId]);
     $directorOutput=['instructions'=>[
-        ['actor_id'=>'nearby:1','recipient_id'=>'nearby:2','instruction'=>'Balmora has a long history.','scene_note'=>'A discussion about Balmora.',
+        ['actor_id'=>'nearby:1','recipient_id'=>'nearby:2','instruction'=>'Balmora has a long history. We should tell its stories together.','scene_note'=>'A discussion about Balmora.',
             'action'=>['name'=>'ai.wait','parameters'=>['duration_seconds'=>3600]]],
         ['actor_id'=>'nearby:2','recipient_id'=>'player','instruction'=>'What do you think, traveller?','scene_note'=>''],
         ['actor_id'=>'nearby:1','recipient_id'=>'nearby:2','instruction'=>'This must not play after the player is addressed.','scene_note'=>'']]];
@@ -3931,12 +3931,12 @@ try{
     [$childStatus,$childAccepted]=$call($transferRouter,'POST',$base.'/turns',$headers($directorChild['message_id']),[],$directorChild);
     $assert($childStatus===202,'Director child rejected: '.json_encode($childAccepted));
     $childText=$db->prepare('SELECT input_text FROM turns WHERE turn_id=:turn');$childText->execute(['turn'=>$directorChild['turn_id']]);
-    $assert($childText->fetchColumn()==='Balmora has a long history.','Director trusted substituted child instruction text');
+    $assert($childText->fetchColumn()===$directorOutput['instructions'][0]['instruction'],'Director trusted substituted child instruction text');
     $duplicateChild=$directorChild;$duplicateChild['turn_id']=Uuid::v4();
     try{$director->prepareChild($duplicateChild);$assert(false,'Director instruction reused by another turn');}
     catch(RuntimeException $error){$assert($error->getMessage()==='director_instruction_unavailable','wrong Director single-consumption error');}
     $authored=$director->prepareChild($directorChild)['authored_response'];
-    $assert($authored['utterances'][0]['text']==='Balmora has a long history.'&&$authored['utterances'][0]['addressee']==$transferRecipient,'Director lost its trusted authored response');
+    $assert($authored['utterances'][0]['text']===$directorOutput['instructions'][0]['instruction']&&$authored['utterances'][0]['addressee']==$transferRecipient,'Director lost its trusted authored response');
     (new ReflectionMethod($repo,'validateProviderResult'))->invoke($repo,$authored,$repo->session($sessionId,$directorChild['generation']),$repo->turnMessage($directorChild['turn_id']));
     $db->exec('SAVEPOINT director_policy_revocation');
     try{
@@ -3956,7 +3956,12 @@ try{
     $authoredText=$db->prepare('SELECT text FROM dialogue_utterances WHERE turn_id=:turn ORDER BY utterance_index');
     $authoredText->execute(['turn'=>$directorChild['turn_id']]);
     $directorFailure=$db->prepare("SELECT payload FROM response_events WHERE turn_id=:turn AND event_type='turn.failed'");$directorFailure->execute(['turn'=>$directorChild['turn_id']]);
-    $assert($authoredText->fetchColumn()==='Balmora has a long history.','Director child did not publish its exact authored line: '.(string)$directorFailure->fetchColumn());
+    $assert($authoredText->fetchAll(PDO::FETCH_COLUMN)===['Balmora has a long history.','We should tell its stories together.'],
+        'Director child did not publish its exact authored speech chunks: '.(string)$directorFailure->fetchColumn());
+    $authoredResponse=$db->prepare('SELECT response_payload FROM turns WHERE turn_id=:turn');
+    $authoredResponse->execute(['turn'=>$directorChild['turn_id']]);$authoredResponse=json_decode((string)$authoredResponse->fetchColumn(),true);
+    $assert(array_column($authoredResponse['lines'],'action')===['say','say','rolecommand'],
+        'Director action must follow every authored speech chunk in the ordinary response queue');
     $authoredAction=$db->prepare("SELECT payload FROM response_events WHERE turn_id=:turn AND event_type='action.intent'");
     $authoredAction->execute(['turn'=>$directorChild['turn_id']]);$authoredActionPayload=json_decode((string)$authoredAction->fetchColumn(),true);
     $assert(($authoredActionPayload['name']??null)==='ai.wait'&&($authoredActionPayload['parameters']??null)===['duration_seconds'=>3600]

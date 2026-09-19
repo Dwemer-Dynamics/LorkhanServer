@@ -85,7 +85,7 @@ final class TurnProcessJobHandler implements JobHandler
                 $this->repository->queueStreamedDialogueSpeech($message,$dialogue,$fence);
             };
             // Director authored lines use normal speech/action validation, without another dialogue model call.
-            $result = isset($message['_director_response']) ? $message['_director_response']
+            $result = isset($message['_director_response']) ? DirectorPolicy::splitSpeech($message,$message['_director_response'])
                 : (new InlineNarrationRouter())->route($message,$this->completeWithFallback($message,$job,$token,$progress));
             if($pendingInlineSpeech!==null)$this->repository->queueStreamedDialogueSpeech($message,$pendingInlineSpeech,$fence);
             $token->throwIfCancellationRequested();
