@@ -168,6 +168,15 @@ final class ProviderFactory
         $credentialVariable=(string)($content['credential']??$definition['credential_environment']);
         $apiKey=in_array($credentialVariable,['','none'],true)?'':self::environment($credentialVariable,$config);
         $voiceReferenceRoot=(string)($config['voice_storage_path']??'/var/lib/lorkhanserver/voices');
+        if($driver==='higgs'){
+            $url=rtrim($endpoint,'/');
+            if(!str_ends_with($url,'/v1/audio/speech'))$url.='/v1/audio/speech';
+            // Only a same-host service can read the protected local sample library.
+            $local=in_array(strtolower($host),['localhost','127.0.0.1','::1','[::1]'],true);
+            return new OpenAiCompatibleSpeechProvider($url,[$host],(string)($content['model']?:'higgs-v3'),
+                (string)$content['voice'],$apiKey,(int)$content['timeout_ms'],$loopback,
+                $local?$voiceReferenceRoot:null,null,[], $local);
+        }
         if($driver==='pockettts')return new PocketTtsSpeechProvider($endpoint,(string)($content['model']?:'pocket-tts'),
             (string)$content['voice'],(string)$content['language'],(array)$content['options'],$apiKey,(int)$content['timeout_ms'],
             is_dir($voiceReferenceRoot)?$voiceReferenceRoot:null);

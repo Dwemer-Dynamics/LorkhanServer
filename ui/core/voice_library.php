@@ -26,9 +26,9 @@ $ttsPresets=array_values(array_filter($uiRepository->rows('tts'),static fn(array
 $ttsPresetsById=[];foreach($ttsPresets as$preset){$id=(string)($preset['configuration_id']??'');if($id!=='')$ttsPresetsById[$id]=$preset;}
 $requestedConfigurationId=(string)($_GET['configuration_id']??$_POST['configuration_id']??'');$requestedPreset=$ttsPresetsById[$requestedConfigurationId]??null;
 $defaultPreset=is_array($requestedPreset)?$requestedPreset:(is_array($activeTts)?$activeTts:[]);$defaultDriver=(string)($defaultPreset['content']['driver']??'');
-$defaultTab=match($defaultDriver){'pockettts'=>'pockettts','omnivoice'=>'omnivoice','chatterbox'=>'chatterbox','cartesia'=>'cartesia','inworld'=>'inworld','xtts-fastapi','xtts'=>'xtts',default=>'xtts'};
+$defaultTab=match($defaultDriver){'higgs'=>'higgs','pockettts'=>'pockettts','omnivoice'=>'omnivoice','chatterbox'=>'chatterbox','cartesia'=>'cartesia','inworld'=>'inworld','xtts-fastapi','xtts'=>'xtts',default=>'xtts'};
 $studioTab=$requestedStudioTab!==''?$requestedStudioTab:$defaultTab;
-$activeTab=in_array($studioTab,['xtts','chatterbox','pockettts','omnivoice','cartesia','inworld','fallbacks','pronunciations'],true)?$studioTab:$defaultTab;
+$activeTab=in_array($studioTab,['xtts','chatterbox','pockettts','higgs','omnivoice','cartesia','inworld','fallbacks','pronunciations'],true)?$studioTab:$defaultTab;
 $voiceReferenceIndex=$products->voiceReferenceIndex();
 $sampleUploadDrivers=array_merge(ConnectorCatalog::SAMPLE_LIBRARY_TTS_DRIVERS,['cartesia','inworld']);
 $voiceDiscoveryDrivers=$sampleUploadDrivers;
@@ -79,6 +79,7 @@ function lorkhan_voice_language(string $language):string
 function lorkhan_voice_can_sync(array $preset):bool
 {
     $content=is_array($preset['content']??null)?$preset['content']:[];$driver=(string)($content['driver']??'');
+    if($driver==='higgs')return false; // Reference samples are read directly; Higgs has no upload/delete API.
     if(in_array($driver,['cartesia','inworld'],true))return true;
     if(!in_array($driver,ConnectorCatalog::SAMPLE_LIBRARY_TTS_DRIVERS,true))return false;
     $endpoint=strtolower(rtrim((string)($content['endpoint']??''),'/'));

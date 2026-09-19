@@ -24,6 +24,7 @@ final class OpenAiCompatibleSpeechProvider implements SpeechProvider
         ?string $voiceReferenceRoot = null,
         private readonly ?string $language = null,
         private readonly array $options = [],
+        private readonly bool $requireVoiceReference = false,
     ) {
         OutboundUrlPolicy::validate($endpoint, $allowedHosts, $allowLoopbackHttp);
         if ($model === '' || strlen($model) > 200 || $voice === '' || strlen($voice) > 200
@@ -90,6 +91,8 @@ final class OpenAiCompatibleSpeechProvider implements SpeechProvider
     {
         $payload = ['model' => $this->model, 'input' => $text, 'response_format' => 'wav'];
         $voiceReference = $this->voiceReference($voice);
+        // Higgs must not silently use the service's default speaker for a missing local sample.
+        if ($voiceReference === null && $this->requireVoiceReference) throw new RuntimeException('voice_sample_not_found');
         if ($voiceReference === null) $payload['voice'] = $voice;
         else $payload['voice_ref'] = $voiceReference;
         if ($this->language !== null) $payload['language'] = $this->language;
