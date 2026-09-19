@@ -10,7 +10,7 @@ use JsonException;
 /** Builds one compact Markdown prompt with system-owned chat history for each turn. */
 final class PromptAssembler
 {
-    private const ALGORITHM = 'chim-compact-roleplay-prompt-v3-markdown';
+    private const ALGORITHM = 'chim-compact-roleplay-prompt-v4-markdown';
     private const OGHMA_CONTRACT = 'oghma-parity-v1';
 
     /** @var array<string,int> */
@@ -488,16 +488,43 @@ Return a tones object before mood and text in every utterance. Include all eight
             'history_ids' => array_column($historyMessages, '_source_id')];
     }
 
-    /** Present every model-facing prompt section as compact Markdown. */
+    /** Match HerikaServer main.php/prompt_composition.php ordering without changing trace or budget ownership. */
     private function markdownSystemPrompt(array $sections): string
     {
-        $parts = ['# Roleplay Context'];
-        foreach (self::SECTION_ORDER as $key => $_) {
-            $body = (string)($sections[$key] ?? '');
-            if ($body === '') continue;
-            $title = $this->promptLabel($key);
-            $parts[] = '## ' . $title . "\n\n" . ($key === 'oghma_context'
-                ? $body : $this->markdownXmlBody($body, 3));
+        $groups=array_fill_keys(['roleplay_instructions','world','character','knowledge','general_instructions',
+            'available_actions_list','people_present','player_character','narrator','nearby_actors','nearby_items',
+            'points_of_interest','record_descriptions','paralinguistic_tags','conversation_history'],'');
+        foreach($this->promptXmlNodes($sections['npc_context']??'')??[] as $node){
+            $tag=$node['tag'];$body=$node['body'];
+            if(in_array($tag,['roleplay_instructions','npc_prompt_head'],true))
+                $groups['roleplay_instructions'].=html_entity_decode($body,ENT_QUOTES|ENT_XML1,'UTF-8')."\n\n";
+            elseif($tag==='general_instructions')$groups['general_instructions'].=html_entity_decode($body,ENT_QUOTES|ENT_XML1,'UTF-8')."\n\n";
+            elseif($tag==='speech_style_instructions')$groups['paralinguistic_tags'].=html_entity_decode($body,ENT_QUOTES|ENT_XML1,'UTF-8')."\n\n";
+            else $groups['character'].=$this->markdownXmlBody($tag==='character'?$body:'<'.$tag.'>'.$body.'</'.$tag.'>',2)."\n\n";
+        }
+        foreach($this->promptXmlNodes($sections['morrowind_context']??'')??[] as $node){
+            $tag=$node['tag'];$group=array_key_exists($tag,$groups)?$tag:'world';
+            $groups[$group].=$this->markdownXmlBody($tag===$group?$node['body']:'<'.$tag.'>'.$node['body'].'</'.$tag.'>',2)."\n\n";
+        }
+        foreach($this->promptXmlNodes($sections['player_narrator_context']??'')??[] as $node)
+            $groups[$node['tag']].=$this->markdownXmlBody($node['body'],2)."\n\n";
+        foreach(['relationships_factions'=>'Relationships','memory_context'=>'Memory'] as $key=>$title){
+            if(($sections[$key]??'')!=='')$groups['character'].='## '.$title."\n\n".$this->markdownXmlBody($sections[$key],3)."\n\n";
+        }
+        $groups['knowledge']=str_replace('### Article:','## Article:',$sections['oghma_context']??'');
+        foreach(['output_contract','audience_speaker_rules','current_turn'] as $key){
+            if(($sections[$key]??'')!=='')$groups['general_instructions'].=$this->markdownXmlBody($sections[$key],2)."\n\n";
+        }
+        $groups['available_actions_list']=$this->markdownXmlBody($sections['negotiated_actions']??'',2);
+        foreach($this->promptXmlNodes($sections['conversation_context']??'')??[] as $node){
+            $text=html_entity_decode(trim($node['body']),ENT_QUOTES|ENT_XML1,'UTF-8');
+            if($text!=='')$groups['conversation_history'].='- '.str_replace("\n","\n  ",$text)."\n";
+        }
+        $parts=[];
+        foreach($groups as $key=>$body){
+            if(trim($body)==='')continue;
+            $title=$key==='available_actions_list'?'Available Actions':ucwords(str_replace('_',' ',$key));
+            $parts[]='# '.$title."\n\n".trim($body);
         }
         return implode("\n\n", $parts);
     }
@@ -575,10 +602,9 @@ Return a tones object before mood and text in every utterance. Include all eight
 
     private function minimalSystemPrompt(string $actorName, string $playerName): string
     {
-        return "# Roleplay Context\n\n## NPC Context\n\n"
-            . "- **Roleplay Instructions:** You are {$actorName} in Morrowind. Never speak as {$playerName}.\n\n"
-            . "- **Character:** {$actorName}\n\n"
-            . "- **General Instructions:** Write {$actorName}'s next dialogue line and return the required JSON object.";
+        return "# Roleplay Instructions\n\nYou are {$actorName} in Morrowind. Never speak as {$playerName}.\n\n"
+            . "# Character\n\n{$actorName}\n\n"
+            . "# General Instructions\n\nWrite {$actorName}'s next dialogue line and return the required JSON object.";
     }
 
     private function characterXml(array $turn, array $profile, string $actorName, array $details, array $itemBlacklist, array $magicBlacklist): string

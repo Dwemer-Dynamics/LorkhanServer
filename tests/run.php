@@ -1014,10 +1014,10 @@ $promptTurn['_item_descriptions']=[['description_id'=>'private','record_id'=>'ir
 $assembler=new PromptAssembler(4096,1024);$assembled=$assembler->assemble($promptTurn,$promptSelection);$repeat=$assembler->assemble($promptTurn,$promptSelection);
 $systemMessage=$assembled['provider_input']['_messages'][0]??[];$finalMessage=$assembled['provider_input']['_messages'][array_key_last($assembled['provider_input']['_messages'])]??[];
 $check($assembled===$repeat && ($systemMessage['role']??null)==='system'
-    &&str_contains((string)($systemMessage['content']??''),'- **Roleplay Instructions:**')
-    &&str_contains((string)($systemMessage['content']??''),'### Character')
-    &&strpos((string)$systemMessage['content'],'## Output Contract')<strpos((string)$systemMessage['content'],'## NPC Context')
-    &&strpos((string)$systemMessage['content'],'## NPC Context')<strpos((string)$systemMessage['content'],'## Current Turn')
+    &&str_contains((string)($systemMessage['content']??''),'# Roleplay Instructions')
+    &&str_contains((string)($systemMessage['content']??''),'# Character')
+    &&strpos((string)$systemMessage['content'],'# Roleplay Instructions')<strpos((string)$systemMessage['content'],'# Character')
+    &&strpos((string)$systemMessage['content'],'# Character')<strpos((string)$systemMessage['content'],'# General Instructions')
     &&($finalMessage['role']??null)==='user', 'compact Markdown prompt assembly is deterministic and role-separated');
 $globalPromptSelection=$promptSelection;
 $tagSelection=$promptSelection;
@@ -1329,7 +1329,7 @@ foreach (['Narrator'=>'narrator','NPC'=>'npc','Text Only'=>'npc','Disabled'=>'']
     $directMessages=$assembler->assemble($inlineTurn,$promptSelection)['provider_input']['_messages'];
     $check(!str_contains($directMessages[array_key_last($directMessages)]['content'],'block sentinel'),'direct Narrator dialogue skips inline templates');
 }
-$check(str_contains($assembled['provider_input']['_assembled_prompt'],'### Player Character')
+$check(str_contains($assembled['provider_input']['_assembled_prompt'],'# Player Character')
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'Freed from the Imperial prison.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe'),
     'server-owned player profile is included in turn context with an explicit field allowlist');
@@ -1341,7 +1341,7 @@ $narratorPlayerTurn=$restrictedPlayerTurn;$narratorPlayerTurn['payload']['target
 $narratorPlayerPrompt=$assembler->assemble($narratorPlayerTurn,$promptSelection)['provider_input']['_assembled_prompt'];
 $check(str_contains($narratorPlayerPrompt,'Freed from the Imperial prison.'),
     'restricted player biography remains available to the Narrator');
-$check(str_contains($assembled['provider_input']['_assembled_prompt'],'### Record Descriptions')
+$check(str_contains($assembled['provider_input']['_assembled_prompt'],'# Record Descriptions')
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'A short iron blade.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe either'),
     'server-owned record descriptions are included with an explicit field allowlist');
@@ -1449,13 +1449,13 @@ $powerSelection['effective_settings']=(new EffectiveSettingsResolver())->resolve
 $powerTurn['payload']['context']['nearbyActors']['items'][1]['refnum']=['index'=>999,'content_file'=>'Morrowind.esm'];
 $powerPrompt=(new PromptAssembler(16384,1024))->assemble($powerTurn,$powerSelection)['provider_input']['_assembled_prompt'];
 $check(!str_contains($powerPrompt,'appears overwhelmingly powerful'),'Power Awareness does not reuse a namesake actor observation');
-$check(str_contains($contextPrompt,'### World')&&str_contains($contextPrompt,'- **Location:** Seyda Neen')
+$check(str_contains($contextPrompt,'# World')&&str_contains($contextPrompt,'- **Location:** Seyda Neen')
     &&str_contains($contextPrompt,"- **Date:** 16 Sun's Height 3E 427")
-    &&str_contains($contextPrompt,'### People Present')&&str_contains($contextPrompt,'### Nearby Actors')
+    &&str_contains($contextPrompt,'# People Present')&&str_contains($contextPrompt,'# Nearby Actors')
     &&str_contains($contextPrompt,'- **Current Activity:** wander')
     &&str_contains($contextPrompt,'- **Basic Summary:** A watchful Imperial guard.')
-    &&str_contains($contextPrompt,'### Nearby Items')&&str_contains($contextPrompt,'- **Count:** 2')
-    &&str_contains($contextPrompt,'### Points Of Interest')&&str_contains($contextPrompt,'- **Lock Level:** 20')
+    &&str_contains($contextPrompt,'# Nearby Items')&&str_contains($contextPrompt,'- **Count:** 2')
+    &&str_contains($contextPrompt,'# Points Of Interest')&&str_contains($contextPrompt,'- **Lock Level:** 20')
     &&!str_contains($contextPrompt,'**Position:**')&&!str_contains($contextPrompt,'**X:**'),
     'OpenMW world, actors, items, and points of interest render as bounded semantic Markdown');
 $presetContextTurn=$contextTurn;
@@ -1587,17 +1587,17 @@ $groundTurn['_item_descriptions']=[['record_id'=>'ingred_bc_bungler_bane_01','co
 $groundPrompt=(new PromptAssembler(16384,1024))->assemble($groundTurn,$groundSelection)['provider_input']['_assembled_prompt'];
 $check(str_contains($groundPrompt,"Bungler's Bane") && str_contains($groundPrompt,'- **Count:** 2')
     && !str_contains($groundPrompt,'Undescribed Ring') && !str_contains($groundPrompt,'Secret mushroom description.')
-    && str_contains($groundPrompt,'### Points Of Interest'),
+    && str_contains($groundPrompt,'# Points Of Interest'),
     'ground description filtering preserves described counts and points of interest without exposing hidden descriptions');
 $groundTurn['payload']['context']['nearbyObjects']['items'][0]['content_file']='Other.esp';
 $groundPrompt=(new PromptAssembler(16384,1024))->assemble($groundTurn,$groundSelection)['provider_input']['_assembled_prompt'];
-$check(!str_contains($groundPrompt,'### Nearby Items'), 'ground descriptions cannot match an item from another content file');
+$check(!str_contains($groundPrompt,'# Nearby Items'), 'ground descriptions cannot match an item from another content file');
 $groundTurn['payload']['context']['nearbyObjects']['items'][0]['content_file']='morrowind.ESM';
 $groundPrompt=(new PromptAssembler(16384,1024))->assemble($groundTurn,$groundSelection)['provider_input']['_assembled_prompt'];
-$check(str_contains($groundPrompt,'### Nearby Items'), 'ground description identity comparison normalizes content file case');
+$check(str_contains($groundPrompt,'# Nearby Items'), 'ground description identity comparison normalizes content file case');
 $groundTurn['_item_descriptions'][0]['description']='   ';
 $groundPrompt=(new PromptAssembler(16384,1024))->assemble($groundTurn,$groundSelection)['provider_input']['_assembled_prompt'];
-$check(!str_contains($groundPrompt,'### Nearby Items'), 'blank descriptions do not qualify ground items');
+$check(!str_contains($groundPrompt,'# Nearby Items'), 'blank descriptions do not qualify ground items');
 $groundSelection['effective_settings']['context']['ground_items_descriptions_only']=false;
 $groundPrompt=(new PromptAssembler(16384,1024))->assemble($groundTurn,$groundSelection)['provider_input']['_assembled_prompt'];
 $check(str_contains($groundPrompt,'Undescribed Ring'), 'disabled ground description filtering retains undescribed items');
@@ -1607,10 +1607,10 @@ $knowledgeSelection['knowledge']=[['document_id'=>'oghma-auriel','topic'=>'aurie
     'content'=>'Auriel\'s Bow is an ancient artifact associated with the elven god Auri-El.'],
     ['document_id'=>'oghma-sixth-house','topic'=>'sixth_house','access_level'=>'denied','content'=>'']];
 $knowledgePrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$knowledgeSelection)['provider_input']['_assembled_prompt'];
-$check(str_contains($knowledgePrompt,"## Oghma Context\n\n- **Contract:** oghma-parity-v1\n- **Status:** fallback_grounded")
-    &&str_contains($knowledgePrompt,'### Article: auriel_s_bow')
+$check(str_contains($knowledgePrompt,"# Knowledge\n\n- **Contract:** oghma-parity-v1\n- **Status:** fallback_grounded")
+    &&str_contains($knowledgePrompt,'## Article: auriel_s_bow')
     &&str_contains($knowledgePrompt,"- **Content:** Auriel's Bow is an ancient artifact")
-    &&str_contains($knowledgePrompt,'### Article: sixth_house')
+    &&str_contains($knowledgePrompt,'## Article: sixth_house')
     &&str_contains($knowledgePrompt,'- **Denial Reason:** knowledge_classes_not_authorized'),
     'authorized and denied Oghma knowledge render as compact Markdown');
 $markdownSelection=$knowledgeSelection;
@@ -1620,29 +1620,38 @@ $markdownSelection['history']=[['history_id'=>'markdown-history','content'=>['ki
     'speaker_identity'=>['record_id'=>'npc','display_name'=>'Fargoth']]]];
 $markdownAssembled=(new PromptAssembler(16384,1024))->assemble($promptTurn,$markdownSelection);
 $markdownPrompt=$markdownAssembled['provider_input']['_assembled_prompt'];
-$check(str_contains($markdownPrompt,"# Roleplay Context\n\n## Output Contract\n\n- **Response Contract:**")
-    &&str_contains($markdownPrompt,'## NPC Context')
-    &&str_contains($markdownPrompt,'- **Roleplay Instructions:** You are Fargoth')
-    &&str_contains($markdownPrompt,'## Conversation Context')
-    &&str_contains($markdownPrompt,'- **Message:** Fargoth: I remember our last conversation.')
-    &&str_contains($markdownPrompt,"## Oghma Context\n\n- **Contract:** oghma-parity-v1")
+$check(str_contains($markdownPrompt,"# Roleplay Instructions\n\nYou are Fargoth")
+    &&str_contains($markdownPrompt,'# Character')
+    &&str_contains($markdownPrompt,'You are Fargoth')
+    &&str_contains($markdownPrompt,'# Conversation History')
+    &&str_contains($markdownPrompt,'- Fargoth: I remember our last conversation.')
+    &&str_contains($markdownPrompt,"# Knowledge\n\n- **Contract:** oghma-parity-v1")
     &&str_contains($markdownPrompt,'- **Action Contract:**')
     &&!str_contains($markdownPrompt,'<roleplay_context>')
     &&!str_contains($markdownPrompt,'<npc_context>')
     &&!str_contains($markdownPrompt,'<response_contract>')
     &&!str_contains($markdownPrompt,'<action_contract>')
     &&!str_contains($markdownPrompt,'<oghma ')
-    &&$markdownAssembled['trace']['algorithm']==='chim-compact-roleplay-prompt-v3-markdown'
+    &&$markdownAssembled['trace']['algorithm']==='chim-compact-roleplay-prompt-v4-markdown'
     &&$markdownAssembled['trace']['prompt_format']==='markdown'
     &&array_column($markdownAssembled['trace']['sections'],'section_key')===array_column($assembled['trace']['sections'],'section_key'),
     'compact chat and all prompt contracts use the single Markdown presentation');
+$orderedSystem=(new PromptAssembler(32768,1024))->assemble($contextTurn,$markdownSelection)['provider_input']['_messages'][0]['content'];
+preg_match_all('/^# (.+)$/m',$orderedSystem,$orderedHeadings);
+$chimHeadings=['Roleplay Instructions','World','Character','Knowledge','General Instructions','Available Actions',
+    'People Present','Player Character','Narrator','Nearby Actors','Nearby Items','Points Of Interest','Record Descriptions',
+    'Paralinguistic Tags','Conversation History'];
+$check($orderedHeadings[1]===array_values(array_filter($chimHeadings,static fn(string $heading):bool=>in_array($heading,$orderedHeadings[1],true)))
+    &&$orderedHeadings[1][0]==='Roleplay Instructions'&&end($orderedHeadings[1])==='Conversation History'
+    &&!str_contains($orderedSystem,'# Roleplay Context')&&!str_contains($orderedSystem,'## NPC Context'),
+    'CHIM Markdown headings follow roleplay world character knowledge instructions actions nearby and history order');
 $providerMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,
     ['_prompt'=>$assembled['provider_input']]);
 $check(array_column($providerMessages,'role')===array_column($assembled['provider_input']['_messages'],'role')
     &&str_contains($providerMessages[0]['content'],'- **Action Contract:**')
     &&str_contains($providerMessages[0]['content'],'may have an optional "mood" before "text"')
-    &&strpos($providerMessages[0]['content'],'- **Action Contract:**')<strpos($providerMessages[0]['content'],'## Current Turn')
-    &&str_starts_with($providerMessages[0]['content'],'# Roleplay Context'),
+    &&strpos($providerMessages[0]['content'],'# General Instructions')<strpos($providerMessages[0]['content'],'# Available Actions')
+    &&str_starts_with($providerMessages[0]['content'],'# Roleplay Instructions'),
     'OpenAI-compatible provider sends frozen split messages with compact Markdown prompt context');
 $validateProviderResult=new ReflectionMethod($actionProvider,'validateResultShape');
 $validateProviderResult->invoke($actionProvider,['utterances'=>[['mood'=>'whispering','text'=>'Quiet words.']],'action'=>null]);
@@ -1906,9 +1915,9 @@ $roleHistory['history']=[
 $rolePrompt=(new PromptAssembler(8192,1024))->assemble($promptTurn,$roleHistory)['provider_input'];
 $roleMessages=$rolePrompt['_messages'];
 $check(array_column($roleMessages,'role')===['system','user']
-    &&str_contains($roleMessages[0]['content'],'- **Message:** RANGROO: Where is my ring?')
-    &&str_contains($roleMessages[0]['content'],'- **Message:** Fargoth: I have not seen it.')
-    &&str_contains($roleMessages[0]['content'],'- **Message:** Guard: Move along.')
+    &&str_contains($roleMessages[0]['content'],'- RANGROO: Where is my ring?')
+    &&str_contains($roleMessages[0]['content'],'- Fargoth: I have not seen it.')
+    &&str_contains($roleMessages[0]['content'],'- Guard: Move along.')
     &&substr_count($rolePrompt['_assembled_prompt'],'Where is my ring?')===1
     &&!str_contains(json_encode($roleMessages,JSON_THROW_ON_ERROR),'smoke test'),
     'compact chat history is included once with explicit speakers and control noise filtered');
@@ -1942,8 +1951,8 @@ $check(substr_count($coveredPrompt['provider_input']['_assembled_prompt'],'Fargo
 $restoredHistory=$coveredHistory;
 $restoredHistory['history'][]=['history_id'=>'history-pressure','content'=>['kind'=>'speech','text'=>str_repeat('H',1000),'speaker'=>'Guard']];
 $restoredPrompt=(new PromptAssembler(3072,1024))->assemble($promptTurn,$restoredHistory);
-$check(!str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'## Conversation Context')
-    &&str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'## Memory Context')
+$check(!str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'# Conversation History')
+    &&str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'## Memory')
     &&str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'- **Item:** Fargoth: I have not seen it.'),
     'dropping history for the total prompt budget restores its otherwise-covered memory');
 $fallbackPrompt=(new PromptAssembler(512,256))->assemble($promptTurn,$coveredHistory);
@@ -1984,12 +1993,12 @@ foreach(range(1,45)as$index)$extendedHistory['history'][]=['id'=>'history-limit-
     'content'=>['kind'=>'speech','text'=>'Distinct history line '.$index,'speaker'=>'Fargoth',
         'speaker_identity'=>$promptTurn['payload']['target']]];
 $extendedPrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$extendedHistory)['provider_input']['_assembled_prompt'];
-$check(substr_count($extendedPrompt,'- **Message:**')===45&&str_contains($extendedPrompt,'Distinct history line 45'),
+$check(substr_count($extendedPrompt,'- Fargoth: Distinct history line ')===45&&str_contains($extendedPrompt,'Distinct history line 45'),
     'profile-selected history above 32 messages was silently capped by the assembler');
 foreach($extendedHistory['history']as&$entry)$entry['content']['text'].=' '.str_repeat('&',300);
 unset($entry);
 $boundedPrompt=(new PromptAssembler())->assemble($promptTurn,$extendedHistory)['provider_input']['_assembled_prompt'];
-preg_match('~\n## Conversation Context\n\n(.*?)(?:\n\n## Audience Speaker Rules)~s',$boundedPrompt,$boundedHistory);
+preg_match('~\n# Conversation History\n\n(.*?)(?:\n\nUSER:)~s',$boundedPrompt,$boundedHistory);
 $check(strlen($boundedHistory[1]??'')<=32768
     &&str_contains($boundedHistory[1]??'','Distinct history line 45')
     &&!str_contains($boundedHistory[1]??'','Distinct history line 1 '),
@@ -2011,7 +2020,7 @@ $largeWorldTurn['payload']['context']=['world'=>['cell'=>'WORLD CONTEXT SENTINEL
 $protectedKnowledge=(new PromptAssembler(4096,1024))->assemble($largeWorldTurn,$knowledgeSelection);
 $protectedSections=array_column($protectedKnowledge['trace']['sections'],'inclusion_reason','section_key');
 $check(!str_contains($protectedKnowledge['provider_input']['_assembled_prompt'],'WORLD CONTEXT SENTINEL')
-    &&str_contains($protectedKnowledge['provider_input']['_assembled_prompt'],"## Oghma Context\n\n- **Contract:** oghma-parity-v1")
+    &&str_contains($protectedKnowledge['provider_input']['_assembled_prompt'],"# Knowledge\n\n- **Contract:** oghma-parity-v1")
     &&($protectedSections['morrowind_context']??null)==='byte_limit'
     &&($protectedSections['oghma_context']??null)==='included',
     'Oghma remains in its protected section when lower-priority Morrowind context is trimmed');
