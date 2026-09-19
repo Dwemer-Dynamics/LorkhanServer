@@ -36,7 +36,7 @@ final class ManagementRouter
     private const MAX_PREVIEW_AUDIO_BYTES=8_388_608;
     private const PREVIEW_AUDIO_MIME_TYPES=['audio/wav','audio/mpeg','audio/ogg','audio/webm','audio/flac','audio/mp4'];
     private const BIOGRAPHY_CSV_HEADER=['content_file','record_id','name','core','biography','appearance','personality',
-        'relationships','occupation','skills','speech_style','goals','oghma_tags','voice_id','gender','race'];
+        'relationships','occupation','skills','speech_style','goals','oghma_tags','voice_id','gender','race','tts_filter_preset'];
     private const UI_PAGES=[
         'quickstart'=>'/ui/home.php',
         'roleplay'=>'/ui/events-memories.php',
@@ -1121,7 +1121,8 @@ final class ManagementRouter
             $header=fgetcsv($handle,131072,',','"','\\');if(!is_array($header))throw new InvalidArgumentException('biography_csv_header');
             if(isset($header[0]))$header[0]=preg_replace('/^\xEF\xBB\xBF/','',(string)$header[0])??(string)$header[0];
             $header=array_map(static fn(mixed$value):string=>strtolower(trim((string)$value)),$header);
-            if($header!==self::BIOGRAPHY_CSV_HEADER&&$header!==[...self::BIOGRAPHY_CSV_HEADER,'scope'])throw new InvalidArgumentException('biography_csv_header');
+            $legacyHeader=array_values(array_diff(self::BIOGRAPHY_CSV_HEADER,['tts_filter_preset']));
+            if(!in_array($header,[self::BIOGRAPHY_CSV_HEADER,[...self::BIOGRAPHY_CSV_HEADER,'scope'],$legacyHeader,[...$legacyHeader,'scope']],true))throw new InvalidArgumentException('biography_csv_header');
             $rows=[];
             while(($values=fgetcsv($handle,131072,',','"','\\'))!==false){
                 if($values===[null]||count($values)===0)continue;
@@ -1143,7 +1144,7 @@ final class ManagementRouter
             'appearance'=>'A slight Bosmer wearing common clothes.','personality'=>'Nervous, friendly, and grateful.',
             'relationships'=>'{}','occupation'=>'Commoner','skills'=>'Sneaking and light commerce.',
             'speech_style'=>'Hesitant and earnest.','goals'=>'Recover what was taken and stay out of trouble.',
-            'oghma_tags'=>'Seyda Neen, Bosmer','voice_id'=>'','gender'=>'Male','race'=>'Wood Elf',
+            'oghma_tags'=>'Seyda Neen, Bosmer','voice_id'=>'','gender'=>'Male','race'=>'Wood Elf','tts_filter_preset'=>'none',
         ]]);
     }
 

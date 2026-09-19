@@ -6,6 +6,7 @@ namespace LorkhanServer\Infrastructure;
 
 use InvalidArgumentException;
 use PDO;
+use LorkhanServer\Application\TtsFilterPresets;
 use RuntimeException;
 use Throwable;
 
@@ -238,8 +239,8 @@ SQL);
         $duplicates = 0;
         foreach ($biographies as $index => $biography) {
             $line = $index + 1;
-            if (!is_array($biography) || array_is_list($biography) || array_keys($biography) !== self::CHIM_FIELDS) {
-                $errors[] = "biography row {$line} does not use the exact CHIM field order";
+            if (!is_array($biography) || array_is_list($biography) || !in_array(array_keys($biography),[self::CHIM_FIELDS,[...self::CHIM_FIELDS,'tts_filter_preset']],true)) {
+                $errors[] = "biography row {$line} must use the CHIM field order with an optional final tts_filter_preset";
                 continue;
             }
             $npcName = trim((string) $biography['npc_name']);
@@ -261,6 +262,8 @@ SQL);
             $seenNames[$nameKey] = true;
             $seenIdentities[$identityKey] = true;
             $rowErrors = [];
+            try {$filter=TtsFilterPresets::validate($biography['tts_filter_preset']??'none');}
+            catch (InvalidArgumentException) {$rowErrors[]='tts_filter_preset is invalid';}
             if ($npcName === '' || strlen($npcName) > 128) $rowErrors[] = 'npc_name is invalid';
             if ($recordId === '' || strlen($recordId) > 256) $rowErrors[] = 'refid is invalid';
             foreach (['core','npc_static_bio','appearance','personality','occupation','skills','speechstyle','goals'] as $field) {
@@ -292,6 +295,7 @@ SQL);
                 'skills' => trim((string) $biography['skills']), 'speechstyle' => trim((string) $biography['speechstyle']),
                 'goals' => trim((string) $biography['goals']), 'voiceid' => $this->nullable($biography['voiceid']),
                 'gender' => $this->nullable($biography['gender']), 'race' => $this->nullable($biography['race']),
+                'tts_filter_preset' => $filter,
             ];
         }
         if (array_diff_key($identities, $seenIdentities) !== [] || array_diff_key($seenIdentities, $identities) !== []) {
@@ -330,9 +334,9 @@ SQL);
         $this->db->exec('DELETE FROM public.bio_templates');
         $statement = $this->db->prepare(<<<'SQL'
 INSERT INTO public.bio_templates(npc_name,oghma_knowledge_tags,core,npc_static_bio,appearance,personality,
-    relationships,occupation,skills,speechstyle,goals,voiceid,gender,race,refid)
+    relationships,occupation,skills,speechstyle,goals,voiceid,gender,race,refid,tts_filter_preset)
 SELECT npc_name,oghma_knowledge_tags,core,npc_static_bio,appearance,personality,relationships,occupation,
-    skills,speechstyle,goals,voiceid,gender,race,record_id
+    skills,speechstyle,goals,voiceid,gender,race,record_id,tts_filter_preset
 FROM biography_catalog_entries WHERE catalog_id=:catalog ORDER BY npc_name
 SQL);
         $statement->execute(['catalog' => $catalogId]);
@@ -340,7 +344,7 @@ SQL);
 
     private function snapshotCurrentFactoryCatalog(): array
     {
-        $current = $this->db->query('SELECT npc_name,oghma_knowledge_tags,core,npc_static_bio,appearance,personality,relationships,occupation,skills,speechstyle,goals,voiceid,gender,race,refid FROM public.bio_templates ORDER BY lower(npc_name)')->fetchAll();
+        $current = $this->db->query('SELECT npc_name,oghma_knowledge_tags,core,npc_static_bio,appearance,personality,relationships,occupation,skills,speechstyle,goals,voiceid,gender,race,refid,tts_filter_preset FROM public.bio_templates ORDER BY lower(npc_name)')->fetchAll();
         $sha = hash('sha256', json_encode($current, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         $catalogId = Uuid::v4();
         $version = 'pre-catalog-' . substr($sha, 0, 16);
@@ -357,6 +361,7 @@ SQL);
                 'personality' => $row['personality'], 'relationships' => $row['relationships'] ?: '{}',
                 'occupation' => $row['occupation'], 'skills' => $row['skills'], 'speechstyle' => $row['speechstyle'],
                 'goals' => $row['goals'], 'voiceid' => $row['voiceid'], 'gender' => $row['gender'], 'race' => $row['race'],
+                'tts_filter_preset' => $row['tts_filter_preset'],
             ]);
         }
         return $this->catalogById($catalogId) ?? throw new RuntimeException('biography_factory_snapshot_failed');
@@ -367,10 +372,10 @@ SQL);
         return $this->db->prepare(<<<'SQL'
 INSERT INTO biography_catalog_entries(catalog_id,content_file,record_id,display_name,npc_name,
     oghma_knowledge_tags,core,npc_static_bio,appearance,personality,relationships,occupation,skills,
-    speechstyle,goals,voiceid,gender,race)
+    speechstyle,goals,voiceid,gender,race,tts_filter_preset)
 VALUES(:catalog,:content_file,:record_id,:display_name,:npc_name,:oghma_knowledge_tags,:core,
     :npc_static_bio,:appearance,:personality,:relationships,:occupation,:skills,:speechstyle,:goals,
-    :voiceid,:gender,:race)
+    :voiceid,:gender,:race,:tts_filter_preset)
 SQL);
     }
 

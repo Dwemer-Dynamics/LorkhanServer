@@ -11,6 +11,7 @@ use LorkhanServer\Application\DeterministicRetrieval;
 use LorkhanServer\Application\OghmaGroundedRetriever;
 use LorkhanServer\Application\SettingsCatalog;
 use LorkhanServer\Application\ProfileAssignmentRule;
+use LorkhanServer\Application\TtsFilterPresets;
 use LorkhanServer\Domain\ProfileId;
 use InvalidArgumentException;
 use PDO;
@@ -2205,6 +2206,12 @@ SQL);
                 if(strlen($value)>$limit||str_contains($value,"\0"))throw new RuntimeException('invalid_biography_template_field');
                 $values[$field]=$value===''?null:$value;
             }
+            $existingFilter=$profile['content']['tts_filter_preset']??'none';
+            if($profile===null){
+                $filterQuery=$this->db->prepare('SELECT tts_filter_preset FROM public.combined_bio_templates WHERE npc_name=:name');
+                $filterQuery->execute(['name'=>$name]);$existingFilter=$filterQuery->fetchColumn()?:'none';
+            }
+            $values['tts_filter_preset']=TtsFilterPresets::validate($input['tts_filter_preset']??$existingFilter);
             $values['oghma_knowledge_tags']=$this->npcKnowledgeTags($values['oghma_knowledge_tags']??'');
             if($profile!==null){
                 if(($identity['record_id']??'')!==($values['refid']??''))throw new RuntimeException('invalid_biography_identity');
@@ -2213,6 +2220,7 @@ SQL);
                     'relationships'=>'relationships','occupation'=>'occupation','skills'=>'skills','speechstyle'=>'speech_style',
                     'goals'=>'goals','oghma_knowledge_tags'=>'oghma_knowledge_tags','gender'=>'gender','race'=>'race'] as $field=>$key)
                     $content[$key]=$values[$field]??'';
+                $content['tts_filter_preset']=$values['tts_filter_preset'];
                 $content['voice']=array_replace(is_array($content['voice']??null)?$content['voice']:[],['id'=>$values['voiceid']??'']);
                 $expected=filter_var($input['expected_revision']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
                 if($expected===false)throw new RuntimeException('invalid_expected_revision');
@@ -2220,11 +2228,11 @@ SQL);
                 return ['npc_name'=>$name,'source'=>'installation','profile_id'=>$profileId];
             }
             $this->db->prepare('INSERT INTO public.bio_templates_custom '
-                .'(npc_name,oghma_knowledge_tags,core,npc_static_bio,appearance,personality,relationships,occupation,skills,speechstyle,goals,voiceid,gender,race,refid) '
-                .'VALUES(:npc_name,:oghma_knowledge_tags,:core,:npc_static_bio,:appearance,:personality,:relationships,:occupation,:skills,:speechstyle,:goals,:voiceid,:gender,:race,:refid) '
+                .'(npc_name,oghma_knowledge_tags,core,npc_static_bio,appearance,personality,relationships,occupation,skills,speechstyle,goals,voiceid,gender,race,refid,tts_filter_preset) '
+                .'VALUES(:npc_name,:oghma_knowledge_tags,:core,:npc_static_bio,:appearance,:personality,:relationships,:occupation,:skills,:speechstyle,:goals,:voiceid,:gender,:race,:refid,:tts_filter_preset) '
                 .'ON CONFLICT(npc_name) DO UPDATE SET oghma_knowledge_tags=EXCLUDED.oghma_knowledge_tags,core=EXCLUDED.core,npc_static_bio=EXCLUDED.npc_static_bio,'
                 .'appearance=EXCLUDED.appearance,personality=EXCLUDED.personality,relationships=EXCLUDED.relationships,occupation=EXCLUDED.occupation,skills=EXCLUDED.skills,'
-                .'speechstyle=EXCLUDED.speechstyle,goals=EXCLUDED.goals,voiceid=EXCLUDED.voiceid,gender=EXCLUDED.gender,race=EXCLUDED.race,refid=EXCLUDED.refid')
+                .'speechstyle=EXCLUDED.speechstyle,goals=EXCLUDED.goals,voiceid=EXCLUDED.voiceid,gender=EXCLUDED.gender,race=EXCLUDED.race,refid=EXCLUDED.refid,tts_filter_preset=EXCLUDED.tts_filter_preset')
                 ->execute($values);
             return['npc_name'=>$name,'source'=>'custom'];
         });
@@ -2269,6 +2277,7 @@ SQL);
                 ."CASE WHEN custom.npc_name IS NULL THEN entry.skills ELSE custom.skills END AS skills,"
                 ."CASE WHEN custom.npc_name IS NULL THEN entry.speechstyle ELSE custom.speechstyle END AS speechstyle,"
                 ."CASE WHEN custom.npc_name IS NULL THEN entry.goals ELSE custom.goals END AS goals,"
+                ."CASE WHEN custom.npc_name IS NULL THEN entry.tts_filter_preset ELSE custom.tts_filter_preset END AS tts_filter_preset,"
                 ."CASE WHEN custom.npc_name IS NULL THEN entry.voiceid ELSE custom.voiceid END AS voiceid,"
                 ."CASE WHEN custom.npc_name IS NULL THEN entry.gender ELSE custom.gender END AS gender,"
                 ."CASE WHEN custom.npc_name IS NULL THEN entry.race ELSE custom.race END AS race "
@@ -2283,6 +2292,7 @@ SQL);
             }
             if(count($rows)===1){$row=$rows[0];return['content'=>[
                 'voice'=>['id'=>(string)($row['voiceid']??''),'source'=>'biography','language'=>'en'],
+                'tts_filter_preset'=>TtsFilterPresets::validate($row['tts_filter_preset']??'none'),
                 'oghma_knowledge_tags'=>(string)($row['oghma_knowledge_tags']??''),'core'=>(string)($row['core']??''),
                 'biography'=>(string)($row['npc_static_bio']??''),'appearance'=>(string)($row['appearance']??''),
                 'personality'=>(string)($row['personality']??''),'relationships'=>(string)($row['relationships']??'{}'),
@@ -4097,14 +4107,15 @@ SQL);
                 'personality'=>(string)($content['personality']??''),'relationships'=>(string)$relationships,'occupation'=>(string)($content['occupation']??''),
                 'skills'=>(string)($content['skills']??''),'speech_style'=>(string)($content['speech_style']??''),'goals'=>(string)($content['goals']??''),
                 'oghma_tags'=>(string)$tags,'voice_id'=>is_array($voice)?(string)($voice['id']??''):(string)$voice,
-                'gender'=>(string)($content['gender']??''),'race'=>(string)($content['race']??'')];
+                'gender'=>(string)($content['gender']??''),'race'=>(string)($content['race']??''),
+                'tts_filter_preset'=>(string)($content['tts_filter_preset']??'none')];
         }
-        foreach($this->db->query('SELECT npc_name,refid,core,npc_static_bio,appearance,personality,relationships,occupation,skills,speechstyle,goals,oghma_knowledge_tags,voiceid,gender,race FROM public.bio_templates_custom ORDER BY npc_name')->fetchAll()as$row){
+        foreach($this->db->query('SELECT npc_name,refid,core,npc_static_bio,appearance,personality,relationships,occupation,skills,speechstyle,goals,oghma_knowledge_tags,voiceid,gender,race,tts_filter_preset FROM public.bio_templates_custom ORDER BY npc_name')->fetchAll()as$row){
             $export=['scope'=>'global','content_file'=>''];
             foreach(['npc_name'=>'name','refid'=>'record_id','core'=>'core','npc_static_bio'=>'biography',
                 'appearance'=>'appearance','personality'=>'personality','relationships'=>'relationships','occupation'=>'occupation',
                 'skills'=>'skills','speechstyle'=>'speech_style','goals'=>'goals','oghma_knowledge_tags'=>'oghma_tags',
-                'voiceid'=>'voice_id','gender'=>'gender','race'=>'race']as$from=>$to)$export[$to]=(string)($row[$from]??'');
+                'voiceid'=>'voice_id','gender'=>'gender','race'=>'race','tts_filter_preset'=>'tts_filter_preset']as$from=>$to)$export[$to]=(string)($row[$from]??'');
             $rows[]=$export;
         }
         return$rows;

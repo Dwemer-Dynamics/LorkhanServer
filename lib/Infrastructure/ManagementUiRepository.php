@@ -475,7 +475,7 @@ SQL);
         $letter=strtoupper(trim((string)($filters['letter']??'')));if(!preg_match('/^[A-Z]$/D',$letter))$letter='';
         $params=[];$conditions=[];$global="SELECT NULL::text AS profile_id,NULL::uuid AS installation_id,template.npc_name AS name,NULL::int AS current_revision,"
                 . "jsonb_strip_nulls(jsonb_build_object('kind','template','record_id',COALESCE(NULLIF(template.refid,''),template.npc_name),'display_name',template.npc_name,'gender',template.gender,'race',template.race)) AS actor_identity,"
-                . "jsonb_strip_nulls(jsonb_build_object('core',template.core,'biography',template.npc_static_bio,'oghma_tags',template.oghma_knowledge_tags,'appearance',template.appearance,'personality',template.personality,'relationships',template.relationships,'occupation',template.occupation,'skills',template.skills,'speech_style',template.speechstyle,'goals',template.goals,'voice',jsonb_strip_nulls(jsonb_build_object('id',template.voiceid)))) AS content,"
+                . "jsonb_strip_nulls(jsonb_build_object('core',template.core,'biography',template.npc_static_bio,'oghma_tags',template.oghma_knowledge_tags,'appearance',template.appearance,'personality',template.personality,'relationships',template.relationships,'occupation',template.occupation,'skills',template.skills,'speech_style',template.speechstyle,'goals',template.goals,'tts_filter_preset',template.tts_filter_preset,'voice',jsonb_strip_nulls(jsonb_build_object('id',template.voiceid)))) AS content,"
                 . "CASE WHEN custom.npc_name IS NULL THEN 'factory' ELSE 'custom' END AS source "
                 . "FROM public.combined_bio_templates template LEFT JOIN public.bio_templates_custom custom ON custom.npc_name=template.npc_name";
         $scoped="SELECT p.profile_id,p.installation_id,p.name,p.current_revision,p.actor_identity,r.content,'installation' AS source "
@@ -500,7 +500,7 @@ SQL);
             ."r.content->>'core' AS core,r.content->>'biography' AS npc_static_bio,r.content->>'oghma_knowledge_tags' AS oghma_knowledge_tags,"
             ."r.content->>'appearance' AS appearance,r.content->>'personality' AS personality,r.content->>'relationships' AS relationships,"
             ."r.content->>'occupation' AS occupation,r.content->>'skills' AS skills,r.content->>'speech_style' AS speechstyle,"
-            ."r.content->>'goals' AS goals,r.content#>>'{voice,id}' AS voiceid,r.content->>'gender' AS gender,r.content->>'race' AS race,'installation' AS source "
+            ."COALESCE(r.content->>'tts_filter_preset','none') AS tts_filter_preset,r.content->>'goals' AS goals,r.content#>>'{voice,id}' AS voiceid,r.content->>'gender' AS gender,r.content->>'race' AS race,'installation' AS source "
             ."FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision "
             ."WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='template'");
         $query->execute(['profile'=>$profileId,'installation'=>$installationId]);
@@ -514,7 +514,7 @@ SQL);
         if($npcName===''||strlen($npcName)>128)return null;
         $statement=$this->db->prepare("SELECT template.npc_name,template.oghma_knowledge_tags,template.core,template.npc_static_bio,"
             ."template.appearance,template.personality,template.relationships,template.occupation,template.skills,template.speechstyle,"
-            ."template.goals,template.voiceid,template.gender,template.race,template.refid,"
+            ."template.goals,template.voiceid,template.gender,template.race,template.refid,template.tts_filter_preset,"
             ."CASE WHEN custom.npc_name IS NULL THEN 'factory' ELSE 'custom' END AS source "
             ."FROM public.combined_bio_templates template LEFT JOIN public.bio_templates_custom custom ON custom.npc_name=template.npc_name "
             ."WHERE template.npc_name=:name");

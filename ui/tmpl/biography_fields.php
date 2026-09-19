@@ -18,6 +18,7 @@ function lorkhan_biography_fields(bool $create):void
         'speech_style'=>['Speech Style:',3,'Vocabulary, accent, mannerisms, and communication patterns.'],
         'goals'=>['Goals:',3,'Long-term objectives, personal ambitions, and life goals.'],
         'voice_id'=>['Voice ID:','text','Optional unified voice identifier.'],
+        'tts_filter_preset'=>['Voice Filter:','select','Applied when a new NPC profile is created from this biography. Existing NPC choices are unchanged.'],
         'gender'=>['Gender:','text','Optional gender for reference.'],
         'race'=>['Race:','text','Optional race for reference.'],
         'record_id'=>['Record ID:','text','Stable OpenMW record ID, such as fargoth.'],
@@ -34,6 +35,14 @@ function lorkhan_biography_fields(bool $create):void
         $limit=$key==='name'?128:($key==='oghma_tags'?4096:($type==='text'?256:16384));
         echo '<label for="'.lorkhan_ui_h($id).'">'.lorkhan_ui_h($label).'</label><small id="'.lorkhan_ui_h($id).'-help">'.lorkhan_ui_h($help).'</small>';
         $attributes=' id="'.lorkhan_ui_h($id).'"'.(!$create&&$key==='name'?'':' name="'.lorkhan_ui_h($name).'"').' maxlength="'.$limit.'" aria-describedby="'.lorkhan_ui_h($id).'-help"'.($required?' required':'').($readonly?' readonly':'');
+        if($type==='select'){
+            echo '<select'.$attributes.'>';
+            foreach(\LorkhanServer\Application\TtsFilterPresets::catalog()as$preset){
+                if(!$preset['exposed'])continue;
+                echo '<option value="'.lorkhan_ui_h($preset['id']).'">'.lorkhan_ui_h($preset['label']).'</option>';
+            }
+            echo '</select>';continue;
+        }
         echo $type==='text'?'<input type="text"'.$attributes.'>':'<textarea'.$attributes.' rows="'.$type.'"></textarea>';
     }
     if($create)echo '<label for="new-bio-content_file">Content File:</label><small id="new-bio-content-file-help">The plugin defining this record, for example Morrowind.esm.</small><input type="text" name="content_file" id="new-bio-content_file" maxlength="256" required aria-describedby="new-bio-content-file-help">';

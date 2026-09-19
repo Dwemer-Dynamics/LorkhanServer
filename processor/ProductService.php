@@ -174,6 +174,8 @@ final class ProductService
                 if(!is_string($value)||strlen($value)>$limit||!mb_check_encoding($value,'UTF-8')||str_contains($value,"\0"))
                     throw new InvalidArgumentException('invalid_biography_'.$field);
             }
+            if(array_key_exists('tts_filter_preset',$row))
+                $row['tts_filter_preset']=TtsFilterPresets::validate($row['tts_filter_preset']===''?'none':$row['tts_filter_preset']);
             $relationships=trim($row['relationships']);
             if($relationships==='')$relationships='{}';
             try{$relationshipObject=json_decode($relationships,false,64,JSON_THROW_ON_ERROR);}
@@ -191,12 +193,14 @@ final class ProductService
                     'appearance'=>'appearance','personality'=>'personality','relationships'=>'relationships',
                     'occupation'=>'occupation','skills'=>'skills','speech_style'=>'speechstyle','goals'=>'goals',
                     'oghma_tags'=>'oghma_knowledge_tags','voice_id'=>'voiceid','gender'=>'gender','race'=>'race']as$from=>$to)$values[$to]=$row[$from];
+                if(isset($row['tts_filter_preset']))$values['tts_filter_preset']=$row['tts_filter_preset'];
                 $global[]=$values;continue;
             }
             $content=[];
             foreach(['core','biography','appearance','personality','relationships','occupation','skills','speech_style','goals','gender','race']as$field){
                 $value=trim($row[$field]);if($value!=='')$content[$field]=$value;
             }
+            if(isset($row['tts_filter_preset']))$content['tts_filter_preset']=$row['tts_filter_preset'];
             if($row['oghma_tags']!=='')$content['oghma_knowledge_tags']=$row['oghma_tags'];
             $voice=trim($row['voice_id']);if($voice!=='')$content['voice']=['id'=>$voice,'language'=>'en'];
             $this->validateProfile($content);

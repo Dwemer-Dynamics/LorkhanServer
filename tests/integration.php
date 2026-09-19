@@ -389,7 +389,7 @@ $portableBiographyRow=['content_file'=>'HTTP Portability.esp','record_id'=>'port
     'core'=>'A careful guide with strong local boundaries.','biography'=>'Portable biography v1.','appearance'=>'Travel-worn clothes.',
     'personality'=>'Patient and observant.','relationships'=>'{"Player":{"aff":25}}','occupation'=>'Guide',
     'skills'=>'Local geography.','speech_style'=>'Direct and calm.','goals'=>'Help respectful travellers.',
-    'oghma_tags'=>'Balmora, common','voice_id'=>'mw_dark_elf_female','gender'=>'Female','race'=>'Dark Elf'];
+    'oghma_tags'=>'Balmora, common','voice_id'=>'mw_dark_elf_female','gender'=>'Female','race'=>'Dark Elf','tts_filter_preset'=>'warm'];
 $portableSaved=$biographyService->importBiographyTemplates($installationId,[$portableBiographyRow]);
 $portableTemplateId=$portableSaved[0]['profile_id'];$portableTemplate=$products->getRevisioned('profile',$portableTemplateId);
 $portableIdentity=json_decode((string)$portableTemplate['actor_identity'],true,16,JSON_THROW_ON_ERROR);
@@ -401,6 +401,7 @@ $portableContent=$portableTemplate['content'];$portableContent['notes']='Preserv
 $portableContent['routing']=['llm_configuration_id'=>$profileModelSlot['configuration_id']];
 $products->revise('profile',$portableTemplateId,$portableContent,'manual template settings',$now);
 $portableBiographyRow['biography']='Portable biography v2.';$portableBiographyRow['voice_id']='';
+unset($portableBiographyRow['tts_filter_preset']); // Older CSVs must retain the template's chosen filter.
 $portableSaved=$biographyService->importBiographyTemplates($installationId,[$portableBiographyRow]);
 $portableTemplate=$products->getRevisioned('profile',$portableTemplateId);
 $portableExport=array_values(array_filter($products->customBiographyTemplates($installationId),
@@ -410,7 +411,7 @@ $assert($portableSaved[0]['created']===false&&$portableSaved[0]['revision']===3
     &&($portableTemplate['content']['notes']??null)==='Preserve this nonportable field.'
     &&($portableTemplate['content']['routing']['llm_configuration_id']??null)===$profileModelSlot['configuration_id']
     &&!isset($portableTemplate['content']['voice'])&&count($portableExport)===1
-    &&$portableExport[0]['oghma_tags']==='Balmora',
+    &&$portableExport[0]['oghma_tags']==='Balmora'&&$portableExport[0]['tts_filter_preset']==='warm',
     'biography re-import did not revise the same template while preserving nonportable settings');
 $portableTarget=['kind'=>'npc','record_id'=>'portable_biography_npc','refnum'=>['index'=>99,'content_file'=>0],
     'content_file'=>'HTTP Portability.esp','cell'=>['kind'=>'interior','name'=>'Balmora'],
@@ -422,7 +423,7 @@ $portableProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessio
 $portableProfile=$products->getRevisioned('profile',$portableProfileId);
 $portableActorIdentity=json_decode((string)$portableProfile['actor_identity'],true,16,JSON_THROW_ON_ERROR);
 $assert($portableProfileId!==$portableTemplateId&&($portableProfile['content']['biography']??null)==='Portable biography v2.'
-    &&($portableActorIdentity['kind']??null)==='npc',
+    &&($portableActorIdentity['kind']??null)==='npc'&&($portableProfile['content']['tts_filter_preset']??null)==='warm',
     'first-seen OpenMW actor did not inherit the exact imported biography template');
 // Reset reusable biographies without deleting instantiated NPCs or another installation's templates.
 $db->beginTransaction();
@@ -463,7 +464,7 @@ $factoryRow=['npc_name'=>'factory_bosmer','oghma_knowledge_tags'=>'','core'=>'Fa
     'skills'=>'* Navigating the Bitter Coast\n* Identifying safe wilderness paths\n* Watching for nearby danger',
     'speechstyle'=>'He speaks in brief, practical observations with a cautious tone.',
     'goals'=>'* Keep travelers safe\n* Protect the paths near Seyda Neen\n* Avoid needless conflict',
-    'voiceid'=>null,'gender'=>'male','race'=>'Wood Elf','refid'=>'factory_bosmer'];
+    'voiceid'=>null,'gender'=>'male','race'=>'Wood Elf','refid'=>'factory_bosmer','tts_filter_preset'=>'warm'];
 file_put_contents($factoryBiographies,json_encode([$factoryRow],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));
 file_put_contents($factoryManifest,json_encode(['format'=>'lorkhan.morrowind-biography-preflight.v1','selected_count'=>1,
     'completed_count'=>1,'failed_count'=>0,'model'=>'fixture/model','builder_sha256'=>hash('sha256','fixture builder'),
@@ -479,7 +480,8 @@ $factoryProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$session
     'payload'=>['target'=>$factoryTarget]],$factoryVoice,$now);
 $factoryProfile=$products->getRevisioned('profile',$factoryProfileId);
 $assert(($factoryProfile['content']['biography']??null)===$factoryRow['npc_static_bio']
-    &&($factoryProfile['content']['speech_style']??null)===$factoryRow['speechstyle'],
+    &&($factoryProfile['content']['speech_style']??null)===$factoryRow['speechstyle']
+    &&($factoryProfile['content']['tts_filter_preset']??null)==='warm',
     'exact mod-source identity did not seed a typed profile from the active CHIM biography catalog');
 unlink($factoryBiographies);unlink($factoryManifest);rmdir($factoryDirectory);
 $automaticTarget=['kind'=>'npc','record_id'=>'automatic_bosmer','refnum'=>['index'=>101,'content_file'=>0],

@@ -160,7 +160,7 @@ $check($runner->down(1) === [$latestVersion], 'down did not revert latest migrat
 $check($runner->up() === [$latestVersion], 'up did not restore reverted migration');
 $check($runner->rerun() === $latestVersion, 'rerun did not cycle latest migration');
 $check($runner->fresh() === $expectedVersions, 'fresh did not rebuild all migrations');
-$check($runner->replayFrom(1)===[1], 'atomic replay omitted dependent migrations');
+$check($runner->replayFrom(1)===$expectedVersions, 'atomic replay omitted dependent migrations');
 foreach([0,$latestVersion+1]as$invalidReplay){
     try{$runner->replayFrom($invalidReplay);$check(false,'invalid replay target accepted');}
     catch(RuntimeException $error){$check(str_contains($error->getMessage(),'applied migration'),'wrong invalid replay error');}
