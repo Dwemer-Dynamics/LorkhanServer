@@ -1,1 +1,0 @@
-ALTER TABLE lorkhan_internal.action_catalog DROP COLUMN available_to_narrator;

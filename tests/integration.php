@@ -54,12 +54,6 @@ try{
     $products->transaction(function()use($products,$installationId,$localSetup,$db):void{
         $first=$products->saveQuickstartLocalLlm($installationId,$localSetup,0,'2026-09-08T12:00:00Z');
         $id=$first['configuration_id'];
-        $db->exec('SAVEPOINT local_setup_down');
-        try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/096_quickstart_local_llm.down.sql'));throw new RuntimeException('populated Local LLM downgrade accepted');}
-        catch(PDOException $error){
-            $db->exec('ROLLBACK TO SAVEPOINT local_setup_down');
-            if(!str_contains($error->getMessage(),'Cannot remove Local LLM setup'))throw$error;
-        }
 
         if($first['connector']['content']['model']!=='fixture'||$first['connector']['current_revision']!==1)throw new RuntimeException('local setup creation failed');
         $next=$localSetup;unset($next['credential']);$next['server_type']='ollama';$next['scope']='all';$next['disable_streaming']=true;
@@ -605,10 +599,6 @@ $actionOnlyInput=$advancedInput;$actionOnlyInput['description']='Action only';$a
 $actionOnly=$products->saveProfileAssignmentRule($actionOnlyInput,$now);
 $listedActionOnly=array_values(array_filter($products->profileAssignmentRulesPlan($installationId)['rules'],static fn(array $row):bool=>$row['rule_id']===$actionOnly['rule_id']))[0];
 $assert($listedActionOnly['core_profile_id']==='','action-only rule missing from editor list');
-$db->beginTransaction();$db->exec('SAVEPOINT action_rule_down');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/104_action_only_profile_rules.down.sql'));$assert(false,'action-only rule downgrade discarded state');}
-catch(PDOException $error){$db->exec('ROLLBACK TO SAVEPOINT action_rule_down');$assert(str_contains($error->getMessage(),'Assign or remove action-only'),'wrong action-only downgrade guard');}
-$db->rollBack();
 
 $advancedTurn=['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],'payload'=>['target'=>$advancedTarget,'context'=>$automaticContext]];
 $advancedProfileId=$products->ensureMorrowindActorProfile($advancedTurn,$automaticVoice,$now);
@@ -2128,11 +2118,6 @@ $db->prepare("UPDATE durable_jobs SET state='queued',completed_at=NULL,next_run_
 $assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===1
     &&(int)$db->query('SELECT count(*) FROM relationship_evaluation_results')->fetchColumn()===1,
     'a retried job reapplied an already committed relationship receipt');
-$db->exec('SAVEPOINT relationship_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/064_relationship_evaluation_results.down.sql'));
-    throw new RuntimeException('relationship downgrade discarded receipts');}
-catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship evaluation'),
-    'unexpected relationship downgrade error');$db->exec('ROLLBACK TO SAVEPOINT relationship_downgrade');}
 $db->exec('ROLLBACK TO SAVEPOINT relationship_queued');
 $disabledRelationshipContent=$relationshipContent;$disabledRelationshipContent['relationship']['enabled']=false;
 $products->revise('global_settings',$relationshipGlobal['configuration_id'],$disabledRelationshipContent,'disable queued relationship',$now);
@@ -2304,9 +2289,6 @@ foreach(['installation_id','profile_id','playthrough_id'] as $previewScopeField)
     $assert($builds->draft(array_replace($buildScope,[$previewScopeField=>$newUuid(5780)]),$buildJob['job_id'])===null,'preview escaped scope');
 $db->prepare("UPDATE durable_jobs SET state='queued',completed_at=NULL,next_run_at=clock_timestamp() WHERE job_id=:id")->execute(['id'=>$buildJob['job_id']]);
 $assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1&&$builds->draft($buildScope,$buildJob['job_id'])===$preview,'preview reran on retry');
-$db->exec('SAVEPOINT preview_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/095_relationship_build_drafts.down.sql'));throw new RuntimeException('draft was discarded on downgrade');}
-catch(PDOException $error){$assert(str_contains($error->getMessage(),'Review and remove relationship build drafts'),'unexpected preview downgrade error');$db->exec('ROLLBACK TO SAVEPOINT preview_downgrade');}
 $db->exec('ROLLBACK TO SAVEPOINT relationship_preview');$buildProvider->calls=0;
 $db->exec('SAVEPOINT history_queued');
 $assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1,'offline history build did not run at chance zero');
@@ -2339,11 +2321,6 @@ $assert($builds->enqueue($buildScope,$buildRequest,100,$buildDirection)['job_id'
 $db->prepare("UPDATE durable_jobs SET state='queued',completed_at=NULL,next_run_at=clock_timestamp() WHERE job_id=:id")
     ->execute(['id'=>$buildJob['job_id']]);
 $assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1,'committed history receipt was reapplied on retry');
-$db->exec('SAVEPOINT history_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/065_relationship_build_results.down.sql'));
-    throw new RuntimeException('history downgrade discarded receipts');}
-catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship build'),'unexpected history downgrade error');
-    $db->exec('ROLLBACK TO SAVEPOINT history_downgrade');}
 $db->exec('ROLLBACK TO SAVEPOINT history_queued');
 $buildProvider->during=static function()use($db,$historyDelivery):void{
     $db->prepare('UPDATE eventlog_metadata SET suppressed_at=clock_timestamp() WHERE projection_key=:key')
@@ -2504,11 +2481,6 @@ $conversionWorker();
 $assert($products->relationships($conversionRecordScope)===$beforeConversion
     &&(int)$db->query('SELECT count(*) FROM relationship_conversion_results')->fetchColumn()===$receiptCount,
     'an invented target allowed a partial profile-text conversion');
-$db->exec('SAVEPOINT conversion_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/067_relationship_text_conversion.down.sql'));
-    throw new RuntimeException('conversion downgrade discarded receipts');}
-catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship conversion'),
-    'unexpected conversion downgrade error');$db->exec('ROLLBACK TO SAVEPOINT conversion_downgrade');}
 $db->rollBack();
 // Exercise prompt privacy against real source projections without altering later turn fixtures.
 $db->beginTransaction();
@@ -2589,16 +2561,6 @@ $assert(!in_array($ownedRelationship['relationship_id'],array_column($currentRel
 $historyRows=array_values(array_filter($relationshipUi->rows('relationship_logs'),static fn(array$row):bool=>$row['relationship_id']===$ownedRelationship['relationship_id']));
 $assert(!str_contains(json_encode($historyRows,JSON_THROW_ON_ERROR),'PLAYER PRIVATE RELATIONSHIP NOTE'),
     'private relationship text was copied into audit history');
-$db->exec('SAVEPOINT relationship_details_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/089_relationship_details.down.sql'));
-    throw new RuntimeException('downgrade discarded saved relationship details');}
-catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove saved relationship details'),
-    'unexpected relationship details downgrade error');$db->exec('ROLLBACK TO SAVEPOINT relationship_details_downgrade');}
-$db->exec('SAVEPOINT custom_info_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/066_relationship_custom_info.down.sql'));
-    throw new RuntimeException('downgrade discarded deleted relationship notes');}
-catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove player-authored relationship Custom Info'),
-    'unexpected Custom Info downgrade error');$db->exec('ROLLBACK TO SAVEPOINT custom_info_downgrade');}
 $assert(count($historyRows)===3&&($historyRows[0]['after_value']['deleted']??false)===true
     &&$historyRows[0]['before_value']['revision']===2&&$historyRows[1]['after_value']['disposition']===31
     &&$historyRows[1]['after_value']['relationship_type']==='trusted_companion',
@@ -2685,11 +2647,6 @@ $legacyRows=$products->exportScope($legacyRestore['scope'])['relationships'];
 $assert(count($legacyRows)===1&&$legacyRows[0]['actor_identity']['record_id']==='legacy_restore'
     &&$legacyRows[0]['custom_info']==='legacy private note'&&$legacyRows[0]['relationship_type']==='neutral',
     'legacy relationship restore was not stable and idempotent');
-$db->exec('SAVEPOINT relationship_type_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/068_relationship_types.down.sql'));
-    throw new RuntimeException('relationship type downgrade discarded custom types');}
-catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove saved non-neutral relationship types'),
-    'unexpected relationship type downgrade error');$db->exec('ROLLBACK TO SAVEPOINT relationship_type_downgrade');}
 $db->exec('ROLLBACK TO SAVEPOINT custom_info_restore');
 $assert(str_contains(json_encode($relationshipPrompt['provider_input'],JSON_THROW_ON_ERROR),'Saved the traveller'), 'relationship detail missing from AI prompt and trace');
 $relationshipSources=array_values(array_filter($relationshipPrompt['trace']['sources'],

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 // Sandbox-only entrypoint: no deployment configuration, host DSN or credentials are loaded.
 require '/MigrationRunner.php';
+require '/PlaythroughTablePolicy.php';
 $db=new PDO('pgsql:host=/scratch;port=5432;dbname=imported',null,null,[
     PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
 $internal=$db->query("SELECT to_regclass('lorkhan_internal.schema_migrations')")->fetchColumn();

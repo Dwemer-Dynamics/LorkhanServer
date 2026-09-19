@@ -20,6 +20,10 @@ review approvals are outside the web root. Previous code is backed up under
 
 ## Remaining release gates
 
+Database installation now uses `data/migrations/001_initial_schema.up.sql`; the prototype
+chain is retained only in Git history. See `data/migrations/README.md` for the explicit
+prototype database/backup transition and future incremental migration rules.
+
 Client license/notices and corresponding-source artifacts must be settled and verified
 before redistribution. Do not invent a license to satisfy the packaging audit. GitHub's
 server workflow remains disabled until explicitly re-enabled by the owner.
