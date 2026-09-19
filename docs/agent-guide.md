@@ -13,6 +13,11 @@ assembled by deploy/runtime-files.txt and contains selected operational document
 Use the installed revision or deployment record to find matching source before rebuilding.
 Links to upstream main describe current source, which may differ from the installed version.
 
+Both linked source repositories are currently private. GitHub source and custom-plugin
+example links require authorized access. Without it, ask the maintainer for access or a
+complete source archive matching the installed revision. No public source download is
+provided here; the bundled operational guides remain readable offline.
+
 The usual web root is /var/www/html/LorkhanServer. Persistent configuration and secrets
 are under /etc/lorkhanserver; media and credentials under /var/lib/lorkhanserver; logs
 under /var/log/lorkhanserver. PostgreSQL owns the database. Existing web-root storage and
