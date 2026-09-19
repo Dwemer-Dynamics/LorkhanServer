@@ -635,6 +635,16 @@ final class ProductRepository
         $stmt->execute(['id'=>$id,'revision'=>$revision]);
         $content = $stmt->fetchColumn();
         if ($content === false) throw new RuntimeException('revision_not_found');
+        if ($kind === 'profile') {
+            // Rewind plugin state and profile content atomically; the new revision captures both.
+            return $this->transaction(function () use ($kind, $id, $revision, $reason, $now, $content): array {
+                $restore = $this->db->prepare('UPDATE profiles profile SET plugin_extended_data = revision.plugin_extended_data
+                    FROM profile_revisions revision WHERE profile.profile_id = :id
+                    AND revision.profile_id = profile.profile_id AND revision.revision = :revision');
+                $restore->execute(['id'=>$id, 'revision'=>$revision]);
+                return $this->revise($kind,$id,$this->json($content),'rollback:'.$revision.' '.$reason,$now);
+            });
+        }
         return $this->revise($kind,$id,$this->json($content),'rollback:'.$revision.' '.$reason,$now);
     }
 
