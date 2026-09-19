@@ -18,7 +18,7 @@ final class SceneClassificationRepository
         $products=new ProductRepository($this->db);$global=$products->globalSettingsForInstallation($installation)['content']??[];
         if(($global['task_availability']['scene_classifier']??true)!==true)return null;
         $ids=[(string)($global['system_routing']['scene_classifier_configuration_id']??'')];
-        $q=$this->db->prepare("SELECT configuration_id FROM configuration_sets WHERE installation_id=:installation AND kind='provider' AND deleted_at IS NULL AND lower(name) IN ('gemma 3n e4b','scene classifier (gemma 3n e4b)','scene classifier (gemini 2.5 flash lite)') ORDER BY CASE lower(name) WHEN 'gemma 3n e4b' THEN 1 WHEN 'scene classifier (gemma 3n e4b)' THEN 2 ELSE 3 END,configuration_id");
+        $q=$this->db->prepare("SELECT configuration_id FROM configuration_sets WHERE installation_id=:installation AND kind='provider' AND deleted_at IS NULL AND lower(name) IN ('gemma 3 4b','gemma 3n e4b','scene classifier (gemma 3n e4b)','scene classifier (gemini 2.5 flash lite)') ORDER BY CASE lower(name) WHEN 'gemma 3 4b' THEN 0 WHEN 'gemma 3n e4b' THEN 1 WHEN 'scene classifier (gemma 3n e4b)' THEN 2 ELSE 3 END,configuration_id");
         $q->execute(['installation'=>$installation]);foreach($q->fetchAll(PDO::FETCH_COLUMN)as$id)$ids[]=$id;
         if(($global['task_availability']['background_memory']??true)===true)$ids[]=(string)($global['system_routing']['background_memory_configuration_id']??'');
         $q=$this->db->prepare("SELECT configuration_id,current_revision FROM configuration_sets WHERE installation_id=:installation AND configuration_id=:id AND kind='provider' AND deleted_at IS NULL");
