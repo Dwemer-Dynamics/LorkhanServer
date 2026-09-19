@@ -1389,10 +1389,16 @@ $products->revise('global_settings',$backfillGlobal['configuration_id'],$sceneFa
 $assert($sceneRepo->route($installationId)===null,'scene used disabled background fallback');
 $namedScene=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Scene Classifier (Gemma 3N E4B)','content'=>['driver'=>'mock','model'=>'named-scene']],$now);
 $assert($sceneRepo->route($installationId)['configuration_id']===$namedScene['configuration_id'],'known classifier label fallback missing');
+$currentScene=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Gemma 3 4B','content'=>['driver'=>'mock','model'=>'current-scene']],$now);
+$assert($sceneRepo->route($installationId)['configuration_id']===$currentScene['configuration_id'],'current classifier label did not precede legacy labels');
+$sceneExplicit=$sceneFallback;$sceneExplicit['system_routing']['scene_classifier_configuration_id']=$namedScene['configuration_id'];
+$products->revise('global_settings',$backfillGlobal['configuration_id'],$sceneExplicit,'explicit classifier fixture',$now);
+$assert($sceneRepo->route($installationId)['configuration_id']===$namedScene['configuration_id'],'current classifier label overrode explicit selection');
 $sceneFallback['task_availability']['scene_classifier']=false;
 $products->revise('global_settings',$backfillGlobal['configuration_id'],$sceneFallback,'disable named classifier',$now);
 $assert($sceneRepo->route($installationId)===null,'known label bypassed classifier availability');
 $products->deleteRevisioned('provider',$namedScene['configuration_id'],$now);
+$products->deleteRevisioned('provider',$currentScene['configuration_id'],$now);
 $products->revise('global_settings',$backfillGlobal['configuration_id'],$backfillSettings,'restore pre-scene settings',$now);
 
 $creatureTemplate=$products->createRevisioned('profile',['installation_id'=>$installationId,
