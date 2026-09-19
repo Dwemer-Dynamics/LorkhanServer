@@ -1,5 +1,12 @@
 # Character voice review
 
+This is optional development tooling, excluded from the normal runtime manifest. To use it
+on a local installation, copy these files from the same source revision into matching paths
+under the installed server: `ui/voice_review.php`, `ui/css/voice-review.css`,
+`ui/js/voice-review.js`, and `data/voices/morrowind-design-review.json`.
+Run generation and application scripts from the source checkout with `LORKHAN_CONFIG` set.
+A normal deploy removes the optional web files again but preserves all private review data.
+
 Open `/ui/voice_review.php` to compare two original Inworld designs for each character in
 `data/voices/morrowind-design-review.json`. This is a review page, not automatic voice assignment.
 Approve A/B, reject both, or clear a choice. Decisions persist server-side. Approval does not

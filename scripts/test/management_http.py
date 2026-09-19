@@ -356,19 +356,13 @@ invalid,text=parse(request('/LorkhanServer/ui/provider_usage.php?filter=week&wee
 assert 'Week: 2021-W53' not in text
 usage_period,text=parse(request('/LorkhanServer/ui/provider_usage.php?period=all'))
 assert '<h3>All Time</h3>' in text
-# Operational readers page the complete safe metadata set, including unassigned historical attempts.
-_,attempts=parse(request('/LorkhanServer/ui/provider_attempts.php?embed=1'))
-assert 'Showing 50 of 110 records. Page 1 / 3.' in attempts and 'operational-log-page' in attempts
-_,attempts_last=parse(request('/LorkhanServer/ui/provider_attempts.php?page=3&embed=1'))
-assert 'Showing 10 of 110 records. Page 3 / 3.' in attempts_last and 'embed=1' in attempts_last
-attempt_csv=request('/LorkhanServer/ui/provider_attempts.php?page=3&export=csv')
-attempt_rows=list(csv.DictReader(io.StringIO(attempt_csv.read().decode('utf-8-sig'))))
-assert len(attempt_rows)==10 and set(attempt_rows[0])=={'ID','Time (UTC)','Service','Connector','Model','Operation','Status','Duration (ms)','Error'}
-for filters in ['q=diary','q=%25','state=failed','installation_id=00000000-0000-4000-8000-000000000001','period=24h']:
-    _,filtered=parse(request('/LorkhanServer/ui/provider_attempts.php?'+filters))
-    assert ('Showing 3 of 3 records.' in filtered) if filters=='q=diary' else ('No provider attempts match these filters.' in filtered)
-_,jobs_empty=parse(request('/LorkhanServer/ui/jobs.php?q=unmatched-operational-fixture'))
-assert 'No durable jobs match these filters.' in jobs_empty and 'operational-log-page' in jobs_empty
+# Retired management pages must no longer be served; worker and debug APIs remain separate.
+for retired in ['jobs.php', 'provider_attempts.php', 'game_debug.php']:
+    try:
+        request('/LorkhanServer/ui/'+retired)
+        raise AssertionError('Retired page remains reachable: '+retired)
+    except urllib.error.HTTPError as response:
+        assert response.code == 404
 _,health_reader=parse(request('/LorkhanServer/ui/diagnostics.php?q=health-reader-fixture'))
 assert 'Server-wide snapshot' in health_reader and 'Showing 1 of 1 records.' in health_reader
 assert 'safe_scope' in health_reader and '00000000-0000-4000-8000-000000000099' in health_reader
@@ -384,11 +378,6 @@ assert 'No backups match these filters.' in backup_health_html and 'Operational 
 assert 'Backups, NPC memories, narrative entries, voice files and game saves are retained.' in backup_health_html
 retention_form=next(f for f in backup_health.forms if f['action'].endswith('/forms/retention'))
 assert retention_form['fields']['days']=='30' and 'data-retention-confirm' in backup_health_html and 'id="operational-retention-confirm"' in backup_health_html
-_,game_debug_html=parse(request('/LorkhanServer/ui/game_debug.php?embed=1'))
-assert 'request-log-page game-debug-page' in game_debug_html and 'Created (UTC)' in game_debug_html
-assert 'data-debug-table hidden' in game_debug_html and 'data-debug-empty' in game_debug_html
-assert game_debug_html.count('data-debug-command=')==19
-assert 'aria-label="God Mode on"' in game_debug_html and 'Refresh state queues a read-only game snapshot' in game_debug_html
 class LogRedirectOnly(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,req,fp,code,msg,headers,newurl): return None
 log_redirect_opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar),LogRedirectOnly())

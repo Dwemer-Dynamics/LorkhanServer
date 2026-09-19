@@ -136,11 +136,9 @@ function lorkhan_ui_feature_registry(): array
         'control.usage' => ['title' => 'Cost Breakdown', 'state' => 'live', 'description' => 'Recorded provider token counts and reported costs; unavailable costs are identified explicitly.'],
         'control.responses' => ['title' => 'Response Queue', 'state' => 'live', 'description' => 'Queued dialogue, action and lifecycle messages, with recorded playback details and protected log removal.'],
         'control.providers' => ['title' => 'Provider Attempts', 'state' => 'live', 'description' => 'Provider latency and bounded error traces.'],
-        'control.jobs' => ['title' => 'Workers & Jobs', 'state' => 'live', 'description' => 'Durable worker and dead-letter status.'],
         'control.cache' => ['title' => 'Audio Cache', 'state' => 'live', 'description' => 'Authenticated playback of unexpired audio using opaque media IDs.'],
         'control.playthroughs' => ['title' => 'Playthrough Manager', 'state' => 'live', 'description' => 'Playthrough backup and restore.'],
         'control.database' => ['title' => 'Database Manager', 'state' => 'live', 'description' => 'Schema, backup, and retention operations.'],
-        'control.game-debug' => ['title' => 'Game Debug', 'state' => 'live', 'description' => 'Typed operator-only OpenMW diagnostics for the connected local game.'],
         'control.updater' => ['title' => 'Update Server', 'state' => 'replaced', 'description' => 'Server updates are performed through the guarded LORKHAN deployment workflow.', 'controls' => ['Check for Updates', 'Install Update']],
     ];
 

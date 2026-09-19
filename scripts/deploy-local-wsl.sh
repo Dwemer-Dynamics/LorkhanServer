@@ -83,9 +83,8 @@ cleanup_stage() {
 }
 trap cleanup_stage EXIT
 
-# Ship only maintained runtime files, not the test suite, development notes, or build tools.
-rsync -ar --files-from="${source_root}/deploy/runtime-files.txt" \
-    "${source_root}/" "${stage_root}/"
+# Both fresh installs and updates stage the same runtime payload.
+bash "${source_root}/scripts/stage-runtime.sh" "${source_root}" "${stage_root}"
 
 # Fail before changing the live tree when a staged PHP file is syntactically invalid.
 while IFS= read -r -d '' php_file; do

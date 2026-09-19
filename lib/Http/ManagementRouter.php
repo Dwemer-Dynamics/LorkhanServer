@@ -31,7 +31,7 @@ use Throwable;
 
 final class ManagementRouter
 {
-    private const PAGES=['quickstart','roleplay','configuration','control-panel','characters','profiles','player','npc-biographies','providers','ai-voice','prompts-actions','action-editor','world','descriptions','traces','memory','relationships','knowledge','playthroughs','narrative-autonomy','jobs','response-queue','oghma-audit','provider-usage','cache','backup-health','database-manager','server-logs','diagnostics','game-debug'];
+    private const PAGES=['quickstart','roleplay','configuration','control-panel','characters','profiles','player','npc-biographies','providers','ai-voice','prompts-actions','action-editor','world','descriptions','traces','memory','relationships','knowledge','playthroughs','narrative-autonomy','response-queue','oghma-audit','provider-usage','cache','backup-health','database-manager','server-logs','diagnostics'];
     /** One pronunciation term never needs a long clip, so an oversized answer is treated as a failure. */
     private const MAX_PREVIEW_AUDIO_BYTES=8_388_608;
     private const PREVIEW_AUDIO_MIME_TYPES=['audio/wav','audio/mpeg','audio/ogg','audio/webm','audio/flac','audio/mp4'];
@@ -63,7 +63,6 @@ final class ManagementRouter
         'playthroughs'=>'/ui/control_panel.php?tab=playthrough-page',
         'playthrough-form'=>'/ui/playthrough_manager.php',
         'narrative-autonomy'=>'/ui/narrative_manager.php',
-        'jobs'=>'/ui/control_panel.php?tab=jobs-page',
         'response-queue'=>'/ui/control_panel.php?tab=queue-page',
         'oghma-audit'=>'/ui/control_panel.php?tab=oghma-audit-page',
         'provider-usage'=>'/ui/control_panel.php?tab=usage-page',
@@ -72,7 +71,6 @@ final class ManagementRouter
         'database-manager'=>'/ui/database_manager.php',
         'server-logs'=>'/ui/control_panel.php?tab=server-logs-page',
         'diagnostics'=>'/ui/control_panel.php?tab=srvlogs',
-        'game-debug'=>'/ui/control_panel.php?tab=game-debug',
     ];
 
     public function __construct(private readonly ManagementRepository $management,private readonly ProductRepository $repository,
@@ -1022,7 +1020,6 @@ final class ManagementRouter
             'control-panel'=>$this->hubHtml([
                 ['traces','Events & Traces','Inspect scoped operational traces.'],
                 ['playthroughs','Playthroughs','Create and manage playthrough state.'],
-                ['jobs','Workers & Jobs','Review queue and worker health.'],
                 ['backup-health','Operations','Run bounded retention operations.'],
                 ['diagnostics','Diagnostics','Review server health and the action catalog.'],
             ]),
@@ -1038,7 +1035,6 @@ final class ManagementRouter
             'knowledge'=>$this->formHtml('knowledge','Create knowledge',$csrf,$scope.$this->input('title','Title').$this->area('content','Knowledge').$this->input('provenance','Provenance source')),
             'narrative-autonomy'=>$this->formHtml('narratives','Create narrative',$csrf,$scope.$this->select('kind','Narrative kind',['narrator','diary','summary']).$this->input('title','Title').$this->area('content','Narrative').$this->input('provenance','Provenance source')).'<section class="feature-status"><h2>Automatic diaries <span class="status-badge">Live</span></h2><p>Timer, sleep, and optional wait events queue diaries for eligible Player, Narrator, and nearby NPC profiles.</p></section>',
             'traces'=>'<section><h2>Events and traces</h2><p>Use the authenticated traces API with installation scope. Provider and prompt details remain redacted.</p></section>',
-            'jobs'=>'<section><h2>Workers and jobs</h2><p>Queue and dead-letter counts are shown in diagnostics. Worker leases and retries are bounded.</p></section>',
             'backup-health'=>$this->formHtml('retention','Run bounded retention',$csrf,$this->input('days','Retention days','number','30').'<p>This removes expired operational metadata and never accepts a filesystem path.</p>'),
             'diagnostics'=>$this->quickstart().$this->actionCatalog(),
             default=>''};
