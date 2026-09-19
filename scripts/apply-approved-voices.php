@@ -26,6 +26,8 @@ try{
         $locks[]=$lock;
     }
     $document=$review->document();$decisions=$review->decisions();$selected=[];
+    $voiceDefaults=json_decode((string)file_get_contents(dirname(__DIR__).'/data/voices/morrowind-design-review.json'),true,32,JSON_THROW_ON_ERROR);
+    $voiceDefaults=array_column($voiceDefaults['characters'],null,'key');
     if(($document['configuration_id']??null)!==$connector['configuration_id'])throw new RuntimeException('Review connector changed.');
     foreach($document['characters'] as $row){
         $decision=$decisions[$row['key']]??[];$chosen=null;
@@ -90,12 +92,16 @@ try{
         $custom=$db->prepare('SELECT * FROM public.bio_templates_custom WHERE npc_name=? FOR UPDATE');$custom->execute([$bio['npc_name']]);
         $backup['biographies'][]=['npc_name'=>$bio['npc_name'],'previous'=>$custom->fetch()?:null];
         $bio['voiceid']=$row['sample'];$bio['installation_id']=$installation;
+        $filter=$voiceDefaults[$row['key']]['tts_filter_preset']??null;
+        if($filter!==null)$filter=\LorkhanServer\Application\TtsFilterPresets::validate($filter);
+        if($filter!==null)$bio['tts_filter_preset']=$filter;
         $products->saveBiographyTemplate($bio,true);$bios++;
         $q=$db->prepare("SELECT p.profile_id FROM profiles p WHERE p.installation_id=? AND p.deleted_at IS NULL AND lower(p.actor_identity->>'record_id')=lower(?) AND ".ProfileScopeSql::current('p').' FOR UPDATE');
         $q->execute([$installation,$record]);
         foreach($q->fetchAll() as $p){
             $profile=$products->getRevisioned('profile',$p['profile_id']);$content=$profile['content'];$backup['profiles'][]=$profile;
-            if(($content['voice']['id']??'')===$row['sample'])continue;
+            if(($content['voice']['id']??'')===$row['sample']&&($filter===null||($content['tts_filter_preset']??'none')===$filter))continue;
+            if($filter!==null)$content['tts_filter_preset']=$filter;
             $content['voice']=['id'=>$row['sample'],'sample'=>$row['sample'],'language'=>'en','source'=>'approved_design'];
             $products->revise('profile',$p['profile_id'],$content,'approved Inworld character voice',gmdate('c'),(int)$profile['current_revision']);$profiles++;
         }

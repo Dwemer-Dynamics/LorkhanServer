@@ -2,6 +2,7 @@
   "characters": [
     {
       "key": "vivec",
+      "tts_filter_preset": "ethereal",
       "name": "Vivec",
       "record_ids": [
         "vivec_god"
@@ -22,6 +23,7 @@
     },
     {
       "key": "almalexia",
+      "tts_filter_preset": "ethereal",
       "name": "Almalexia",
       "record_ids": [
         "almalexia",
