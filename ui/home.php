@@ -11,6 +11,9 @@ require __DIR__ . '/ui_bootstrap.php';
 try{(new \LorkhanServer\Infrastructure\ManagementRepository($database))->queueDatabaseBackup(true);}
 catch(Throwable){error_log('Lorkhan automatic backup scheduling unavailable.');}
 $dashboard = $uiRepository->dashboard();
+$serverVersionDisplay = trim((string) @file_get_contents(dirname(__DIR__) . '/version.txt'));
+if (!preg_match('/^[a-f0-9]{7,40}$/D', $serverVersionDisplay)) $serverVersionDisplay = 'Development';
+$pluginVersionDisplay = trim((string) ($dashboard['current']['client_version'] ?? '')) ?: 'N/A';
 // Match the dashboard's readable dates and its UTC column label, regardless of database timezone.
 $dashboardTime = static function (mixed $value): string {
     if (!is_string($value) || trim($value) === '') return 'Unknown';
@@ -59,6 +62,10 @@ include __DIR__ . '/tmpl/head.html';
 if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
 <div class="container home-version-info">
+    <div class="server-version-info">
+        Server: <?= lorkhan_ui_h($serverVersionDisplay) ?>
+        Plugin: <?= lorkhan_ui_h($pluginVersionDisplay) ?>
+    </div>
     <div class="home-social-links" aria-label="Dwemer Dynamics links">
         <a href="https://www.youtube.com/@DwemerDynamics" target="_blank" rel="noopener noreferrer" title="Dwemer Dynamics on YouTube"><img src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/youtube.png" alt="YouTube"></a>
         <a href="https://discord.gg/NDn9qud2ug" target="_blank" rel="noopener noreferrer" title="Dwemer Dynamics Discord"><img src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/discord.png" alt="Discord"></a>

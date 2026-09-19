@@ -46,3 +46,4 @@ docs/SERVER-FILE-LAYOUT.md
 docs/WSL-APACHE-SETUP.md
 docs/PROTOCOL.md
 docs/PLAYTHROUGH-PARITY.md
+version.txt
