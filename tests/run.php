@@ -700,6 +700,19 @@ $decodedError = json_decode($response->body, true, 16, JSON_THROW_ON_ERROR);
 $check($decodedError['message'] === 'Request rejected', 'generic client error');
 
 $validator = new Validator();
+$futureRuntime = json_decode(file_get_contents(dirname(__DIR__) . '/protocol/fixtures/v1/valid/session-future-runtime.json'), true, 64, JSON_THROW_ON_ERROR)['instance'];
+$validator->validate($futureRuntime, 'lorkhan.session.init.v1');
+$check(true, 'compatible sessions are not gated by engine, commit, Lua API or client release labels');
+foreach (['openmw_version' => '', 'openmw_commit' => [], 'lua_api_revision' => 0] as $field => $invalid) {
+    $invalidRuntime = $futureRuntime;
+    $invalidRuntime['runtime'][$field] = $invalid;
+    try {
+        $validator->validate($invalidRuntime, 'lorkhan.session.init.v1');
+        $check(false, 'invalid runtime metadata accepted: ' . $field);
+    } catch (ValidationException $error) {
+        $check(true, 'runtime metadata remains structurally validated: ' . $field);
+    }
+}
 $fixtureRoot = dirname(__DIR__) . '/protocol/fixtures/v1/valid';
 foreach ([
     'session-init.json' => 'lorkhan.session.init.v1',

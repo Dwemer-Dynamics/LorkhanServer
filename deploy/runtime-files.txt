@@ -28,6 +28,7 @@ scripts/import-morrowind-item-descriptions.php
 scripts/import-morrowind-oghma.php
 scripts/import-morrowind-voices.php
 scripts/migrate.php
+scripts/check-prompt-trace-labels.php
 scripts/provision-default-biographies.php
 scripts/provision-default-connectors.php
 scripts/provision-default-descriptions.php

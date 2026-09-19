@@ -122,6 +122,7 @@ runuser -u postgres -- psql --dbname=lorkhan --set=ON_ERROR_STOP=1 \
     --command='CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS vector;' >/dev/null
 
 LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${target_root}/scripts/migrate.php" up
+LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${target_root}/scripts/check-prompt-trace-labels.php"
 LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${target_root}/scripts/provision-default-connectors.php"
 LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${target_root}/scripts/provision-default-descriptions.php"
 LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${target_root}/scripts/provision-default-biographies.php"

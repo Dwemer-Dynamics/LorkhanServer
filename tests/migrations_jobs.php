@@ -52,6 +52,7 @@ sort($expectedVersions, SORT_NUMERIC);
 $latestVersion = $expectedVersions[array_key_last($expectedVersions)] ?? throw new RuntimeException('no source migrations found');
 $check($runner->up() === $expectedVersions, 'fresh up did not apply ordered migrations');
 fwrite(STDOUT,'Fresh schema head: '.$latestVersion.'; applied migrations: '.count($expectedVersions)."\n");
+require dirname(__DIR__) . '/scripts/check-prompt-trace-labels.php';
 $advancedDefinitions=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),
     array_fill_keys(\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true));
 $check(count($advancedDefinitions)===8,'advanced upgrade omitted world actions');

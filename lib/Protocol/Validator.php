@@ -701,8 +701,11 @@ final class Validator
             throw new ValidationException('invalid_schema');
         }
         $this->keys($runtime, ['game','variant','openmw_version','openmw_commit','lua_api_revision','client_version','platform','capabilities']);
-        if ($runtime['game'] !== 'tes3' || $runtime['variant'] !== 'openmw' || $runtime['openmw_version'] !== '0.51.0'
-            || $runtime['openmw_commit'] !== 'f4bec41444214a7903bebd178389ca22ca13f646' || $runtime['lua_api_revision'] !== 129
+        // Build identifiers describe the client; capabilities and payload schemas govern support.
+        if ($runtime['game'] !== 'tes3' || $runtime['variant'] !== 'openmw'
+            || !is_string($runtime['openmw_version']) || $runtime['openmw_version'] === '' || strlen($runtime['openmw_version']) > 64
+            || !is_string($runtime['openmw_commit']) || $runtime['openmw_commit'] === '' || strlen($runtime['openmw_commit']) > 64
+            || !is_int($runtime['lua_api_revision']) || $runtime['lua_api_revision'] < 1
             || !is_string($runtime['client_version']) || $runtime['client_version'] === '' || strlen($runtime['client_version']) > 64
             || !is_string($runtime['platform']) || $runtime['platform'] === '' || strlen($runtime['platform']) > 64
             || !is_array($runtime['capabilities']) || !array_is_list($runtime['capabilities']) || count($runtime['capabilities']) > 64) {
