@@ -22,7 +22,7 @@ final class PlaythroughArchive
     private const SUSPENDED_TRIGGERS=['herika_project_speech','herika_project_responselog','herika_project_memory',
         'herika_project_knowledge','herika_project_narrative','herika_project_relationship','herika_project_action',
         'herika_project_turn_snapshot','herika_project_dialogue_audit','herika_project_turn_world',
-        'herika_project_profile','herika_project_profile_revision','memory_record_initial_revision_capture',
+        'herika_project_profile','herika_project_profile_revision','profile_plugin_data_capture','memory_record_initial_revision_capture',
         'memory_record_revision_capture','relationship_revision','turns_openmw_record_identity'];
     private ?array $metadata=null;
     private int $collectedBytes=0;
@@ -103,6 +103,13 @@ final class PlaythroughArchive
         $this->deadline=hrtime(true)+120_000_000_000;
         if(!Uuid::isValid($installation))throw new RuntimeException('invalid_archive_scope');
         $document=$this->decode($json);$this->validate($document);$meta=$this->metadata();
+        // Normalize only the validated pre-129 omission before any metadata-driven row access.
+        foreach(['lorkhan_internal.profiles','lorkhan_internal.profile_revisions']as$table){
+            foreach($document['tables'][$table]as&$row){
+                if(!array_key_exists('plugin_extended_data',$row))$row['plugin_extended_data']=new \stdClass();
+            }
+            unset($row);
+        }
         usort($document['tables']['lorkhan_internal.relationship_audit'],static fn($a,$b)=>$a['audit_sequence']<=>$b['audit_sequence']);
         if($this->db->inTransaction())throw new RuntimeException('archive_transaction_active');
         $this->db->beginTransaction();
@@ -217,7 +224,15 @@ final class PlaythroughArchive
         if($keys!==$expected||$document['format']!=='lorkhan.playthrough-archive'||$document['version']!==1)throw new RuntimeException('invalid_archive');
         $copy=$document;unset($copy['sha256']);
         if(!is_string($document['sha256'])||!hash_equals(hash('sha256',$this->canonical($copy)),$document['sha256']))throw new RuntimeException('archive_checksum_mismatch');
-        $meta=$this->metadata();if($document['schema_sha256']!==$this->schemaHash($meta))throw new RuntimeException('archive_schema_mismatch');
+        $meta=$this->metadata();
+        if($document['schema_sha256']!==$this->schemaHash($meta)){
+            // Accept only the exact pre-plugin schema, retaining checksum and column validation.
+            $legacy=$meta;
+            unset($legacy['lorkhan_internal.profiles']['columns']['plugin_extended_data'],
+                $legacy['lorkhan_internal.profile_revisions']['columns']['plugin_extended_data']);
+            if($document['schema_sha256']!==$this->schemaHash($legacy))throw new RuntimeException('archive_schema_mismatch');
+            $meta=$legacy;
+        }
         if(!is_array($document['source'])||count($document['source'])!==2||!Uuid::isValid($document['source']['installation_id']??'')||!Uuid::isValid($document['source']['playthrough_id']??''))throw new RuntimeException('invalid_archive_scope');
         if(!is_array($document['tables']))throw new RuntimeException('invalid_archive');
         if(!is_array($document['shared_profiles']))throw new RuntimeException('invalid_archive');foreach($document['shared_profiles']as$id=>$kind)if(!Uuid::isValid($id)||$kind!=='narrator')throw new RuntimeException('archive_shared_profile');
