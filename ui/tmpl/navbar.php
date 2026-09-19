@@ -27,7 +27,6 @@ $topNavSection=$topNavSection??match(true){
                     ]as$key=>[$label,$href]): ?>
                         <li><a class="dropdown-item<?php echo $topNavSection===$key?' active':''; ?>" href="<?php echo lorkhan_ui_h($href); ?>"<?php echo $topNavSection===$key?' aria-current="page"':''; ?>><?php echo lorkhan_ui_h($label); ?></a></li>
                     <?php endforeach; ?>
-                    <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="/Dwemer-Dashboard/index.php">DwemerDistro Home</a></li>
                 </ul>
             </div>
