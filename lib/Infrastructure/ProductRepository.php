@@ -2126,7 +2126,7 @@ SQL);
                     $seed=is_array($template['content']??null)?$template['content']:[];unset($seed['management'],$seed['portrait']);
                     if(trim((string)($profileTraits['gender']??''))!=='')$seed['gender']=$profileTraits['gender'];
                     if(trim((string)($profileTraits['race']??''))!=='')$seed['race']=$profileTraits['race'];
-                    if($resolvedVoice!==null)$seed['voice']=$this->catalogVoiceDocument($resolvedVoice);
+                    if($resolvedVoice!==null&&trim((string)($seed['voice']['id']??''))==='')$seed['voice']=$this->catalogVoiceDocument($resolvedVoice);
                     $seed=$this->morrowindLocalityContent($seed,$target,(string)$turn['installation_id']);
                     $seed['management']=['locked'=>false,'favorite'=>false];
                     $name=trim((string)($target['display_name']??$target['record_id']??'Morrowind NPC'));
@@ -2276,7 +2276,13 @@ SQL);
                 ."LEFT JOIN public.bio_templates_custom custom ON custom.npc_name=entry.npc_name "
                 ."WHERE lower(entry.record_id)=lower(:record) AND lower(COALESCE(entry.content_file,''))=lower(:content_file) LIMIT 2");
             $factory->execute(['record'=>$recordId,'content_file'=>$contentFile]);$rows=$factory->fetchAll();
+            // Custom biographies can cover creatures absent from the factory NPC catalog.
+            if($rows===[]){
+                $custom=$this->db->prepare('SELECT * FROM public.bio_templates_custom WHERE lower(refid)=lower(:record) LIMIT 2');
+                $custom->execute(['record'=>$recordId]);$rows=$custom->fetchAll();
+            }
             if(count($rows)===1){$row=$rows[0];return['content'=>[
+                'voice'=>['id'=>(string)($row['voiceid']??''),'source'=>'biography','language'=>'en'],
                 'oghma_knowledge_tags'=>(string)($row['oghma_knowledge_tags']??''),'core'=>(string)($row['core']??''),
                 'biography'=>(string)($row['npc_static_bio']??''),'appearance'=>(string)($row['appearance']??''),
                 'personality'=>(string)($row['personality']??''),'relationships'=>(string)($row['relationships']??'{}'),

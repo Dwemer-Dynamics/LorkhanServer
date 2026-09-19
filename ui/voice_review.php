@@ -31,10 +31,10 @@ include __DIR__.'/tmpl/head.html';include __DIR__.'/tmpl/navbar.php';
 <main class="voice-review">
 <header class="review-intro"><p class="review-eyebrow">LORKHAN / INWORLD VOICE DESIGN</p><h1>Character Voice Review</h1>
 <p>Two original voices per character. Listen, compare, and approve your favorite.</p>
-<p class="review-muted">Approvals are saved here only. Nothing is published to Inworld or assigned in-game yet. These are character-inspired designs, not imitations of the original actors.</p>
+<p class="review-muted">Approvals save your review choices. Publishing and assigning voices is a separate server operation. These are character-inspired designs, not imitations of the original actors.</p>
 <p class="review-muted">Dagoth Ur keeps his existing voice for both forms and is not part of this review.</p>
 <strong><?= $approved ?> / <?= count($document['characters']) ?> approved</strong>
-<?php if(isset($_GET['saved'])): ?><p role="status">Choice saved. Game voices are unchanged.</p><?php endif; ?>
+<?php if(isset($_GET['saved'])): ?><p role="status">Review choice saved.</p><?php endif; ?>
 <?php if($notice!==''): ?><p role="alert"><?= lorkhan_ui_h($notice) ?></p><?php endif; ?>
 </header>
 <nav class="review-jump" aria-label="Characters"><?php foreach($document['characters'] as $row): ?><a href="#<?= lorkhan_ui_h($row['key']) ?>"><?= lorkhan_ui_h($row['name']) ?></a><?php endforeach; ?></nav>

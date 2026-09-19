@@ -31,6 +31,21 @@ The manifest, opaque WAV previews and decisions are kept under
 Do not commit generated voices, credentials or account-specific provider IDs. Audio is served
 through the management page using allowlisted IDs; decisions require its CSRF token.
 
+## Apply approved voices
+
+Run `scripts/apply-approved-voices.php` with the same runtime account and configuration to
+validate all current approvals without changes. With explicit user authorization, add `--apply`
+to publish the selected drafts, copy approved WAVs into persistent voice storage, map local
+sample IDs to the published Inworld IDs, and save biography overrides for each actor record.
+Current matching NPC profiles receive a revision changing only their voice. Factory biographies
+remain unchanged. Assignment backups and publication checkpoints stay in the private review folder.
+
+If publication hits an account limit, `--apply --published-only` saves every approved sample
+but assigns only successfully published voices. It does not delete existing voices or assign
+unavailable drafts. An uncertain publication checkpoint requires provider inspection before retry;
+do not blindly remove checkpoints or repeat publication requests. Account-specific IDs and audio
+remain runtime data, not Git assets. Other connectors can use the retained WAV samples.
+
 ## Voice direction
 
 These are new character-inspired voices, not clones or actor impersonations. The seven ash-vampire
