@@ -1,4 +1,7 @@
 target_path,source_url,source_sha,source_path,license,disposition,transformation,reviewer
+lib/Infrastructure/Logger.php,https://github.com/Dwemer-Dynamics/HerikaServer,dcb5950a3d563356e0ab023cfa20457e74729d9e,lib/logger.php,CHIM and HerikaServer project lineage,adapted,CHIM timestamps levels and 25 MiB truncation with private shared writes,Codex
+connector/OpenAiCompatibleProvider.php,https://github.com/Dwemer-Dynamics/HerikaServer,dcb5950a3d563356e0ab023cfa20457e74729d9e,connector/openrouterjson.php,CHIM and HerikaServer project lineage,adapted,Exact context separators and output START END blocks,Codex
+connector/OpenAiCompatibleProfileGenerationProvider.php,https://github.com/Dwemer-Dynamics/HerikaServer,dcb5950a3d563356e0ab023cfa20457e74729d9e,connector/openrouterjson.php,CHIM and HerikaServer project lineage,adapted,Internal fast-request context and output format,Codex
 .github/workflows/server.yml,,,,repository proprietary,original,Supported PHP 8.3 and PostgreSQL 16 validation workflow,Codex
 composer.json,,,,repository proprietary,original,Independent package/runtime requirements and scripts,Claude
 config/server.example.php,,,,repository proprietary,original,Safe non-secret PostgreSQL/mock-provider configuration example,Claude

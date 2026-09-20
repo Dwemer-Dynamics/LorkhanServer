@@ -63,6 +63,21 @@ Do not treat display names as stable TES3 actor keys or collapse playthrough dat
    before making paid provider calls. Never publish raw logs or pairing snippets.
 
 The documentation is readable from disk. It is deliberately not a new public HTTP route.
+
+The Dashboard debugger uses CHIM's log cards and parsers: `lorkhan.log`,
+`context_sent_to_llm.log`, `context_sent_to_llm_fast.log`, `output_from_llm.log`,
+`output_to_plugin.log` and `stt.log`, plus Apache errors. Fast means internal generation
+(CHIM's fast-request path), not the selected conversation model slot; its output is
+also retained in `output_from_llm_fast.log`. Plugin output is the actual OpenMW event
+response, not proof of playback. Empty polls are not logged. Worker stdout and Apache
+access files remain operational logs, outside these cards.
+
+These files contain private conversation text after credential redaction; do not publish
+them. Deployment provisions shared worker/Apache permissions outside the web root.
+Writes use CHIM's 25 MiB truncation threshold and never replace the shared inode.
+Unavailable or busy diagnostic storage does not block gameplay. Tests can redirect
+logging with `LORKHAN_LOG_DIR` to an existing directory with precreated log files;
+runtime logging never creates a directory or repairs ownership.
 Read [WSL-APACHE-SETUP.md](WSL-APACHE-SETUP.md) before installation or update commands;
 those commands modify a running system and are not build checks.
 

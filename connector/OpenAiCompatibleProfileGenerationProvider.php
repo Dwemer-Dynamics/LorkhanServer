@@ -6,6 +6,7 @@ namespace LorkhanServer\Application;
 
 use LorkhanServer\Security\OutboundUrlPolicy;
 use RuntimeException;
+use LorkhanServer\Infrastructure\Logger;
 
 /** Bounded JSON text generation for profiles, diaries, speech-style analysis, and optional memory summaries. */
 final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerationProvider
@@ -107,6 +108,8 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
         // Player2 selects the model in its app, including legacy placeholder connector revisions.
         if ($this->player2) unset($request['model']);
         $body=json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+        // CHIM fast_request logs cover internal non-streaming generation, not the player's model-slot label.
+        Logger::context($request, $this->apiKey, fast: true);
         $networkOptions=OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection,$this->localNetwork);
         $handle=curl_init($this->endpoint);if($handle===false)throw new RuntimeException('provider_unavailable');
         $headers=LlmConnector::requestHeaders($this->apiKey,$this->player2);
@@ -118,9 +121,13 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
         try{$response=curl_exec($handle);$status=(int)curl_getinfo($handle,CURLINFO_RESPONSE_CODE);
             if($cancellation->isCancellationRequested())throw new OperationCancelled('operation_cancelled');
             if(!is_string($response)||$status<200||$status>=300||strlen($response)>2_097_152)throw new RuntimeException('provider_unavailable');
+        }catch(\Throwable $error){
+            Logger::warn('LLM internal request '.($error instanceof OperationCancelled?'cancelled':'failed').' mode='.$mode.' model='.$this->model);
+            throw $error;
         }finally{curl_close($handle);}
         try{$decoded=json_decode($response,true,64,JSON_THROW_ON_ERROR);$content=$decoded['choices'][0]['message']['content']??null;
             if(!is_string($content)||$content==='')throw new RuntimeException('provider_invalid_output');
+            Logger::output($content, $this->apiKey, fast: true);
             $content=ReasoningOutputCleaner::clean($content,($this->options['reasoning_model']??false)===true);
             $result=LlmConnector::decodeResponse($content,$prefix,16);
         }catch(\JsonException){throw new RuntimeException('provider_invalid_output');}

@@ -390,3 +390,10 @@ Dwemer-Dynamics/HerikaServer unstable at `1d9a3d8ad1157e3fd429f85e3b992efc234dcf
 (`lib/director_scene_contract.php` and `lib/core/tts_filter_presets.php`). Lorkhan retains
 its typed actor/action contracts, PostgreSQL jobs, bounded FFmpeg execution and private
 media storage rather than importing Skyrim execution or filesystem assumptions.
+
+Server log levels/timestamps, LLM context `var_export` separators, output START/END
+blocks and the 25 MiB truncation threshold derive from Dwemer-Dynamics/HerikaServer
+`lib/logger.php`, `connector/openrouterjson.php` and `lib/chat_helper_functions.php`
+at unstable `dcb5950a3d563356e0ab023cfa20457e74729d9e`. Native adapters retain private
+log storage, credential redaction, bounded non-blocking writes and the OpenMW wire
+response. No CHIM global error handler or Skyrim protocol is imported.

@@ -22,6 +22,7 @@ use LorkhanServer\Infrastructure\ProductRepository;
 use LorkhanServer\Infrastructure\ProviderAttemptRepository;
 use LorkhanServer\Infrastructure\Repository;
 use LorkhanServer\Infrastructure\Uuid;
+use LorkhanServer\Infrastructure\Logger;
 use LorkhanServer\Protocol\ValidationException;
 use LorkhanServer\Protocol\Validator;
 use LorkhanServer\Security\RequestMac;
@@ -433,8 +434,12 @@ final class Router
             usleep((int) min(100_000, max(1_000, ($deadline - microtime(true)) * 1_000_000)));
         } while (true);
         $next = $events === [] ? $after : $events[array_key_last($events)]['sequence'];
-        return Response::json(200, ['schema' => 'lorkhan.events.v1', 'session_id' => $session,
-            'generation' => $generation, 'next_after' => $next, 'events' => $events,'autonomy'=>[]]);
+        $body = ['schema' => 'lorkhan.events.v1', 'session_id' => $session,
+            'generation' => $generation, 'next_after' => $next, 'events' => $events,'autonomy'=>[]];
+        // Log the actual native wire response, never empty polls or a claimed playback acknowledgement.
+        if ($events !== []) Logger::write('output_to_plugin.log', json_encode(\LorkhanServer\Security\Redactor::value($body),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\r\n");
+        return Response::json(200, $body);
     }
 
     private function controlsQuery(Request $request): Response

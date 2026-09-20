@@ -57,6 +57,37 @@ $check = static function (bool $condition, string $message) use (&$failures, &$c
     }
 };
 
+// Suite diagnostics stay in disposable files, never the active player's logs.
+$logRoot=sys_get_temp_dir().'/lorkhan-logs-'.bin2hex(random_bytes(6));mkdir($logRoot,0700);
+$oldLogRoot=getenv('LORKHAN_LOG_DIR');putenv('LORKHAN_LOG_DIR='.$logRoot);
+foreach(\LorkhanServer\Infrastructure\Logger::FILES as $file)touch($logRoot.'/'.$file);
+register_shutdown_function(static function()use($logRoot,$oldLogRoot):void{
+    foreach(glob($logRoot.'/*')?:[] as $file)unlink($file);rmdir($logRoot);
+    putenv($oldLogRoot===false?'LORKHAN_LOG_DIR':'LORKHAN_LOG_DIR='.$oldLogRoot);
+});
+$logger=\LorkhanServer\Infrastructure\Logger::class;
+$logger::info('turn ready');
+$check(preg_match('/^\[\d{4}-[^\]]+\] \[info\] turn ready\n$/',file_get_contents($logRoot.'/lorkhan.log'))===1,'CHIM ordinary log format');
+$logger::context(['messages'=>[['role'=>'user','content'=>'hello echoed-key']], 'api_key'=>'hidden-key',
+    'metadata'=>(object)['client_secret'=>'hidden-key']], 'echoed-key');
+$context=file_get_contents($logRoot.'/context_sent_to_llm.log');
+$check(str_contains($context,"\n=\narray (")&&str_ends_with($context,"\n=\n")&&!str_contains($context,'hidden-key')&&!str_contains($context,'echoed-key'),'CHIM context blocks redact credentials');
+$logger::output('first sentence',started:'2026-09-20T00:00:00+00:00');
+$check(str_starts_with(file_get_contents($logRoot.'/output_from_llm.log'),"\n== 2026-09-20T00:00:00+00:00 START\n\nfirst sentence\n\n== "),'CHIM complete output block');
+$logger::context(['messages'=>[]],fast:true);$logger::output('internal answer',fast:true);
+$check(str_contains(file_get_contents($logRoot.'/context_sent_to_llm_fast.log'),"\n=\narray (")&&str_contains(file_get_contents($logRoot.'/output_from_llm_fast.log'),"\n=\ninternal answer\n=\n"),'CHIM internal fast log format');
+$logger::write('stt.log','password=hidden-password Bearer hidden-bearer');
+$check(!str_contains(file_get_contents($logRoot.'/stt.log'),'hidden-'),'credential-like free text is scrubbed');
+$locked=fopen($logRoot.'/lorkhan.log','r+b');flock($locked,LOCK_EX);$before=file_get_contents($logRoot.'/lorkhan.log');
+$logger::info('must not block');flock($locked,LOCK_UN);fclose($locked);
+$check(file_get_contents($logRoot.'/lorkhan.log')===$before,'busy log cannot block a request');
+$inode=fileinode($logRoot.'/lorkhan.log');$large=fopen($logRoot.'/lorkhan.log','r+b');ftruncate($large,26_214_400);fclose($large);
+$logger::info('after trim');clearstatcache();
+$check(filesize($logRoot.'/lorkhan.log')<200&&fileinode($logRoot.'/lorkhan.log')===$inode,'CHIM log trim preserves shared inode');
+putenv('LORKHAN_LOG_DIR='.$logRoot.'/missing');$logger::info('unavailable storage');
+$check(!file_exists($logRoot.'/missing'),'missing storage does not break a request');
+putenv('LORKHAN_LOG_DIR='.$logRoot);
+
 // Rechat uses the same reference identity as profile routing without needing database access.
 $rechatProducts=(new ReflectionClass(\LorkhanServer\Infrastructure\ProductRepository::class))->newInstanceWithoutConstructor();
 $rechatCoordinator=(new ReflectionClass(\LorkhanServer\Application\RechatCoordinator::class))->newInstanceWithoutConstructor();

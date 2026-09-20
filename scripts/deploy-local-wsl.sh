@@ -73,7 +73,7 @@ find /var/lib/lorkhanserver/backups/sql -xdev -type f -name 'sql-*.sql*' -exec c
 find /var/lib/lorkhanserver/backups -xdev -type f -name '*.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
 install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/credentials
 find /var/lib/lorkhanserver/credentials -xdev -type f -name 'provider-keys.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
-install -d -o lorkhan -g www-data -m 0750 /var/log/lorkhanserver
+bash "${source_root}/deploy/provision-logs.sh"
 
 stage_root=$(mktemp -d /var/tmp/lorkhanserver-stage.XXXXXX)
 cleanup_stage() {

@@ -6,6 +6,7 @@ namespace LorkhanServer\Application;
 
 use LorkhanServer\Security\OutboundUrlPolicy;
 use RuntimeException;
+use LorkhanServer\Infrastructure\Logger;
 
 /** OpenAI-compatible chat-completions adapter with a strict JSON response contract. */
 final class OpenAiCompatibleProvider implements StreamingProvider
@@ -62,6 +63,8 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             $body=json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
         }
         $this->emitDiagnostic($diagnosticObserver, 'request', $request);
+        $logStarted = date(DATE_ATOM);
+        Logger::context($request, $this->apiKey);
         $networkOptions = OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection,$this->localNetwork);
         $handle = curl_init($this->endpoint);
         if ($handle === false) throw new RuntimeException('provider_unavailable');
@@ -153,6 +156,10 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             if ($curlResult !== CURLE_OK || $status < 200 || $status >= 300 || strlen($responseBody) > 2_097_152) {
                 throw new RuntimeException('provider_unavailable');
             }
+        } catch (\Throwable $error) {
+            Logger::output($content, $this->apiKey, started: $logStarted);
+            Logger::warn('LLM request '.($error instanceof OperationCancelled ? 'cancelled' : 'failed').' model='.$this->model);
+            throw $error;
         } finally {
             if ($added) curl_multi_remove_handle($multi, $handle);
             curl_multi_close($multi);
@@ -175,6 +182,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             $this->reportedUsage['cost_usd']=(float)$usage['cost'];
         }
         if (!is_string($content) || $content === '') throw new RuntimeException('provider_invalid_output');
+        Logger::output($content, $this->apiKey, started: $logStarted);
         foreach ($visible->push('', true) as $index => $text) $onDialogueDelta($text, $languageEnabled?SpeechLanguage::fromJsonPrefix(str_starts_with(ltrim($content),'{')?$content:$prefix.$content):null, $visible->chunkMoods()[$index] ?? null, $visible->chunkTones()[$index] ?? null);
         $result = $this->decodeStructuredContent($content, $prefix);
         $language=$languageEnabled?SpeechLanguage::normalize($result['language']??null):null;

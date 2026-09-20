@@ -11,6 +11,7 @@ use LorkhanServer\Infrastructure\Repository;
 use LorkhanServer\Infrastructure\Uuid;
 use DomainException;
 use Throwable;
+use LorkhanServer\Infrastructure\Logger;
 
 final class TurnProcessJobHandler implements JobHandler
 {
@@ -53,6 +54,7 @@ final class TurnProcessJobHandler implements JobHandler
             throw $error;
         }
         $message = $this->repository->turnMessage($turnId);
+        Logger::info('Turn started: turn_id='.$turnId.' request_id='.$message['request_id']);
         $deadline = hrtime(true) + max(1, $this->timeoutMs) * 1_000_000;
         $lastCheck = 0;
         $cancelled = false;
@@ -94,6 +96,7 @@ final class TurnProcessJobHandler implements JobHandler
             $queueSpeech = $this->mediaStore !== null
                 && in_array('speech.say', $message['_negotiated_capabilities'], true);
             $this->repository->completeTurn($message,$result,null,$fence,$queueSpeech,$streamedDialogues);
+            Logger::info('Turn completed: turn_id='.$turnId);
             if($this->products!==null){
                 try{$this->products->maybeEnqueueSceneClassification($message);}
                 catch(Throwable $error){error_log('[LORKHAN] scene classification scheduling failed: '.$error::class);}
@@ -101,6 +104,7 @@ final class TurnProcessJobHandler implements JobHandler
                 catch(Throwable $error){error_log('[LORKHAN] automatic profile backfill scheduling failed: '.$error::class);}
             }
         } catch (OperationCancelled) {
+            Logger::warn('Turn cancelled or timed out: turn_id='.$turnId);
             if (!$this->repository->isTurnCancellationRequested($sessionId, $turnId, $generation)) {
                 $this->repository->failTurn($message, 'provider_timeout', $fence);
             }
@@ -108,6 +112,7 @@ final class TurnProcessJobHandler implements JobHandler
         } catch (Throwable $error) {
             // Persisting the terminal failure is the successful handling of this turn job. Retrying
             // the provider after exposing turn.failed would contradict the terminal protocol state.
+            Logger::error('Turn failed: turn_id='.$turnId.' code='.$this->providerFailureCode($error));
             $this->repository->failTurn($message, $this->providerFailureCode($error), $fence);
             return;
         }
