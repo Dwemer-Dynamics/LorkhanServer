@@ -20,8 +20,8 @@ $controlSections = [
     ]],
     'data-tools' => ['label' => 'Data & Tools', 'tabs' => [
         'cache' => ['Audio Cache', '&#x1F3BC;', 'control.cache', $webRoot . '/ui/cache_browser.php?embed=1'],
-        'playthrough' => ['Playthrough Manager', '&#x1F3AE;', 'control.playthroughs', $webRoot . '/ui/playthrough_manager.php?embed=1'],
-        'dbmgr' => ['Database Manager', '&#x1F5C4;&#xFE0F;', 'control.database', $webRoot . '/ui/database_manager.php?embed=1'],
+        'playthrough' => ['Playthrough Manager', '&#x1F3AE;', 'control.playthroughs', '/Dwemer-Dashboard/data_manager.php?mod=lorkhan&embed=1'],
+        'dbmgr' => ['Database Manager', '&#x1F5C4;&#xFE0F;', 'control.database', '/Dwemer-Dashboard/data_manager.php?mod=lorkhan&view=advanced&embed=1'],
     ]],
 ];
 $aliases = ['server-logs-page'=>'srvlogs','requests-page'=>'requests','oghma-audit-page'=>'oghmaaudit','relationships-page'=>'rellogs','usage-page'=>'audit','queue-page'=>'responses','cache-page'=>'cache','playthrough-page'=>'playthrough','database-page'=>'dbmgr','health-page'=>'srvlogs'];

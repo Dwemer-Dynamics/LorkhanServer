@@ -1,6 +1,6 @@
 <?php
 // CHIM's Home toolbar, using Lorkhan's saved-character association instead of replacing a live database.
-$homeManagerUrl = $webRoot.'/ui/playthrough_manager.php?'.http_build_query(['installation_id'=>$installation]);
+$homeManagerUrl = '/Dwemer-Dashboard/data_manager.php?'.http_build_query(['mod'=>'lorkhan','installation_id'=>$installation]);
 $homeCurrentName = 'No saved character connected';
 $homeTargets = [];
 $homeProtected = array_column($homeCharacterState['bindings'], 'playthrough_id');

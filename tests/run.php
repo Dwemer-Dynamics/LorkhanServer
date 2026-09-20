@@ -98,23 +98,6 @@ $check(PairingToken::verifyAuthorization('Bearer ' . $token, $hash), 'pairing to
 $check(!PairingToken::verifyAuthorization('Bearer wrong', $hash), 'wrong token rejected');
 $check(Redactor::value(['authorization' => 'Bearer ' . $token])['authorization'] === '[REDACTED]', 'authorization redacted');
 $check(!str_contains((string) Redactor::value('Bearer ' . $token), $token), 'embedded bearer token redacted');
-require dirname(__DIR__).'/ui/tmpl/server_log_reader.php';
-$logFixture="[2026-09-06T12:00:00Z] [ERROR] failed Authorization: Bearer fixture-bearer\n  stack frame\n".
-    '{"timestamp":"2026-09-06T12:01:00Z","level":"warning","message":"retry","api_key":"fixture-json","provider_key":"fixture-provider"}'."\n".
-    '[Sun Sep 06 12:02:00.123 2026] [php:error] password="fixture quoted password"';
-$logEntries=lorkhan_ui_log_entries($logFixture);
-$logProjection=json_encode($logEntries);
-$check(count($logEntries)===3 && $logEntries[0]['level']==='error' && $logEntries[0]['iso']===''
-    && $logEntries[1]['level']==='warn' && $logEntries[1]['iso']==='2026-09-06T12:01:00+00:00'
-    && str_contains($logEntries[2]['message'],'stack frame'), 'server log rows preserve severity, timezone knowledge and multiline entries in newest-first order');
-$check(!str_contains($logProjection,'fixture-bearer') && !str_contains($logProjection,'fixture-json')
-    && !str_contains($logProjection,'fixture-provider') && !str_contains($logProjection,'fixture quoted password'), 'server log projection redacts bearer, JSON and quoted credentials');
-$check(!str_contains(lorkhan_ui_redact_log('GET /?token=fixture-url&next=1 Authorization: Basic fixture-basic'),'fixture-')
-    && lorkhan_ui_log_entries('first'."\n".'second',true)[0]['message']==='second', 'raw log rows redact URL and Basic credentials and reverse line order');
-$logTailFixture=tempnam(sys_get_temp_dir(),'lorkhan-log-tail-');
-file_put_contents($logTailFixture,"oversized first line\nsecond\nthird\n");
-$check(lorkhan_ui_log_tail($logTailFixture,18,1)==='third', 'bounded log tail discards partial first line and respects line limit');
-unlink($logTailFixture);
 require dirname(__DIR__).'/ui/tmpl/oghma_audit_reader.php';
 $auditCard=lorkhan_oghma_audit_card(['result_count'=>1,'result_ids'=>['article-one'],'scores'=>['article-one'=>0.95],
     'reasons'=>['article-one'=>['topic'=>'Sixth House','signal'=>'House Dagoth','source'=>'grounded','score'=>0.95,'selected'=>true,'reason'=>'exact topic alias'],

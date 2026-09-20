@@ -168,9 +168,16 @@ python scripts/audit-morrowind-oghma-catalog.py `
 
 Catalog assembly reserves canonical topic keys first and removes ambiguous generated aliases deterministically. Every dropped alias is recorded in the catalog manifest. Review JSON, Markdown, and HTML are bundled under `data/oghma/morrowind-official/reviews/morrowind-official-3e427-v2/` before activation.
 
+## Current runtime catalog
+
+The selected catalog is `morrowind-official-3e427-v5.21`, recorded in
+`data/oghma/morrowind-official/active-catalog-version.txt`. Runtime staging includes
+only the catalog selected by that file. The sections below describe historical generation
+runs; their catalogs and authoring scripts remain in source for reproducibility, not deployment.
+
 ## V4 official-book expansion
 
-The active `morrowind-official-3e427-v4` catalog adds 84 reviewed book-backed lore topics to the v3
+The historical `morrowind-official-3e427-v4` catalog adds 84 reviewed book-backed lore topics to the v3
 catalog. `scripts/audit-morrowind-oghma-books.py` audits winning official BOOK records without
 copying their text into repository artifacts. `scripts/build-morrowind-oghma-v4-seeds.py` builds the
 curated v4 inventory with exact official BOOK evidence links. The preflight generator reads the
@@ -178,11 +185,11 @@ official book text directly from the locally installed ESMs and may supplement i
 revision-addressed UESP evidence.
 
 V4 contains 700 accepted articles and preserves v3's three editorial exclusions. It remains checked in
-as a superseded rollback target; the currently selected factory catalog is documented below.
+as a superseded rollback target; the currently selected factory catalog is documented above.
 
 ## V5.17 Tamriel Rebuilt full catalog
 
-The active `morrowind-official-3e427-v5.17` catalog contains 3,743 articles, including 2,443 scoped to
+The historical `morrowind-official-3e427-v5.17` catalog contains 3,743 articles, including 2,443 scoped to
 `TR_Mainland.esm`. This pass adds 1,177 reviewed Tamriel Rebuilt subjects: 530 books, 491 ingredients,
 69 artifacts, 23 creatures, 19 diseases, 15 factions, 12 cultures, 11 races, three magic subjects,
 two history subjects, one lore subject, and one religion subject. It also fills the 106 basic-knowledge
