@@ -257,7 +257,7 @@ final class EventLogRepository
         foreach ($profileIds as $id) {
             $row = $byId[$id];
             $recipients[] = ['profile_id'=>$id,'name'=>(string) $row['name'],
-                'identity'=>$this->stableIdentity($this->decodeObject($row['actor_identity']))];
+                'identity'=>$this->stableIdentity($this->decodeObject($row['actor_identity']))+['display_name'=>(string) $row['name']]];
         }
         $gameTime = $this->db->prepare('SELECT COALESCE(max(e.gamets),0) FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid '
             . 'WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough');
@@ -613,7 +613,7 @@ final class EventLogRepository
                 . 'VALUES (:type,:data,:sess,:gamets,extract(epoch FROM CAST(:created AS timestamptz))::bigint,'
                 . '(extract(epoch FROM CAST(:created AS timestamptz))*1000)::bigint,:people,:location,NULL,:utterance,:delivery) RETURNING rowid');
             $event->execute(['type'=>$row['type'],'data'=>$row['data'],'sess'=>$row['sess'],'gamets'=>$row['gamets'],
-                'created'=>$row['created_at'],'people'=>$row['people'],'location'=>$row['location'],
+                'created'=>$row['created_at'],'people'=>$this->people($row['speaker'] ?? [], $row['target'] ?? [], $row['audience'] ?? []),'location'=>$row['location'],
                 'utterance'=>$row['utterance_id'] ?? null,'delivery'=>$row['delivery_state'] ?? null]);
             $rowId = (int) $event->fetchColumn();
             $metadata = $this->db->prepare('INSERT INTO eventlog_metadata (rowid,installation_id,playthrough_id,profile_id,session_id,'
@@ -770,7 +770,16 @@ final class EventLogRepository
         foreach (array_merge([$speaker,$target], $audience) as $identity) {
             if (!is_array($identity)) continue;
             $name = $this->displayName($identity, '');
-            if ($name !== '') $names[strtolower($name)] = $name;
+            if ($name === '') continue;
+            // Match the placed-reference key, never a display name or load-order slot.
+            try {
+                $reference = ProfileId::reference($identity);
+                $key = (string) ($identity['kind'] ?? 'npc') . ':' . $reference;
+                $names[$key] = str_replace('|', '/', $name) . ' [' . str_replace('|', ':', $reference) . ']';
+            } catch (InvalidArgumentException) {
+                // Legacy events without identity remain visibly unresolved; do not guess from names.
+                $names['unknown:' . strtolower($name)] = str_replace('|', '/', $name) . ' [unknown ref]';
+            }
         }
         return $names === [] ? '' : '|' . implode('|', array_values($names)) . '|';
     }

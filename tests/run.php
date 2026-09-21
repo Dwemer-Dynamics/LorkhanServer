@@ -3944,6 +3944,13 @@ foreach ([[$referenceProfile,$referenceWorld,true],[$referenceInstallation,$refe
     }
 }
 $referenceMoved=$referenceActor;$referenceMoved['refnum']['content_file']=8;$referenceMoved['cell']=['name'=>'Other cell'];$referenceMoved['display_name']='Renamed Guard';
+$eventPeople=new ReflectionMethod(\LorkhanServer\Infrastructure\EventLogRepository::class,'people');
+$guardOne=$referenceActor+['display_name'=>'Hlaalu Guard'];
+$guardTwo=$guardOne;$guardTwo['refnum']['index']=43;
+$check($eventPeople->invoke($historyScopeProbe,$guardOne,$guardTwo,[$guardOne])==='|Hlaalu Guard [morrowind.esm:42]|Hlaalu Guard [morrowind.esm:43]|',
+    'event people shows distinct same-name references and deduplicates repeated identities');
+$check($eventPeople->invoke($historyScopeProbe,['display_name'=>'Legacy'],[],[])==='|Legacy [unknown ref]|',
+    'event people never guesses a missing reference from the name');
 $check(\LorkhanServer\Domain\ProfileId::forActor($referenceInstallation,$referenceWorld,$referenceMoved)===$referenceProfile,'movement, name and load order do not change profile key');
 $check(\LorkhanServer\Domain\ProfileId::isValid($referenceInstallation),'existing persona UUID remains valid');
 foreach([strtoupper($referenceProfile),$referenceProfile."\n",str_replace('|42','|042',$referenceProfile),str_replace('|42','|4294967296',$referenceProfile),str_replace('morrowind.esm','../morrowind.esm',$referenceProfile)]as$invalidReference)
