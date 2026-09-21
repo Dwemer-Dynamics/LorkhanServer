@@ -2,3 +2,6 @@
 /ui/voice_review.php
 /ui/css/voice-review.css
 /ui/js/voice-review.js
+# Development fixtures and browser source maps remain in source, not the installed runtime.
+/protocol/fixtures/
+/ui/lib/ui/bootstrap/*.map

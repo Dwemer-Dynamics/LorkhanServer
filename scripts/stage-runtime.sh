@@ -22,8 +22,10 @@ for file in articles.json manifest.json catalog-version.txt; do
 done
 rsync -ar --files-from="${source_root}/deploy/runtime-files.txt" \
     --exclude-from="${source_root}/deploy/runtime-excludes.txt" "${source_root}/" "${stage_root}/"
-# Retain only the selected catalog; historical catalogs remain available in source for rollback.
-rsync -arR "${source_root}/./${catalog_base}/catalogs/${catalog}/" "${stage_root}/"
+# Ship the selected catalog's runtime inputs, not its authoring seeds or historical catalogs.
+for file in articles.json manifest.json catalog-version.txt; do
+    rsync -arR "${source_root}/./${catalog_base}/catalogs/${catalog}/${file}" "${stage_root}/"
+done
 
 # Exercise bundled data loaders before deployment can stop the worker or replace live code.
 php /dev/stdin "${stage_root}" <<'PHP'
