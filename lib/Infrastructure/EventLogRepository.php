@@ -6,6 +6,7 @@ namespace LorkhanServer\Infrastructure;
 
 use LorkhanServer\Application\PlayerMoodPolicy;
 use LorkhanServer\Application\MorrowindCalendar;
+use LorkhanServer\Domain\ProfileId;
 use InvalidArgumentException;
 use PDO;
 use RuntimeException;
@@ -636,8 +637,8 @@ final class EventLogRepository
     /** Resolve an NPC and playthrough to one installation-owned stable identity. */
     private function profileScope(string $profileId, string $playthroughId): array
     {
-        foreach ([$profileId, $playthroughId] as $id) {
-            if (!Uuid::isValid($id)) throw new InvalidArgumentException('invalid_eventlog_scope');
+        if (!ProfileId::isValid($profileId) || !Uuid::isValid($playthroughId)) {
+            throw new InvalidArgumentException('invalid_eventlog_scope');
         }
         $statement = $this->db->prepare("SELECT p.installation_id,p.name,p.actor_identity FROM profiles p "
             . 'JOIN playthroughs t ON t.playthrough_id=:playthrough AND t.installation_id=p.installation_id AND t.deleted_at IS NULL '

@@ -3930,6 +3930,19 @@ $referenceWorld='00000000-0000-4000-8000-000000000002';
 $referenceActor=['kind'=>'npc','record_id'=>'guard','content_file'=>'Morrowind.esm','refnum'=>['index'=>42,'content_file'=>0]];
 $referenceProfile=\LorkhanServer\Domain\ProfileId::forActor($referenceInstallation,$referenceWorld,$referenceActor);
 $check($referenceProfile==='ref:'.$referenceInstallation.':'.$referenceWorld.':morrowind.esm|42','NPC profile uses scoped canonical reference');
+// Valid NPC IDs must reach the ownership query; malformed IDs must never reach the database.
+$historyScopeProbe=new \LorkhanServer\Infrastructure\EventLogRepository(new class extends PDO {
+    public function __construct() {}
+    public function prepare(string $query,array $options=[]):PDOStatement|false { throw new RuntimeException('history_scope_query'); }
+});
+foreach ([[$referenceProfile,$referenceWorld,true],[$referenceInstallation,$referenceWorld,true],
+    ['ref:malformed',$referenceWorld,false],[$referenceProfile,$referenceProfile,false]] as [$historyProfile,$historyWorld,$validHistoryScope]) {
+    try { $historyScopeProbe->profileHistory($historyProfile,$historyWorld);$check(false,'history scope validation did not run'); }
+    catch (RuntimeException|InvalidArgumentException $error) {
+        $check($error->getMessage()===($validHistoryScope?'history_scope_query':'invalid_eventlog_scope'),
+            'NPC history accepts reference/legacy profile IDs but keeps playthrough UUID validation');
+    }
+}
 $referenceMoved=$referenceActor;$referenceMoved['refnum']['content_file']=8;$referenceMoved['cell']=['name'=>'Other cell'];$referenceMoved['display_name']='Renamed Guard';
 $check(\LorkhanServer\Domain\ProfileId::forActor($referenceInstallation,$referenceWorld,$referenceMoved)===$referenceProfile,'movement, name and load order do not change profile key');
 $check(\LorkhanServer\Domain\ProfileId::isValid($referenceInstallation),'existing persona UUID remains valid');
