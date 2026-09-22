@@ -327,10 +327,8 @@ final class ProductRepository
             $id=$this->deterministicUuid('lorkhan:core-profile:default:v1:'.$installationId);
             $content=['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]];
             if($this->coreCreationPreset($installationId)===null){
-                // CHIM's initial SQL profile differs from its explicitly applied Quickstart preset.
+                // Reuse Quickstart's Rechat defaults while retaining the initial boredom chance.
                 $content=\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn('builtin:default',$content);
-                $content['settings_overrides']['behavior']['rechat_max_depth']=4;
-                $content['settings_overrides']['behavior']['rechat_probability_percent']=100;
                 $content['settings_overrides']['bored_event']['chance_percent']=50;
             }
             $content=$this->withCoreCreationDefaults($installationId,$content);

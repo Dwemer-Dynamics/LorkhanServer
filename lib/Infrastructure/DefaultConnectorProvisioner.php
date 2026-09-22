@@ -54,8 +54,8 @@ final class DefaultConnectorProvisioner
             }
             $relationshipId=$this->ensureConfiguration($service,$installationId,'provider','Mistral Small 3.2 24B',
                 ['driver'=>'configured','model'=>'mistralai/mistral-small-3.2-24b-instruct','options'=>['max_tokens'=>750,'temperature'=>1.0]]);
-            $sceneId=$this->ensureConfiguration($service,$installationId,'provider','Gemma 3N E4B',
-                ['driver'=>'configured','model'=>'google/gemma-3n-e4b-it','options'=>['max_tokens'=>128,'temperature'=>0.2]]);
+            $sceneId=$this->ensureConfiguration($service,$installationId,'provider','Gemma 3 4B',
+                ['driver'=>'configured','model'=>'google/gemma-3-4b-it','options'=>['max_tokens'=>128,'temperature'=>0.2]]);
             $systemRoutes = [
                 'oghma_configuration_id' => $routes['llm_fast_configuration_id'],
                 'profile_generation_configuration_id' => $routes['llm_configuration_id'],
