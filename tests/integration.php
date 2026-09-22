@@ -236,10 +236,13 @@ $defaultModels=[];$defaultPromptFormat=null;foreach($defaultConfigurations as$co
     if(($content['driver']??null)==='configured')$defaultModels[(string)$configuration['name']]=$content['model']??null;}
 $assert($defaultModels===[
     'DeepSeek V4 Flash'=>'deepseek/deepseek-v4-flash','DeepSeek V4 Pro'=>'deepseek/deepseek-v4-pro','GLM 5.2'=>'z-ai/glm-5.2',
-    'Gemini 2.5 Flash Lite'=>'google/gemini-2.5-flash-lite','Gemma 3N E4B'=>'google/gemma-3n-e4b-it',
+    'Gemini 2.5 Flash Lite'=>'google/gemini-2.5-flash-lite','Gemma 3 4B'=>'google/gemma-3-4b-it',
     'Mistral Small 3.2 24B'=>'mistralai/mistral-small-3.2-24b-instruct'],
     'new installation did not receive the pinned CHIM LLM connector set: '.json_encode($defaultModels));
 $defaultCore=(new ProductRepository($db))->defaultCoreProfileForInstallation($defaultInstallationId);
+$assert(($defaultCore['content']['settings_overrides']['behavior']['rechat_max_depth']??null)===2
+    &&($defaultCore['content']['settings_overrides']['behavior']['rechat_probability_percent']??null)===50,
+    'new installation Rechat defaults must match Quickstart: 2 rounds and 50 percent');
 $defaultRouting=$defaultCore['content']['routing']??[];
 $defaultGlobal=(new ProductRepository($db))->globalSettingsForInstallation($defaultInstallationId);
 $defaultSystemRouting=$defaultGlobal['content']['system_routing']??[];
