@@ -1,6 +1,6 @@
 # Developing and validating LorkhanServer
 
-Start from https://github.com/RANGROO/LorkhanServer at the required revision. An installed
+Start from https://github.com/Dwemer-Dynamics/LorkhanServer at the required revision. An installed
 runtime lacks the full test/development tree. Read root AGENTS.md and the
 [agent guide](agent-guide.md). There is no native server DLL to compile.
 

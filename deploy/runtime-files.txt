@@ -47,3 +47,4 @@ docs/WSL-APACHE-SETUP.md
 docs/PROTOCOL.md
 docs/PLAYTHROUGH-PARITY.md
 version.txt
+LICENSE

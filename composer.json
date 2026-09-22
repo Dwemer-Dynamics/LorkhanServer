@@ -1,8 +1,8 @@
 {
-  "name": "rangroo/lorkhanserver",
+  "name": "dwemer-dynamics/lorkhanserver",
   "description": "Local-first TES3/OpenMW backend for LORKHAN",
   "type": "project",
-  "license": "proprietary",
+  "license": "GPL-3.0-only",
   "require": {
     "php": ">=8.2",
     "ext-json": "*",

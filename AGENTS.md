@@ -2,7 +2,7 @@
 
 ## Start here
 
-- Source: https://github.com/RANGROO/LorkhanServer; client: https://github.com/RANGROO/LORKHAN.
+- Source: https://github.com/Dwemer-Dynamics/LorkhanServer; client: https://github.com/Dwemer-Dynamics/LORKHAN.
 - Read [docs/agent-guide.md](docs/agent-guide.md) for installed/source boundaries, diagnostics and custom integrations.
 - Read [docs/building.md](docs/building.md) for portable validation and runtime staging.
 - In an installed server, obtain matching source before running source-only build/test commands.
@@ -47,3 +47,9 @@
 - Run PHP/static/unit/integration/migration/schema/UI build tests plus sibling contract E2E.
 - Track completion rows with evidence. Do not claim WSL/browser/game integration from unit tests.
 - Do not push, publish, deploy or modify reference repos without separate authorization.
+
+## Public repository workflow
+
+- The canonical remote is Dwemer-Dynamics; use unstable for development.
+- Submit feature/fix PRs to unstable. Maintainer promotions follow unstable -> dev -> lorkhan.
+- lorkhan is the default release branch. Preserve third-party notices and the GPLv3 license.

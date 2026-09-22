@@ -1,8 +1,8 @@
 # Working with LorkhanServer
 
 LorkhanServer is the PHP/PostgreSQL backend for the
-[LORKHAN OpenMW/Morrowind client](https://github.com/RANGROO/LORKHAN).
-The [server source](https://github.com/RANGROO/LorkhanServer) owns prompts, providers,
+[LORKHAN OpenMW/Morrowind client](https://github.com/Dwemer-Dynamics/LORKHAN).
+The [server source](https://github.com/Dwemer-Dynamics/LorkhanServer) owns prompts, providers,
 profiles, memory and workers. It cannot directly mutate OpenMW actors. Read the
 [root instructions](../AGENTS.md) and [building.md](building.md) before changing source.
 
@@ -11,12 +11,9 @@ profiles, memory and workers. It cannot directly mutate OpenMW actors. Read the
 The source checkout contains tests and development tooling. The installed web root is
 assembled by deploy/runtime-files.txt and contains selected operational documentation.
 Use the installed revision or deployment record to find matching source before rebuilding.
-Links to upstream main describe current source, which may differ from the installed version.
+Links to upstream lorkhan describe current source, which may differ from the installed version.
 
-Both linked source repositories are currently private. GitHub source and custom-plugin
-example links require authorized access. Without it, ask the maintainer for access or a
-complete source archive matching the installed revision. No public source download is
-provided here; the bundled operational guides remain readable offline.
+Both source repositories are public under Dwemer-Dynamics. Use the matching source revision for an installed build. The bundled operational guides remain readable offline.
 
 The usual web root is /var/www/html/LorkhanServer. Persistent configuration and secrets
 are under /etc/lorkhanserver; media and credentials under /var/lib/lorkhanserver; logs
@@ -87,16 +84,16 @@ This server does not provide the HerikaServer ext drop-in plugin contract. Do no
 an ext directory or assume another product's plugin hooks exist here.
 
 For a custom provider, inspect the maintained
-[connector implementations](https://github.com/RANGROO/LorkhanServer/tree/main/connector),
-[speech adapters](https://github.com/RANGROO/LorkhanServer/tree/main/tts) and
-[STT adapters](https://github.com/RANGROO/LorkhanServer/tree/main/stt).
+[connector implementations](https://github.com/Dwemer-Dynamics/LorkhanServer/tree/lorkhan/connector),
+[speech adapters](https://github.com/Dwemer-Dynamics/LorkhanServer/tree/lorkhan/tts) and
+[STT adapters](https://github.com/Dwemer-Dynamics/LorkhanServer/tree/lorkhan/stt).
 Follow their interfaces, configuration validation, credential storage and runtime autoload
 mapping. Keep URLs and secrets server-owned. Use deterministic mocks in existing tests.
 These are source integration points, not a promised external SDK.
 
 For a custom game action, coordinate with the client's
-[Lua scripts](https://github.com/RANGROO/LORKHAN/tree/main/lorkhan/files/scripts/LORKHAN)
-and [engine integration boundary](https://github.com/RANGROO/LORKHAN/blob/main/docs/ENGINE-INTEGRATION-PLAN.md).
+[Lua scripts](https://github.com/Dwemer-Dynamics/LORKHAN/tree/lorkhan/lorkhan/files/scripts/LORKHAN)
+and [engine integration boundary](https://github.com/Dwemer-Dynamics/LORKHAN/blob/lorkhan/docs/ENGINE-INTEGRATION-PLAN.md).
 Inspect [PROTOCOL.md](PROTOCOL.md), negotiated capabilities and action policy on both sides.
 Keep schemas/fixtures byte-identical, reject stale sessions and persist terminal results.
 Never emit model-selected code, shell commands, filesystem paths or arbitrary URLs.

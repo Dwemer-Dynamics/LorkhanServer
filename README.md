@@ -1,111 +1,67 @@
 # LorkhanServer
 
-LorkhanServer is the local Apache/PHP/PostgreSQL backend and browser management application for
-`RANGROO/LORKHAN`, designed around TES3/OpenMW semantics and the shared CHIM/Dialectic product model.
+PHP/PostgreSQL backend for the **LORKHAN AI Framework for Morrowind**.
+Works with the [LORKHAN OpenMW client](https://github.com/Dwemer-Dynamics/LORKHAN)
+and follows the shared Dwemer Dynamics server layout.
 
-## For AI assistants and coding agents
+## Features
 
-Start at [AGENTS.md](AGENTS.md), then [the agent guide](docs/agent-guide.md) for architecture,
-diagnostics and custom integrations, or [building.md](docs/building.md) for validation.
-These files also ship in the installed server's explicit runtime manifest.
+- AI and speech connectors, streaming dialogue and NPC voice configuration.
+- Profiles, prompts, actions, memories, relationships and world knowledge.
+- Browser configuration, event history and diagnostics.
+- Background processing and playthrough-aware persistence and backups.
+- Reference-based actor identity for distinct NPC instances.
 
-## Status
+## Runtime topology
 
-The complete local provider vertical slice is implemented and deployed: authenticated sessions,
-turns and ordered events, dialogue/TTS media, action/result delivery, profiles and prompts, memory,
-relationships, knowledge, narrative, durable jobs, diagnostics/backups, and the
-CSRF-protected CHIM-styled management surface. New installations receive CHIM's Standard, Fast,
-Powerful, and Experimental OpenRouter model slots plus PocketTTS; the API key remains in protected
-server credential storage, and mock providers remain available for deterministic tests. Default
-Direct WSL URL: `http://127.0.0.1:8090/LorkhanServer/ui/home.php`. The DwemerDistro Launcher exposes the Windows route on `http://127.0.0.1:7514`. Apache and PostgreSQL are access-controlled for
-the local machine and are not exposed as a public service.
+1. LORKHAN sends authenticated game events to `index.php`.
+2. The server stores events and builds the NPC's context and prompt.
+3. Connectors generate dialogue and speech.
+4. Ordered replies return to the game; playback and action results are reported back.
 
-## Responsibilities
+## Requirements and setup
 
-- authenticated, versioned game-client ingress and ordered response events;
-- profiles, prompts, actions, providers, memories, relationships and world knowledge;
-- event/turn/action-result persistence with OpenMW content and actor identity;
-- TTS/STT/LLM connectors, bounded media, derived-state workers, backups and diagnostics;
-- browser setup and management UI.
+- PHP 8.2+ with the extensions listed in [composer.json](composer.json).
+- Apache and PostgreSQL; see [WSL setup](docs/WSL-APACHE-SETUP.md).
+- The matching [LORKHAN client](https://github.com/Dwemer-Dynamics/LORKHAN).
 
-The management interface follows the shared HerikaServer/DialecticServer PHP page format: physical
-`ui/*.php` pages include one common head, Bootstrap navbar, and footer; Configuration and
-Control Panel use grouped lazy-loaded iframe tabs. Legacy `/manage/*` page URLs redirect to the
-canonical PHP pages while `/manage/forms/*` and `/manage/api/v1/*` remain the CSRF-protected backend.
+This is a **0.1.0 prototype**, not a public internet service. Keep credentials outside
+the repository and preserve the local access controls.
 
-It does not own OpenMW game objects, execute engine actions, store Bethesda game data, or put provider
-credentials in the client.
+The DwemerDistro local route is `http://127.0.0.1:7514/LorkhanServer/ui/home.php`.
+See [runtime layout](docs/RUNTIME-LAYOUT.md) and [build instructions](docs/building.md).
+Preserve existing settings and player data during updates.
 
-## LLM connectors
+## Key paths
 
-The connector editor supports three modes:
+| Path | Purpose |
+| --- | --- |
+| `ui/` | Browser pages and assets |
+| `processor/`, `prompts/` | Dialogue processing and prompts |
+| `connector/`, `tts/`, `stt/` | AI and speech providers |
+| `lib/` | Shared logic and database access |
+| `service/` | Background workers |
+| `data/` | Schema and bundled catalogs |
+| `conf/`, `deploy/` | Configuration template and runtime setup |
 
-- **Configured runtime** keeps the server endpoint and key. Existing model-only slots need no changes.
-- **Direct OpenAI-compatible endpoint** uses a complete chat-completions URL and a named server-held key.
-  Public hosts require HTTPS; plain HTTP is limited to `localhost` or `127.*`. URLs cannot contain
-  credentials, a query string, or a fragment. DNS/private-address checks run when connecting, not saving.
-- **Deterministic mock** makes no provider request.
+## Branches and pull requests
 
-Optional sampling controls include temperature, one token limit (`max_tokens` or
-`max_completion_tokens`), top-p/top-k/min-p/top-a, and repetition/frequency/presence penalties.
-Blank sampling fields use the provider's defaults for direct connectors, or inherit server settings
-for configured connectors. Explicit zero and false values are preserved. Provider support varies;
-an unsupported parameter may cause a test failure. See the [OpenRouter parameter reference](https://openrouter.ai/docs/api_reference/parameters).
-Streaming affects dialogue only. Turning JSON mode off removes the provider hint, not LORKHAN's
-strict response validation. Reasoning Model Fix can remove one leading balanced reasoning-tag block before
-that validation; it is opt-in and separate from Disable reasoning. Arbitrary request bodies and JSON prefill remain unsupported.
+**`unstable` → `dev` → `lorkhan`**
 
-API Keys manages Default, OpenAI LLM, OpenRouter LLM, and Custom LLM keys separately. Existing default
-and speech key values are not moved. Direct connectors start without a key. Export/import clears
-the key selection so an imported endpoint cannot acquire a local credential automatically; select
-the intended key after reviewing the endpoint. Local cloning and revision rollback preserve key references.
-Explicit direct connections bypass environment proxies and pin validated DNS answers; configured
-runtime connections retain the operator's proxy configuration. Neither Save nor Import calls a provider.
-Test and subsequent use of an assigned connector can incur provider charges.
+| Branch | Purpose |
+| --- | --- |
+| `unstable` | Development; submit feature and fix PRs here. |
+| `dev` | Beta testing after maintainer promotion. |
+| `lorkhan` | Stable/default branch after release review. |
 
-### Profile generation routing
+Discuss proposed work with maintainers before submitting a PR.
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [PR template](.github/PULL_REQUEST_TEMPLATE.md).
+Promotions are reviewed manually. All three branches initially contain identical code.
 
-Core Profiles can select a **Profile Generation LLM** for requested NPC/narrator generation, automatic
-NPC profile backfill, and player speech-style analysis. Individual profiles can inherit that choice,
-select another connector, or choose **Use server runtime**. Leaving the Core Profile choice unset retains
-the existing runtime provider. Automatic backfill is enabled by default after 40 completed actor turns;
-Global Settings can disable it or set a trigger from 10 to 100 turns.
+## License
 
-New jobs keep the selected connector ID and immutable revision; later connector edits do not change
-those jobs. Credentials remain server-held and are resolved when the worker runs. Pending jobs prevent
-connector deletion. Existing queued jobs without a selected connector retain runtime behavior.
-Profile locks, stale-edit checks, cancellation, and strict generated-content validation still apply.
-Saving routing settings makes no provider call; requesting generation can incur provider charges.
+Project code is licensed under the [GNU GPL v3.0](LICENSE).
+Third-party components retain their original licenses and notices.
+Bethesda game content is not covered by this license and is not distributed here.
 
-## Local deployment
-
-The local deploy stages the runtime file manifest and installs it to `/var/www/html/LorkhanServer`, keeps
-database credentials and pairing secrets under `/etc/lorkhanserver`, and preserves media/log state
-under `/var/lib/lorkhanserver` and `/var/log/lorkhanserver`. Run the sibling client's
-`scripts/deploy/full-local.ps1` for the Herika-style two-stage server plus game-client deployment.
-
-`scripts/deploy-wsl.sh` bootstraps missing configuration, then uses the same
-`scripts/deploy-local-wsl.sh` deployment as updates. Both install `deploy/runtime-files.txt`
-at the stable web root. Previous code and the Apache route are copied to a unique
-`/var/backups/lorkhanserver-code.*` directory before replacement. See
-`docs/SERVER-FILE-LAYOUT.md` for the Herika-style file mapping and private storage boundaries.
-Both installers idempotently backfill missing CHIM connector defaults without replacing saved routes
-or active TTS selections. STT is installation-global; ITT, Background Life, and timer autonomy are
-not provisioned and their pre-beta compatibility schema has been retired.
-
-## Start here
-
-1. `docs/archive/CLAUDEX-TASK.md`
-2. `docs/IMPLEMENTATION-PLAN.md`
-3. `docs/REFERENCE-SERVER-DATAFLOW.md`
-4. `docs/MIGRATION-SOURCE-AUDIT.md`
-5. `docs/ARCHITECTURE.md`
-6. `docs/PROTOCOL.md`
-7. `docs/FEATURE-PARITY-MATRIX.md`
-8. `docs/WSL-APACHE-SETUP.md`
-
-The sibling LORKHAN task is the parent assignment and owns shared schema reconciliation.
-
-## Isolated integration prerequisites
-
-`scripts/test/integration.sh` requires PostgreSQL 15 tools and extensions, PHP, Python 3 and Bubblewrap (`apt-get install bubblewrap` on Debian), with unprivileged user namespaces enabled. Run it as an unprivileged PostgreSQL-capable account. It uses disposable databases and includes the SQL-import reader isolation check; the reader is not yet exposed as a web upload feature.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for bundled components and attribution.
