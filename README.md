@@ -25,7 +25,7 @@ and follows the shared Dwemer Dynamics server layout.
 - Apache and PostgreSQL; see [WSL setup](docs/WSL-APACHE-SETUP.md).
 - The matching [LORKHAN client](https://github.com/Dwemer-Dynamics/LORKHAN).
 
-This is a **0.1.0 prototype**, not a public internet service. Keep credentials outside
+This is a **0.5.0 prototype**, not a public internet service. Keep credentials outside
 the repository and preserve the local access controls.
 
 The DwemerDistro local route is `http://127.0.0.1:7514/LorkhanServer/ui/home.php`.
