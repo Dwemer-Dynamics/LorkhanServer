@@ -439,3 +439,17 @@ The game applies the delta to its current value and returns an applied/rejected 
 never treats sending the proposal as success and never overwrites game disposition with an AI score.
 Bribes/flattery and other vanilla changes remain authoritative. Affinity and NPC-to-NPC relationships
 retain their separate semantics. Snapshot/receipt tables are not portable playthrough history.
+
+
+## Hypnosis mode
+
+Typed player turns may select `execution_mode: hypnosis` with one current NPC target.
+The server queues one Profile Tasks job to rewrite personality, goals, speech style and occupation.
+It requires an existing unlocked NPC profile and an enabled Profile Tasks connector. All four
+fields must be generated before a revision is saved. Other fields and game state remain unchanged.
+The job keeps its connector revision, NPC identity, playthrough and session/generation; later
+profile edits or a replaced session prevent a stale save. Request retries do not enqueue duplicates.
+The turn completes after enqueueing, without dialogue, player speech or rechat. Job status and
+application outcome remain available in server job history; acceptance does not mean a profile
+has already changed. The client resets the selector to Standard after submitting the typed turn.
+Microphone input stays ordinary dialogue while Hypnosis is selected.

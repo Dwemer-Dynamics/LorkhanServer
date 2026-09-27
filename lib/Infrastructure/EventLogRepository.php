@@ -478,7 +478,7 @@ final class EventLogRepository
             $this->projectContext($sourceId, $common, $context);
             // The observed event already has its own immutable projection; a comment is not player speech.
             if(in_array($body['ui_source']??'',['lorkhan_rpg_event','lorkhan_quest_event','lorkhan_director_child'],true)
-                ||isset($body['director_instruction_id'])||($body['execution_mode']??'standard')==='director')return;
+                ||isset($body['director_instruction_id'])||in_array($body['execution_mode']??'standard',['director','hypnosis'],true))return;
             $input = $this->object($body['input'] ?? []);
             $text = is_string($input['text'] ?? null) ? trim($input['text']) : '';
             if ($text === '') return;

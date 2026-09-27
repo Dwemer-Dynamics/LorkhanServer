@@ -173,10 +173,16 @@ final class Router
                 $m['payload']['input']['text']=$trusted['instruction'];
                 $m['payload']['context']['director']=['plan_id'=>$trusted['plan_id'],'scene_note'=>$trusted['scene_note']];
             }
-            if(($m['payload']['execution_mode']??'standard')==='injection_log'){
+            if(in_array($m['payload']['execution_mode']??'standard',['injection_log','hypnosis'],true)){
                 $body=['schema'=>'lorkhan.turn.accepted.v1','message_id'=>$m['message_id'],'turn_id'=>$m['turn_id'],
                     'request_id'=>$m['request_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation']];
-                $accepted=$this->repository->acceptTurn($m,null,null,$hash,$body,null,[]);
+                try {
+                    $accepted=$this->repository->acceptTurn($m,null,null,$hash,$body,null,[]);
+                } catch (\InvalidArgumentException $error) {
+                    if (($m['payload']['execution_mode']??'')!=='hypnosis'
+                        || !in_array($error->getMessage(),['hypnosis_profile_unavailable','profile_locked','profile_tasks_disabled','profile_generation_connector_unavailable'],true)) throw $error;
+                    throw new ApiException(422,'invalid_schema','Hypnosis needs an unlocked NPC profile and an enabled Profile Tasks connector.');
+                }
                 $body['event_cursor']=$accepted['sequence'];
                 return Response::json(202,$body);
             }

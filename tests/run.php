@@ -778,7 +778,7 @@ foreach([['game_time'=>-1],['spell_id'=>'heal'],['actor'=>array_replace($resurre
     catch(ValidationException){$check(true,'resurrection rejects invented or malformed observation');}
 }
 $modeTurn=json_decode((string)file_get_contents($fixtureRoot.'/turn.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
-foreach(['standard','narrator','director','cheat']as$mode){
+foreach(['standard','narrator','director','cheat','hypnosis']as$mode){
     $modeTurn['payload']['execution_mode']=$mode;
     $validator->validate($modeTurn,'lorkhan.turn.v1');$check(true,'typed execution mode validates '.$mode);
 }
@@ -790,6 +790,19 @@ foreach([['execution_mode'=>'console'],['execution_mode'=>'standard','director_i
 }
 $modeTurn['payload']['execution_mode']='standard';$modeTurn['payload']['director_instruction_id']=$modeTurn['turn_id'];
 $validator->validate($modeTurn,'lorkhan.turn.v1');$check(true,'ordinary child turn carries exact Director instruction correlation');
+$hypnosis=$modeTurn['payload'];unset($hypnosis['director_instruction_id']);
+$hypnosis['execution_mode']='hypnosis';$hypnosis['ui_source']='lorkhan_text';
+$hypnosis['speaker']['kind']='player';$hypnosis['target']['kind']='npc';
+$hypnosis['input']=['kind'=>'text','text'=>'Become a patient historian.','language'=>'en'];
+$check(\LorkhanServer\Application\ExecutionModePolicy::mode($hypnosis)==='hypnosis','explicit NPC hypnosis accepted');
+foreach([
+    ['target'=>array_replace($hypnosis['target'],['kind'=>'narrator'])],
+    ['ui_source'=>'lorkhan_open_mic'],['action_request'=>[]],['input'=>['kind'=>'text','text'=>'']],
+    ['speaker'=>array_replace($hypnosis['speaker'],['kind'=>'npc'])],
+]as$change){
+    try{\LorkhanServer\Application\ExecutionModePolicy::mode(array_replace($hypnosis,$change));$check(false,'invalid hypnosis rejected');}
+    catch(DomainException){$check(true,'invalid hypnosis rejected');}
+}
 $actorProfileGameData['type']='actor_profile';
 $actorProfileGameData['payload']=['actor'=>$actorProfileGameData['payload']['speaker'],'race'=>'Wood Elf',
     'class'=>'Commoner','gender'=>'male','level'=>1,'disposition'=>50,'factions'=>['fighters guild']];

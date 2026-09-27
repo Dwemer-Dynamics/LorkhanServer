@@ -320,8 +320,9 @@ final class Repository
             }
             $director=new DirectorPlanningRepository($this->db);
             $mode=\LorkhanServer\Application\ExecutionModePolicy::mode($p);
+            $isHypnosis=$mode==='hypnosis';
             $isInjectionLog=$mode==='injection_log';
-            if($isInjectionLog&&($providerInput!==null||$directAction!==null))throw new \DomainException('execution_mode_not_allowed');
+            if(($isInjectionLog||$isHypnosis)&&($providerInput!==null||$directAction!==null))throw new \DomainException('execution_mode_not_allowed');
             $isDirector=$mode==='director';
             if($isDirector && ($providerInput!==null || $directAction!==null)) throw new \DomainException('director_route_invalid');
             if(!isset($p['director_instruction_id']) && ($p['speaker']['kind']??null)==='player'
@@ -404,7 +405,8 @@ final class Repository
             $dynamicOghma->apply((string)$m['installation_id'],(string)$m['playthrough_id'],(string)$m['message_id'],$dynamicPlan??$dynamicOghma->plan($m));
             $event = $this->event($m['session_id'], $m['generation'], $m['request_id'], $m['turn_id'], 'turn.accepted', ['status' => 'accepted']);
             if($isDirector)$director->enqueuePlan($m,$directorScene);
-            if($isInjectionLog){
+            if($isHypnosis)(new ProductRepository($this->db))->enqueueHypnosis($m);
+            if($isInjectionLog||$isHypnosis){
                 $this->db->prepare("UPDATE turns SET state='complete',completed_at=clock_timestamp() WHERE turn_id=:turn")->execute(['turn'=>$m['turn_id']]);
                 $event=$this->event($m['session_id'],$m['generation'],$m['request_id'],$m['turn_id'],'turn.complete',['status'=>'complete']);
             }
