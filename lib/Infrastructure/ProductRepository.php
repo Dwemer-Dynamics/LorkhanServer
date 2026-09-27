@@ -944,6 +944,36 @@ final class ProductRepository
         $delete->execute(['id'=>$ruleId,'installation'=>$installationId]);if($delete->rowCount()!==1)throw new RuntimeException('not_found');
     }
 
+    /** Queue an explicit rewrite inside turn acceptance, retaining the existing profile and connector fences. */
+    public function enqueueHypnosis(array $turn): void
+    {
+        $profileId=$this->selectedActorProfileId($turn['installation_id'],$turn['playthrough_id'],$turn['payload']['target']);
+        if($profileId===null)throw new InvalidArgumentException('hypnosis_profile_unavailable');
+        $profile=$this->getRevisioned('profile',$profileId);
+        if(($profile['content']['management']['locked']??false)===true)throw new InvalidArgumentException('profile_locked');
+        $payload=$this->profileGenerationPayload($turn['installation_id'],$profileId,(int)$profile['current_revision'],'hypnosis')+[
+            'instruction'=>$turn['payload']['input']['text'], 'session_id'=>$turn['session_id'],
+            'generation'=>$turn['generation'], 'turn_id'=>$turn['turn_id'],
+            'installation_id'=>$turn['installation_id'], 'playthrough_id'=>$turn['playthrough_id'],
+            'target'=>$turn['payload']['target'],
+        ];
+        $query=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority)
+            VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),1,60) ON CONFLICT(job_type,idempotency_key) DO NOTHING");
+        $query->execute(['job'=>Uuid::v4(),'key'=>'hypnosis:'.$turn['turn_id'],'payload'=>$this->encode($payload)]);
+    }
+
+    /** A loaded save, ended session or changed actor binding invalidates a pending explicit rewrite. */
+    public function hypnosisRequestActive(array $payload): bool
+    {
+        $query=$this->db->prepare("SELECT 1 FROM sessions s JOIN active_turns t ON t.session_id=s.session_id
+            WHERE s.session_id=:session AND s.installation_id=:installation AND s.playthrough_id=:playthrough
+            AND s.generation=:generation AND s.state='active' AND t.turn_id=:turn AND t.state='complete' FOR SHARE OF s");
+        $query->execute(['session'=>$payload['session_id']??null,'installation'=>$payload['installation_id']??null,
+            'playthrough'=>$payload['playthrough_id']??null,'generation'=>$payload['generation']??null,'turn'=>$payload['turn_id']??null]);
+        return $query->fetchColumn()!==false && is_array($payload['target']??null)
+            && $this->selectedActorProfileId($payload['installation_id'],$payload['playthrough_id'],$payload['target'])===($payload['profile_id']??null);
+    }
+
     /** Queue one idempotent generation job for the profile's current revision. */
     public function enqueueProfileGeneration(string $profileId):array
     {
@@ -1475,6 +1505,7 @@ final class ProductRepository
                 $payload=$this->json($stored);
                 if(($payload['profile_id']??null)!==$profileId||($payload['base_revision']??null)!==$baseRevision)return false;
                 if(!(new ProfileEvolutionScheduler($this->db))->active($payload))return false;
+                if(($payload['mode']??null)==='hypnosis' && !$this->hypnosisRequestActive($payload))return false;
                 if(in_array($payload['mode']??null,['npc_profile_backfill','profile_evolution','narrator_profile_evolution'],true)){
                     $sources=$payload['source_turn_ids']??[];$playthrough=$payload['playthrough_id']??null;
                     if(!is_string($playthrough)||!Uuid::isValid($playthrough)||$sources!==$sourceTurnIds
@@ -1987,7 +2018,7 @@ SQL);
     public function recentPlayerInputs(string $installationId,int $limit=200,?string $playthroughId=null):array
     {
         $playthroughId??=(new ProfileOwnershipRepository($this->db))->activePlaythrough($installationId);
-        $limit=max(1,min(200,$limit));$statement=$this->db->prepare("SELECT t.input_text FROM active_turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation AND (CAST(:playthrough AS uuid) IS NULL OR s.playthrough_id=CAST(:playthrough AS uuid)) AND t.speaker->>'kind'='player' AND btrim(t.input_text)<>'' AND NOT jsonb_exists(t.context,'director') AND NOT EXISTS (SELECT 1 FROM source_events e WHERE e.turn_id=t.turn_id AND (e.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat','director') OR e.payload#>>'{payload,ui_source}' IN ('lorkhan_rpg_event','lorkhan_quest_event','lorkhan_rechat','lorkhan_action_followup','lorkhan_director_child') OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_auto_%' OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_narrator_%')) ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT :limit");
+        $limit=max(1,min(200,$limit));$statement=$this->db->prepare("SELECT t.input_text FROM active_turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation AND (CAST(:playthrough AS uuid) IS NULL OR s.playthrough_id=CAST(:playthrough AS uuid)) AND t.speaker->>'kind'='player' AND btrim(t.input_text)<>'' AND NOT jsonb_exists(t.context,'director') AND NOT EXISTS (SELECT 1 FROM source_events e WHERE e.turn_id=t.turn_id AND (e.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat','director','hypnosis') OR e.payload#>>'{payload,ui_source}' IN ('lorkhan_rpg_event','lorkhan_quest_event','lorkhan_rechat','lorkhan_action_followup','lorkhan_director_child') OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_auto_%' OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_narrator_%')) ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT :limit");
         $statement->bindValue(':installation',$installationId);$statement->bindValue(':playthrough',$playthroughId);$statement->bindValue(':limit',$limit,\PDO::PARAM_INT);$statement->execute();
         return array_map(static fn(array$row):string=>(string)$row['input_text'],$statement->fetchAll());
     }

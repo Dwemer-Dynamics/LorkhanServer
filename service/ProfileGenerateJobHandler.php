@@ -27,7 +27,7 @@ final class ProfileGenerateJobHandler implements JobHandler
         if(!\LorkhanServer\Domain\ProfileId::isValid($profileId))
             throw new \InvalidArgumentException('invalid_profile_id');
         if(!is_int($baseRevision)||$baseRevision<1)throw new \InvalidArgumentException('invalid_base_revision');
-        if(!in_array($mode,['npc_profile','npc_profile_backfill','profile_evolution','narrator_profile','narrator_profile_evolution','player_speech_style'],true))throw new \InvalidArgumentException('invalid_generation_mode');
+        if(!in_array($mode,['hypnosis','npc_profile','npc_profile_backfill','profile_evolution','narrator_profile','narrator_profile_evolution','player_speech_style'],true))throw new \InvalidArgumentException('invalid_generation_mode');
         $guidance=$payload['speech_style_guidance']??'';
         if(!is_string($guidance)||strlen($guidance)>4000||!mb_check_encoding($guidance,'UTF-8')||($guidance!==''&&$mode!=='player_speech_style'))throw new \InvalidArgumentException('invalid_speech_style_guidance');
         $stylePrompt=$payload['speech_style_prompt']??null;
@@ -48,9 +48,10 @@ final class ProfileGenerateJobHandler implements JobHandler
         if(($management['locked']??false)===true){$receipt('profile_locked');return;}
         $identity=$profile['actor_identity']??[];if(is_string($identity))$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);
         if(!is_array($identity)||array_is_list($identity))throw new RuntimeException('profile_not_generatable');
-        if(in_array($mode,['npc_profile','npc_profile_backfill','profile_evolution'],true)&&in_array($identity['kind']??'actor',['player','narrator'],true))throw new RuntimeException('profile_not_generatable');
+        if(in_array($mode,['hypnosis','npc_profile','npc_profile_backfill','profile_evolution'],true)&&in_array($identity['kind']??'actor',['player','narrator'],true))throw new RuntimeException('profile_not_generatable');
         if(in_array($mode,['narrator_profile','narrator_profile_evolution'],true)&&($identity['kind']??null)!=='narrator')throw new RuntimeException('profile_not_narrator');
         if($mode==='player_speech_style'&&($identity['kind']??null)!=='player')throw new RuntimeException('profile_not_player');
+        if($mode==='hypnosis' && !$this->repository->hypnosisRequestActive($payload)){$receipt('commit_fence_changed');return;}
         $slot=null;$timeout=$this->timeoutMs;
         if(array_key_exists('provider_configuration_id',$payload)||array_key_exists('provider_revision',$payload)){
             $configurationId=$payload['provider_configuration_id']??null;$revision=$payload['provider_revision']??null;
@@ -68,6 +69,11 @@ final class ProfileGenerateJobHandler implements JobHandler
             if($now-$lastCheck<100_000_000)return false;$lastCheck=$now;return!$heartbeat();});
         $attemptId=Uuid::v4();$providerName=$provider instanceof OpenAiCompatibleProfileGenerationProvider?'openai-compatible':'mock';
         $input=['generation_mode'=>$mode,'name'=>(string)$profile['name'],'actor_identity'=>$identity,'content'=>$profile['content']??[]];
+        if($mode==='hypnosis'){
+            $instruction=$payload['instruction']??null;
+            if(!is_string($instruction)||trim($instruction)===''||strlen($instruction)>8192)throw new \InvalidArgumentException('invalid_hypnosis_instruction');
+            $input['instruction']=$instruction;
+        }
         if($mode==='player_speech_style'&&$stylePrompt!==null)$input['speech_style_prompt']=$stylePrompt;
         if($mode==='player_speech_style'&&$guidance!=='')$input['speech_style_guidance']=$guidance;
         if($mode==='player_speech_style'&&$currentStyle!==null)$input['current_speech_style']=$currentStyle;
@@ -118,10 +124,17 @@ final class ProfileGenerateJobHandler implements JobHandler
                 +($slot===null?[]:['provider_configuration_id'=>$slot['configuration_id']]));
         try{$generated=$provider->generate($input,$token);$token->throwIfCancellationRequested();$content=$currentContent;
             if($mode==='player_speech_style'){$speechStyle=trim((string)($generated['speech_style']??''));if($speechStyle===''||strlen($speechStyle)>8192||!mb_check_encoding($speechStyle,'UTF-8'))throw new RuntimeException('provider_invalid_output');$content['speech_style']=$speechStyle;}
+            elseif($mode==='hypnosis'){
+                $fields=['personality','goals','speech_style','occupation'];
+                if(count($generated)!==4)throw new RuntimeException('provider_invalid_output');
+                foreach($fields as$field){$value=$generated[$field]??null;
+                    if(!is_string($value)||trim($value)===''||strlen($value)>8192||!mb_check_encoding($value,'UTF-8'))throw new RuntimeException('provider_invalid_output');
+                    $content[$field]=trim($value);}
+            }
             elseif($evolution){foreach($input['dynamic_fields']as$field){$value=trim((string)($generated[$field]??''));
                 if($value===''||strlen($value)>8192||!mb_check_encoding($value,'UTF-8'))throw new RuntimeException('provider_invalid_output');$content[$field]=$value;}}
             else foreach($generated as$field=>$value)$content[$field]=$value;
-            $reason=match($mode){'player_speech_style'=>'AI player speech-style generation','narrator_profile'=>'AI narrator profile generation',
+            $reason=match($mode){'hypnosis'=>'Hypnosis profile rewrite','player_speech_style'=>'AI player speech-style generation','narrator_profile'=>'AI narrator profile generation',
                 'profile_evolution'=>'automatic NPC profile evolution','narrator_profile_evolution'=>'automatic narrator profile evolution',
                 'npc_profile_backfill'=>'automatic AI profile backfill',default=>'AI profile generation'};
             if($mode==='player_speech_style'){$this->repository->storePlayerSpeechStyleDraft($job['job_id'],$job['attempt'],$profileId,$baseRevision,$content['speech_style']);$receipt('draft_saved');}

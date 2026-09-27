@@ -3768,6 +3768,60 @@ try{
     $assert($status===202,'expired effective combat bark cooldown did not reopen');
 }finally{$db->rollBack();}
 
+// Explicit profile rewrites enqueue once, preserve unrelated fields and reject stale revisions.
+$db->beginTransaction();
+try{
+    $request=$transferTurn();$request['payload']['execution_mode']='hypnosis';$request['payload']['ui_source']='lorkhan_text';
+    $request['payload']['input']=['kind'=>'text','language'=>'en','text'=>'Become a patient historian.'];
+    $selected=(new ReflectionMethod($products,'selectedActorProfileId'))->invoke($products,$installationId,$request['playthrough_id'],$request['payload']['target']);
+    $before=$products->getRevisioned('profile',$selected);
+    [$status,$body]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+    $assert($status===202,'hypnosis rejected: '.json_encode($body));
+    $jobQuery=$db->prepare("SELECT job_id,payload FROM durable_jobs WHERE idempotency_key=:key");
+    $jobQuery->execute(['key'=>'hypnosis:'.$request['turn_id']]);$job=$jobQuery->fetch();
+    $assert($job!==false,'hypnosis job missing');
+    [$again]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+    $jobQuery->execute(['key'=>'hypnosis:'.$request['turn_id']]);
+    $assert($again===202&&count($jobQuery->fetchAll())===1,'hypnosis retry duplicated work');
+    $projection=$db->prepare('SELECT count(*) FROM eventlog_metadata WHERE projection_key=:key');
+    $projection->execute(['key'=>'turn:'.$request['turn_id']]);
+    $assert((int)$projection->fetchColumn()===0,'hypnosis leaked into player speech');
+    $assert(!in_array($request['payload']['input']['text'],$products->recentPlayerInputs($installationId,200),true),'hypnosis leaked into speech-style samples');
+    $payload=json_decode($job['payload'],true,64,JSON_THROW_ON_ERROR);
+    $leaseProfileFixture->execute(['job'=>$job['job_id'],'token'=>Uuid::v4()]);
+    $payload['_job']=['job_id'=>$job['job_id'],'attempt'=>1];
+    $generator=new class implements \LorkhanServer\Application\ProfileGenerationProvider{
+        public function generate(array $input,CancellationToken $cancellation):array{
+            if(($input['generation_mode']??'')!=='hypnosis'||($input['instruction']??'')!=='Become a patient historian.')throw new RuntimeException('wrong hypnosis input');
+            return ['personality'=>'Patient','goals'=>'Record history','speech_style'=>'Measured','occupation'=>'Historian'];
+        }
+    };
+    $handler=new \LorkhanServer\Application\ProfileGenerateJobHandler($products,$generator);
+    $handler->handle($payload,'hypnosis-test',static fn():bool=>true);
+    $after=$products->getRevisioned('profile',$selected);
+    $assert((int)$after['current_revision']===(int)$before['current_revision']+1,'hypnosis revision not saved');
+    $expected=$before['content'];foreach(['personality'=>'Patient','goals'=>'Record history','speech_style'=>'Measured','occupation'=>'Historian']as$key=>$value)$expected[$key]=$value;
+    $assert($after['content']==$expected,'hypnosis changed unrelated profile fields');
+    $handler->handle($payload,'hypnosis-test',static fn():bool=>true);
+    $assert($products->getRevisioned('profile',$selected)['current_revision']===$after['current_revision'],'stale hypnosis rewrote later revision');
+    $payload['generation']++;
+    $assert(!$products->hypnosisRequestActive($payload),'stale generation kept hypnosis active');
+    $request=$transferTurn();$request['payload']['execution_mode']='hypnosis';$request['payload']['ui_source']='lorkhan_text';
+    $request['payload']['input']=['kind'=>'text','language'=>'en','text'=>'A second rewrite.'];
+    [$status]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+    $assert($status===202,'second hypnosis request rejected');
+    $jobQuery->execute(['key'=>'hypnosis:'.$request['turn_id']]);$job=$jobQuery->fetch();
+    $leaseProfileFixture->execute(['job'=>$job['job_id'],'token'=>Uuid::v4()]);
+    $payload=json_decode($job['payload'],true,64,JSON_THROW_ON_ERROR);$payload['_job']=['job_id'=>$job['job_id'],'attempt'=>1];
+    $incomplete=new class implements \LorkhanServer\Application\ProfileGenerationProvider{
+        public function generate(array $input,CancellationToken $cancellation):array{return ['personality'=>'Partial'];}
+    };
+    try{(new \LorkhanServer\Application\ProfileGenerateJobHandler($products,$incomplete))->handle($payload,'hypnosis-partial',static fn():bool=>true);$assert(false,'partial hypnosis saved');}
+    catch(RuntimeException $error){$assert($error->getMessage()==='provider_invalid_output','partial hypnosis failed unexpectedly');}
+    $assert($products->getRevisioned('profile',$selected)['current_revision']===$after['current_revision'],'partial hypnosis changed profile');
+
+}finally{$db->rollBack();}
+
 // Inject Event logs context without inference; Inject & Chat responds without treating it as speech.
 $db->beginTransaction();
 try{
