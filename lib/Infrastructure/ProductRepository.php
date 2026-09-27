@@ -141,7 +141,7 @@ final class ProductRepository
             $lock->execute(['installation'=>$installation]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
             $state=$this->quickstartLocalLlmForInstallation($installation);$existing=$state['connector']??null;
             if($expectedRevision<0||$expectedRevision!==(int)($existing['current_revision']??0))throw new RuntimeException('revision_conflict');
-            if($existing!==null&&($existing['content']['service']??'')!=='local')throw new RuntimeException('local_llm_connector_repurposed');
+            if($existing!==null&&!in_array($existing['content']['service']??'', ['local','dwemerdistro'], true))throw new RuntimeException('local_llm_connector_repurposed');
             // Omitting the reference keeps the current private badge selection; an explicit 'none' clears only the reference.
             $values['credential']??=$existing['content']['credential']??'none';
             $setup=\LorkhanServer\Application\QuickstartLocalLlm::normalize($values);

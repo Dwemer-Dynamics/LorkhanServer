@@ -48,3 +48,6 @@ docs/PROTOCOL.md
 docs/PLAYTHROUGH-PARITY.md
 version.txt
 LICENSE
+
+ui/js/dwemerdistro_connector.js
+ui/images/core/icons/dwemerdistro.webp

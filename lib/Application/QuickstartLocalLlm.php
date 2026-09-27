@@ -81,7 +81,7 @@ final class QuickstartLocalLlm
             $values['endpoint'] = \DwemerDistroLlm::ENDPOINT;
             $values['credential'] = 'none';
         }
-        $content=LlmConnector::validate(['driver'=>'openai-compatible','service'=>'local','endpoint'=>$values['endpoint']??'',
+        $content=LlmConnector::validate(['driver'=>'openai-compatible','service'=>$server==='dwemerdistro'?'dwemerdistro':'local','endpoint'=>$values['endpoint']??'',
             'model'=>$values['model']??'','timeout_ms'=>$timeout*1000,'credential'=>$values['credential']??'none',
             'options'=>['max_tokens'=>512,'temperature'=>0.7,'json_mode'=>true,'prefill_json'=>false,'stream'=>!$disabled]+($server==='dwemerdistro'?['json_schema'=>true]:[])]);
         return ['server_type'=>$server,'scope'=>$scope,'name'=>'Local LLM - '.self::SERVERS[$server][0],'content'=>$content];

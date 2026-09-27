@@ -292,6 +292,7 @@
         nanogpt: ['https://nano-gpt.com/api/v1/chat/completions', 'nanogpt'],
         player2: ['http://127.0.0.1:4315/v1/chat/completions', 'none'],
         custom: ['', 'custom'],
+        dwemerdistro: ['http://127.0.0.1:1234/v1/chat/completions', 'none'],
     };
     // Show the current direct service without inventing an endpoint for inherited runtimes.
     const endpoint = document.getElementById('llm_endpoint');
@@ -304,9 +305,10 @@
     const serviceInput = document.getElementById('llm_service');
     let localServiceSelected = serviceInput?.value === 'local';
     let customServiceSelected = localServiceSelected || serviceInput?.value === 'custom';
+    let distroServiceSelected = serviceInput?.value === 'dwemerdistro';
     const updateService = () => {
         const service = driver.value === 'openai-compatible'
-            ? (customServiceSelected ? 'custom' : Object.keys(services).find((key) => key !== 'custom' && services[key][0] === endpoint?.value) || 'custom')
+            ? (distroServiceSelected ? 'dwemerdistro' : customServiceSelected ? 'custom' : Object.keys(services).find((key) => !['custom', 'dwemerdistro'].includes(key) && services[key][0] === endpoint?.value) || 'custom')
             : (driver.value === 'configured' ? document.getElementById('llm_model')?.dataset.runtimeService || '' : '');
         if (serviceInput) {
             serviceInput.disabled = driver.value !== 'openai-compatible';
@@ -324,6 +326,7 @@
         const schemaRow = document.getElementById('llm_option_json_schema')?.closest('.llm-option-field');
         if (schemaRow) schemaRow.hidden = service === 'groq';
         const modelField = document.getElementById('llm_model');
+        document.dispatchEvent(new CustomEvent('llm-service-change', {detail: service}));
         const player2 = service === 'player2';
         if (modelField) {
             modelField.closest('.llm-connection-field').hidden = player2;
@@ -344,7 +347,7 @@
         const custom = document.getElementById('llm-service-custom');
         if (custom) custom.hidden = service !== 'custom';
     };
-    driver.addEventListener('change', () => { localServiceSelected = false; customServiceSelected = false; apply(); updateService(); });
+    driver.addEventListener('change', () => { localServiceSelected = false; customServiceSelected = false; distroServiceSelected = false; apply(); updateService(); });
     endpoint?.addEventListener('input', updateService);
     apply();
     updateService();
@@ -364,6 +367,7 @@
         button.addEventListener('click', () => {
             const preset = services[button.dataset.llmService];
             if (!preset) return;
+            distroServiceSelected = button.dataset.llmService === 'dwemerdistro';
             customServiceSelected = button.dataset.llmService === 'custom';
             if (!customServiceSelected) localServiceSelected = false;
             driver.value = 'openai-compatible';

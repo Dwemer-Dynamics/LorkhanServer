@@ -58,6 +58,10 @@ final class LlmConnector
         if (!in_array($driver, ['configured', 'mock', 'openai-compatible'], true)) {
             throw new InvalidArgumentException('invalid_provider_driver');
         }
+        if ($driver === 'openai-compatible' && ($content['service'] ?? '') === 'dwemerdistro') {
+            $content['endpoint'] = 'http://127.0.0.1:1234/v1/chat/completions';
+            $content['credential'] = 'none';
+        }
         $player2 = $driver === 'openai-compatible' && ($content['service'] ?? '') === 'player2';
         $model = $player2 ? '' : ($content['model'] ?? ($driver === 'mock' ? 'deterministic-mock-v1' : null));
         if (!is_string($model) || (!$player2 && trim($model) === '') || strlen($model) > 256 || !mb_check_encoding($model, 'UTF-8')) {
@@ -87,7 +91,7 @@ final class LlmConnector
         if ($driver === 'openai-compatible') {
             // Service is editor identity, separate from transport options and endpoint validation.
             if (array_key_exists('service', $content)) {
-                if (!in_array($content['service'], ['openrouter', 'openai', 'google', 'groq', 'nanogpt', 'player2', 'custom', 'local'], true)) {
+                if (!in_array($content['service'], ['openrouter', 'openai', 'google', 'groq', 'nanogpt', 'player2', 'custom', 'local', 'dwemerdistro'], true)) {
                     throw new InvalidArgumentException('invalid_provider_service');
                 }
                 $result['service'] = $content['service'];
