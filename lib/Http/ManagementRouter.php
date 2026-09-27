@@ -214,6 +214,10 @@ final class ManagementRouter
             if ($r->query !== []) throw new InvalidArgumentException($providers ? 'invalid_provider_catalogue_query' : 'invalid_model_catalogue_query');
             return $this->openRouterCatalogue($providers);
         }
+        if ($r->method === 'GET' && $path === '/api/v1/dwemerdistro-llm') {
+            require_once dirname(__DIR__) . '/dwemerdistro_llm.php';
+            return Response::json(200, \DwemerDistroLlm::status());
+        }
         if ($r->method === 'GET' && $path === '/api/v1/quickstart-local-llm') {
             if(array_keys($r->query)!==['installation_id'])throw new InvalidArgumentException('invalid_local_llm_setup_query');
             $installation=$this->queryUuid($r,'installation_id');
@@ -242,6 +246,7 @@ final class ManagementRouter
             $this->uuid($body['installation_id'],'installation_id');
             $this->repository->quickstartLocalRoutingPlan($body['installation_id']);
             $setup=\LorkhanServer\Application\QuickstartLocalLlm::normalize($body['setup']);
+            if ($setup['server_type'] === 'dwemerdistro') { \DwemerDistroLlm::requireModel($setup['content']['model']); $draftKey = ''; }
             if(!$this->management->allowTtsPreview($browserSession))return Response::json(429,['error'=>'local_llm_test_rate_limited']);
             try {
                 // A transient slot exercises unsaved fields without creating a connector or changing any routes.
