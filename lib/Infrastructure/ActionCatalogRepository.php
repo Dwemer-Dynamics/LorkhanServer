@@ -140,7 +140,7 @@ final class ActionCatalogRepository
             'description' => (string) $row['description'],
             'return_message' => '',
             'available_to_npc' => !in_array($name,\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true),
-            'available_to_followers' => false,
+            'available_to_followers' => $name === 'ai.follow',
             'available_to_narrator' => $this->boolean($row['available_to_narrator'] ?? false),
             'is_activated' => true,
             'parameters_json' => $parameterSchema,
