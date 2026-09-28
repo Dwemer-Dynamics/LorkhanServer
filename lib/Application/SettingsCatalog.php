@@ -22,7 +22,7 @@ final class SettingsCatalog
             'rechat_mode' => 'random',
             'rechat_strict_targeting' => false,
             'open_rechat' => true,
-            'rechat_allow_actions' => false,
+            'rechat_allow_actions' => true,
             'end_conversation_cooldown_seconds' => 60,
             'boredom' => false,
             'boredom_delay_seconds' => 180,
