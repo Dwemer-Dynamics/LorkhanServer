@@ -15,7 +15,7 @@ final class SettingsCatalog
         'behavior' => [
             'ai_enabled' => true,
             'auto_greeting' => false,
-            'rechat' => false,
+            'rechat' => true,
             'rechat_delay_seconds' => 45,
             'rechat_max_depth' => 2,
             'rechat_probability_percent' => 50,
