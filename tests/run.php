@@ -3372,7 +3372,13 @@ try {
 } catch (RuntimeException) {
     $check(true, 'media MIME signature rejected');
 }
+$cacheKey=hash('sha256','voice-r1|text');
+$media->rememberSpeech($cacheKey,['media_id'=>$mediaId,'bytes'=>204,'sha256'=>$mediaHash,'codec'=>'wav','mime_type'=>'audio/wav','duration_ms'=>20]);
+$check($media->cachedSpeech($cacheKey)===$speech,'speech cache reuses verified audio');
+$check($media->cachedSpeech(hash('sha256','voice-r2|text'))===null,'speech cache isolates voice revisions');
 $media->delete($mediaId);
+$check($media->cachedSpeech($cacheKey)===null,'speech cache tolerates expired media');
+foreach(glob($mediaRoot.'/speech-cache-*.json')?:[] as $entry)unlink($entry);
 rmdir($mediaRoot);
 
 foreach (['deploy-local-wsl.sh', 'deploy-wsl.sh'] as $scriptName) {

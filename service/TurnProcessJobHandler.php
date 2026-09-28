@@ -63,6 +63,12 @@ final class TurnProcessJobHandler implements JobHandler
             return $cancelled=!$heartbeat()||$this->repository->isTurnCancellationRequested($sessionId,$turnId,$generation);
         });
         try {
+            if (($message['_deferred_context']??false)===true) {
+                if ($this->products===null) throw new \RuntimeException('prompt_context_unavailable');
+                $prepared=(new TurnContextPreparation($this->products,$this->attempts,$this->providerConfig,$token))->prepare($message);
+                $message=$prepared['message'];
+                $this->repository->storePreparedTurn($message,$prepared['trace'],$fence);
+            }
             $policy=$this->translationPolicy($message);
             $streamedDialogues=[];$pendingInlineSpeech=null;
             $streamSpeech=$this->canStreamSpeech($message,$policy);
