@@ -3338,7 +3338,7 @@ $check(!isset($projection['settings']['memory']['oghma_knowledge_tags'])
     &&!in_array('excluded',$projection['source_map'],true)
     &&$effective['routing']['oghma_configuration_id']==='00000000-0000-4000-8000-000000000222'
     &&$projection['settings']['behavior']['auto_greeting']===true
-    &&$projection['settings']['behavior']['rechat_allow_actions']===false,
+    &&$projection['settings']['behavior']['rechat_allow_actions']===true,
     'controls omit server-only settings and provenance while retaining automatic dialogue settings');
 try{
     EffectiveSettingsResolver::validateSettingsOverrides(['behavior'=>['unknown_setting'=>true]]);
