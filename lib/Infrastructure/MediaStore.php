@@ -66,6 +66,38 @@ final class MediaStore
         if (is_file($path) && !is_link($path)) @unlink($path);
     }
 
+    /** Reuse verified bytes briefly; fixed hash slots cap cache metadata at 64 files. */
+    public function cachedSpeech(string $key): ?array
+    {
+        $path=rtrim($this->root,DIRECTORY_SEPARATOR).'/speech-cache-'.(hexdec(substr($key,0,2))%64).'.json';
+        if (!is_file($path)||is_link($path)) return null;
+        try {
+            $entry=json_decode((string)file_get_contents($path),true,16,JSON_THROW_ON_ERROR);
+            if (!is_array($entry)||($entry['key']??null)!==$key||($entry['expires']??0)<time()) return null;
+            $speech=$entry['speech'];
+            $bytes=$this->read($speech['media_id'],$speech['bytes'],$speech['sha256']);
+            return ['bytes'=>$bytes,'codec'=>$speech['codec'],'mime_type'=>$speech['mime_type'],'duration_ms'=>$speech['duration_ms']];
+        } catch (\Throwable) { return null; }
+    }
+
+    /** Cache only media already stored and bound to a successful speech request. */
+    public function rememberSpeech(string $key,array $speech): void
+    {
+        $path=rtrim($this->root,DIRECTORY_SEPARATOR).'/speech-cache-'.(hexdec(substr($key,0,2))%64).'.json';
+        if (is_link($path)) return;
+        $temporary=$path.'.'.bin2hex(random_bytes(8)).'.tmp';
+        try {
+            $entry=json_encode(['key'=>$key,'expires'=>time()+240,'speech'=>$speech],JSON_THROW_ON_ERROR);
+            if (file_put_contents($temporary,$entry,LOCK_EX)===false) return;
+            chmod($temporary,0640);
+            rename($temporary,$path);
+        } catch (\Throwable) {
+            // Cache failure must not discard successfully generated speech.
+        } finally {
+            if (is_file($temporary)) unlink($temporary);
+        }
+    }
+
     private function path(string $mediaId): string
     {
         $this->id($mediaId);

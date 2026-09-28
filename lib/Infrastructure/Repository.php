@@ -621,6 +621,19 @@ final class Repository
         return $message;
     }
 
+    /** Persist prepared context once under the current lease so retries reuse its exact prompt. */
+    public function storePreparedTurn(array $message,array $trace,array $fence): void
+    {
+        $this->transaction(function() use ($message,$trace,$fence): void {
+            $this->session($message['session_id'],$message['generation'],true);
+            $this->lockPendingTurn($message['turn_id'],$message['session_id'],$fence);
+            $snapshot=$message;
+            $this->db->prepare("UPDATE turn_provider_snapshots SET source_manifest=jsonb_set(jsonb_set(source_manifest,'{message}',CAST(:message AS jsonb)),'{trace}',CAST(:trace AS jsonb)),input_sha256=:sha WHERE turn_id=:turn")
+                ->execute(['message'=>$this->encode($snapshot),'trace'=>$this->encode($trace),'sha'=>hash('sha256',$this->encodeCanonical($snapshot)),'turn'=>$message['turn_id']]);
+            $this->recordPromptTrace($message,$trace);
+        });
+    }
+
     public function appendDialogueDelta(array $m, string $text, array $fence): array
     {
         if ($text === '' || strlen($text) > 4096 || !mb_check_encoding($text, 'UTF-8')) {
