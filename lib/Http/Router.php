@@ -100,6 +100,9 @@ final class Router
         } catch (ValidationException $error) {
             return Response::error($error->getMessage() === 'payload_too_large' ? 413 : 422, $error->getMessage(), $correlation);
         } catch (DomainException $error) {
+            $code=$this->publicCode($error->getMessage());
+            if(str_starts_with($code,'rechat_')||$code==='invalid_rechat_context')
+                error_log('[LORKHAN] rechat decision code='.$code.' request='.$correlation);
             return Response::error(409, $this->publicCode($error->getMessage()), $correlation);
         } catch (UnexpectedValueException $error) {
             return Response::error(409, $this->publicCode($error->getMessage()), $correlation);

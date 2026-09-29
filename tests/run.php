@@ -108,6 +108,16 @@ $rechatOther=$rechatActor;$rechatOther['content_file']='Tribunal.esm';
 $check($rechatKey->invoke($rechatCoordinator,$rechatActor)!==$rechatKey->invoke($rechatCoordinator,$rechatOther),
     'Rechat keeps equal local reference numbers from different mods separate');
 $rechatPlayer=$rechatActor;$rechatPlayer['kind']='player';
+// Candidate priority must not be randomized after CHIM's mode ordering.
+$selectRechat=new ReflectionMethod($rechatCoordinator,'selectResponder');
+foreach(range(1,12) as $seed){
+    $check($selectRechat->invoke($rechatCoordinator,'conversational',[$rechatActor,$rechatOther],$rechatActor,$rechatOther,(string)$seed,1)===$rechatOther,'Rechat prefers explicit target');
+    $check($selectRechat->invoke($rechatCoordinator,'group',[$rechatActor,$rechatOther],$rechatActor,$rechatActor,(string)$seed,1)===$rechatOther,'Group rechat prefers another listener');
+}
+$modeRechat=new ReflectionMethod($rechatCoordinator,'resolvedMode');
+$mode=$modeRechat->invoke($rechatCoordinator,'random',[$rechatActor,$rechatOther],100,'installation:playthrough');
+$check($mode===$modeRechat->invoke($rechatCoordinator,'random',[$rechatOther,$rechatMoved,$rechatActor],100,'installation:playthrough'),'Random mode survives reordered renamed group members in the same window');
+$check(count(array_unique(array_map(fn($window)=>$modeRechat->invoke($rechatCoordinator,'random',[$rechatActor,$rechatOther],$window,'installation:playthrough'),range(100,120))))>1,'Random mode can change in later windows');
 $rechatNarrator=$rechatActor;$rechatNarrator['kind']='narrator';
 $check(count(array_unique(array_map(fn($actor)=>$rechatKey->invoke($rechatCoordinator,$actor),
     [$rechatActor,$rechatPlayer,$rechatNarrator])))===3,'Rechat keeps Player and Narrator separate from placed NPCs');

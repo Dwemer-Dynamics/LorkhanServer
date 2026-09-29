@@ -65,7 +65,9 @@ final class RechatCoordinator
         if (!in_array($configuredMode, ['tight', 'conversational', 'group', 'random'], true)) {
             throw new DomainException('invalid_rechat_context');
         }
-        $mode = (string) ($existing['mode'] ?? $this->resolvedMode($configuredMode, $chainId));
+        $mode = (string) ($existing['mode'] ?? $this->resolvedMode($configuredMode,
+            array_values($participantIdentities), intdiv(time(), 120),
+            $message['installation_id'] . ':' . $message['playthrough_id']));
         if ($existing === null && ($behavior['open_rechat'] ?? true) !== true) $mode = 'tight';
 
         $participants = $this->participants($message, $previousSpeaker, $listener, $targetHint, $participantStates);
@@ -185,7 +187,7 @@ final class RechatCoordinator
         foreach ($ordered as $candidate) $unique[$this->identityKey($candidate)] ??= $candidate;
         if ($unique === []) return null;
         $values = array_values($unique);
-        return $values[$this->stableNumber($chainId . ':responder:' . $depth, count($values))];
+        return $values[0];
     }
 
     /** @return array<string,array<string,mixed>> */
@@ -233,10 +235,14 @@ final class RechatCoordinator
             || ($state === 'sleeping' && !$directlyAddressed);
     }
 
-    private function resolvedMode(string $configuredMode, string $chainId): string
+    // Keep Random mode stable for this conversation group in CHIM's two-minute window.
+    private function resolvedMode(string $configuredMode, array $members, int $window, string $scope): string
     {
         if ($configuredMode !== 'random') return $configuredMode;
-        return ['tight', 'conversational', 'group'][$this->stableNumber($chainId . ':mode', 3)];
+        $keys=array_values(array_unique(array_map(fn(array $actor):string=>$this->identityKey($actor),$members)));
+        sort($keys,SORT_STRING);
+        $seed=$scope.':'.implode('|',$keys).':'.$window;
+        return ['tight', 'conversational', 'group'][$this->stableNumber($seed, 3)];
     }
 
     private function preRollBudget(string $chainId, int $maxRounds, int $probability): int
