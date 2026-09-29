@@ -316,6 +316,7 @@ $session['runtime']['capabilities'][]='debug.commands.v1';
 $session['runtime']['capabilities'][]='debug.npc_manager.v1';
 $session['runtime']['capabilities'][]='speech.browser.v1';
 $session['runtime']['capabilities'][]='action.conversation.end';
+$session['runtime']['capabilities'][]='action.service.barter';
 [$status] = $call($router, 'POST', $base . '/sessions', $jsonAuth, [], $session);
 $assert($status === 422, 'missing session idempotency key accepted');
 [$status] = $call($router, 'POST', $base . '/sessions', $headers($newUuid(3)), [], $session);
@@ -325,11 +326,13 @@ $assert($status === 201 && $accepted['generation'] === 7
     && $accepted['capabilities'] === ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'debug.npc_manager.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
         'action.ai.stop', 'action.conversation.end', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
-        'action.inventory.inspect']
+        'action.inventory.inspect','action.service.barter']
     &&$accepted['config_revision']==='global-settings-r1'
     &&($accepted['client_settings']['schema']??null)==='lorkhan.client-settings.v1'
-    &&($accepted['client_settings']['behavior']['rechat']??null)===false, 'session create failed');
+    &&($accepted['client_settings']['behavior']['rechat']??null)===true, 'session create failed');
 $sessionId = $accepted['session_id'];
+$assert(in_array('service.barter',$repo->session($sessionId,7)['enabled_actions'],true),
+    'session negotiation did not enable advertised barter action');
 $browserCapableSessions=array_values(array_filter($products->debugCommandSessions(),static fn(array $row):bool=>$row['session_id']===$sessionId));
 $assert(count($browserCapableSessions)===1&&$browserCapableSessions[0]['browser_speech_supported']===true,
     'session negotiation stripped browser speech support before management discovery');

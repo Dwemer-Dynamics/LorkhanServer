@@ -13,9 +13,9 @@ final class Repository
     private const SERVER_CAPABILITIES = ['relationship.disposition', 'diary.books.v1', 'dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'debug.npc_manager.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
         'action.ai.stop', 'action.conversation.end', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
-        'action.inventory.inspect','action.confirmation','action.result-followup'];
+        'action.inventory.inspect','action.confirmation','action.result-followup','action.service.barter'];
     private const ENABLED_ACTIONS = ['inspect.report','inventory.inspect','ai.follow','ai.stop','conversation.end','ai.approach','ai.wait','ai.travel','ai.escort',
-        'ai.face','ai.wander','combat.start','combat.stop','animation.play','item.equip','item.unequip','item.use'];
+        'ai.face','ai.wander','combat.start','combat.stop','animation.play','item.equip','item.unequip','item.use','service.barter'];
     public function __construct(
         private readonly PDO $db,
         private readonly int $eventReplayLimit = 256,
