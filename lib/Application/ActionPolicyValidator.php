@@ -269,10 +269,10 @@ final class ActionPolicyValidator
                 $hasEnabled = is_bool($value);
                 if (is_array($value) && !array_is_list($value)) {
                     if(array_key_exists('code_name',$value)){
-                        $override=$this->herikaOverride($name,$value);$hasEnabled=true;$allowed=$override['enabled'];
+                        $override=$this->normalizeSavedAction($name,$value);$hasEnabled=true;$allowed=$override['enabled'];
                         $overrides[$name]=$override;
                     }else{
-                        $knownOverride=['enabled','display_name','description','confirmation_required','followup_enabled',
+                        $knownOverride=['enabled','display_name','description','return_message','confirmation_required','followup_enabled',
                             'allow_followup_action','followup_prompt','cooldown_seconds'];
                         if(array_diff(array_keys($value),$knownOverride)!==[]
                             ||(isset($value['enabled'])&&!is_bool($value['enabled']))
@@ -281,6 +281,7 @@ final class ActionPolicyValidator
                             ||(isset($value['allow_followup_action'])&&!is_bool($value['allow_followup_action']))
                             ||(isset($value['display_name'])&&!is_string($value['display_name']))
                             ||(isset($value['description'])&&!is_string($value['description']))
+                            ||(isset($value['return_message'])&&!is_string($value['return_message']))
                             ||(isset($value['followup_prompt'])&&(!is_string($value['followup_prompt'])
                                 ||mb_strlen($value['followup_prompt'],'UTF-8')>2048))
                             ||(isset($value['cooldown_seconds'])&&(!is_int($value['cooldown_seconds'])
@@ -292,13 +293,9 @@ final class ActionPolicyValidator
                     }
                 }
                 if (!is_bool($allowed)) throw new InvalidArgumentException('invalid_action_policy');
-                if(!$hasEnabled)continue;
-                if ($allowed) {
-                    $allow ??= [];
-                    $allow[] = $name;
-                } else {
-                    $deny[] = $name;
-                }
+                // Saved rows are sparse editor overrides: only disabled rows narrow the policy. Allowlist
+                // mode comes solely from explicit allowed_actions, so unsaved rows stay enabled by default.
+                if($hasEnabled&&!$allowed)$deny[] = $name;
             }
         }
 
@@ -312,7 +309,7 @@ final class ActionPolicyValidator
     }
 
     /** Convert a complete Herika action row into the bounded runtime override fields. */
-    private function herikaOverride(string $name,array $value):array
+    public function normalizeSavedAction(string $name,array $value):array
     {
         $expected=['code_name','action_name','description','return_message','available_to_npc','available_to_followers',
             'available_to_narrator','is_activated','parameters_json','metadata','game_function','import_version',

@@ -162,6 +162,8 @@ STT is an installation-global connector and never participates in the layered pr
 Client returns exactly one terminal status: `succeeded`, `failed`, `rejected`, `timed_out` or
 `cancelled`, plus stable reason code, bounded observed fields and completion timestamp. Server states
 distinguish created, emitted, delivered and terminal; no UI/prompt calls an action successful earlier.
+A result completed after the intent's `expires_at` is accepted for five minutes only as `timed_out`,
+`cancelled` or `rejected`; `succeeded` and `failed` must complete before expiry.
 
 ## Errors and idempotency
 

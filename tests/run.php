@@ -1775,6 +1775,32 @@ $check($herikaFollow['display_name']==='Herika-shaped Follow'&&$herikaFollow['de
     &&$herikaFollow['followup_prompt']==='React to the typed result.'
     &&$herikaFollow['followup_actions_allowed']===true&&$herikaFollow['cooldown_seconds']===7,
     'complete Herika action rows normalize into the bounded LORKHAN runtime contract');
+$sparseContext=$herikaContext;
+$sparseContext['policy']['content']['actions']['ai.stop']=['enabled'=>false];
+$check(array_column($overrideAllowed,'name')===['inspect.report','ai.follow','ai.stop']
+    &&array_column($policy->allowedDefinitions($sparseContext),'name')===['inspect.report','ai.follow'],
+    'saved enabled editor rows keep unsaved actions enabled while disabled rows still deny');
+$sparseContext['policy']['content']['allowed_actions']=['ai.follow'];
+$check(array_column($policy->allowedDefinitions($sparseContext),'name')===['ai.follow'],
+    'explicit allowed_actions remains the only allowlist mode');
+$mergePolicy=new ReflectionMethod(\LorkhanServer\Infrastructure\ActionCatalogRepository::class,'mergePolicyContents');
+$mergeCatalog=(new ReflectionClass(\LorkhanServer\Infrastructure\ActionCatalogRepository::class))->newInstanceWithoutConstructor();
+$mergedOff=$mergePolicy->invoke($mergeCatalog,['enabled'=>false,'max_tier'=>1,'denied_actions'=>['ai.stop'],
+    'actions'=>['ai.follow'=>['enabled'=>false,'cooldown_seconds'=>3]]],
+    ['enabled'=>true,'max_tier'=>3,'denied_actions'=>['item.use'],'actions'=>['ai.follow'=>['enabled'=>true]]]);
+$mergedOn=$mergePolicy->invoke($mergeCatalog,['max_tier'=>1,'allowed_actions'=>['ai.follow','ai.stop']],
+    ['enabled'=>true,'max_tier'=>3,'allowed_actions'=>['ai.follow','item.use']]);
+$check($mergedOff['enabled']===false&&$mergedOff['max_tier']===1&&$mergedOff['denied_actions']===['ai.stop','item.use']
+    &&$mergedOff['actions']['ai.follow']===['enabled'=>true,'cooldown_seconds'=>3]
+    &&$mergedOn['enabled']===true&&$mergedOn['max_tier']===1&&$mergedOn['allowed_actions']===['ai.follow'],
+    'NPC policy inherits installation kill switch, tier ceiling and explicit lists while its rows override');
+$mixedPolicy=$mergePolicy->invoke($mergeCatalog,$herikaContext['policy']['content'],
+    ['actions'=>['ai.follow'=>['display_name'=>'NPC Follow','confirmation_required'=>false]]]);
+$mixedContext=$herikaContext;$mixedContext['policy']['content']=$mixedPolicy;
+$mixedFollow=array_column($policy->allowedDefinitions($mixedContext),null,'name')['ai.follow'];
+$check($mixedFollow['display_name']==='NPC Follow'&&$mixedFollow['confirmation_required']===false
+    &&$mixedFollow['cooldown_seconds']===7&&$mixedFollow['description']==='Use the complete action row.',
+    'compact NPC overrides merge with full saved installation rows without losing inherited fields');
 $inheritedConfirmation=$herikaContext;
 $inheritedConfirmation['definitions']=array_map(static function(array $definition):array{
     $definition['confirmation_default']=true;return $definition;

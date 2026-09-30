@@ -13,9 +13,14 @@ final class Repository
     private const SERVER_CAPABILITIES = ['relationship.disposition', 'diary.books.v1', 'dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'debug.npc_manager.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
         'action.ai.stop', 'action.conversation.end', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
-        'action.inventory.inspect','action.confirmation','action.result-followup','action.service.barter'];
+        'action.inventory.inspect','action.confirmation','action.result-followup','action.service.barter','action.weapon.sheathe',
+        'action.item.give','action.item.take','action.item.pickup','action.gold.give','action.gold.take','action.spell.cast','action.service.training',
+        'action.service.spells','action.service.travel','action.service.spellmaking','action.service.enchanting','action.service.repair'];
+    // NPC actions only; AdvancedActionPolicy::NAMES world actions remain unnegotiated.
     private const ENABLED_ACTIONS = ['inspect.report','inventory.inspect','ai.follow','ai.stop','conversation.end','ai.approach','ai.wait','ai.travel','ai.escort',
-        'ai.face','ai.wander','combat.start','combat.stop','animation.play','item.equip','item.unequip','item.use','service.barter'];
+        'ai.face','ai.wander','combat.start','combat.stop','animation.play','item.equip','item.unequip','item.use','service.barter',
+        'weapon.sheathe','item.give','item.take','item.pickup','gold.give','gold.take','spell.cast','service.training','service.spells',
+        'service.travel','service.spellmaking','service.enchanting','service.repair'];
     public function __construct(
         private readonly PDO $db,
         private readonly int $eventReplayLimit = 256,
@@ -346,8 +351,10 @@ final class Repository
                 }
                 $proposal = ['name' => $directAction['name'], 'tier' => $directAction['tier'],
                     'parameters' => $directAction['parameters'], 'actor' => in_array($directAction['name'],\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true)?($p['context']['player']??[]):$p['target'], 'target' => $actionTarget];
-                $validatedDirectAction = $this->actionPolicy->validate($proposal,
-                    $this->actionCatalog->loadForSession($m['session_id'], $m['generation']) + ['turn_payload'=>$p]);
+                $directLoaded=$this->actionCatalog->loadForSession($m['session_id'], $m['generation']);
+                // World actions keep the installation/session policy used for their prompt exposure.
+                if(!in_array($directAction['name'],\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true))$directLoaded=$this->withActorPolicy($directLoaded,$p['target']??null);
+                $validatedDirectAction = $this->actionPolicy->validate($proposal,$directLoaded + ['turn_payload'=>$p]);
             }
             $stmt = $this->db->prepare('INSERT INTO turns (turn_id, request_id, message_id, session_id, generation, runtime_generation, input_kind, '
                 . 'input_language, input_text, speaker, target, audience, context, state, accepted_at) VALUES '
@@ -564,12 +571,7 @@ final class Repository
         // Preserve ingress stale/closed-session errors before the catalog's active-session read.
         $this->session($sessionId, $generation);
         if ($this->actionCatalog === null || $this->actionPolicy === null) return [];
-        $loaded=$this->actionCatalog->loadForSession($sessionId,$generation);
-        if(in_array($turnPayload['target']['kind']??null,['npc','creature'],true)){
-            $effective=(new ProductRepository($this->db))->effectiveSettingsForActor($loaded['session']['installation_id'],
-                $loaded['session']['playthrough_id'],$turnPayload['target']);
-            $loaded['policy']=$this->actionCatalog->currentPolicy($loaded['session']['installation_id'],$effective['npc_profile']['profile_id']??null);
-        }
+        $loaded=$this->withActorPolicy($this->actionCatalog->loadForSession($sessionId,$generation),$turnPayload['target']??null);
         $allowed=$this->actionPolicy->allowedDefinitions($loaded+['turn_payload'=>$turnPayload]);
         if(($turnPayload['target']['kind']??null)==='narrator')$allowed=array_values(array_filter($allowed,fn($d)=>in_array($d['name'],\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true)));
         if(\LorkhanServer\Application\AdvancedActionPolicy::eligible($turnPayload)){
@@ -607,6 +609,16 @@ final class Repository
             if($world!==[])$executors['player']=['actor'=>$payload['context']['player'],'definitions'=>$world];
         }
         return $executors;
+    }
+
+    /** Apply the effective NPC override policy to an NPC or creature actor; other actors keep the session policy. */
+    private function withActorPolicy(array $loaded,mixed $actor):array
+    {
+        if(!is_array($actor)||!in_array($actor['kind']??null,['npc','creature'],true))return $loaded;
+        $effective=(new ProductRepository($this->db))->effectiveSettingsForActor($loaded['session']['installation_id'],
+            $loaded['session']['playthrough_id'],$actor);
+        $loaded['policy']=$this->actionCatalog->currentPolicy($loaded['session']['installation_id'],$effective['npc_profile']['profile_id']??null);
+        return $loaded;
     }
 
     /** @return array<string,mixed> */
@@ -1200,7 +1212,8 @@ final class Repository
             $expires=new \DateTimeImmutable($action['expires_at']);
             $lateBound=$expires->modify('+5 minutes');
             if ($completed < $emitted || $completed > $lateBound) throw new \DomainException('action_result_expired');
-            if($completed>$expires&&$m['status']!=='timed_out')throw new \DomainException('action_result_expired');
+            // After expiry only outcomes that report no game effect remain acceptable within the late bound.
+            if($completed>$expires&&!in_array($m['status'],['timed_out','cancelled','rejected'],true))throw new \DomainException('action_result_expired');
             $this->source($m['message_id'], $action['installation_id'], $action['session_id'], (int) $action['generation'], 'action.result',
                 $m['completed_at'], $m['schema'], $m['request_id'], $action['turn_id'], $m['action_id'], $m);
             $this->db->prepare('INSERT INTO action_results (action_id, source_event_id, message_id, request_id, status, reason_code, observed, completed_at) '
@@ -1358,6 +1371,9 @@ final class Repository
             }
             if(in_array($frozen['payload']['execution_mode']??'standard',['injection_log','injection_chat'],true))throw new \DomainException('provider_action_not_allowed');
             $worldAction=in_array($action['name']??null,\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true);
+            // Ordinary NPC turns validate against the same effective NPC policy their prompt exposed.
+            if(!isset($frozen['payload']['director_instruction_id'])&&!$worldAction&&!$narratorMode)
+                $loaded=$this->withActorPolicy($loaded,$m['payload']['target']??null);
             if($worldAction){
                 $loaded['turn_payload']=$frozen['payload'];
             }elseif($narratorMode){
