@@ -80,6 +80,8 @@ those commands modify a running system and are not build checks.
 
 ## Custom providers, actions and plugins
 
+Read the [integration runtime reference](plugin-runtime.md) for execution timing, required and optional state, atomic writes, installation/update boundaries and background work.
+
 This server does not provide the HerikaServer ext drop-in plugin contract. Do not copy
 an ext directory or assume another product's plugin hooks exist here.
 
