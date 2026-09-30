@@ -41,6 +41,8 @@ AGENTS.md
 README.md
 docs/agent-guide.md
 docs/building.md
+docs/plugin-runtime.md
+docs/plugin-npc-data.md
 docs/RUNTIME-LAYOUT.md
 docs/SERVER-FILE-LAYOUT.md
 docs/WSL-APACHE-SETUP.md
