@@ -29,6 +29,7 @@ use LorkhanServer\Application\SpeechPreviewCatalog;
 use LorkhanServer\Application\PlayerMoodPolicy;
 use LorkhanServer\Application\MemoryPromptSelection;
 use LorkhanServer\Application\InlineNarrationRouter;
+use LorkhanServer\Application\NarrationTextPolicy;
 use LorkhanServer\Application\DialoguePlanner;
 use LorkhanServer\Application\DeepLTranslationProvider;
 use LorkhanServer\Application\EffectiveSettingsResolver;
@@ -2208,9 +2209,34 @@ $check($planned[0]['speech_enabled']===false&&$planned[1]['speech_enabled']===tr
 $narrationTurn['_narrator_profile']['content']['inline_narration_mode']='Disabled';
 $planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,
     ['utterances'=>[['text'=>'*Fargoth waves.* Welcome. *He smiles.*'],['text'=>'**He nods.**']],'action'=>null]));
-$check($planned[0]['text']==='*Fargoth waves.* Welcome. *He smiles.*'&&$planned[0]['speech_enabled']===true
-    &&$planned[1]['text']==='**He nods.**'&&$planned[1]['speech_enabled']===true,
-    'disabled narration preserves asterisks as ordinary Markdown dialogue');
+$check($planned[0]['text']==='*Fargoth waves.* Welcome. *He smiles.*'&&$planned[0]['_subtitle']===$planned[0]['text']
+    &&$planned[0]['_history_text']===$planned[0]['text']&&$planned[0]['_tts_text']==='Welcome.'&&$planned[0]['speech_enabled']===true
+    &&$planned[1]['_subtitle']==='**He nods.**'&&$planned[1]['speech_enabled']===false,
+    'disabled narration keeps directions in subtitles and history but out of NPC speech');
+$planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,
+    ['text'=>'Plain speech.','action'=>null]));
+$check($planned[0]['_tts_text']==='Plain speech.'&&$planned[0]['speech_enabled']===true,'disabled narration leaves plain dialogue speech unchanged');
+$open=false;
+$check([NarrationTextPolicy::streamedSpeech('*She sighs.',$open),$open,NarrationTextPolicy::streamedSpeech('Then looks up.* Hi.',$open),$open]
+    ===['',true,'Hi.',false]&&NarrationTextPolicy::speech('Hello *there* friend * ok')==='Hello friend ok',
+    'streamed speech carries an unclosed direction into the next sentence and never speaks stray asterisks');
+$filteredTurn=$narrationTurn;$filteredTurn['_narrator_profile']['content']['narration_filters']=['remove_npc_output_asterisks'=>true];
+$planned=(new DialoguePlanner())->plan($filteredTurn,(new InlineNarrationRouter())->route($filteredTurn,
+    ['utterances'=>[['text'=>'*Fargoth waves.* Welcome.'],['text'=>'*He nods.*']],'action'=>null]));
+$check(count($planned)===1&&$planned[0]['_subtitle']==='Welcome.'&&$planned[0]['_tts_text']==='Welcome.'
+    &&$planned[0]['_history_text']==='*Fargoth waves.* Welcome.',
+    'explicit NPC output asterisk filter still removes directions from subtitles and drops narration-only lines');
+$translationHandler=new \LorkhanServer\Application\TurnProcessJobHandler((new ReflectionClass(\LorkhanServer\Infrastructure\Repository::class))
+    ->newInstanceWithoutConstructor(),new \LorkhanServer\Application\MockProvider(),null,null,translationProvider:new class implements \LorkhanServer\Application\TranslationProvider {
+        public function translate(array$texts,string$sourceLanguage,string$targetLanguage,\LorkhanServer\Application\CancellationToken$token):array
+        {return array_map(static fn(string$text):string=>'DE '.$text,$texts);}
+    });
+$translationContent=array_replace(\LorkhanServer\Application\TranslationPolicy::defaults(),['translate_text'=>true,'translate_audio'=>true]);
+$translated=(new ReflectionMethod($translationHandler,'translateResult'))->invoke($translationHandler,$narrationTurn+['request_id'=>'r','turn_id'=>'t'],
+    (new InlineNarrationRouter())->route($narrationTurn,['text'=>'*Fargoth waves.* Welcome.','action'=>null]),
+    ['configuration_id'=>null,'revision'=>0,'content'=>$translationContent],['job_id'=>'j','attempt'=>1],new NeverCancelledToken());
+$check($translated['utterances'][0]['_subtitle']==='DE *Fargoth waves.* Welcome.'&&$translated['utterances'][0]['_tts_text']==='DE Welcome.',
+    'translated audio keeps disabled-narration directions out of speech while subtitles translate them');
 $narrationTurn['_narrator_profile']['content']['enabled']=false;
 $narrationTurn['_narrator_profile']['content']['inline_narration_mode']='Narrator';
 $planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,

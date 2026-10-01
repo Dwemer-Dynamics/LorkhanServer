@@ -20,7 +20,17 @@ final class InlineNarrationRouter
         if($raw===null&&is_string($result['text']??null))$raw=[['text'=>$result['text']]];
         if(!is_array($raw)||!array_is_list($raw))return$result;
         $filters=NarrationTextPolicy::validate($content['narration_filters']??[]);
-        if(!in_array($mode,['Narrator','NPC','Text Only'],true)&&!$filters['remove_npc_output_asterisks'])return$result;
+        if(!in_array($mode,['Narrator','NPC','Text Only'],true)&&!$filters['remove_npc_output_asterisks']){
+            // CHIM keeps disabled directions in subtitles and history but never sends them to NPC speech.
+            foreach($raw as&$candidate){
+                if(!is_array($candidate)||array_is_list($candidate)||!is_string($candidate['text']??null))continue;
+                $speech=NarrationTextPolicy::speech($candidate['text']);
+                if($speech==='')$candidate['speech_enabled']=false;
+                elseif($speech!==trim($candidate['text']))$candidate['_tts_text']=$speech;
+            }unset($candidate);
+            $result['utterances']=$raw;
+            return$result;
+        }
         $routed=[];
         foreach($raw as$candidate){
             if($filters['remove_npc_output_asterisks']&&!in_array($mode,['Narrator','NPC','Text Only'],true)
