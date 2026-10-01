@@ -4875,11 +4875,17 @@ $capturedSpeech=new class implements \LorkhanServer\Application\SpeechProvider {
 };
 $speechRegistry=new \LorkhanServer\Application\JobHandlerRegistry([new \LorkhanServer\Application\SpeechSynthesizeJobHandler(
     new Repository($db),$capturedSpeech,$mediaStore,$attempts,null)]);
+// Profile-routed speech retries from earlier turns can become due first; order this job ahead without claiming them.
+$db->prepare("UPDATE durable_jobs SET next_run_at=clock_timestamp()-interval '1 hour' WHERE job_type='speech.synthesize' AND idempotency_key=:key AND state='queued'")
+    ->execute(['key'=>'speech:'.$translationDialogue['dialogue_message_id']]);
 $translationSpeechStats=(new Worker(new JobRepository($db),$speechRegistry,'translation-speech-worker',5,1,1,0,10,
     ['speech.synthesize'],static fn(int$microseconds):mixed=>null))->run();
 $translationTtsAttempt=$db->prepare("SELECT input_bytes FROM provider_attempts WHERE turn_id=:turn AND provider_kind='tts'");
 $translationTtsAttempt->execute(['turn'=>$translationTurn['turn_id']]);
+$translationJobState=$db->prepare("SELECT state FROM durable_jobs WHERE job_type='speech.synthesize' AND idempotency_key=:key");
+$translationJobState->execute(['key'=>'speech:'.$translationDialogue['dialogue_message_id']]);
 $assert($translationSpeechStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
+    &&$translationJobState->fetchColumn()==='succeeded'
     &&$capturedSpeech->inputs===[$expectedTranslation]
     &&(int)$translationTtsAttempt->fetchColumn()===strlen($expectedTranslation),
     'speech worker did not synthesize the TTS text frozen in the durable job payload');
