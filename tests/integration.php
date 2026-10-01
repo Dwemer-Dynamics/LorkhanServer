@@ -4887,6 +4887,35 @@ try{
     $otherKnowledge=$products->knowledgeCandidates(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],'playthrough_id'=>$otherStory['playthrough_id']]);
     $assert(!in_array('parity_new_lore',array_column($otherKnowledge,'topic'),true)
         &&count(array_filter($otherKnowledge,static fn(array $row):bool=>$row['topic']==='vivec'&&$row['content']==='Vivec is one of the living gods of the Tribunal.'))===1,'Dynamic Oghma leaked one playthrough into another');
+    // A loaded save retires abandoned-branch patches newest first, restores the replaced story row and lets the rule apply again.
+    $dynamicScope=['installation'=>$installationId,'playthrough'=>$dynamicTurn['playthrough_id']];
+    $dynamicLoadQuery=$db->prepare("SELECT e.source_event_id FROM source_events e JOIN sessions s ON s.session_id=e.session_id WHERE e.installation_id=:installation AND s.playthrough_id=:playthrough AND e.event_kind='session.init' LIMIT 1");
+    $dynamicLoadQuery->execute($dynamicScope);
+    $dynamicLoad=['message_id'=>$dynamicLoadQuery->fetchColumn(),'installation_id'=>$installationId,'playthrough_id'=>$dynamicTurn['playthrough_id']];
+    $retireDynamicSource=$db->prepare('INSERT INTO timeline_invalidated_sources(source_event_id,loaded_save_id,cutoff_minute) VALUES(:source,:load,0)');
+    $dynamicApplications=$db->prepare('SELECT count(*) FROM oghma_dynamic_applications WHERE installation_id=:installation AND playthrough_id=:playthrough');
+    $dynamicTopics=static fn():array=>array_column($products->knowledgeCandidates(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],'playthrough_id'=>$dynamicTurn['playthrough_id']]),'content','topic');
+    $abandonedStage20=$db->query("SELECT document_id FROM knowledge_documents WHERE provenance->>'source_event_id'='{$dynamicGameData['request_id']}'")->fetchColumn();
+    $sourcesBeforeRollback=(int)$db->query('SELECT count(*) FROM source_events')->fetchColumn();
+    foreach([$dynamicGameData['request_id'],$dynamicTurn['message_id']]as$retired)$retireDynamicSource->execute(['source'=>$retired,'load'=>$dynamicLoad['message_id']]);
+    $dynamicTimeline=new \LorkhanServer\Infrastructure\LoadedSaveTimeline($db);$dynamicCounts=$dynamicTimeline->invalidate($dynamicLoad);
+    $storyQuery->execute($dynamicScope);$restoredStory=$storyQuery->fetchAll();$dynamicApplications->execute($dynamicScope);$topics=$dynamicTopics();
+    $assert($dynamicCounts['dynamic_oghma']===2&&$dynamicCounts['dynamic_oghma_skipped']===0&&count($restoredStory)===1
+        &&$restoredStory[0]['content']==='A later manual story edit.'&&($topics['vivec']??null)==='A later manual story edit.'&&!isset($topics['parity_new_lore'])
+        &&(int)$dynamicApplications->fetchColumn()===1&&(int)$db->query('SELECT count(*) FROM source_events')->fetchColumn()===$sourcesBeforeRollback,
+        'loaded save did not retire abandoned Dynamic Oghma patches and restore the earlier edited story: '.json_encode(['counts'=>$dynamicCounts,'story'=>$restoredStory]));
+    $assert($dynamicTimeline->invalidate($dynamicLoad)['dynamic_oghma']===0,'repeated load changed Dynamic Oghma state again');
+    $reloadedGameData=$dynamicGameData;$reloadedGameData['request_id']=$newUuid(996011);
+    [$reloadStatus]=$call($router,'POST',$base.'/gamedata',$headers($reloadedGameData['request_id']),[],$reloadedGameData);
+    $storyQuery->execute($dynamicScope);$reappliedStory=$storyQuery->fetch();$dynamicApplications->execute($dynamicScope);
+    $reappliedStage20=$db->query("SELECT document_id FROM knowledge_documents WHERE provenance->>'source_event_id'='{$reloadedGameData['request_id']}' AND deleted_at IS NULL")->fetchColumn();
+    $assert($reloadStatus===202&&$reappliedStory['topic_desc_basic']==='Vivec has a new public account of the quest.'&&(int)$dynamicApplications->fetchColumn()===2
+        &&is_string($reappliedStage20)&&$reappliedStage20!==$abandonedStage20,'a rolled-back Dynamic Oghma stage did not apply again on the valid branch');
+    // The manually edited stage-ten document has no unmodified patch to undo, so it stays active with its application.
+    foreach([$reloadedGameData['request_id'],$newUuid(996001)]as$retired)$retireDynamicSource->execute(['source'=>$retired,'load'=>$dynamicLoad['message_id']]);
+    $editedCounts=$dynamicTimeline->invalidate($dynamicLoad);$storyQuery->execute($dynamicScope);$editedStory=$storyQuery->fetchAll();$dynamicApplications->execute($dynamicScope);
+    $assert($editedCounts['dynamic_oghma']===1&&$editedCounts['dynamic_oghma_skipped']===1&&count($editedStory)===1
+        &&$editedStory[0]['content']==='A later manual story edit.'&&(int)$dynamicApplications->fetchColumn()===1,'loaded save discarded a manual Dynamic Oghma edit: '.json_encode(['counts'=>$editedCounts,'story'=>$editedStory]));
 }finally{$db->rollBack();}
 
 $historySourceId=$newUuid(843);$historyRequestId=$newUuid(844);$historyTurnId=$newUuid(845);
