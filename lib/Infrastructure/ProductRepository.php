@@ -3652,7 +3652,8 @@ WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.su
        AND lower(btrim(COALESCE(m.payload->>'spell_name','')))<>ALL(CAST(:magic_blacklist AS text[]))))
   AND (e.type<>'itemfound' OR CASE WHEN jsonb_typeof(m.payload->'count')='number' AND jsonb_typeof(m.payload->'unit_value')='number'
        THEN (m.payload->>'count')::numeric*(m.payload->>'unit_value')::numeric>=CAST(:pickup_min_value AS numeric) ELSE false END)
-  AND ((e.type NOT IN ('spellcast','npcspellcast','itemfound') AND COALESCE(m.projection_key,'') NOT LIKE 'resurrection:%') OR (
+  AND ((e.type NOT IN ('spellcast','npcspellcast','itemfound') AND COALESCE(m.projection_key,'') NOT LIKE 'resurrection:%'
+       AND COALESCE(m.projection_key,'') NOT LIKE 'barter:%') OR (
       NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=m.source_event_id)
       AND (EXISTS(SELECT 1 FROM source_events observation WHERE observation.source_event_id=m.source_event_id AND observation.session_id=:context_session AND observation.generation=COALESCE(CAST(:context_generation AS bigint),(SELECT generation FROM sessions WHERE session_id=:context_session)))
           OR (jsonb_typeof(m.payload->'calendar')='object' AND EXISTS(SELECT 1 FROM source_events load WHERE load.session_id=:context_session AND load.event_kind='session.init' AND jsonb_typeof(load.payload->'loaded_save')='object')))))
@@ -3696,6 +3697,13 @@ SQL);
                     ||$pickup['count']*$pickup['unit_value']<($contextPolicy['item_pickup_min_value']??500)
                     ||isset($itemBlacklist[mb_strtolower(trim((string)($pickup['item_record_id']??'')),'UTF-8')])
                     ||isset($itemBlacklist[mb_strtolower(trim((string)($pickup['item_name']??'')),'UTF-8')]))continue;
+            }
+            if(($content['type']??null)==='infoaction'&&($content['details']['observation_type']??null)==='barter_trade'){
+                $blocked=false;
+                foreach(['player_received','player_gave']as$list)foreach((array)($content['details'][$list]??[])as$line)
+                    foreach(['item_record_id','item_name']as$field)
+                        if(isset($itemBlacklist[mb_strtolower(trim((string)($line[$field]??'')),'UTF-8')]))$blocked=true;
+                if($blocked)continue;
             }
             if(count($history)>=$recentTurnLimit)break;
             $history[]=['id'=>(string)$row['id'],'installation_id'=>$turn['installation_id'],

@@ -1777,6 +1777,28 @@ foreach([['count'=>0],['count'=>2147483648],['unit_value'=>-1],['unit_value'=>0.
     $badPickup=$pickup;$badPickup['payload']=array_replace($pickup['payload'],$invalid);
     try{(new Validator())->validate($badPickup,'lorkhan.gamedata.v1');$assert(false,'malformed pickup telemetry accepted');}catch(\LorkhanServer\Protocol\ValidationException){}
 }
+$barter=$captured;$barter['type']='barter_trade';$barter['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+$barterLine=['item_record_id'=>'barter_bought_sentinel','item_name'=>'Barter Bought Sentinel','count'=>2,'unit_value'=>5];
+$barter['payload']=['player'=>$spell['payload']['caster'],'merchant'=>$spell['payload']['target'],'player_received'=>[$barterLine],
+    'player_gave'=>[['item_record_id'=>'barter_sold_sentinel','item_name'=>'Barter Sold Sentinel','count'=>1,'unit_value'=>250]],
+    'gold_to_player'=>150,'game_time'=>12347.5];
+$barterTurns=(int)$db->query('SELECT count(*) FROM turns')->fetchColumn();
+[$status]=$call($router,'POST',$base.'/gamedata',$headers($barter['request_id']),[],$barter);
+$assert($status===202&&(int)$db->query('SELECT count(*) FROM turns')->fetchColumn()===$barterTurns,'barter observation rejected or created a model turn');
+$barterProjection=$db->prepare("SELECT e.type,e.data,m.target FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.source_event_id=:id");
+$barterProjection->execute(['id'=>$barter['request_id']]);$barterRows=$barterProjection->fetchAll();
+$assert(count($barterRows)===1&&$barterRows[0]['type']==='infoaction'
+    &&(json_decode($barterRows[0]['target'],true)['record_id']??null)===$spell['payload']['target']['record_id']
+    &&str_contains($barterRows[0]['data'],' traded with ')&&str_contains($barterRows[0]['data'],' sold: 1 Barter Sold Sentinel.')
+    &&str_contains($barterRows[0]['data'],' bought: 2 Barter Bought Sentinel.')&&str_contains($barterRows[0]['data'],' 150 gold.'),
+    'barter did not project exactly one merchant-targeted infoaction: '.json_encode($barterRows));
+foreach([['player_received'=>[]],['gold_to_player'=>1.5],['gold_to_player'=>-2147483648],['merchant'=>$spell['payload']['caster']],
+    ['player_received'=>[array_replace($barterLine,['count'=>0])]],['player_received'=>array_fill(0,33,$barterLine)],
+    ['player_received'=>[$barterLine+['price'=>1]]],['source_kind'=>'barter'],['audience'=>array_fill(0,2,$spell['payload']['target'])]]as$invalid){
+    $badBarter=$barter;$badBarter['payload']=array_replace($barter['payload'],$invalid);
+    if(isset($invalid['player_received'])&&$invalid['player_received']===[])$badBarter['payload']['player_gave']=[];
+    try{(new Validator())->validate($badBarter,'lorkhan.gamedata.v1');$assert(false,'malformed barter telemetry accepted');}catch(\LorkhanServer\Protocol\ValidationException){}
+}
 $turn = $fixture('turn');
 $turn['session_id'] = $sessionId;
 $resurrected=$spell;$resurrected['type']='actor_resurrected';$resurrected['request_id']=Uuid::v4();
@@ -1909,6 +1931,12 @@ try{
         $products->revise('core_profile',$actorCoreProfile['core_profile_id'],$changed,'spell context filter regression',$now);
         $history=json_encode($products->promptContext($turn,$now)['history'],JSON_THROW_ON_ERROR);
         $assert(!str_contains($history,'Spell Capture Sentinel'),'spell event bypassed disabled action category or magic blacklist');
+    }
+    $assert(str_contains(json_encode($products->promptContext($turn,$now)['history'],JSON_THROW_ON_ERROR),'Barter Sold Sentinel'),'committed barter missing from merchant context');
+    foreach([['event_types'=>['chat']],['item_blacklist'=>['BARTER_SOLD_SENTINEL']],['item_blacklist'=>['barter bought sentinel']]]as$filter){
+        $changed=$spellContent;$changed['settings_overrides']['context']=array_replace($changed['settings_overrides']['context']??[],$filter);
+        $products->revise('core_profile',$actorCoreProfile['core_profile_id'],$changed,'barter context filter regression',$now);
+        $assert(!str_contains(json_encode($products->promptContext($turn,$now)['history'],JSON_THROW_ON_ERROR),'Barter Sold Sentinel'),'barter bypassed infoaction category or item blacklist');
     }
     foreach([['item_pickup_min_value'=>501],['event_types'=>['chat']],['item_blacklist'=>['VALUABLE_PICKUP_SENTINEL']],['item_blacklist'=>['valuable pickup sentinel']]]as$filter){
         $changed=$spellContent;$changed['settings_overrides']['context']=array_replace($changed['settings_overrides']['context']??[],$filter);
