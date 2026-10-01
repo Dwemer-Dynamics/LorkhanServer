@@ -1302,20 +1302,28 @@ final class ProductRepository
         return['source_turn_ids'=>$turnIds,'recent_events'=>$events];
     }
 
-    /** Freeze actor-relevant vanilla and world events, excluding diagnostics and retired save branches. */
+    /**
+     * Freeze actor-relevant vanilla, world and delivered generated speech, excluding diagnostics and retired save branches.
+     * Generated dialogue has no ingress source; its immutable played delivery receipt is its frozen provenance.
+     */
     private function evolutionWitnessedEvents(string $installation,string $playthrough,?array $identity,int $limit):array
     {
         $parameters=['installation'=>$installation,'playthrough'=>$playthrough];
         $actor='';
         if($identity!==null){$stable=array_intersect_key($identity,array_flip(['kind','record_id','content_file','refnum']));
-            $actor=' AND (m.speaker @> CAST(:speaker AS jsonb) OR m.target @> CAST(:target AS jsonb) OR m.audience @> CAST(:audience AS jsonb))';
+            // Like CHIM's NPC speech journal, an NPC does not evolve from the Narrator's generated voice.
+            $actor=' AND (m.speaker @> CAST(:speaker AS jsonb) OR m.target @> CAST(:target AS jsonb) OR m.audience @> CAST(:audience AS jsonb))'
+                ." AND (m.source_event_id IS NOT NULL OR COALESCE(m.speaker->>'kind','')<>'narrator')";
             $parameters+=['speaker'=>$this->encode($stable),'target'=>$this->encode($stable),'audience'=>$this->encode([$stable])];}
-        $query=$this->db->prepare("SELECT m.source_event_id,e.type,e.data,e.location,e.gamets FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid
-            JOIN source_events se ON se.source_event_id=m.source_event_id
+        $query=$this->db->prepare("SELECT se.source_event_id,e.type,e.data,e.location,e.gamets FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid
+            LEFT JOIN dialogue_delivery_results d ON m.source_event_id IS NULL AND m.projection_kind='dialogue'
+                AND d.dialogue_message_id=m.dialogue_message_id AND d.turn_id=m.turn_id AND d.status='played'
+            JOIN source_events se ON se.source_event_id=COALESCE(m.source_event_id,d.source_event_id) AND se.installation_id=m.installation_id
             WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL
             AND e.type IN ('inputtext','chat','chat_background','location','weather','death','infoaction','narration','quest','book','spellcast','npcspellcast','itemfound')
             AND (e.delivery_state IS NULL OR e.delivery_state IN ('spoken','played'))
-            AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=m.source_event_id)
+            AND (m.source_event_id IS NOT NULL OR (se.event_kind='dialogue.delivery' AND se.turn_id=m.turn_id AND e.delivery_state='played'))
+            AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=se.source_event_id)
             AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_turns i WHERE i.turn_id=m.turn_id)".$actor.
             ' ORDER BY e.gamets DESC,e.rowid DESC LIMIT :limit');
         foreach($parameters as$key=>$value)$query->bindValue(':'.$key,$value);
