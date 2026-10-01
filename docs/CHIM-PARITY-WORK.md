@@ -18,6 +18,8 @@ The UI delegation attempt stalled; Codex completed the implementation fallback.
   event count, and independent Core short/mid/long memory switches wired to context.
 - [x] Profiles: working independent Core Clone; Narrator Core routing and resolved
   connector labels; four narration filters with existing asterisk defaults preserved.
+  As in CHIM, Disabled inline narration keeps asterisked directions in subtitles and
+  history but never sends them to NPC TTS; narration-only lines are subtitle-only.
 - [x] TTS Studio: explicit cloud voice discovery/cloning, consent, resumable batch
   synchronization, race/gender fallbacks, catalog voice IDs, and actual test audio.
 - [x] Connectors: working endpoint/credential presets, custom credential references,

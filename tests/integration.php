@@ -3773,6 +3773,45 @@ $assert($status===202&&$interruptedStats===['claimed'=>1,'succeeded'=>1,'retried
     &&count(array_keys($interruptedTypes,'speech.ready',true))===1&&(int)$interruptedSpeech===1
     &&$interruptedResponse['ok']===true&&array_column($interruptedResponse['lines'],'text')===['Heard before the outage.'],
     'mid-stream provider failure replaced or failed committed dialogue: '.json_encode(['types'=>$interruptedTypes,'attempts'=>$interruptedAttempts]));
+// Disabled narration streams subtitles with their directions, speaks only dialogue, and never waits on narration-only audio.
+$directionProvider=new class implements \LorkhanServer\Application\StreamingProvider {
+    public function complete(array $turn, CancellationToken $cancellation): array { throw new RuntimeException('streaming expected'); }
+    public function completeStreaming(array $turn, CancellationToken $cancellation, callable $onDialogueDelta): array {
+        foreach(['*Fargoth waves.','He grins.*','Welcome, outlander.','*He bows.*']as$sentence)$onDialogueDelta($sentence);
+        return['utterances'=>[['text'=>'*Fargoth waves. He grins.* Welcome, outlander. *He bows.*']],'action'=>null];
+    }
+};
+$directionTurn=$interruptedTurn;$directionTurn['message_id']=$newUuid(750);$directionTurn['request_id']=$newUuid(751);
+$directionTurn['turn_id']=$newUuid(752);$directionTurn['payload']['input']['text']='Greet me in character.';
+[$status]=$call($fallbackRouter,'POST',$base.'/turns',$headers($directionTurn['message_id']),[],$directionTurn);
+$directionStats=$runTurnWorker($directionProvider);
+[,$directionPage]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$interruptedEvents['next_after']]);
+$directionEvents=array_values(array_filter($directionPage['events'],static fn(array $e):bool=>$e['turn_id']===$directionTurn['turn_id']));
+$directionTypes=array_column($directionEvents,'type');
+$directionSubtitles=array_map(static fn(array $e):string=>$e['payload']['text'],array_values(array_filter($directionEvents,
+    static fn(array $e):bool=>$e['type']==='dialogue.complete')));
+$directionResponse=json_decode((string)$db->query('SELECT response_payload FROM turns WHERE turn_id='
+    .$db->quote($directionTurn['turn_id']))->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$directionTts=$db->query("SELECT input_bytes FROM provider_attempts WHERE provider_kind='tts' AND turn_id="
+    .$db->quote($directionTurn['turn_id']))->fetchAll(PDO::FETCH_COLUMN);
+$directionJobs=$db->query("SELECT payload->>'tts_text' FROM durable_jobs WHERE job_type='speech.synthesize' AND idempotency_key IN "
+    ."(SELECT 'speech:'||dialogue_message_id FROM dialogue_utterances WHERE turn_id=".$db->quote($directionTurn['turn_id']).')')->fetchAll(PDO::FETCH_COLUMN);
+$directionHistory=$db->query('SELECT text FROM dialogue_utterances WHERE turn_id='.$db->quote($directionTurn['turn_id'])
+    .' ORDER BY utterance_index')->fetchAll(PDO::FETCH_COLUMN);
+$assert($status===202&&$directionStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
+    &&$directionSubtitles===['*Fargoth waves. He grins.* Welcome, outlander.','*He bows.*']
+    &&$directionHistory===$directionSubtitles&&count(array_keys($directionTypes,'speech.ready',true))===1
+    &&!in_array('speech.failed',$directionTypes,true)&&in_array('turn.complete',$directionTypes,true)
+    &&array_column($directionResponse['lines'],'tts_text')===['Welcome, outlander.','*He bows.*']
+    &&array_map(static fn(array $line):bool=>$line['metadata']['speech_enabled'],$directionResponse['lines'])===[true,false]
+    &&array_map(static fn(array $line):string=>$line['speaker_identity']['record_id'],$directionResponse['lines'])===['fallback_actor','fallback_actor']
+    // Inline speech may fall back to its durable job; every attempt still receives only the spoken words.
+    &&$directionTts!==[]&&array_unique(array_map('intval',$directionTts))===[strlen('Welcome, outlander.')]
+    &&array_diff($directionJobs,['Welcome, outlander.'])===[],
+    'disabled narration streamed or queued stage directions as NPC speech: '.json_encode(['types'=>$directionTypes,
+        'subtitles'=>$directionSubtitles,'history'=>$directionHistory,'lines'=>$directionResponse['lines']??null,'tts'=>$directionTts,'jobs'=>$directionJobs]));
+$interruptedEvents['next_after']=$directionPage['next_after'];
 // Display-only progress (group audience disables streamed speech) is not durable dialogue, so the fallback still runs.
 $displayOnlyTurn=$fallbackTurn;$displayOnlyTurn['message_id']=$newUuid(746);$displayOnlyTurn['request_id']=$newUuid(747);
 $displayOnlyTurn['turn_id']=$newUuid(748);$displayOnlyTurn['payload']['input']['text']='[fallback] Progress then fail.';

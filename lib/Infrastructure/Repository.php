@@ -726,7 +726,7 @@ final class Repository
         $this->transaction(function () use ($m, $dialogue, $fence): void {
             $this->lockPendingTurn($m['turn_id'],$m['session_id'],$fence);
             $id=(string)($dialogue['dialogue_message_id']??'');
-            $text=(string)($dialogue['text']??'');
+            $text=(string)($dialogue['_tts_text']??$dialogue['text']??'');
             $this->db->prepare("INSERT INTO durable_jobs (job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) "
                 . "VALUES (:job,'speech.synthesize',1,:key,CAST(:payload AS jsonb),3,90) ON CONFLICT (job_type,idempotency_key) DO NOTHING")
                 ->execute(['job'=>Uuid::v4(),'key'=>'speech:'.$id,

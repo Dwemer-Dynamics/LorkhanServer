@@ -70,16 +70,21 @@ final class TurnProcessJobHandler implements JobHandler
                 $this->repository->storePreparedTurn($message,$prepared['trace'],$fence);
             }
             $policy=$this->translationPolicy($message);
-            $streamedDialogues=[];$pendingInlineSpeech=null;$streamCommitted=false;
+            $streamedDialogues=[];$pendingInlineSpeech=null;$streamCommitted=false;$heldNarration='';$narrationOpen=false;
             $streamSpeech=$this->canStreamSpeech($message,$policy);
             $progress = function (string $delta, ?string $language=null, ?string $mood=null, ?array $tones=null) use ($message, $fence, $policy, $job, $heartbeat, $streamSpeech,
-                &$streamedDialogues,&$pendingInlineSpeech,&$streamCommitted): void {
+                &$streamedDialogues,&$pendingInlineSpeech,&$streamCommitted,&$heldNarration,&$narrationOpen): void {
                 if($policy['content']['translate_text'])return;
                 if($delta==='')return;
                 $this->repository->appendDialogueDelta($message,$delta,$fence);
                 if(!$streamSpeech||count($streamedDialogues)>=DialoguePlanner::MAX_UTTERANCES)return;
+                // Disabled directions stay visible but unspoken; a sentence with nothing to speak joins the next spoken one.
+                $speech=NarrationTextPolicy::streamedSpeech($delta,$narrationOpen);
+                if($speech===''){$heldNarration=trim($heldNarration.' '.$delta);return;}
+                $text=trim($heldNarration.' '.$delta);$heldNarration='';
                 $index=count($streamedDialogues)+1;
-                $dialogue=$this->repository->appendStreamedDialogue($message,$delta,$fence,$index)+SpeechLanguage::payload($language)+($mood===null?[]:['mood'=>$mood])+($tones===null?[]:['tones'=>ZonosGradioSpeechProvider::validateTones($tones)]);
+                $dialogue=$this->repository->appendStreamedDialogue($message,$text,$fence,$index)+SpeechLanguage::payload($language)+($mood===null?[]:['mood'=>$mood])+($tones===null?[]:['tones'=>ZonosGradioSpeechProvider::validateTones($tones)])
+                    +($speech===$text?[]:['_tts_text'=>$speech]);
                 // Only a durable dialogue line commits the turn; display-only deltas still permit the fallback model.
                 $streamCommitted=true;
                 $streamedDialogues[]=$dialogue;
@@ -105,16 +110,16 @@ final class TurnProcessJobHandler implements JobHandler
                     // Committed sentences may already be heard; finish with exactly those instead of a failed turn.
                     if($streamedDialogues===[])throw$error;
                     Logger::warn('Turn stream interrupted after committed dialogue: turn_id='.$turnId.' code='.$this->providerFailureCode($error));
-                    $completed=['utterances'=>array_map(static fn(array$dialogue):array=>['text'=>$dialogue['text']]
+                    $completed=['utterances'=>array_merge(array_map(static fn(array$dialogue):array=>['text'=>$dialogue['text']]
                         +array_intersect_key($dialogue,['mood'=>true,'tones'=>true])+SpeechLanguage::payload($dialogue['tts_language']??null),
-                        $streamedDialogues),'action'=>null];
+                        $streamedDialogues),$heldNarration===''?[]:[['text'=>$heldNarration]]),'action'=>null];
                 }
                 $result=(new InlineNarrationRouter())->route($message,$completed);
             }
             if($pendingInlineSpeech!==null)$this->repository->queueStreamedDialogueSpeech($message,$pendingInlineSpeech,$fence);
             $token->throwIfCancellationRequested();
             $result=$this->translateResult($message,$result,$policy,$job,$token);
-            if($streamedDialogues!==[])$result=$this->reconcileStreamedResult($message,$result,$streamedDialogues);
+            if($streamedDialogues!==[])$result=$this->reconcileStreamedResult($message,$result,$streamedDialogues,$heldNarration);
             $queueSpeech = $this->mediaStore !== null
                 && in_array('speech.say', $message['_negotiated_capabilities'], true);
             $this->repository->completeTurn($message,$result,null,$fence,$queueSpeech,$streamedDialogues);
@@ -181,7 +186,8 @@ final class TurnProcessJobHandler implements JobHandler
             $context=SpeechLanguage::context($context,$preset,$dialogue['tts_language']??null);
             $pronunciationContext=$this->products?->ttsPronunciationContext((string)$message['installation_id'],
                 (string)$message['playthrough_id'],(array)$dialogue['speaker'])??[];
-            $ttsText=$this->products?->applyTtsPronunciation((string)$dialogue['text'],$pronunciationContext)??(string)$dialogue['text'];
+            $spoken=(string)($dialogue['_tts_text']??$dialogue['text']);
+            $ttsText=$this->products?->applyTtsPronunciation($spoken,$pronunciationContext)??$spoken;
             $providerIdentity=$provider instanceof \LorkhanServer\Application\FilteredSpeechProvider?$provider->inner:$provider;
         $providerName=match(true){$providerIdentity instanceof PocketTtsSpeechProvider=>'pockettts',
                 $providerIdentity instanceof XttsCompatibleSpeechProvider=>'xtts-compatible',
@@ -218,14 +224,17 @@ final class TurnProcessJobHandler implements JobHandler
     }
 
     /** Reuse streamed sentence identities only when they exactly reconstruct the validated provider text. */
-    private function reconcileStreamedResult(array $message,array $result,array $streamedDialogues):array
+    private function reconcileStreamedResult(array $message,array $result,array $streamedDialogues,string $heldNarration=''):array
     {
         $planned=(new DialoguePlanner())->plan($message,$result);
         $finalText=preg_replace('/\s+/u',' ',trim(implode("\n",array_column($planned,'_history_text'))));
-        $streamedText=preg_replace('/\s+/u',' ',trim(implode("\n",array_column($streamedDialogues,'text'))));
+        $streamedText=preg_replace('/\s+/u',' ',trim(implode("\n",array_column($streamedDialogues,'text'))."\n".$heldNarration));
         if($finalText!==$streamedText)throw new DomainException('provider_invalid_output');
         $utterances=[];
-        foreach($streamedDialogues as$dialogue)$utterances[]=['text'=>$dialogue['text']]+array_intersect_key($dialogue,['mood'=>true,'tones'=>true])+SpeechLanguage::payload($dialogue['tts_language']??null);
+        foreach($streamedDialogues as$dialogue)$utterances[]=['speaker'=>$dialogue['speaker'],'text'=>$dialogue['text']]
+            +array_intersect_key($dialogue,['mood'=>true,'tones'=>true,'_tts_text'=>true])+SpeechLanguage::payload($dialogue['tts_language']??null);
+        // Trailing directions were never streamed as speech, so they finish as one subtitle-only line.
+        if($heldNarration!=='')$utterances[]=['speaker'=>$message['payload']['target'],'text'=>$heldNarration,'speech_enabled'=>false];
         return['utterances'=>$utterances,'action'=>$result['action']??null];
     }
 
@@ -274,8 +283,11 @@ final class TurnProcessJobHandler implements JobHandler
             foreach($clean as$index=>&$utterance){$translation=$translated[$index];
                 $utterance['_history_text']=$content['save_translated_text']?$translation:$utterance['_history_text'];
                 $utterance['_subtitle']=$content['translate_text']?$translation:$utterance['_subtitle'];
-                $utterance['_tts_text']=$content['translate_audio']?$translation:$utterance['_tts_text'];
-                if($content['translate_audio']&&isset($utterance['tts_language'])){
+                // Translated audio keeps the disabled-narration speech filter applied to the untranslated line.
+                $spoken=$utterance['_tts_text']!==$utterance['text']?NarrationTextPolicy::speech($translation):$translation;
+                $translateAudio=$content['translate_audio']&&$spoken!=='';
+                $utterance['_tts_text']=$translateAudio?$spoken:$utterance['_tts_text'];
+                if($translateAudio&&isset($utterance['tts_language'])){
                     unset($utterance['tts_language']);
                     $utterance+=SpeechLanguage::payload($content['target_language']);
                 }
