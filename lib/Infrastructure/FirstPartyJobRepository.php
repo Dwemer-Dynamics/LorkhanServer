@@ -392,6 +392,8 @@ final class FirstPartyJobRepository
             "DELETE FROM rate_limit_buckets WHERE bucket_key IN (SELECT bucket_key FROM rate_limit_buckets WHERE window_started_at<CAST(:now AS timestamptz)-interval '1 day' ORDER BY window_started_at LIMIT :limit)",
             // A cancel only matters while its target request can still run; provider timeouts are minutes.
             "DELETE FROM menu_dialogue_tts_cancellations WHERE (installation_id,message_id) IN (SELECT installation_id,message_id FROM menu_dialogue_tts_cancellations WHERE cancelled_at<CAST(:now AS timestamptz)-interval '1 day' ORDER BY cancelled_at LIMIT :limit)",
+            // Heartbeat timing only spaces one-minute pings; a day-old row no longer affects any decision.
+            "DELETE FROM player2_health_heartbeats WHERE installation_id IN (SELECT installation_id FROM player2_health_heartbeats WHERE attempted_at<CAST(:now AS timestamptz)-interval '1 day' ORDER BY attempted_at LIMIT :limit)",
             "DELETE FROM idempotency_requests WHERE (installation_id,idempotency_key,route) IN (SELECT installation_id,idempotency_key,route FROM idempotency_requests WHERE created_at<CAST(:now AS timestamptz)-(:days||' days')::interval ORDER BY created_at LIMIT :limit)",
             'DELETE FROM browser_sessions WHERE session_hash IN (SELECT session_hash FROM browser_sessions WHERE expires_at<:now OR revoked_at IS NOT NULL ORDER BY expires_at LIMIT :limit)',
         ];

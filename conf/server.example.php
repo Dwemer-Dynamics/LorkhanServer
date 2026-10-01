@@ -72,4 +72,7 @@ return [
         // First-party handlers are source-controlled and registered by default; optionally narrow claims.
         'types' => null,
     ],
+    // After a Player2 connector answers in-game dialogue, the background worker sends Player2's once-a-minute
+    // GET /v1/health usage heartbeat for up to five minutes while the game stays active. Set false to disable.
+    'player2_health_heartbeat' => true,
 ];

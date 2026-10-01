@@ -65,6 +65,9 @@ try {
         $speechProvider = ($config['speech_provider_factory'])();
         if (!$speechProvider instanceof SpeechProvider) throw new RuntimeException('Speech provider factory did not return a SpeechProvider.');
     }
+    $evolution = $filter['types'] === null || in_array('profile.generate', $filter['types'], true);
+    // Only the background lane pings Player2, so a slow health check can never hold a dialogue job.
+    $player2Health = $lane === 'background' ? new \LorkhanServer\Infrastructure\Player2HealthHeartbeat($database, $config) : null;
     $runner = new Worker(
         new JobRepository($database),
         FirstPartyJobHandlerFactory::registry($database, $media, provider: $provider, speechProvider: $speechProvider,
@@ -76,8 +79,10 @@ try {
         (int) ($worker['idle_exit_seconds'] ?? 30),
         (int) ($worker['max_runtime_seconds'] ?? 300),
         $filter['types'],
-        maintenance: $filter['types']===null||in_array('profile.generate',$filter['types'],true)
-            ?static fn()=>(new \LorkhanServer\Infrastructure\ProfileEvolutionScheduler($database))->run():null,
+        maintenance: $evolution || $player2Health !== null ? static function () use ($database, $evolution, $player2Health): void {
+            if ($evolution) (new \LorkhanServer\Infrastructure\ProfileEvolutionScheduler($database))->run();
+            $player2Health?->tick();
+        } : null,
         excludedTypes: $filter['excluded_types'],
     );
     $stats = $runner->run();

@@ -67,6 +67,22 @@ final class ProviderFactory
             'allow_loopback_http'=>str_starts_with($content['endpoint'],'http://'),'direct_connection'=>true];
     }
 
+    /**
+     * Derive Player2's usage heartbeat from the same validated connector revision, host allowlist and game key as its chat calls.
+     * @return array{url:string,headers:list<string>,curl:array<int,mixed>}
+     */
+    public static function player2HealthRequest(array $config,array $slot):array
+    {
+        $provider=self::slotSection($config,$slot);
+        if(($provider['driver']??'')!=='openai-compatible'||($provider['service']??'')!=='player2')throw new RuntimeException('player2_connector_unavailable');
+        $parts=parse_url((string)($provider['endpoint']??''));
+        if(!is_array($parts)||!isset($parts['scheme'],$parts['host']))throw new RuntimeException('player2_connector_unavailable');
+        $url=$parts['scheme'].'://'.$parts['host'].(isset($parts['port'])?':'.(int)$parts['port']:'').'/v1/health';
+        return['url'=>$url,'headers'=>LlmConnector::requestHeaders(self::apiKey($provider,'LORKHAN_LLM_API_KEY',$config),true),
+            'curl'=>\LorkhanServer\Security\OutboundUrlPolicy::curlOptions($url,self::hosts($provider),
+                (bool)($provider['allow_loopback_http']??false),(bool)($provider['direct_connection']??false))];
+    }
+
     /** Build the profile-routed extractor without exposing connector credentials or dialogue contracts. */
     public static function oghmaTopicExtractorForSlot(array $config,array $slot,?int $timeoutMs=null):OghmaTopicExtractor
     {
