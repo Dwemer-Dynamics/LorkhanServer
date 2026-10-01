@@ -3641,12 +3641,70 @@ $assert($fallbackAttempts===[['state'=>'failed','fallback'=>'false'],['state'=>'
     'profile fallback attempts were not recorded as one primary failure and one fallback success');
 $recordedLabel=$db->query("SELECT metadata->>'configuration_name' FROM provider_attempts WHERE state='succeeded' AND turn_id=".$db->quote($fallbackTurn['turn_id']))->fetchColumn();
 $assert($recordedLabel==='Profile fallback mock','successful fallback attempt lost its frozen connector label');
+
+// A stream that fails after committing a sentence keeps that heard sentence instead of invoking the fallback model.
+$interruptedProvider=new class implements \LorkhanServer\Application\StreamingProvider {
+    public int$calls=0;
+    public function complete(array $turn, CancellationToken $cancellation): array { throw new RuntimeException('provider secret'); }
+    public function completeStreaming(array $turn, CancellationToken $cancellation, callable $onDialogueDelta): array {
+        ++$this->calls;$onDialogueDelta('Heard before the outage.');throw new RuntimeException('provider secret');
+    }
+};
+// The installation Narrator fixture uses inline narration, which disables streamed speech; disable it so this turn truly streams.
+$streamNarratorContent=$products->getRevisioned('profile',$narratorProfile['profile_id'])['content'];
+$products->revise('profile',$narratorProfile['profile_id'],['inline_narration_mode'=>'Disabled']+$streamNarratorContent,
+    'streamed speech fixture',$now);
+$interruptedTurn=$fallbackTurn;$interruptedTurn['message_id']=$newUuid(743);$interruptedTurn['request_id']=$newUuid(744);
+$interruptedTurn['turn_id']=$newUuid(745);$interruptedTurn['payload']['input']['text']='[fallback] Stream then fail.';
+// Streamed speech requires one speaker, so the audience is the target alone rather than the fixture's other actor.
+$interruptedTurn['payload']['audience']=[$fallbackTarget];
+[$status]=$call($fallbackRouter,'POST',$base.'/turns',$headers($interruptedTurn['message_id']),[],$interruptedTurn);
+$interruptedStats=$runTurnWorker($interruptedProvider);
+[,$interruptedEvents]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$fallbackEvents['next_after']]);
+$interruptedTypes=array_column($interruptedEvents['events'],'type');
+$interruptedDialogues=array_values(array_filter($interruptedEvents['events'],static fn(array $e):bool=>$e['type']==='dialogue.complete'));
+$interruptedAttempts=$db->query("SELECT state,metadata->>'fallback' AS fallback FROM provider_attempts WHERE provider_kind='llm' AND turn_id="
+    .$db->quote($interruptedTurn['turn_id']))->fetchAll();
+$interruptedSpeech=$db->query('SELECT count(*) FROM speech WHERE turn_id='.$db->quote($interruptedTurn['turn_id']))->fetchColumn();
+$interruptedResponse=json_decode((string)$db->query('SELECT response_payload FROM turns WHERE turn_id='
+    .$db->quote($interruptedTurn['turn_id']))->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$assert($status===202&&$interruptedStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]&&$interruptedProvider->calls===1
+    &&$interruptedAttempts===[['state'=>'failed','fallback'=>'false']]
+    &&count($interruptedDialogues)===1&&$interruptedDialogues[0]['payload']['text']==='Heard before the outage.'
+    &&in_array('turn.complete',$interruptedTypes,true)&&!in_array('turn.failed',$interruptedTypes,true)
+    &&count(array_keys($interruptedTypes,'speech.ready',true))===1&&(int)$interruptedSpeech===1
+    &&$interruptedResponse['ok']===true&&array_column($interruptedResponse['lines'],'text')===['Heard before the outage.'],
+    'mid-stream provider failure replaced or failed committed dialogue: '.json_encode(['types'=>$interruptedTypes,'attempts'=>$interruptedAttempts]));
+// Display-only progress (group audience disables streamed speech) is not durable dialogue, so the fallback still runs.
+$displayOnlyTurn=$fallbackTurn;$displayOnlyTurn['message_id']=$newUuid(746);$displayOnlyTurn['request_id']=$newUuid(747);
+$displayOnlyTurn['turn_id']=$newUuid(748);$displayOnlyTurn['payload']['input']['text']='[fallback] Progress then fail.';
+$displayOnlyAudience=$fallbackTarget;$displayOnlyAudience['record_id']='fallback_audience';$displayOnlyAudience['display_name']='Fallback Audience';
+$displayOnlyAudience['refnum']['index']=749;$displayOnlyTurn['payload']['audience']=[$displayOnlyAudience];
+$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Fallback audience','playthrough_id'=>$session['playthrough_id'],
+    'actor_identity'=>$displayOnlyAudience,'core_profile_id'=>$fallbackCore['core_profile_id'],'content'=>[]],$now);
+$interruptedProvider->calls=0;
+[$status]=$call($fallbackRouter,'POST',$base.'/turns',$headers($displayOnlyTurn['message_id']),[],$displayOnlyTurn);
+$displayOnlyStats=$runTurnWorker($interruptedProvider);
+[,$displayOnlyEvents]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$interruptedEvents['next_after']]);
+$displayOnlyTypes=array_column($displayOnlyEvents['events'],'type');
+$displayOnlyTexts=array_map(static fn(array $e):string=>$e['payload']['text'],array_values(array_filter($displayOnlyEvents['events'],
+    static fn(array $e):bool=>$e['type']==='dialogue.complete')));
+$displayOnlyAttempts=$db->query("SELECT state,metadata->>'fallback' AS fallback FROM provider_attempts WHERE provider_kind='llm' AND turn_id="
+    .$db->quote($displayOnlyTurn['turn_id'])." ORDER BY started_at,provider_attempt_id")->fetchAll();
+$assert($status===202&&$displayOnlyStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]&&$interruptedProvider->calls===1
+    &&$displayOnlyAttempts===[['state'=>'failed','fallback'=>'false'],['state'=>'succeeded','fallback'=>'true']]
+    &&$displayOnlyTexts!==[]&&!in_array('Heard before the outage.',$displayOnlyTexts,true)
+    &&in_array('turn.complete',$displayOnlyTypes,true)&&!in_array('turn.failed',$displayOnlyTypes,true),
+    'display-only stream progress suppressed the configured fallback: '.json_encode(['types'=>$displayOnlyTypes,'attempts'=>$displayOnlyAttempts]));
+$products->revise('profile',$narratorProfile['profile_id'],$streamNarratorContent,'restore inline narration fixture',$now);
 $products->selectModelSlot(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],'fast',$now);
 
 // Exercise the lower group bounds through the same durable provider/TTS pipeline.
 // Keep every offline group speaker on the same route-free Core Profile so the injected mock TTS remains deterministic.
 // NPC routing resolves each speaker's reference-scoped profile, so every audience actor needs its own profile.
-$groupAfter=(int)$fallbackEvents['next_after'];
+$groupAfter=(int)$displayOnlyEvents['next_after'];
 foreach([2,3] as $groupCount){$bounded=$turn;$bounded['message_id']=$newUuid(50+$groupCount*3);$bounded['request_id']=$newUuid(51+$groupCount*3);
     $bounded['turn_id']=$newUuid(52+$groupCount*3);$bounded['payload']['input']['text']='[group] Bounded report.';$bounded['payload']['audience']=[];
     for($i=1;$i<$groupCount;++$i){$actor=$bounded['payload']['target'];$actor['record_id']='bounded_'.$groupCount.'_'.$i;

@@ -70,16 +70,18 @@ final class TurnProcessJobHandler implements JobHandler
                 $this->repository->storePreparedTurn($message,$prepared['trace'],$fence);
             }
             $policy=$this->translationPolicy($message);
-            $streamedDialogues=[];$pendingInlineSpeech=null;
+            $streamedDialogues=[];$pendingInlineSpeech=null;$streamCommitted=false;
             $streamSpeech=$this->canStreamSpeech($message,$policy);
             $progress = function (string $delta, ?string $language=null, ?string $mood=null, ?array $tones=null) use ($message, $fence, $policy, $job, $heartbeat, $streamSpeech,
-                &$streamedDialogues,&$pendingInlineSpeech): void {
+                &$streamedDialogues,&$pendingInlineSpeech,&$streamCommitted): void {
                 if($policy['content']['translate_text'])return;
                 if($delta==='')return;
                 $this->repository->appendDialogueDelta($message,$delta,$fence);
                 if(!$streamSpeech||count($streamedDialogues)>=DialoguePlanner::MAX_UTTERANCES)return;
                 $index=count($streamedDialogues)+1;
                 $dialogue=$this->repository->appendStreamedDialogue($message,$delta,$fence,$index)+SpeechLanguage::payload($language)+($mood===null?[]:['mood'=>$mood])+($tones===null?[]:['tones'=>ZonosGradioSpeechProvider::validateTones($tones)]);
+                // Only a durable dialogue line commits the turn; display-only deltas still permit the fallback model.
+                $streamCommitted=true;
                 $streamedDialogues[]=$dialogue;
                 if($index===1){
                     if(!$this->synthesizeStreamedDialogue($message,$dialogue,$fence,$job,$heartbeat,1))$pendingInlineSpeech=$dialogue;
@@ -93,8 +95,22 @@ final class TurnProcessJobHandler implements JobHandler
                 $this->repository->queueStreamedDialogueSpeech($message,$dialogue,$fence);
             };
             // Director authored lines use normal speech/action validation, without another dialogue model call.
-            $result = isset($message['_director_response']) ? DirectorPolicy::splitSpeech($message,$message['_director_response'])
-                : (new InlineNarrationRouter())->route($message,$this->completeWithFallback($message,$job,$token,$progress));
+            if(isset($message['_director_response']))$result=DirectorPolicy::splitSpeech($message,$message['_director_response']);
+            else{
+                try{
+                    $completed=$this->completeWithFallback($message,$job,$token,$progress,
+                        static function()use(&$streamCommitted):bool{return $streamCommitted;});
+                }catch(OperationCancelled$error){throw$error;}
+                catch(Throwable$error){
+                    // Committed sentences may already be heard; finish with exactly those instead of a failed turn.
+                    if($streamedDialogues===[])throw$error;
+                    Logger::warn('Turn stream interrupted after committed dialogue: turn_id='.$turnId.' code='.$this->providerFailureCode($error));
+                    $completed=['utterances'=>array_map(static fn(array$dialogue):array=>['text'=>$dialogue['text']]
+                        +array_intersect_key($dialogue,['mood'=>true,'tones'=>true])+SpeechLanguage::payload($dialogue['tts_language']??null),
+                        $streamedDialogues),'action'=>null];
+                }
+                $result=(new InlineNarrationRouter())->route($message,$completed);
+            }
             if($pendingInlineSpeech!==null)$this->repository->queueStreamedDialogueSpeech($message,$pendingInlineSpeech,$fence);
             $token->throwIfCancellationRequested();
             $result=$this->translateResult($message,$result,$policy,$job,$token);
@@ -274,8 +290,9 @@ final class TurnProcessJobHandler implements JobHandler
         return['utterances'=>$clean,'action'=>$result['action']??null];
     }
 
-    /** Run the selected LLM once, retrying only with the profile's explicit CHIM-style fallback slot. */
-    private function completeWithFallback(array $message,array $job,CancellationToken $token,callable $onDialogueDelta):array
+    /** Run the selected LLM once, retrying only with the profile's explicit CHIM-style fallback slot before any output commits. */
+    private function completeWithFallback(array $message,array $job,CancellationToken $token,callable $onDialogueDelta,
+        callable $streamCommitted):array
     {
         $primary=$message['_provider_configuration']??null;$fallback=$message['_fallback_provider_configuration']??null;
         $routes=[['snapshot'=>is_array($primary)?$primary:null,'fallback'=>false]];
@@ -305,6 +322,8 @@ final class TurnProcessJobHandler implements JobHandler
                 if($provider instanceof OpenAiCompatibleProvider)$this->attempts?->recordUsage($attemptId,$provider->reportedUsage());
                 try{$this->attempts?->finish($attemptId,'failed',errorCode:$this->providerFailureCode($error));}catch(Throwable){}
                 $lastError=$error;
+                // Durable streamed output cannot be replaced by another model's different text.
+                if($streamCommitted())break;
             }
         }
         throw $lastError??new \RuntimeException('provider_unavailable');
