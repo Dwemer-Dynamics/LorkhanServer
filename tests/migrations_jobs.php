@@ -210,6 +210,7 @@ $db->rollBack();
 $legacyInstallation=Uuid::v4();$legacyProfile=Uuid::v4();$legacyPlaythrough=Uuid::v4();$legacySession=Uuid::v4();
 $db->prepare('INSERT INTO installations(installation_id,token_fingerprint) VALUES(:id,:token)')->execute(['id'=>$legacyInstallation,'token'=>hash('sha256','baseline')]);
 $db->prepare("INSERT INTO profiles(profile_id,installation_id,name) VALUES(:id,:installation,'Baseline player')")->execute(['id'=>$legacyProfile,'installation'=>$legacyInstallation]);
+$db->prepare("INSERT INTO profile_revisions(profile_id,revision,content,change_reason) VALUES(:id,1,'{}'::jsonb,'baseline')")->execute(['id'=>$legacyProfile]);
 $db->prepare("INSERT INTO playthroughs(playthrough_id,installation_id,profile_id,name) VALUES(:id,:installation,:profile,'Baseline playthrough')")->execute(['id'=>$legacyPlaythrough,'installation'=>$legacyInstallation,'profile'=>$legacyProfile]);
 $db->prepare("INSERT INTO sessions(session_id,installation_id,profile_id,playthrough_id,generation,content_fingerprint,openmw_version,openmw_commit,lua_api_revision,client_version,platform,created_at) VALUES(:session,:installation,:profile,:playthrough,1,:fingerprint,'0.51.0',:commit,129,'baseline-test','linux','2025-01-01T00:00:00Z')")->execute(['session'=>$legacySession,'installation'=>$legacyInstallation,'profile'=>$legacyProfile,'playthrough'=>$legacyPlaythrough,'fingerprint'=>'sha256:'.str_repeat('a',64),'commit'=>str_repeat('b',40)]);
 // Relationship writes retain audit and revision protection.
@@ -432,6 +433,11 @@ $profileRolled = $service->rollback('profile', $profile['profile_id'], 1, 'resto
 $check($profileRolled['current_revision'] === 3 && $profileRolled['content']['role'] === 'player', 'profile rollback failed');
 $playthrough = $service->createRevisioned('playthrough', ['installation_id'=>$installation,'profile_id'=>$profile['profile_id'],
     'name'=>'Vvardenfell','content'=>['chapter'=>1],'change_reason'=>'created']);
+// Reference-scoped NPC profiles belong to the playthrough of the latest character-bound session.
+$character=Uuid::v4();$characterSession=Uuid::v4();
+$db->prepare("UPDATE profiles SET playthrough_id=:playthrough WHERE installation_id=:installation AND playthrough_id IS NULL AND COALESCE(actor_identity->>'kind','') NOT IN ('narrator','template')")->execute(['installation'=>$installation,'playthrough'=>$playthrough['playthrough_id']]);
+$db->prepare("INSERT INTO character_playthrough_bindings(installation_id,character_id,playthrough_id,binding_mode) VALUES(:installation,:character,:playthrough,'new')")->execute(['installation'=>$installation,'character'=>$character,'playthrough'=>$playthrough['playthrough_id']]);
+$db->prepare("INSERT INTO sessions(session_id,installation_id,profile_id,playthrough_id,generation,content_fingerprint,openmw_version,openmw_commit,lua_api_revision,client_version,platform,created_at,character_id) VALUES(:session,:installation,:profile,:playthrough,1,:fingerprint,'0.51.0',:commit,129,'fixture-test','linux','2026-01-01T00:00:00Z',:character)")->execute(['session'=>$characterSession,'installation'=>$installation,'profile'=>$profile['profile_id'],'playthrough'=>$playthrough['playthrough_id'],'fingerprint'=>'sha256:'.str_repeat('a',64),'commit'=>str_repeat('b',40),'character'=>$character]);
 $providerConfig = $service->createRevisioned('provider', ['installation_id'=>$installation,'profile_id'=>$profile['profile_id'],
     'name'=>'Local mock','content'=>['driver'=>'mock','model'=>'deterministic-mock-v1'],'change_reason'=>'created']);
 $check($providerConfig['content']['driver'] === 'mock', 'mock provider config failed');
@@ -459,7 +465,7 @@ $check($products->connectorForInstallation($installation,'stt_provider')['config
 $guardedProvider=$service->createRevisioned('provider',['installation_id'=>$installation,'name'=>'Profile-bound model slot',
     'content'=>['driver'=>'mock','model'=>'deterministic-mock-v1']]);
 $guardedProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Profile-bound NPC',
-    'actor_identity'=>['kind'=>'npc','record_id'=>'bound_npc','content_file'=>'Morrowind.esm'],
+    'actor_identity'=>['kind'=>'npc','record_id'=>'bound_npc','content_file'=>'Morrowind.esm','refnum'=>['index'=>61001,'content_file'=>0]],
     'content'=>['routing'=>['llm_configuration_id'=>$guardedProvider['configuration_id']]]]);
 try{$service->deleteRevisioned('provider',$guardedProvider['configuration_id']);throw new RuntimeException('profile-bound model slot deleted');}
 catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','unexpected model-slot deletion error');}
@@ -479,7 +485,7 @@ $promptProjection=$db->prepare('SELECT count(*) FROM prompt_metadata metadata JO
 $promptProjection->execute(['configuration'=>$selectedPrompt['configuration_id']]);
 $check((int)$promptProjection->fetchColumn()===1,'prompt did not project into the Herika prompt contract');
 $service->revise('profile',$profile['profile_id'],['role'=>'player','routing'=>['prompt_configuration_id'=>$selectedPrompt['configuration_id']]],'select explicit prompt');
-$promptContext=$products->promptContext($scope+['session_id'=>'20000000-0000-4000-8000-000000000099','payload'=>['target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm']]],$clock->iso());
+$promptContext=$products->promptContext($scope+['session_id'=>'20000000-0000-4000-8000-000000000099','payload'=>['target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm','refnum'=>['index'=>61002,'content_file'=>0]]]],$clock->iso());
 $check($promptContext['prompt']['configuration_id']===$selectedPrompt['configuration_id']&&$promptContext['prompt']['content']['instruction']==='This exact prompt must win.','profile-selected prompt was not used');
 $service->revise('profile',$profile['profile_id'],['role'=>'player'],'remove explicit prompt');$service->deleteRevisioned('prompt',$selectedPrompt['configuration_id']);
 $memory=$service->createMemory($scope+['tier'=>'recent','content'=>'Nalcarya sells alchemy supplies in Balmora.',
@@ -537,7 +543,7 @@ foreach($oghmaRows as$row)$products->createKnowledge([
 ],[(string)$row['topic']],$clock->iso());
     $groundedTurn=$scope+['turn_id'=>'20000000-0000-4000-8000-000000000098','payload'=>[
         'input'=>['kind'=>'text','language'=>'en','text'=>'Tell me about Vivec and the Tribunal.'],'ui_source'=>'lorkhan_text',
-        'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm']]];
+        'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm','refnum'=>['index'=>61002,'content_file'=>0]]]];
 $groundedSelection=$products->groundedOghmaExtraction($groundedTurn);
 $check($groundedSelection['status']==='grounded'&&$groundedSelection['topics']===['Vivec','Tribunal']
     &&$groundedSelection['fallback_eligible']===false,'database-backed grounded Oghma extraction did not preserve topic order');
@@ -565,7 +571,7 @@ $fallbackSelection=$products->groundedOghmaExtraction(array_replace_recursive($g
 $selectOghma=new ReflectionMethod($products,'selectPromptKnowledge');
 $oghmaSelection=$selectOghma->invoke($products,
     ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
-        'input'=>['text'=>'Tell me about Vivec and the Tribunal.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],
+        'input'=>['text'=>'Tell me about Vivec and the Tribunal.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm','refnum'=>['index'=>61002,'content_file'=>0]],
         'context'=>['world'=>['cell'=>'Balmora','region'=>'Ascadian Isles']]]],['content'=>['race'=>'Dark Elf']],$scope,$oghmaRows,'',4,
     $savedOghmaSettings,['status'=>'fallback_succeeded','request_eligible'=>true,'topics'=>['Vivec','Tribunal'],'configuration_id'=>'00000000-0000-4000-8000-000000000305'],$clock->iso());
 $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balmora','Ascadian Isles']
@@ -574,21 +580,21 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
         'multi-topic Oghma retrieval did not prioritize conversation, exact location, and region context');
     $boundedLimitSelection=$selectOghma->invoke($products,
         ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
-            'input'=>['text'=>'Tell me about Vivec and the Tribunal.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],
+            'input'=>['text'=>'Tell me about Vivec and the Tribunal.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm','refnum'=>['index'=>61002,'content_file'=>0]],
             'context'=>['world'=>['cell'=>'Balmora','region'=>'Ascadian Isles']]]],['content'=>['race'=>'Dark Elf']],$scope,$oghmaRows,'',20,
         $savedOghmaSettings,['status'=>'grounded','request_eligible'=>true,'topics'=>['Vivec','Tribunal']],$clock->iso());
     $check(($boundedLimitSelection['trace']['reasons']['_context']['knowledge_limit']??null)===5,
         'Oghma selection did not enforce the shared five-result maximum');
     $conversationBudgetSelection=$selectOghma->invoke($products,
         ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
-            'input'=>['text'=>'Tell me about Vivec and the Tribunal.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],
+            'input'=>['text'=>'Tell me about Vivec and the Tribunal.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm','refnum'=>['index'=>61002,'content_file'=>0]],
             'context'=>['location'=>['name'=>'Balmora']]]],['content'=>['race'=>'Dark Elf']],$scope,$oghmaRows,'',2,
         $savedOghmaSettings,['status'=>'grounded','request_eligible'=>true,'topics'=>['Vivec','Tribunal']],$clock->iso());
     $check(array_column($conversationBudgetSelection['rows'],'topic')===['Vivec','Tribunal'],
         'conversation topics did not consume the shared result budget before forced context');
     $deduplicatedSelection=$selectOghma->invoke($products,
         ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
-            'input'=>['text'=>'Tell me about Balmora.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],
+            'input'=>['text'=>'Tell me about Balmora.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm','refnum'=>['index'=>61002,'content_file'=>0]],
             'context'=>['location'=>['name'=>'Balmora']]]],['content'=>['race'=>'Dark Elf']],$scope,$oghmaRows,'',3,
         $savedOghmaSettings,['status'=>'grounded','request_eligible'=>true,'topics'=>['Balmora']],$clock->iso());
     $check(array_column($deduplicatedSelection['rows'],'topic')===['Balmora','Dunmer']
@@ -601,7 +607,7 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
     $deniedSelection=$selectOghma->invoke($products,
         ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
             'input'=>['kind'=>'text','language'=>'en','text'=>'Tell me about Forbidden Lore.'],'ui_source'=>'lorkhan_text',
-            'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],'context'=>[]]],
+            'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm','refnum'=>['index'=>61002,'content_file'=>0]],'context'=>[]]],
         ['content'=>[]],$scope,[$deniedRow],'',4,$deniedSettings,
         ['status'=>'grounded','request_eligible'=>true,'topics'=>['Forbidden Lore']],$clock->iso());
     $check(($deniedSelection['rows'][0]['access_level']??null)==='denied'
@@ -818,7 +824,7 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
     $db->exec("DELETE FROM knowledge_documents WHERE provenance->>'source'='coverage-test'");
     foreach(glob($oghmaFixtureRoot.'/*')?:[]as$fixturePath)unlink($fixturePath);rmdir($oghmaFixtureRoot);
 $npcProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Nalcarya',
-    'actor_identity'=>['kind'=>'npc','record_id'=>'nalcarya','display_name'=>'Nalcarya','content_file'=>'Morrowind.esm'],
+    'actor_identity'=>['kind'=>'npc','record_id'=>'nalcarya','display_name'=>'Nalcarya','content_file'=>'Morrowind.esm','refnum'=>['index'=>61003,'content_file'=>0]],
     'content'=>['role'=>'npc','management'=>['locked'=>true,'favorite'=>false]],'change_reason'=>'created']);
 $npcScope=['installation_id'=>$installation,'profile_id'=>$npcProfile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id']];
 $relationship=$service->setRelationship($npcScope+['actor_identity'=>['kind'=>'player','record_id'=>'player','display_name'=>'Nerevarine','content_file'=>'Morrowind.esm','refnum'=>['index'=>1,'content_file'=>0]],'disposition'=>20,'affinity'=>5,
@@ -860,6 +866,8 @@ $historyRecipient=$service->createRevisioned('profile',['installation_id'=>$inst
     'actor_identity'=>$historyRecipientIdentity,'content'=>['role'=>'npc']]);
 $historyOutsider=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'History Outsider',
     'actor_identity'=>$historyOutsiderIdentity,'content'=>['role'=>'npc']]);
+// A zero cursor means "latest page"; keep one unscoped prior row so the burst starts after a real cursor.
+$db->exec("INSERT INTO eventlog(type,data,sess,gamets,localts,ts,people) VALUES('death','prior cursor event',NULL,0,1700000000,1700000000000,'|Player|')");
 $baseEventRow=(int)$db->query('SELECT COALESCE(max(rowid),0) FROM eventlog')->fetchColumn();
 $insertEvent=$db->prepare("INSERT INTO eventlog(type,data,sess,gamets,localts,ts,people) VALUES('death',:data,NULL,:gamets,:localts,:ts,'|Player|') RETURNING rowid");
 $insertMetadata=$db->prepare("INSERT INTO eventlog_metadata(rowid,installation_id,playthrough_id,profile_id,projection_kind,projection_key,speaker,target,audience,payload) VALUES(:rowid,:installation,:playthrough,:profile,'cursor_test',:key,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb)");
@@ -1098,20 +1106,22 @@ $legacyGenerator=$service->createRevisioned('provider',['installation_id'=>$lega
 $initialLegacyGlobal=\LorkhanServer\Application\SettingsCatalog::globalDefaults();
 $initialLegacyGlobal['system_routing']['profile_generation_configuration_id']=$legacyGenerator['configuration_id'];
 $legacyGenerationConfiguration=$service->createRevisioned('global_settings',['installation_id'=>$legacyInstallation,'name'=>'Global Settings','content'=>$initialLegacyGlobal]);
-$profileBefore=(int)$db->query("SELECT current_revision FROM profiles WHERE profile_id='{$scope['profile_id']}'")->fetchColumn();
+$generatedNpc=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Generated NPC',
+    'actor_identity'=>['kind'=>'npc','record_id'=>'generated_npc','content_file'=>'Morrowind.esm','refnum'=>['index'=>61006,'content_file'=>0]],'content'=>['role'=>'npc']]);
+$profileBefore=(int)$db->query("SELECT current_revision FROM profiles WHERE profile_id='{$generatedNpc['profile_id']}'")->fetchColumn();
 $profileJob=Uuid::v4();$jobs->enqueue($profileJob,'profile.generate',1,'profile.generate:test',
-    ['profile_id'=>$scope['profile_id'],'base_revision'=>$profileBefore,'provider_configuration_id'=>$initialGenerator['configuration_id'],'provider_revision'=>1],3);
+    ['profile_id'=>$generatedNpc['profile_id'],'base_revision'=>$profileBefore,'provider_configuration_id'=>$initialGenerator['configuration_id'],'provider_revision'=>1],3);
 $profileStats=(new Worker($jobs,$firstPartyRegistry,'profile-generate-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
-$profileAfter=$db->query("SELECT p.current_revision,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id='{$scope['profile_id']}'")->fetch();
+$profileAfter=$db->query("SELECT p.current_revision,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id='{$generatedNpc['profile_id']}'")->fetch();
 $check($profileStats['succeeded']===1&&(int)$profileAfter['current_revision']===$profileBefore+1&&str_contains((string)$profileAfter['content'],'Deterministic mock generation'), 'profile generation did not create a revision');
 $generatedContent=json_decode((string)$profileAfter['content'],true,64,JSON_THROW_ON_ERROR);
-$lockedProfile=$service->revise('profile',$scope['profile_id'],$generatedContent+['management'=>['locked'=>true,'favorite'=>true]],'lock generated profile');
-try{$products->enqueueProfileGeneration($scope['profile_id']);throw new RuntimeException('locked profile queued automatic generation');}
+$lockedProfile=$service->revise('profile',$generatedNpc['profile_id'],$generatedContent+['management'=>['locked'=>true,'favorite'=>true]],'lock generated profile');
+try{$products->enqueueProfileGeneration($generatedNpc['profile_id']);throw new RuntimeException('locked profile queued automatic generation');}
 catch(InvalidArgumentException $error){$check($error->getMessage()==='profile_locked','unexpected locked profile queue error');}
 $lockedJob=Uuid::v4();$jobs->enqueue($lockedJob,'profile.generate',1,'profile.generate:locked-test',
-    ['profile_id'=>$scope['profile_id'],'base_revision'=>$lockedProfile['current_revision']],3);
+    ['profile_id'=>$generatedNpc['profile_id'],'base_revision'=>$lockedProfile['current_revision']],3);
 $lockedStats=(new Worker($jobs,$firstPartyRegistry,'profile-locked-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
-$lockedRevision=(int)$db->query("SELECT current_revision FROM profiles WHERE profile_id='{$scope['profile_id']}'")->fetchColumn();
+$lockedRevision=(int)$db->query("SELECT current_revision FROM profiles WHERE profile_id='{$generatedNpc['profile_id']}'")->fetchColumn();
 $check($lockedStats['succeeded']===1&&$lockedRevision===$lockedProfile['current_revision'],'locked profile generation changed the current revision');
 $playerProfile=$service->createRevisioned('profile',['installation_id'=>$legacyInstallation,'name'=>'Test Nerevarine',
     'actor_identity'=>['kind'=>'player','record_id'=>'player','content_file'=>'Morrowind.esm','display_name'=>'Test Nerevarine'],
@@ -1181,22 +1191,22 @@ catch(RuntimeException $error){$check($error->getMessage()==='revision_conflict'
 try{$service->reviseNarrator(Uuid::v4(),$narratorProfile['profile_id'],'Wrong scope',$narratorContent,'Scope test','',3);throw new RuntimeException('cross-installation narrator rename accepted');}
 catch(RuntimeException $error){$check($error->getMessage()==='not_found','Narrator edit crossed installation scope');}
 $switchTarget=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Alternate NPC profile',
-    'actor_identity'=>['kind'=>'npc','record_id'=>'alternate','content_file'=>'Morrowind.esm'],
+    'actor_identity'=>['kind'=>'npc','record_id'=>'alternate','content_file'=>'Morrowind.esm','refnum'=>['index'=>61004,'content_file'=>0]],
     'content'=>['biography'=>'Alternate profile','management'=>['locked'=>false,'favorite'=>false]]]);
-$switchActor=['kind'=>'npc','record_id'=>'nalcarya','content_file'=>'Morrowind.esm'];
-$products->bindActorProfile($scope,$switchActor,$scope['profile_id'],$clock->iso());
+$switchActor=['kind'=>'npc','record_id'=>'nalcarya','content_file'=>'Morrowind.esm','refnum'=>['index'=>61003,'content_file'=>0]];
+$products->bindActorProfile($scope,$switchActor,$generatedNpc['profile_id'],$clock->iso());
 $switchCoreContent=['schema'=>'lorkhan.core-profile.v1','prompt'=>'','settings_overrides'=>[],'routing'=>[]];
 $switchSourceCore=$service->createRevisioned('core_profile',['installation_id'=>$installation,'name'=>'Switch source','content'=>$switchCoreContent]);
 $switchTargetCore=$service->createRevisioned('core_profile',['installation_id'=>$installation,'name'=>'Switch target','content'=>$switchCoreContent]);
-$products->assignCoreProfile($scope['profile_id'],$switchSourceCore['core_profile_id']);
+$products->assignCoreProfile($generatedNpc['profile_id'],$switchSourceCore['core_profile_id']);
 $products->assignCoreProfile($switchTarget['profile_id'],$switchSourceCore['core_profile_id']);
-$switchBefore=$products->getRevisioned('profile',$scope['profile_id']);
+$switchBefore=$products->getRevisioned('profile',$generatedNpc['profile_id']);
 $skippedSwitch=$products->bulkSwitchNpcCoreProfiles($installation,$switchSourceCore['core_profile_id'],$switchTargetCore['core_profile_id'],false);
 $check($skippedSwitch===['updated'=>1,'total_matched'=>2,'skipped_locked'=>1],'mass Core Profile switch did not respect NPC locks');
 $appliedSwitch=$products->bulkSwitchNpcCoreProfiles($installation,$switchSourceCore['core_profile_id'],$switchTargetCore['core_profile_id'],true);
 $boundProfile=$db->query("SELECT profile_id FROM actor_profile_bindings WHERE installation_id='{$installation}' AND playthrough_id='{$playthrough['playthrough_id']}'")->fetchColumn();
-$switchAfter=$products->getRevisioned('profile',$scope['profile_id']);
-$check($appliedSwitch===['updated'=>1,'total_matched'=>1,'skipped_locked'=>0]&&$boundProfile===$scope['profile_id']
+$switchAfter=$products->getRevisioned('profile',$generatedNpc['profile_id']);
+$check($appliedSwitch===['updated'=>1,'total_matched'=>1,'skipped_locked'=>0]&&$boundProfile===$generatedNpc['profile_id']
     &&$switchAfter['core_profile_id']===$switchTargetCore['core_profile_id']&&$switchAfter['content']===$switchBefore['content']
     &&$switchAfter['actor_identity']===$switchBefore['actor_identity']&&$switchAfter['current_revision']===$switchBefore['current_revision'],
     'mass Core Profile switch changed identity, override history or actor binding');
@@ -1226,7 +1236,7 @@ $generationCore=$service->createRevisioned('core_profile',['installation_id'=>$i
     'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','settings_overrides'=>[],
         'routing'=>[]]]);
 $generationProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Routed generation NPC',
-    'core_profile_id'=>$generationCore['core_profile_id'],'actor_identity'=>['kind'=>'npc','record_id'=>'route_test','content_file'=>'Morrowind.esm'],
+    'core_profile_id'=>$generationCore['core_profile_id'],'actor_identity'=>['kind'=>'npc','record_id'=>'route_test','content_file'=>'Morrowind.esm','refnum'=>['index'=>61005,'content_file'=>0]],
     'content'=>['biography'=>'Unchanged until generation finishes.']]);
 $generationJob=$products->enqueueProfileGeneration($generationProfile['profile_id']);
 $generationPayload=json_decode((string)$db->query("SELECT payload FROM durable_jobs WHERE job_id='{$generationJob['job_id']}'")->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
@@ -1284,7 +1294,7 @@ $diaryConnector=$service->createRevisioned('provider',['installation_id'=>$insta
     'content'=>['driver'=>'mock','model'=>'diary-v1']]);
 $diaryCoreContent=['schema'=>'lorkhan.core-profile.v1','prompt'=>'','settings_overrides'=>[],'routing'=>[]];
 $diaryCore=$service->createRevisioned('core_profile',['installation_id'=>$installation,'name'=>'Manual diary core','content'=>$diaryCoreContent]);
-$diaryActor=['kind'=>'npc','record_id'=>'diary_test','content_file'=>'Morrowind.esm','display_name'=>'Diary NPC'];
+$diaryActor=['kind'=>'npc','record_id'=>'diary_test','content_file'=>'Morrowind.esm','display_name'=>'Diary NPC','refnum'=>['index'=>765,'content_file'=>0]];
 $diaryProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Diary NPC',
     'core_profile_id'=>$diaryCore['core_profile_id'],'actor_identity'=>$diaryActor,
     'content'=>['biography'=>'Witnesses events in Balmora.']]);
@@ -1301,6 +1311,8 @@ catch(InvalidArgumentException $error){$check($error->getMessage()==='diary_gene
 $check((int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='narrative.generate'")->fetchColumn()===$jobsBeforeDiarySave,
     'saving diary settings called a provider or queued work');
 $diaryTurn=Uuid::v4();
+$diaryTurnInsert=$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','We reached Balmora before dusk.','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:01Z')");
+$diaryTurnInsert->execute(['turn'=>$diaryTurn,'request'=>Uuid::v4(),'message'=>Uuid::v4(),'session'=>$characterSession]);
 $diaryEvent=$db->prepare("INSERT INTO eventlog(type,data,gamets,localts,ts,people,location) VALUES('inputtext',:data,42,1700000100,1700000100000,'|Diary NPC|','Balmora') RETURNING rowid");
 $diaryEvent->execute(['data'=>'Nerevarine: We reached Balmora before dusk.']);$diaryRowId=(int)$diaryEvent->fetchColumn();
 $db->prepare("INSERT INTO eventlog_metadata(rowid,installation_id,playthrough_id,profile_id,turn_id,projection_kind,projection_key,speaker,target,audience,payload) VALUES(:rowid,:installation,:playthrough,:profile,:turn,'diary_test',:key,CAST(:speaker AS jsonb),'{}'::jsonb,'[]'::jsonb,'{}'::jsonb)")
@@ -1308,8 +1320,9 @@ $db->prepare("INSERT INTO eventlog_metadata(rowid,installation_id,playthrough_id
         'profile'=>$diaryProfile['profile_id'],'turn'=>$diaryTurn,'key'=>'diary-test:'.$diaryTurn,
         'speaker'=>json_encode($diaryActor,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES)]);
 $diaryEvent->execute(['data'=>'An older witnessed event outside inherited history.']);$olderDiaryRow=(int)$diaryEvent->fetchColumn();
+$olderDiaryTurn=Uuid::v4();$diaryTurnInsert->execute(['turn'=>$olderDiaryTurn,'request'=>Uuid::v4(),'message'=>Uuid::v4(),'session'=>$characterSession]);
 $db->prepare("INSERT INTO eventlog_metadata(rowid,installation_id,playthrough_id,profile_id,turn_id,projection_kind,projection_key,speaker,target,audience,payload,created_at) SELECT :older,installation_id,playthrough_id,profile_id,:turn,'diary_test',:key,speaker,target,audience,payload,created_at-interval '1 day' FROM eventlog_metadata WHERE rowid=:current")
-    ->execute(['older'=>$olderDiaryRow,'turn'=>Uuid::v4(),'key'=>'diary-test-older:'.Uuid::v4(),'current'=>$diaryRowId]);
+    ->execute(['older'=>$olderDiaryRow,'turn'=>$olderDiaryTurn,'key'=>'diary-test-older:'.Uuid::v4(),'current'=>$diaryRowId]);
 $diaryCoreContent['settings_overrides']['diary']['context_turn_limit']=0;
 $diaryCoreContent['settings_overrides']['memory']['recent_turn_limit']=1;
 $diaryCoreContent['routing']['diary_generation_configuration_id']=$diaryConnector['configuration_id'];
@@ -1353,7 +1366,7 @@ try {
     $physicalRepo=new Repository($db);
     $bookSession=json_decode((string)file_get_contents(dirname(__DIR__).'/protocol/fixtures/v1/valid/session-init.json'),true)['instance'];
     $bookSession['installation_id']=$installation;$bookSession['profile_id']=$profile['profile_id'];
-    $bookSession['playthrough_id']=$playthrough['playthrough_id'];$bookSession['message_id']=Uuid::v4();
+    $bookSession['playthrough_id']=$playthrough['playthrough_id'];$bookSession['character_id']=$character;$bookSession['message_id']=Uuid::v4();
     $bookSession['runtime']['capabilities'][]='diary.books.v1';$bookSessionId=Uuid::v4();
     $physicalRepo->createSession($bookSession,$bookSessionId,str_repeat('a',64));
     $bookQuery=['schema'=>'lorkhan.diary-book.query.v1','message_id'=>Uuid::v4(),'request_id'=>Uuid::v4(),
@@ -1476,8 +1489,10 @@ try {
 
 $largeDiaryPayload=$diaryPayload;$largeDiaryPayload['request_id']=Uuid::v4();$largeDiaryPayload['narrative_id']=Uuid::v4();
 $largeDiaryPayload['source_turn_ids']=[];$largeDiaryPayload['input']['witnessed_context']=[];
+$largeDiaryTurn=$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','A short witnessed event.','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:01Z')");
 for($index=0;$index<101;$index++){
     $sourceId=Uuid::v4();$largeDiaryPayload['source_turn_ids'][]=$sourceId;
+    $largeDiaryTurn->execute(['turn'=>$sourceId,'request'=>Uuid::v4(),'message'=>Uuid::v4(),'session'=>$characterSession]);
     $largeDiaryPayload['input']['witnessed_context'][]=['turn_id'=>$sourceId,'at'=>$clock->iso(),'type'=>'inputtext','content'=>'A short witnessed event.'];
 }
 $largeDiaryJobId=Uuid::v4();$largeDiaryKey='narrative.generate:'.$largeDiaryPayload['request_id'];
@@ -1548,6 +1563,16 @@ $diaryPromptContext=$products->promptContext(['installation_id'=>$installation,'
 $check(array_column($diaryPromptContext['narrative'],'kind')===['summary'],
     'diary context opt-out removed non-diary narratives or retained the generated diary');
 
+// One played delivery on the baseline session is the source for the derived-memory checks below.
+$deliverySource=Uuid::v4();$deliveryDialogue=Uuid::v4();$deliveryTurn=Uuid::v4();$deliveryRequest=Uuid::v4();
+$db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES(:turn,:request,:message,:session,1,'text','en','delivery source','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")
+    ->execute(['turn'=>$deliveryTurn,'request'=>$deliveryRequest,'message'=>Uuid::v4(),'session'=>$legacySession]);
+$db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,response_line_id,utterance_id,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,1,1,:dialogue,:utterance,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'Deterministic derived memory.','2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
+    ->execute(['dialogue'=>$deliveryDialogue,'session'=>$legacySession,'turn'=>$deliveryTurn,'request'=>$deliveryRequest,'utterance'=>Uuid::v4()]);
+$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery','2026-01-01T00:00:01Z','lorkhan.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
+    ->execute(['source'=>$deliverySource,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>$deliveryRequest,'turn'=>$deliveryTurn]);
+$db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','ok','2026-01-01T00:00:01Z')")
+    ->execute(['dialogue'=>$deliveryDialogue,'source'=>$deliverySource,'message'=>Uuid::v4(),'request'=>$deliveryRequest,'turn'=>$deliveryTurn,'session'=>$legacySession]);
 $db->prepare('UPDATE turns SET context=CAST(:context AS jsonb) WHERE turn_id=(SELECT turn_id FROM source_events WHERE source_event_id=:source)')
     ->execute(['source'=>$deliverySource,'context'=>json_encode(['world'=>['game_time'=>100.5]],JSON_THROW_ON_ERROR)]);
 $derivedMemoryId='30000000-0000-4000-8000-000000000001';
@@ -1896,8 +1921,11 @@ $wait=['name'=>'ai.wait','tier'=>1,'actor'=>['kind'=>'npc','record_id'=>'npc'],'
 $check($policy->validate($wait,$loaded)['parameters']['duration_seconds']===3600,'bounded wait action validation failed');
 $animation=['name'=>'animation.play','tier'=>1,'actor'=>['kind'=>'npc','record_id'=>'npc'],'target'=>['kind'=>'player','record_id'=>'player'],'parameters'=>['group'=>'idle2']];
 $check($policy->validate($animation,$loaded)['name']==='animation.play','animation action validation failed');
-$itemUse=['name'=>'item.use','tier'=>2,'actor'=>['kind'=>'npc','record_id'=>'npc'],'target'=>['kind'=>'player','record_id'=>'player'],'parameters'=>['record_id'=>'p_restore_health_s','content_file'=>'morrowind.esm']];
+$itemUse=['name'=>'item.use','tier'=>2,'actor'=>['kind'=>'npc','record_id'=>'npc'],'target'=>['kind'=>'player','record_id'=>'player'],'parameters'=>['record_id'=>'p_restore_health_s']];
 $check($policy->validate($itemUse,$loaded)['name']==='item.use','item use action validation failed');
+try{$policy->validate(array_replace($itemUse,['parameters'=>['record_id'=>'p_restore_health_s','content_file'=>'morrowind.esm']]),$loaded);throw new RuntimeException('item use accepted a parameter outside the v1 wire shape');}catch(DomainException $error){$check($error->getMessage()==='action_parameters_invalid','unexpected item use parameter error');}
+$equipSchema=array_column($catalog->enabledDefinitions(),null,'name')['item.equip']['parameter_schema']??[];
+$check(($equipSchema['required']??null)===['record_id','slot']&&!isset($equipSchema['properties']['content_file']),'item equip catalog does not match the v1 wire shape');
 $destination=['destination_x'=>100.5,'destination_y'=>-200,'destination_z'=>8,'destination_cell'=>'exterior:0:0'];
 $travel=['name'=>'ai.travel','tier'=>1,'actor'=>['kind'=>'npc','record_id'=>'npc'],'target'=>['kind'=>'player','record_id'=>'player'],'parameters'=>$destination];
 $check($policy->validate($travel,$loaded)['parameters']===$destination,'travel destination validation failed');

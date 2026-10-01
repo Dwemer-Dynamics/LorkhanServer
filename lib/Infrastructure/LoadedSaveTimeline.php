@@ -58,11 +58,13 @@ final class LoadedSaveTimeline
     public function eventSourcesActive(array $ids,string $installation,string $playthrough):bool
     {
         if($ids===[])return true;
-        if(!array_is_list($ids)||count($ids)>100||count(array_unique($ids))!==count($ids))return false;
+        // Matches the evolution witnessed-event snapshot bound, which freezes at most 400 sources.
+        if(!array_is_list($ids)||count($ids)>400)return false;
         foreach($ids as$id)if(!is_string($id)||!Uuid::isValid($id))return false;
-        $query=$this->db->prepare("SELECT count(*) FROM source_events e JOIN sessions s ON s.session_id=e.session_id
+        if(count(array_unique($ids))!==count($ids))return false;
+        $query=$this->db->prepare("SELECT count(*) FROM jsonb_array_elements_text(CAST(:sources AS jsonb)) AS requested(id)
+            JOIN source_events e ON e.source_event_id=CAST(requested.id AS uuid) JOIN sessions s ON s.session_id=e.session_id
             WHERE s.installation_id=:installation AND s.playthrough_id=:playthrough
-            AND CAST(:sources AS jsonb) @> jsonb_build_array(e.source_event_id::text)
             AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=e.source_event_id)
             AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_turns i WHERE i.turn_id=e.turn_id)");
         $query->execute(['installation'=>$installation,'playthrough'=>$playthrough,'sources'=>json_encode($ids,JSON_THROW_ON_ERROR)]);

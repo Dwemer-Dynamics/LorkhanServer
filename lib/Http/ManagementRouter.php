@@ -362,13 +362,11 @@ final class ManagementRouter
             }
         }
         if($path==='/api/v1/eventlog'){
-            $m[1]=rawurldecode($m[1]);$this->profileId($m[1]);
             $events=$this->eventLogRepository??throw new RuntimeException('not_found');
             if($r->method==='GET')return Response::json(200,$events->page($r->query));
             if($r->method==='DELETE')return Response::json(200,$events->suppress($this->json($r)));
         }
         if($r->method==='POST'&&$path==='/api/v1/eventlog/hidden-types'){
-            $m[1]=rawurldecode($m[1]);$this->profileId($m[1]);
             $events=$this->eventLogRepository??throw new RuntimeException('not_found');$body=$this->json($r);
             $scope=$events->scope(is_string($body['installation_id']??null)?$body['installation_id']:null,
                 is_string($body['playthrough_id']??null)?$body['playthrough_id']:null);

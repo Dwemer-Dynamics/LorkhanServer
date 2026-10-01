@@ -643,6 +643,8 @@ final class Repository
             $this->db->prepare("UPDATE turn_provider_snapshots SET source_manifest=jsonb_set(jsonb_set(source_manifest,'{message}',CAST(:message AS jsonb)),'{trace}',CAST(:trace AS jsonb)),input_sha256=:sha WHERE turn_id=:turn")
                 ->execute(['message'=>$this->encode($snapshot),'trace'=>$this->encode($trace),'sha'=>hash('sha256',$this->encodeCanonical($snapshot)),'turn'=>$message['turn_id']]);
             $this->recordPromptTrace($message,$trace);
+            // History replays the cue this prompt actually used, even if mood templates are revised later.
+            $this->eventLog()->freezeTurnMoodCue((string)$message['turn_id'],$trace['player_mood_cue']??null);
         });
     }
 

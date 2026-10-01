@@ -232,7 +232,7 @@ final class EventLogRepository
         }
         $profileIds = [$profileId];
         foreach ($requested as $recipientId) {
-            if (!is_string($recipientId) || !Uuid::isValid($recipientId)) {
+            if (!is_string($recipientId) || !ProfileId::isValid($recipientId)) {
                 throw new InvalidArgumentException('invalid_event_recipients');
             }
             if (!in_array($recipientId, $profileIds, true)) $profileIds[] = $recipientId;
@@ -392,12 +392,9 @@ final class EventLogRepository
         if ($sessionId === null) return;
         $scope = $this->scopeForSession($sessionId);
         $body = is_array($payload['payload'] ?? null) ? $payload['payload'] : $payload;
-        $moodCue = $projectionContext['player_mood_cue'] ?? null;
-        if (($kind === 'turn.requested' || $kind === 'rechat') && is_string($moodCue)
-            && mb_check_encoding($moodCue, 'UTF-8') && mb_strlen($moodCue, 'UTF-8') <= 1024
-            && !str_contains($moodCue, "\n") && !str_contains($moodCue, "\r") && !str_contains($moodCue, "\0")
-            && trim($moodCue) !== '') {
-            $body['input']['resolved_mood_cue'] = trim($moodCue);
+        $moodCue = $this->moodCue($projectionContext['player_mood_cue'] ?? null);
+        if (($kind === 'turn.requested' || $kind === 'rechat') && $moodCue !== null) {
+            $body['input']['resolved_mood_cue'] = $moodCue;
         }
         $speaker = $this->object($body['speaker'] ?? []);
         $target = $this->object($body[$kind === 'gamedata.captured_dialogue' ? 'listener' : 'target'] ?? []);
@@ -511,6 +508,31 @@ final class EventLogRepository
                 'projection_kind'=>'world','projection_key'=>$kind.':'.$sourceId,
                 'delivery_state'=>null,'utterance_id'=>null]));
         }
+    }
+
+    /**
+     * Freeze the worker-resolved player mood cue on this turn's derived input projection.
+     * The immutable source event is untouched; the first frozen cue wins across retries.
+     */
+    public function freezeTurnMoodCue(string $turnId, mixed $cue): void
+    {
+        $cue = $this->moodCue($cue);
+        if ($cue === null) return;
+        $statement = $this->db->prepare("SELECT m.rowid,m.speaker,m.payload FROM eventlog_metadata m JOIN eventlog e ON e.rowid=m.rowid "
+            . "WHERE m.projection_kind='turn' AND m.projection_key=:key AND e.type IN ('inputtext','rechat') FOR UPDATE OF m,e");
+        $statement->execute(['key'=>'turn:'.$turnId]);
+        $row = $statement->fetch();
+        if ($row === false) return;
+        $payload = $this->object(json_decode((string) $row['payload'], true, 64, JSON_THROW_ON_ERROR));
+        $input = $this->object($payload['input'] ?? []);
+        $text = is_string($input['text'] ?? null) ? trim($input['text']) : '';
+        if ($text === '' || isset($input['resolved_mood_cue'])) return;
+        $payload['input']['resolved_mood_cue'] = $cue;
+        $speaker = $this->object(json_decode((string) $row['speaker'], true, 64, JSON_THROW_ON_ERROR));
+        $this->db->prepare('UPDATE eventlog SET data=:data WHERE rowid=:rowid')->execute(['rowid'=>$row['rowid'],
+            'data'=>$this->displayName($speaker,'Player').': '.PlayerMoodPolicy::decorateWithCue($text,$cue)]);
+        $this->db->prepare('UPDATE eventlog_metadata SET payload=CAST(:payload AS jsonb) WHERE rowid=:rowid')
+            ->execute(['rowid'=>$row['rowid'],'payload'=>$this->encodeObject($payload)]);
     }
 
     /** Add one generated NPC utterance using its UUID as the exact delivery correlation key. */
@@ -782,6 +804,15 @@ final class EventLogRepository
             }
         }
         return $names === [] ? '' : '|' . implode('|', array_values($names)) . '|';
+    }
+
+    /** Accept only a bounded single-line cue resolved by the server's mood templates. */
+    private function moodCue(mixed $cue): ?string
+    {
+        if (!is_string($cue) || !mb_check_encoding($cue, 'UTF-8') || mb_strlen($cue, 'UTF-8') > 1024
+            || str_contains($cue, "\n") || str_contains($cue, "\r") || str_contains($cue, "\0")) return null;
+        $cue = trim($cue);
+        return $cue === '' ? null : $cue;
     }
 
     private function displayName(array $identity, string $fallback): string
