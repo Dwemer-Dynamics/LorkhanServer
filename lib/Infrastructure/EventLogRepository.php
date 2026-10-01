@@ -419,6 +419,26 @@ final class EventLogRepository
                 'delivery_state'=>null,'utterance_id'=>null]));
             return;
         }
+        if ($kind === 'gamedata.barter_trade') {
+            // Match CHIM's single merchant-routed barter summary; item pickups are never derived from trade lines.
+            $player=$this->object($body['player']??[]);$merchant=$this->object($body['merchant']??[]);
+            $playerName=$this->displayName($player,'Player');$merchantName=$this->displayName($merchant,'Merchant');
+            $describe=static function(array $lines):string{
+                return implode(', ',array_map(static fn(array $line):string=>(string)($line['count']??1).' '.(string)($line['item_name']??''),$lines));
+            };
+            $text=$playerName.' traded with '.$merchantName.'.';
+            if(($body['player_gave']??[])!==[])$text.=' '.$playerName.' sold: '.$describe($this->list($body['player_gave'])).'.';
+            if(($body['player_received']??[])!==[])$text.=' '.$playerName.' bought: '.$describe($this->list($body['player_received'])).'.';
+            $gold=(int)($body['gold_to_player']??0);
+            if($gold>0)$text.=' '.$merchantName.' paid '.$playerName.' '.$gold.' gold.';
+            elseif($gold<0)$text.=' '.$playerName.' paid '.$merchantName.' '.(-$gold).' gold.';
+            $this->insert(array_merge($common,['speaker'=>$player,'target'=>$merchant,'type'=>'infoaction','data'=>$text,
+                'payload'=>$body+['text'=>$text,'observation_type'=>'barter_trade'],'people'=>$this->people($player,$merchant,$audience),
+                'gamets'=>max(0,(int)floor((float)($body['game_time']??0))),
+                'location'=>$this->identityLocation($player),'projection_kind'=>'world','projection_key'=>'barter:'.$sourceId,
+                'delivery_state'=>null,'utterance_id'=>null]));
+            return;
+        }
         if ($kind === 'gamedata.spell_cast') {
             $caster=$this->object($body['caster']??[]);
             $text=$this->displayName($caster,'Actor').' casts '.(string)($body['spell_name']??'');

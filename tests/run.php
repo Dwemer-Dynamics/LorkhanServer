@@ -756,6 +756,11 @@ foreach ([
     $validator->validate($document['instance'], $schema);
     $check(true, $fixture . ' validates');
 }
+foreach(['valid/gamedata-barter-trade'=>true,'invalid/gamedata-barter-trade-no-items'=>false,'valid/gamedata-item-pickup'=>true]as$fixture=>$valid){
+    $document=json_decode((string)file_get_contents(dirname($fixtureRoot).'/'.$fixture.'.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+    try{$validator->validate($document,'lorkhan.gamedata.v1');$check($valid,$fixture.' matches its strict barter expectation');}
+    catch(ValidationException $error){$check(!$valid&&$error->getMessage()==='invalid_schema',$fixture.' matches its strict barter expectation');}
+}
 $npcReceipt=json_decode((string)file_get_contents($fixtureRoot.'/debug-command-result.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
 $characterSession=json_decode((string)file_get_contents($fixtureRoot.'/session-init.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
 foreach([['character_id'=>null],['character_binding'=>null],['character_id'=>'PlayerName'],['character_binding'=>'automatic']] as $invalidCharacter){
