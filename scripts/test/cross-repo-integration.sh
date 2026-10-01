@@ -9,7 +9,9 @@ cleanup() { rm -f "$CAPTURE"; }
 trap cleanup EXIT HUP INT TERM
 
 "$ROOT/scripts/verify-protocol-parity.sh" "$ACTIVE_CLIENT"
-"$PYTHON" "$ACTIVE_CLIENT/scripts/protocol/validate.py" --require-jsonschema
+# Parity proves the client bytes equal these; validate them with the server-side checkers.
+php "$ROOT/scripts/protocol/verify-local.php"
+"$PYTHON" "$ROOT/scripts/test/validate-responses.py" --fixtures
 LORKHAN_RESPONSE_CAPTURE="$CAPTURE" "$ROOT/scripts/test/integration.sh"
 "$PYTHON" "$ROOT/scripts/test/validate-responses.py" "$CAPTURE"
 printf 'cross-repository no-game vertical slice passed\n'
