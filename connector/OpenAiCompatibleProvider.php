@@ -12,9 +12,15 @@ use LorkhanServer\Infrastructure\Logger;
 final class OpenAiCompatibleProvider implements StreamingProvider
 {
     private array $reportedUsage = [];
+    private bool $transientFailure = false;
+    private int $retryAfterSeconds = 0;
 
     /** Expose numeric provider accounting only, never prompts, keys, or the raw response. */
     public function reportedUsage(): array { return $this->reportedUsage; }
+    /** Whether the last request failed in transport/timeout or with HTTP 408, 429 or 5xx; never cancellation, other 4xx or invalid output. */
+    public function transientFailure(): bool { return $this->transientFailure; }
+    /** Delta-seconds Retry-After sent with the last 429/503 failure, or zero. */
+    public function retryAfterSeconds(): int { return $this->retryAfterSeconds; }
     /** @param list<string> $allowedHosts */
     public function __construct(
         private readonly string $endpoint,
@@ -45,7 +51,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
     public function completeStreaming(array $turn, CancellationToken $cancellation, callable $onDialogueDelta, ?callable $diagnosticObserver = null): array
     {
         $cancellation->throwIfCancellationRequested();
-        $this->reportedUsage=[];
+        $this->reportedUsage=[];$this->transientFailure=false;$this->retryAfterSeconds=0;
         $messages = $this->promptMessages($turn);
         $languageEnabled=($turn['_prompt']['_llm_tts_language']??false)===true;
         $prefix = LlmConnector::prefillMessages($messages, $this->options, $languageEnabled?'language':'utterances');
@@ -74,6 +80,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         $content = '';
         $streamed = false;
         $usage=[];
+        $retryAfter = 0;
         $visible = new StreamingDialogueText();
         curl_setopt_array($handle, $networkOptions + [
             CURLOPT_POST => true,
@@ -94,6 +101,11 @@ final class OpenAiCompatibleProvider implements StreamingProvider
                 if (strlen($responseBody) > 2_097_152) return 0;
                 $networkBuffer .= $bytes;
                 return strlen($bytes);
+            },
+            CURLOPT_HEADERFUNCTION => static function ($handle, string $header) use (&$retryAfter): int {
+                unset($handle);
+                if (preg_match('/^retry-after:\s*(\d{1,6})\s*$/i', $header, $match) === 1) $retryAfter = (int) $match[1];
+                return strlen($header);
             },
             CURLOPT_NOPROGRESS => false,
             CURLOPT_XFERINFOFUNCTION => static function ($handle, $downloadTotal, $downloaded, $uploadTotal, $uploaded) use ($cancellation): int {
@@ -154,6 +166,11 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             $status = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
             if ($cancellation->isCancellationRequested()) throw new OperationCancelled('operation_cancelled');
             if ($curlResult !== CURLE_OK || $status < 200 || $status >= 300 || strlen($responseBody) > 2_097_152) {
+                // Local aborts (cancellation, size limit) and non-retryable HTTP rejections are not provider outages.
+                $this->transientFailure = $status === 408 || $status === 429 || $status >= 500
+                    || ($curlResult !== CURLE_OK && ($status === 0 || ($status >= 200 && $status < 300))
+                        && !in_array($curlResult, [CURLE_WRITE_ERROR, CURLE_ABORTED_BY_CALLBACK], true));
+                if ($status === 429 || $status === 503) $this->retryAfterSeconds = $retryAfter;
                 throw new RuntimeException('provider_unavailable');
             }
         } catch (\Throwable $error) {

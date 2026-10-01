@@ -3738,6 +3738,99 @@ $assert($status===202&&$displayOnlyStats===['claimed'=>1,'succeeded'=>1,'retried
     &&$displayOnlyTexts!==[]&&!in_array('Heard before the outage.',$displayOnlyTexts,true)
     &&in_array('turn.complete',$displayOnlyTypes,true)&&!in_array('turn.failed',$displayOnlyTypes,true),
     'display-only stream progress suppressed the configured fallback: '.json_encode(['types'=>$displayOnlyTypes,'attempts'=>$displayOnlyAttempts]));
+
+// CHIM connector recovery: repeated transient primary failures skip to the explicit fallback, then one probe restores it.
+$recoveryDir=sys_get_temp_dir().'/lorkhan-recovery-'.bin2hex(random_bytes(6));mkdir($recoveryDir,0700);
+file_put_contents($recoveryDir.'/router.php','<?php $m=trim((string)file_get_contents(__DIR__."/mode"));'
+    .'if($m==="timeout"){sleep(3);exit;}if($m==="429"){http_response_code(429);header("Retry-After: 45");exit;}'
+    .'if($m==="503"){http_response_code(503);exit;}if($m==="401"){http_response_code(401);exit;}'
+    .'header("Content-Type: application/json");echo json_encode(["choices"=>[["message"=>["content"=>$m==="invalid"?"not json"'
+    .':"{\"utterances\":[{\"text\":\"Primary restored.\"}],\"action\":null}"]]]]);');
+file_put_contents($recoveryDir.'/mode','ok');
+$recoverySocket=stream_socket_server('tcp://127.0.0.1:0');$recoveryPort=(int)substr(strrchr(stream_socket_get_name($recoverySocket,false),':'),1);fclose($recoverySocket);
+$recoveryServer=proc_open([PHP_BINARY,'-S','127.0.0.1:'.$recoveryPort,$recoveryDir.'/router.php'],[1=>['file','/dev/null','w'],2=>['file','/dev/null','w']],$recoveryPipes,
+    null,['PHP_CLI_SERVER_WORKERS'=>'4']+getenv());
+for($i=0;$i<100&&@fsockopen('127.0.0.1',$recoveryPort)===false;++$i)usleep(20_000);
+$recoveryHandler=new \LorkhanServer\Application\TurnProcessJobHandler($repo,new MockProvider(),null,$attempts,20_000);
+$recoveryComplete=new ReflectionMethod($recoveryHandler,'completeWithFallback');
+$recoverySlot=static fn(string $id,int $revision=1):array=>['configuration_id'=>$id,'revision'=>$revision,'name'=>'Recovery primary','content'=>[
+    'driver'=>'openai-compatible','model'=>'recovery','endpoint'=>'http://127.0.0.1:'.$recoveryPort.'/v1/chat/completions',
+    'timeout_ms'=>1000,'options'=>['stream'=>false]]];
+$recoveryFallback=['configuration_id'=>\LorkhanServer\Infrastructure\Uuid::v4(),'revision'=>1,'name'=>'Recovery fallback',
+    'content'=>['driver'=>'mock','model'=>'recovery-fallback','mock_prefix'=>'[fallback] ']];
+$recoveryTurn=function(array $recoveryPrimary,string $mode,?array $fallback=null,bool $committed=false,bool $cancelled=false)
+    use($db,$recoveryComplete,$recoveryHandler,$recoveryDir,$recoveryFallback,$fallbackTarget):array{
+    // A terminal fixture job only satisfies the attempt foreign key; later workers must never claim it.
+    file_put_contents($recoveryDir.'/mode',$mode);$jobId=\LorkhanServer\Infrastructure\Uuid::v4();
+    $db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,state,completed_at) VALUES(:job,'turn.process',1,:key,'{}','succeeded',clock_timestamp())")
+        ->execute(['job'=>$jobId,'key'=>'recovery-'.$jobId]);
+    $message=['request_id'=>\LorkhanServer\Infrastructure\Uuid::v4(),'turn_id'=>\LorkhanServer\Infrastructure\Uuid::v4(),'_negotiated_capabilities'=>[],
+        'payload'=>['input'=>['text'=>'Recovery check.'],'target'=>$fallbackTarget,'speaker'=>$fallbackTarget,'audience'=>[]],
+        '_provider_configuration'=>$recoveryPrimary,'_fallback_provider_configuration'=>$fallback??$recoveryFallback];
+    $text=null;$error=null;
+    try{$text=$recoveryComplete->invoke($recoveryHandler,$message,['job_id'=>$jobId,'attempt'=>1],
+        new \LorkhanServer\Application\CallbackCancellationToken(static fn():bool=>$cancelled),static function():void{},
+        static fn():bool=>$committed)['utterances'][0]['text']??null;}
+    catch(Throwable $caught){$error=$caught->getMessage();}
+    $rows=$db->query("SELECT state,metadata->>'fallback' AS fallback,metadata->'recovery' AS recovery,metadata->>'primary_skipped' AS skipped,"
+        ."metadata->>'primary_retry_in_s' AS retry FROM provider_attempts WHERE turn_id=".$db->quote($message['turn_id'])
+        ." ORDER BY started_at,provider_attempt_id")->fetchAll();
+    return['text'=>$text,'error'=>$error,'attempts'=>array_map(static fn(array $row):array=>['state'=>$row['state'],'fallback'=>$row['fallback'],
+        'recovery'=>json_decode((string)($row['recovery']??'null'),true),'skipped'=>$row['skipped'],'retry'=>$row['retry']===null?null:(int)$row['retry']],$rows)];
+};
+$ageRecovery=static function(string $id)use($db):void{$db->prepare("UPDATE provider_attempts SET started_at=started_at-interval '31 seconds',"
+    ."finished_at=finished_at-interval '31 seconds' WHERE metadata->>'configuration_id'=:id")->execute(['id'=>$id]);};
+$skippedFallback=static fn(array $recoveryResult,string $state):bool=>count($recoveryResult['attempts'])===1&&$recoveryResult['attempts'][0]['fallback']==='true'
+    &&$recoveryResult['attempts'][0]['state']==='succeeded'&&$recoveryResult['attempts'][0]['skipped']===$state&&str_starts_with((string)$recoveryResult['text'],'[fallback]');
+$attemptedPrimary=static fn(array $recoveryResult):bool=>($recoveryResult['attempts'][0]['fallback']??null)==='false';
+try{
+    // Rejections, invalid output, cancellation and committed streams never cool a connector down.
+    foreach(['401'=>[],'invalid'=>[],'cancelled'=>['cancelled'=>true],'committed'=>['committed'=>true]] as $recoveryCase=>$recoveryOptions){
+        $recoveryConnector=$recoverySlot(\LorkhanServer\Infrastructure\Uuid::v4());
+        for($i=0;$i<3;++$i){
+            $recoveryResult=$recoveryTurn($recoveryConnector,in_array((string)$recoveryCase,['401','invalid'],true)?(string)$recoveryCase:'503',...$recoveryOptions);
+            $assert($attemptedPrimary($recoveryResult)&&($recoveryResult['attempts'][0]['recovery']??null)===null
+                &&$recoveryResult['attempts'][0]['state']===($recoveryCase==='cancelled'?'cancelled':'failed'),
+                'non-transient '.$recoveryCase.' primary failure affected connector recovery: '.json_encode($recoveryResult));
+        }
+    }
+    $recoveryPrimaryId=\LorkhanServer\Infrastructure\Uuid::v4();$recoveryPrimary=$recoverySlot($recoveryPrimaryId);
+    $recoveryFirst=$recoveryTurn($recoveryPrimary,'timeout');$recoverySecond=$recoveryTurn($recoveryPrimary,'503');$skippedStarted=hrtime(true);
+    $recoveryThird=$recoveryTurn($recoveryPrimary,'timeout');$skippedMs=intdiv(hrtime(true)-$skippedStarted,1_000_000);
+    $assert(($recoveryFirst['attempts'][0]['recovery']??null)===['transient'=>true]&&($recoverySecond['attempts'][0]['recovery']??null)===['transient'=>true]
+        &&str_starts_with((string)$recoveryFirst['text'],'[fallback]')&&$skippedFallback($recoveryThird,'cooldown')
+        &&$recoveryThird['attempts'][0]['retry']>=1&&$recoveryThird['attempts'][0]['retry']<=30&&$skippedMs<900,
+        'two transient primary failures did not skip the primary for the bounded cooldown: '.json_encode([$recoveryFirst,$recoverySecond,$recoveryThird,$skippedMs]));
+    $assert($attemptedPrimary($recoveryTurn($recoverySlot($recoveryPrimaryId,2),'ok')),'a revised connector inherited the previous revision cooldown');
+    $noFallback=$recoveryTurn($recoveryPrimary,'503',$recoveryPrimary);
+    $assert($attemptedPrimary($noFallback)&&count($noFallback['attempts'])===1&&$noFallback['error']==='provider_unavailable',
+        'cooldown skipped a primary without a distinct fallback or hid its connector error: '.json_encode($noFallback));
+    // After cooldown, an in-flight probe makes concurrent turns use the fallback instead of stampeding the primary.
+    $ageRecovery($recoveryPrimaryId);$heldProbe=\LorkhanServer\Infrastructure\Uuid::v4();$heldJob=\LorkhanServer\Infrastructure\Uuid::v4();
+    $db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,state,completed_at) VALUES(:job,'turn.process',1,:key,'{}','succeeded',clock_timestamp())")
+        ->execute(['job'=>$heldJob,'key'=>'recovery-'.$heldJob]);
+    $heldGate=$attempts->beginRecoverableTurnAttempt($recoveryPrimaryId,1,21,static function(bool $recoveryProbe)use($attempts,$heldProbe,$heldJob,$recoveryPrimaryId):void{
+        $attempts->start($heldProbe,'llm','openai-compatible','complete_turn',1,\LorkhanServer\Infrastructure\Uuid::v4(),
+            \LorkhanServer\Infrastructure\Uuid::v4(),$heldJob,metadata:['configuration_id'=>$recoveryPrimaryId,'configuration_revision'=>1,
+                'fallback'=>false]+($recoveryProbe?['recovery'=>['probe'=>true]]:[]));});
+    $concurrent=$recoveryTurn($recoveryPrimary,'ok');
+    $assert($heldGate['state']==='probe'&&$skippedFallback($concurrent,'probing'),'concurrent turn stampeded a recovering primary: '.json_encode([$heldGate,$concurrent]));
+    $attempts->finish($heldProbe,'cancelled',errorCode:'operation_cancelled');
+    $failedProbe=$recoveryTurn($recoveryPrimary,'503');$afterFailedProbe=$recoveryTurn($recoveryPrimary,'ok');
+    $assert(($failedProbe['attempts'][0]['recovery']??null)===['probe'=>true,'transient'=>true]&&$skippedFallback($afterFailedProbe,'cooldown'),
+        'a failed recovery probe did not restart the cooldown: '.json_encode([$failedProbe,$afterFailedProbe]));
+    $ageRecovery($recoveryPrimaryId);$recoveryProbe=$recoveryTurn($recoveryPrimary,'ok');$recoveryRestored=$recoveryTurn($recoveryPrimary,'ok');
+    $assert($recoveryProbe['text']==='Primary restored.'&&count($recoveryProbe['attempts'])===1&&($recoveryProbe['attempts'][0]['recovery']??null)===['probe'=>true]
+        &&$recoveryRestored['text']==='Primary restored.'&&$attemptedPrimary($recoveryRestored)&&($recoveryRestored['attempts'][0]['recovery']??null)===null,
+        'a successful probe did not restore ordinary primary routing: '.json_encode([$recoveryProbe,$recoveryRestored]));
+    // Retry-After cools down after one transient response, still clamped to the 30-300 s bound.
+    $rateLimited=$recoverySlot(\LorkhanServer\Infrastructure\Uuid::v4());$recoveryLimited=$recoveryTurn($rateLimited,'429');$limitedNext=$recoveryTurn($rateLimited,'ok');
+    $assert(($recoveryLimited['attempts'][0]['recovery']??null)===['transient'=>true,'retry_after_s'=>45]&&$skippedFallback($limitedNext,'cooldown')
+        &&$limitedNext['attempts'][0]['retry']>30&&$limitedNext['attempts'][0]['retry']<=45,
+        'Retry-After did not start one bounded connector cooldown: '.json_encode([$recoveryLimited,$limitedNext]));
+}finally{
+    $recoveryPid=(int)proc_get_status($recoveryServer)['pid'];exec('pkill -TERM -P '.$recoveryPid.' 2>/dev/null');
+    proc_terminate($recoveryServer);proc_close($recoveryServer);array_map('unlink',glob($recoveryDir.'/*')?:[]);rmdir($recoveryDir);}
 $products->revise('profile',$narratorProfile['profile_id'],$streamNarratorContent,'restore inline narration fixture',$now);
 $products->selectModelSlot(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],'fast',$now);
 

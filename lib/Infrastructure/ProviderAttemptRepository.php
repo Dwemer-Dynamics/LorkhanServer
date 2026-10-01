@@ -47,7 +47,66 @@ final class ProviderAttemptRepository
         ]);
     }
 
-    public function finish(string $attemptId, string $state, ?int $outputBytes = null, ?string $errorCode = null, ?string $errorDetail = null): bool
+    /**
+     * CHIM-style turn connector recovery, derived from this connector revision's recent complete_turn attempts.
+     * After two consecutive transient failures (or one carrying Retry-After) the connector cools down for 30-300 s,
+     * then exactly one turn probes it under a lease bounded by the turn deadline; concurrent turns skip meanwhile.
+     * On 'ready'/'probe' $start(bool $probe) records the started attempt inside the same locked transaction.
+     *
+     * @return array{state:'ready'|'probe'|'cooldown'|'probing',retry_in_s:int}
+     */
+    public function beginRecoverableTurnAttempt(string $configurationId, int $revision, int $leaseSeconds, callable $start): array
+    {
+        $this->db->beginTransaction();
+        try {
+            $this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))')
+                ->execute(['key' => 'lorkhan.turn_connector_recovery:' . $configurationId . ':' . $revision]);
+            $statement = $this->db->prepare("SELECT state,metadata->'recovery' AS recovery,"
+                . 'extract(epoch FROM (clock_timestamp()-finished_at))::double precision AS finished_ago_s,'
+                . 'GREATEST(0,ceil(extract(epoch FROM (started_at+make_interval(secs=>:lease)-clock_timestamp()))))::integer AS lease_remaining_s '
+                . "FROM provider_attempts WHERE provider_kind='llm' AND operation='complete_turn' "
+                . "AND metadata->>'configuration_id'=:configuration AND metadata->>'configuration_revision'=:revision "
+                . "AND started_at>clock_timestamp()-interval '1 day' ORDER BY started_at DESC,provider_attempt_id DESC LIMIT 16");
+            $statement->bindValue(':lease', $leaseSeconds, PDO::PARAM_INT);
+            $statement->bindValue(':configuration', $configurationId);
+            $statement->bindValue(':revision', (string) $revision);
+            $statement->execute();
+            $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+            $decision = ['state' => 'ready', 'retry_in_s' => 0];
+            foreach ($rows as $row) {
+                $recovery = json_decode((string) ($row['recovery'] ?? 'null'), true);
+                if ($row['state'] === 'started' && ($recovery['probe'] ?? false) === true && (int) $row['lease_remaining_s'] > 0) {
+                    $decision = ['state' => 'probing', 'retry_in_s' => (int) $row['lease_remaining_s']];
+                    break;
+                }
+            }
+            if ($decision['state'] === 'ready') {
+                $failures = 0; $until = 0;
+                foreach ($rows as $row) {
+                    if ($row['state'] === 'succeeded') break;
+                    $recovery = json_decode((string) ($row['recovery'] ?? 'null'), true);
+                    // Cancelled, non-transient and committed-stream failures neither count nor reset the run.
+                    if ($row['state'] !== 'failed' || ($recovery['transient'] ?? false) !== true) continue;
+                    $retryAfter = is_int($recovery['retry_after_s'] ?? null) ? $recovery['retry_after_s'] : 0;
+                    if ($failures === 0) {
+                        $until = (int) ceil(max(30, min(300, $retryAfter)) - (float) $row['finished_ago_s']);
+                        if ($retryAfter > 0) $failures = 1;
+                    }
+                    if (++$failures >= 2) break;
+                }
+                if ($failures >= 2) $decision = $until > 0 ? ['state' => 'cooldown', 'retry_in_s' => $until] : ['state' => 'probe', 'retry_in_s' => 0];
+            }
+            if ($decision['state'] === 'ready' || $decision['state'] === 'probe') $start($decision['state'] === 'probe');
+            $this->db->commit();
+            return $decision;
+        } catch (\Throwable $error) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            throw $error;
+        }
+    }
+
+    public function finish(string $attemptId, string $state, ?int $outputBytes = null, ?string $errorCode = null, ?string $errorDetail = null,
+        array $metadata = []): bool
     {
         if (!in_array($state, ['succeeded', 'failed', 'cancelled'], true)) {
             throw new RuntimeException('Invalid provider attempt terminal state.');
@@ -59,9 +118,10 @@ final class ProviderAttemptRepository
         $detail = null;
         $statement = $this->db->prepare('UPDATE provider_attempts SET state = :state, finished_at = clock_timestamp(), '
             . 'duration_ms = GREATEST(0, floor(extract(epoch FROM (clock_timestamp() - started_at)) * 1000)::integer), '
-            . 'output_bytes = :output, error_code = :code, error_detail = :detail '
+            . 'output_bytes = :output, error_code = :code, error_detail = :detail, metadata = metadata || CAST(:metadata AS jsonb) '
             . "WHERE provider_attempt_id = :id AND state = 'started'");
-        $statement->execute(['state' => $state, 'output' => $outputBytes, 'code' => $errorCode, 'detail' => $detail, 'id' => $attemptId]);
+        $statement->execute(['state' => $state, 'output' => $outputBytes, 'code' => $errorCode, 'detail' => $detail,
+            'metadata' => $this->encodeObject($metadata), 'id' => $attemptId]);
         return $statement->rowCount() === 1;
     }
 
