@@ -1123,6 +1123,10 @@ final class Repository
             if((string)$current['installation_id']!==(string)$session['installation_id']
                 ||(string)$current['playthrough_id']!==(string)$session['playthrough_id'])
                 throw new \UnexpectedValueException('stale_generation');
+            // The session row lock orders this check against cancelMenuDialogueTts.
+            if($this->menuDialogueTtsCancelled((string)$session['installation_id'],(string)$message['message_id'],
+                (string)$message['session_id'],(int)$message['generation']))
+                throw new \LorkhanServer\Application\OperationCancelled();
             $this->db->prepare('INSERT INTO menu_dialogue_tts_requests '
                 .'(message_id,request_id,installation_id,playthrough_id,session_id,generation,actor,text_sha256,created_at) '
                 .'VALUES (:message,:request,:installation,:playthrough,:session,:generation,CAST(:actor AS jsonb),:text_sha,:created)')
@@ -1138,6 +1142,33 @@ final class Repository
                     'codec'=>$speech['codec'],'mime'=>$speech['mime_type'],'duration'=>$speech['duration_ms'],
                     'expires'=>$speech['expires_at'],'message'=>$message['message_id']]);
         });
+    }
+
+    /** Mark one menu/book speech message abandoned unless its media was already recorded. */
+    public function cancelMenuDialogueTts(array $message,array $session): string
+    {
+        return $this->transaction(function()use($message,$session):string{
+            $this->session((string)$message['session_id'],(int)$message['generation'],true);
+            $completed=$this->db->prepare('SELECT 1 FROM menu_dialogue_tts_requests WHERE message_id=:message AND installation_id=:installation');
+            $completed->execute(['message'=>$message['target_message_id'],'installation'=>$session['installation_id']]);
+            if($completed->fetchColumn()!==false)return 'completed';
+            $this->db->prepare('INSERT INTO menu_dialogue_tts_cancellations '
+                .'(installation_id,message_id,session_id,generation,cancel_message_id) '
+                .'VALUES (:installation,:message,:session,:generation,:cancel) ON CONFLICT (installation_id,message_id) DO NOTHING')
+                ->execute(['installation'=>$session['installation_id'],'message'=>$message['target_message_id'],
+                    'session'=>$message['session_id'],'generation'=>$message['generation'],'cancel'=>$message['message_id']]);
+            return 'cancelled';
+        });
+    }
+
+    /** True after an explicit cancel or once the request's session generation stops being current. */
+    public function menuDialogueTtsCancelled(string $installationId,string $messageId,string $sessionId,int $generation): bool
+    {
+        $stmt=$this->db->prepare('SELECT EXISTS(SELECT 1 FROM menu_dialogue_tts_cancellations WHERE installation_id=:installation AND message_id=:message '
+            .'AND session_id=:session AND generation=:generation) '
+            ."OR NOT EXISTS(SELECT 1 FROM sessions WHERE session_id=:session AND installation_id=:installation AND state='active' AND generation=:generation)");
+        $stmt->execute(['installation'=>$installationId,'message'=>$messageId,'session'=>$sessionId,'generation'=>$generation]);
+        return (bool)$stmt->fetchColumn();
     }
 
     public function pruneExpiredEvents(): int

@@ -41,6 +41,7 @@ final class Validator
             'lorkhan.dialogue-delivery-result.v1' => $this->delivery($message),
             'lorkhan.menu-dialogue-tts.v1' => $this->menuDialogueTts($message),
             'lorkhan.book.read-aloud.v1' => $this->bookReadAloud($message),
+            'lorkhan.menu-dialogue-tts.cancel.v1' => $this->menuDialogueTtsCancel($message),
             'lorkhan.player-autochat.v1' => $this->playerAutochat($message),
             'lorkhan.controls.query.v1' => $this->controlsQuery($message),
             'lorkhan.controls.select.v1' => $this->controlsSelect($message),
@@ -482,6 +483,17 @@ final class Validator
             throw new ValidationException('invalid_schema');
         foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]);
         $this->timestamp($message['created_at']);$this->identity($message['actor']);
+    }
+
+    /** Name one earlier menu dialogue or book speech message that the client abandoned. */
+    private function menuDialogueTtsCancel(array $message): void
+    {
+        $this->keys($message,['schema','message_id','request_id','session_id','generation','created_at','target_message_id']);
+        if($message['schema']!=='lorkhan.menu-dialogue-tts.cancel.v1'||!is_int($message['generation'])||$message['generation']<0
+            ||$message['generation']>9_007_199_254_740_991)throw new ValidationException('invalid_schema');
+        foreach(['message_id','request_id','session_id','target_message_id']as$field)$this->uuid($message[$field]);
+        $this->timestamp($message['created_at']);
+        if($message['target_message_id']===$message['message_id'])throw new ValidationException('invalid_schema');
     }
 
     /** Accept one book chunk; the server owns the Narrator identity and voice route. */

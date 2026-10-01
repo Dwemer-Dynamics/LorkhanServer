@@ -1000,6 +1000,15 @@ try {
 } catch (ValidationException $exception) {
     $check($exception->getMessage() === 'invalid_schema', 'empty menu dialogue TTS request rejected');
 }
+$menuCancel=json_decode((string)file_get_contents($fixtureRoot.'/menu-dialogue-tts-cancel.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+$validator->validate($menuCancel,'lorkhan.menu-dialogue-tts.cancel.v1');
+$check(true,'menu dialogue TTS cancel fixture validates');
+foreach(['missing target'=>json_decode((string)file_get_contents(dirname($fixtureRoot).'/invalid/menu-dialogue-tts-cancel-no-target.json'),true,64,JSON_THROW_ON_ERROR)['instance'],
+    'self target'=>array_replace($menuCancel,['target_message_id'=>$menuCancel['message_id']]),
+    'extra text'=>$menuCancel+['text'=>'Not a cancel field'],'string generation'=>array_replace($menuCancel,['generation'=>'7'])]as$label=>$invalidCancel){
+    try{$validator->validate($invalidCancel,'lorkhan.menu-dialogue-tts.cancel.v1');$check(false,'menu dialogue TTS cancel rejects '.$label);}
+    catch(ValidationException $exception){$check($exception->getMessage()==='invalid_schema','menu dialogue TTS cancel rejects '.$label);}
+}
 $playerAutochatRequest=json_decode((string)file_get_contents($fixtureRoot.'/player-autochat.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
 $validator->validate($playerAutochatRequest,'lorkhan.player-autochat.v1');
 $check(true,'bounded player Auto Chat request validates');

@@ -25,6 +25,7 @@ SCHEMA_FOR = {
     "lorkhan.stt.accepted.v1": "stt-accepted.schema.json",
     "lorkhan.dialogue-delivery-result.accepted.v1": "dialogue-delivery-result-accepted.schema.json",
     "lorkhan.player-autochat.ready.v1": "player-autochat-ready.schema.json",
+    "lorkhan.menu-dialogue-tts.cancel.accepted.v1": "menu-dialogue-tts-cancel-accepted.schema.json",
     "lorkhan.session.ended.v1": "session-ended.schema.json",
 }
 
