@@ -13,8 +13,11 @@ final class ProfileScopeSql
 
     public static function current(string $alias):string
     {
+        // Character-bound installations stay strict; unbound legacy installations use their latest session.
         return self::visible($alias,"(SELECT scope_session.playthrough_id FROM sessions scope_session "
-            ."WHERE scope_session.installation_id=$alias.installation_id AND scope_session.character_id IS NOT NULL "
+            ."WHERE scope_session.installation_id=$alias.installation_id AND (scope_session.character_id IS NOT NULL "
+            ."OR NOT EXISTS(SELECT 1 FROM character_playthrough_bindings scope_legacy_binding "
+            ."WHERE scope_legacy_binding.installation_id=$alias.installation_id)) "
             ."ORDER BY scope_session.generation DESC LIMIT 1)");
     }
 

@@ -2808,8 +2808,12 @@ SQL);
                 $find->execute($scope+['id'=>$input['relationship_id']]);$before=$find->fetch();
                 if(!$before)throw new RuntimeException('not_found');
                 if((int)$before['revision']!==($input['expected_revision']??null))throw new RuntimeException('relationship_revision_conflict');
-                if(isset($input['actor_identity'])&&$this->actorKey($input['actor_identity'])!==$this->actorKey($this->json($before['actor_identity'])))
-                    throw new \InvalidArgumentException('relationship_identity_immutable');
+                if(isset($input['actor_identity'])){
+                    $storedKey=$this->actorKey($this->json($before['actor_identity']));
+                    // An identity without a typed reference cannot match the stored one, so it is an attempted replacement.
+                    try{$attemptedKey=$this->actorKey($input['actor_identity']);}catch(\InvalidArgumentException){$attemptedKey=null;}
+                    if($attemptedKey!==$storedKey)throw new \InvalidArgumentException('relationship_identity_immutable');
+                }
                 $id=(string)$before['relationship_id'];
                 $save=$this->db->prepare('UPDATE relationship_records SET disposition=:disposition,affinity=:affinity,relationship_type=:type,source_mode=:mode,'
                     .'source_event_id=:source,custom_info=:custom,details=CAST(:details AS jsonb),updated_at=:now WHERE relationship_id=:id AND revision=:revision RETURNING revision');
@@ -3463,14 +3467,20 @@ SQL);
         }
         if(!$prompt){$promptStmt = $this->db->prepare("SELECT c.configuration_id,c.current_revision AS revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.installation_id=:installation AND c.kind='prompt' AND c.deleted_at IS NULL AND COALESCE(r.content->>'purpose','')<>'narrator_event' AND (c.profile_id=:actor_profile OR c.profile_id=:session_profile OR c.profile_id IS NULL) ORDER BY CASE WHEN c.profile_id=:actor_profile THEN 0 WHEN c.profile_id=:session_profile THEN 1 ELSE 2 END,c.name,c.configuration_id LIMIT 1");
             $promptStmt->execute(['installation'=>$turn['installation_id'],'actor_profile'=>$activeProfileId,'session_profile'=>$turn['profile_id']]);$prompt = $promptStmt->fetch();}
+        // Prompt overrides reference stored configuration sets; the profile-scoped fallback has none.
+        $storedPrompt=$prompt!==false;
         if (!$prompt) {
             $prompt = ['configuration_id'=>$activeProfileId,'revision'=>(int)$profile['current_revision'],'content'=>['instruction'=>'Respond in character using only scoped context.']];
         } else {
             $prompt['revision']=(int)$prompt['revision'];$prompt['content']=$this->json($prompt['content']);
         }
-        $promptOverride=$this->db->prepare('SELECT default_prompt,custom_prompt,description FROM prompts WHERE installation_id=:installation AND source_configuration_id=:configuration');
-        $promptOverride->execute(['installation'=>$turn['installation_id'],'configuration'=>$prompt['configuration_id']]);
-        if($override=$promptOverride->fetch()){
+        $override=false;
+        if($storedPrompt){
+            $promptOverride=$this->db->prepare('SELECT default_prompt,custom_prompt,description FROM prompts WHERE installation_id=:installation AND source_configuration_id=:configuration');
+            $promptOverride->execute(['installation'=>$turn['installation_id'],'configuration'=>$prompt['configuration_id']]);
+            $override=$promptOverride->fetch();
+        }
+        if($override){
             $effectivePrompt=trim((string)($override['custom_prompt']??''));
             if($effectivePrompt==='')$effectivePrompt=(string)$override['default_prompt'];
             if($effectivePrompt!=='')$prompt['content']['instruction']=$effectivePrompt;
@@ -3528,7 +3538,10 @@ SQL);
         }
         if(!isset($actorKey['record_id'],$actorKey['content_file']))throw new RuntimeException('invalid_actor_identity');
         $actorJson=$this->encode($actorKey);$audienceJson=$this->encode([$actorKey]);
-        $ownsProfile=$selectedProfileId!==null || $this->actorKey($this->json($profile['actor_identity']))===$this->actorKey($actor);
+        $ownsProfile=$selectedProfileId!==null;
+        // Session-binding fallback profiles carry no typed TES3 reference, so they cannot own the targeted actor.
+        if(!$ownsProfile){try{$ownsProfile=$this->actorKey($this->json($profile['actor_identity']))===$this->actorKey($actor);}
+            catch(InvalidArgumentException){$ownsProfile=false;}}
         // Relationship records describe their owning NPC, never a shared session or witness pool.
         $latestDiary=[];
         if($ownsProfile&&($effective['settings']['diary']['latest_entry_in_context']??false)===true){
