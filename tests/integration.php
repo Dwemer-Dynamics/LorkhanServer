@@ -1810,6 +1810,23 @@ $resurrectionProjection=$db->prepare("SELECT e.type,e.data FROM eventlog e JOIN 
 $resurrectionProjection->execute(['source'=>$resurrected['request_id']]);$resurrectionRow=$resurrectionProjection->fetch();
 $assert($resurrectionRow&&$resurrectionRow['type']==='info'&&$resurrectionRow['data']===$resurrectionText,
     'resurrection did not project witnessed background info');
+$died=$spell;$died['type']='actor_died';$died['request_id']=Uuid::v4();
+$deathVictim=array_replace($controlsQuery['target'],['kind'=>'creature','record_id'=>'mudcrab','display_name'=>'Death Sentinel Mudcrab']);
+$deathVictim['refnum']['index']+=200000;
+$died['payload']=['victim'=>$deathVictim,'audience'=>[$controlsQuery['target']],'game_time'=>1];
+$deathText='Death Sentinel Mudcrab died.';
+[$diedStatus,$diedBody]=$call($router,'POST',$base.'/gamedata',$headers($died['request_id']),[],$died);
+$assert($diedStatus===202&&($diedBody['type']??null)==='actor_died','death telemetry rejected: '.json_encode($diedBody));
+[$diedReplayStatus]=$call($router,'POST',$base.'/gamedata',$headers($died['request_id']),[],$died);
+$assert($diedReplayStatus===202,'death replay was not idempotent');
+$deathProjection=$db->prepare("SELECT e.type,e.data,m.projection_key FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.source_event_id=:source");
+$deathProjection->execute(['source'=>$died['request_id']]);$deathRows=$deathProjection->fetchAll();
+$assert(count($deathRows)===1&&$deathRows[0]['type']==='death'&&$deathRows[0]['data']===$deathText
+    &&$deathRows[0]['projection_key']==='actor-death:'.$died['request_id'],'death did not project exactly one CHIM death row: '.json_encode($deathRows));
+$killerDeath=$died;$killerDeath['request_id']=Uuid::v4();$killerDeath['payload']['killer']=$controlsQuery['target'];
+[$killerStatus]=$call($router,'POST',$base.'/gamedata',$headers($killerDeath['request_id']),[],$killerDeath);
+$deathProjection->execute(['source'=>$killerDeath['request_id']]);
+$assert($killerStatus===422&&$deathProjection->fetchAll()===[],'death with an invented killer was accepted');
 $turn['payload']['target']=$controlsQuery['target'];
 $turn['payload']['input']['text'] = 'Please follow me.';
 $turn['payload']['input']['mood']=['kind'=>'playful'];
@@ -1846,6 +1863,7 @@ $promptMessages=$snapshot['message']['_prompt']['_messages']??[];
 $promptHistoryJson=json_encode($promptMessages,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
 $assert(str_contains($promptHistoryJson,'Spell Capture Sentinel'),'captured spell did not reach the scoped NPC prompt');
 $assert(str_contains($promptHistoryJson,$resurrectionText),'resurrection did not reach formatted NPC prompt');
+$assert(substr_count($promptHistoryJson,'[World event] '.$deathText)===1,'witnessed death did not reach the NPC prompt exactly once');
 $assert(str_contains($promptHistoryJson,'Valuable Pickup Sentinel')&&!str_contains($promptHistoryJson,'Low Value Pickup Sentinel')
     &&!str_contains($promptHistoryJson,'Unwitnessed Source Pickup Sentinel'),'pickup total-value threshold or witness scoping failed');
 
@@ -1862,11 +1880,12 @@ $assert(!str_contains(json_encode($products->promptContext($unrelatedSpellProbe,
 $db->beginTransaction();
 try{
     $dated=[];
-    foreach(['spell'=>$spell,'pickup'=>$pickup,'resurrection'=>$resurrected]as$family=>$template){
+    foreach(['spell'=>$spell,'pickup'=>$pickup,'resurrection'=>$resurrected,'death'=>$died]as$family=>$template){
         foreach(['past'=>11.5,'cutoff'=>12.0,'future'=>12.5,'undated'=>null]as$when=>$hour){
             $observation=$template;$observation['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
             $observation['payload']['game_time']=1; // Deliberately contradicts calendar ordering.
             if($family==='resurrection')$observation['payload']['actor']['display_name']='Timeline '.$family.' '.$when;
+            elseif($family==='death')$observation['payload']['victim']['display_name']='Timeline '.$family.' '.$when;
             else{$nameField=$family==='spell'?'spell_name':'item_name';$observation['payload'][$nameField]='Timeline '.$family.' '.$when;}
             if($hour!==null)$observation['payload']['calendar']=['year'=>427,'month'=>7,'day'=>15,'hour'=>$hour];
             (new Validator())->validate($observation,'lorkhan.gamedata.v1');$repo->acceptGameData($observation);

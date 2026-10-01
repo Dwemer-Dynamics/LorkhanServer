@@ -460,6 +460,17 @@ final class EventLogRepository
                 'delivery_state'=>null,'utterance_id'=>null]));
             return;
         }
+        if ($kind === 'gamedata.actor_died') {
+            // CHIM's killer-less "X died" form; LORKHAN observes no killer or weapon to report.
+            $victim=$this->object($body['victim']??[]);
+            $text=$this->displayName($victim,'Actor').' died.';
+            $this->insert(array_merge($common,['speaker'=>$victim,'target'=>[],'type'=>'death','data'=>$text,
+                'payload'=>$body+['text'=>$text,'observation_type'=>'actor_died'],'people'=>$this->people($victim,[],$audience),
+                'gamets'=>max(0,(int)floor((float)($body['game_time']??0))),
+                'location'=>$this->identityLocation($victim),'projection_kind'=>'world','projection_key'=>'actor-death:'.$sourceId,
+                'delivery_state'=>null,'utterance_id'=>null]));
+            return;
+        }
         if ($kind === 'gamedata.quest_event') {
             $text=trim((string)($body['text']??''));if($text==='')return;
             $responder=$this->object($body['responder']??[]);

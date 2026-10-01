@@ -108,7 +108,7 @@ final class LoadedSaveTimeline
             $second=self::calendarSecond($row['calendar']);
             // Undated observations cannot be placed on a loaded branch. With no load date, no older observation is safe.
             $unanchoredObservation=in_array($row['event_kind'],['gamedata.spell_cast','gamedata.item_pickup','gamedata.barter_trade',
-                'gamedata.actor_resurrected','gamedata.rpg_event','gamedata.quest_event'],true)
+                'gamedata.actor_resurrected','gamedata.actor_died','gamedata.rpg_event','gamedata.quest_event'],true)
                 &&$row['session_id']!==$loadSession&&($second===null||$cutoffSecond===null);
             if (!$row['invalid_turn']&&!$unanchoredObservation&&($cutoffSecond===null||$second===null||$second<$cutoffSecond)) continue;
             $markSource->execute($parameters+['id'=>$row['source_event_id']]);$counts['sources']+=$markSource->rowCount();
