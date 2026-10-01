@@ -10,6 +10,9 @@ use RuntimeException;
 /** Prepare a server-held sample on the selected XTTS-family service before its first synthesis. */
 final class LocalVoiceResolver
 {
+    /** A listed registration is trusted briefly; rejected synthesis or expiry asks the live service again. */
+    private const REGISTRATION_TTL_SECONDS=120;
+
     private readonly string $base;
     private readonly string $host;
 
@@ -24,6 +27,19 @@ final class LocalVoiceResolver
 
     public function resolve(string $voice,string $language,CancellationToken $cancellation):array
     {
+        return $this->prepare($voice,$language,$cancellation,false)['voice'];
+    }
+
+    /** After synthesis rejects a sample voice, recheck the live list; return a payload only if it was re-registered. */
+    public function recover(string $voice,string $language,CancellationToken $cancellation):?array
+    {
+        if($this->driver==='xtts')return null;
+        $result=$this->prepare($voice,$language,$cancellation,true);
+        return $result['uploaded']?$result['voice']:null;
+    }
+
+    private function prepare(string $voice,string $language,CancellationToken $cancellation,bool $refresh):array
+    {
         $cancellation->throwIfCancellationRequested();
         if(preg_match('/^[\pL\pN][\pL\pN _+.-]{0,511}$/uD',$voice)!==1)throw new RuntimeException('invalid_voice_name');
         $name=preg_replace('/\.wav$/i','',preg_replace('/\s+/u','_',$voice));
@@ -34,22 +50,28 @@ final class LocalVoiceResolver
         $sample=$samplePath===''?false:realpath($samplePath);
         if($sample!==false&&(!str_starts_with($sample,$root.DIRECTORY_SEPARATOR)||!is_file($sample)))throw new RuntimeException('invalid_voice_sample');
         // Provider-owned voices remain authoritative; only local samples require registration.
-        if($sample===false&&$this->driver!=='xtts')return ['speaker_wav'=>$voice];
+        if($sample===false&&$this->driver!=='xtts')return ['voice'=>['speaker_wav'=>$voice],'uploaded'=>false];
         if($root===false)throw new RuntimeException('voice_storage_unavailable');
         if($sample!==false){
             $size=filesize($sample);
             if($size===false||$size<44||$size>16_777_216)throw new RuntimeException('invalid_voice_sample');
         }
         $cache=$root.'/.local-voice-cache';
+        $scope=hash_hmac('sha256',$this->driver.'|'.$this->base.'|'.$name.'|'.$language,$this->apiKey);
+        $entryPath=$cache.'/'.$scope.'.json';$hash=$sample===false||$this->driver==='xtts'?'':(string)hash_file('sha256',$sample);
+        // Entries are published by rename, so a confirmed registration needs neither the lock nor a list request.
+        if(!$refresh&&$hash!==''&&($hit=$this->registration($entryPath,$name,$hash))!==null)return ['voice'=>$hit,'uploaded'=>false];
         if(!is_dir($cache)&&!mkdir($cache,0770)&&!is_dir($cache))throw new RuntimeException('voice_cache_unavailable');
         if((fileperms($cache)&07777)!==02770&&!chmod($cache,02770))throw new RuntimeException('voice_cache_unavailable');
-        $scope=hash_hmac('sha256',$this->driver.'|'.$this->base.'|'.$name.'|'.$language,$this->apiKey);
         $lockPath=$cache.'/'.$scope.'.lock';$lock=fopen($lockPath,'c');
         if($lock===false)throw new RuntimeException('voice_cache_unavailable');
         try{
             if((fileperms($lockPath)&0777)!==0660&&!chmod($lockPath,0660))throw new RuntimeException('voice_cache_unavailable');
-            if(!flock($lock,LOCK_EX|LOCK_NB))throw new RuntimeException('voice_registration_busy');
-            if($this->driver==='xtts')return $this->legacyVoice($voice,$sample,$cache.'/'.$scope.'.json',$cancellation);
+            $this->acquire($lock,$cancellation);
+            if($this->driver==='xtts')return ['voice'=>$this->legacyVoice($voice,$sample,$entryPath,$cancellation),'uploaded'=>false];
+            // A concurrent worker may have confirmed this voice while this one waited.
+            if($refresh){clearstatcache(true,$entryPath);if(is_file($entryPath))unlink($entryPath);}
+            elseif(($hit=$this->registration($entryPath,$name,$hash))!==null)return ['voice'=>$hit,'uploaded'=>false];
             // Query the live service, so deleted voices and provider resets recover automatically.
             $path=$this->driver==='omnivoice'?'/speakers_list_extended?language='.rawurlencode($language):'/speakers_list';
             $rows=$this->request($path,null,$cancellation);
@@ -64,7 +86,8 @@ final class LocalVoiceResolver
                 if($id===$name||$id===$name.'.wav'){
                     if($this->driver==='omnivoice'&&is_array($row)&&!in_array($row['status']??'available',['runtime_ready','ready','ok','available'],true))
                         throw new RuntimeException('voice_registration_not_ready');
-                    return ['speaker_wav'=>$id];
+                    $this->publish($entryPath,['speaker_wav'=>$id,'sample_hash'=>$hash,'confirmed_at'=>time()]);
+                    return ['voice'=>['speaker_wav'=>$id],'uploaded'=>false];
                 }
             }
             OpenAiCompatibleSpeechProvider::wavDurationMs((string)file_get_contents($sample));
@@ -76,7 +99,8 @@ final class LocalVoiceResolver
             $reply=$this->request('/upload_sample',$fields,$cancellation);
             if($this->driver==='omnivoice'&&!in_array($reply['import_status']??$reply['status']??'',['runtime_ready','ready','ok'],true))
                 throw new RuntimeException('voice_registration_not_ready');
-            return ['speaker_wav'=>$name];
+            // Cache only after a later list confirms the upload, so an unconfirmed registration is never trusted.
+            return ['voice'=>['speaker_wav'=>$name],'uploaded'=>true];
         }finally{flock($lock,LOCK_UN);fclose($lock);}
     }
 
@@ -95,13 +119,44 @@ final class LocalVoiceResolver
             OpenAiCompatibleSpeechProvider::wavDurationMs((string)file_get_contents($sample));
             $data=$this->request('/clone_speaker',['wav_file'=>new \CURLFile($sample,'audio/wav',basename($sample))],$cancellation);
         }
-        $data=$this->latents($data);$temporary=tempnam(dirname($path),'.voice-');
-        if($temporary===false)throw new RuntimeException('voice_cache_unavailable');
-        try{
-            if(file_put_contents($temporary,json_encode(['sample_hash'=>$hash,'voice'=>$data],JSON_THROW_ON_ERROR))===false
-                ||!chmod($temporary,0660)||!rename($temporary,$path))throw new RuntimeException('voice_cache_unavailable');
-        }finally{if(is_file($temporary))unlink($temporary);}
+        $data=$this->latents($data);
+        if(!$this->publish($path,['sample_hash'=>$hash,'voice'=>$data]))throw new RuntimeException('voice_cache_unavailable');
         return $data;
+    }
+
+    /** Return an unexpired listed registration for this exact sample, or null so the live service is asked. */
+    private function registration(string $path,string $name,string $hash):?array
+    {
+        clearstatcache(true,$path);
+        if(!is_file($path)||filesize($path)>=4096)return null;
+        $saved=json_decode((string)file_get_contents($path),true);
+        if(!is_array($saved)||!is_int($saved['confirmed_at']??null))return null;
+        $id=$saved['speaker_wav']??null;$age=time()-$saved['confirmed_at'];
+        if(($id!==$name&&$id!==$name.'.wav')||($saved['sample_hash']??null)!==$hash||$age<0||$age>=self::REGISTRATION_TTL_SECONDS)return null;
+        return ['speaker_wav'=>$id];
+    }
+
+    /** Atomically publish a private cache entry; callers decide whether a failed write is fatal. */
+    private function publish(string $path,array $data):bool
+    {
+        $temporary=tempnam(dirname($path),'.voice-');
+        if($temporary===false)return false;
+        try{
+            return file_put_contents($temporary,json_encode($data,JSON_THROW_ON_ERROR))!==false&&chmod($temporary,0660)&&rename($temporary,$path);
+        }finally{if(is_file($temporary))unlink($temporary);}
+    }
+
+    /** Wait behind a bounded registration in another worker instead of failing its speech immediately. */
+    private function acquire($lock,CancellationToken $cancellation):void
+    {
+        // The holder is bounded by one list and one upload request; polling backs off to 20 lock checks per second.
+        $deadline=hrtime(true)+($this->timeoutMs+5000)*1_000_000;$delay=10_000;
+        while(!flock($lock,LOCK_EX|LOCK_NB)){
+            $cancellation->throwIfCancellationRequested();
+            if(hrtime(true)>=$deadline)throw new RuntimeException('voice_registration_busy');
+            usleep($delay);$delay=min($delay*2,50_000);
+        }
+        $cancellation->throwIfCancellationRequested();
     }
 
     /** Allow only bounded numeric conditioning arrays into the synthesis request. */

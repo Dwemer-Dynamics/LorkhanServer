@@ -48,6 +48,28 @@ final class XttsCompatibleSpeechProvider implements SpeechProvider
         $language=trim((string)($context['language']??$this->language));
         if($voice===''||strlen($voice)>512||$language===''||strlen($language)>35)throw new RuntimeException('provider_invalid_input');
         $voicePayload=$this->voiceResolver?->resolve($voice,$language,$cancellation)??['speaker_wav'=>$voice];
+        $bytes=$this->post($text,$language,$voicePayload,$cancellation,$status);
+        // A briefly cached registration can outlive a provider reset; re-register once only if the live list lost it.
+        if($bytes===null&&$status>=400&&$this->voiceResolver!==null){
+            try{$retry=$this->voiceResolver->recover($voice,$language,$cancellation);}
+            catch(OperationCancelled $error){throw $error;}
+            catch(RuntimeException){$retry=null;}
+            if($retry!==null)$bytes=$this->post($text,$language,$retry,$cancellation,$status);
+        }
+        if($bytes===null)throw new RuntimeException('provider_unavailable');
+        // The legacy streaming server writes an empty WAV header before appending PCM chunks.
+        if($this->driver==='xtts'&&strlen($bytes)>44&&substr($bytes,0,4)==='RIFF'
+            &&substr($bytes,8,8)==='WAVEfmt '&&unpack('V',substr($bytes,16,4))[1]===16
+            &&substr($bytes,36,4)==='data'&&unpack('V',substr($bytes,40,4))[1]===0){
+            $bytes=substr_replace($bytes,pack('V',strlen($bytes)-8),4,4);
+            $bytes=substr_replace($bytes,pack('V',strlen($bytes)-44),40,4);
+        }
+        return['bytes'=>$bytes,'codec'=>'wav','mime_type'=>'audio/wav','duration_ms'=>OpenAiCompatibleSpeechProvider::wavDurationMs($bytes)];
+    }
+
+    /** Send one bounded synthesis request; return null with the HTTP status when the service rejects it. */
+    private function post(string $text,string $language,array $voicePayload,CancellationToken $cancellation,?int &$status):?string
+    {
         $body=['text'=>$text,'language'=>$language]+$voicePayload;
         foreach(self::OPTION_FIELDS as$field)if(array_key_exists($field,$this->options)){
             $value=$this->options[$field];if(!is_int($value)&&!is_float($value))throw new RuntimeException('provider_invalid_input');$body[$field]=$value;
@@ -62,15 +84,8 @@ final class XttsCompatibleSpeechProvider implements SpeechProvider
             CURLOPT_XFERINFOFUNCTION=>static fn($handle,$downloadTotal,$downloaded,$uploadTotal,$uploaded):int=>$cancellation->isCancellationRequested()?1:0]);
         try{$bytes=curl_exec($handle);$status=(int)curl_getinfo($handle,CURLINFO_RESPONSE_CODE);
             if($cancellation->isCancellationRequested())throw new OperationCancelled('operation_cancelled');
-            if(!is_string($bytes)||$status<200||$status>=300||strlen($bytes)>33_554_432)throw new RuntimeException('provider_unavailable');
+            if(!is_string($bytes)||strlen($bytes)>33_554_432)throw new RuntimeException('provider_unavailable');
+            return $status>=200&&$status<300?$bytes:null;
         }finally{curl_close($handle);}
-        // The legacy streaming server writes an empty WAV header before appending PCM chunks.
-        if($this->driver==='xtts'&&strlen($bytes)>44&&substr($bytes,0,4)==='RIFF'
-            &&substr($bytes,8,8)==='WAVEfmt '&&unpack('V',substr($bytes,16,4))[1]===16
-            &&substr($bytes,36,4)==='data'&&unpack('V',substr($bytes,40,4))[1]===0){
-            $bytes=substr_replace($bytes,pack('V',strlen($bytes)-8),4,4);
-            $bytes=substr_replace($bytes,pack('V',strlen($bytes)-44),40,4);
-        }
-        return['bytes'=>$bytes,'codec'=>'wav','mime_type'=>'audio/wav','duration_ms'=>OpenAiCompatibleSpeechProvider::wavDurationMs($bytes)];
     }
 }

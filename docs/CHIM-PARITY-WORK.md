@@ -193,7 +193,10 @@ own PocketTTS sample preparation. Neither sibling needs this Lorkhan routing fix
 | StyleTTS2 | Keep the existing configured-session flow, matching Herika's active code; its sample/session upload block is commented out upstream. |
 
 `LocalVoiceResolver` prepares the effective endpoint, including PocketTTS fallback
-endpoints. Live speaker discovery avoids stale registration after provider resets.
+endpoints. A speaker list confirmation is reused for two minutes per endpoint, driver,
+credential, language and sample hash; a rejected synthesis rechecks the live list and
+re-registers once, so provider resets do not leave a stale registration. Concurrent
+workers wait, cancellably and within the request timeout, for a registration in progress.
 Legacy conditioning caches include endpoint, credential, language and sample hash.
 Cache permissions work for both the HTTP and worker users. Requests are bounded,
 cancellable, pinned to the configured host, and never follow redirects.
