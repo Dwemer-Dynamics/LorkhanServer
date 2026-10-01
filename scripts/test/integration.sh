@@ -19,6 +19,7 @@ fi
 createdb -h 127.0.0.1 -p "$PORT" lorkhan_test
 createdb -h 127.0.0.1 -p "$PORT" lorkhan_migrations_test
 createdb -h 127.0.0.1 -p "$PORT" lorkhan_cancel_test
+createdb -h 127.0.0.1 -p "$PORT" lorkhan_player2_health_test
 mkdir "$TMP/factory"
 bash "$ROOT/scripts/build-factory-database.sh" "$TMP/factory"
 LORKHAN_TEST_FACTORY_DIR="$TMP/factory" \
@@ -26,6 +27,8 @@ LORKHAN_TEST_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=lorkhan_test" \
 LORKHAN_RESPONSE_CAPTURE="${LORKHAN_RESPONSE_CAPTURE:-}" php "$ROOT/tests/integration.php"
 # Speech cancellation spans processes and a slow loopback TTS mock, so it owns a fresh database.
 LORKHAN_TEST_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=lorkhan_cancel_test" php "$ROOT/tests/menu_tts_cancel.php"
+# Player2 heartbeat timing moves session/attempt clocks and runs a loopback Player2 stand-in, so it owns a fresh database.
+LORKHAN_TEST_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=lorkhan_player2_health_test" php "$ROOT/tests/player2_health.php"
 LORKHAN_SCHEMA_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=lorkhan_test" \
 php "$ROOT/scripts/schema-inventory.php" "${LORKHAN_SCHEMA_MODE:---check}"
 # A deleted allocation can leave the exported sequence far above every surviving row.

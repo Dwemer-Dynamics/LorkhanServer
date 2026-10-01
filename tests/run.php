@@ -429,6 +429,12 @@ foreach(['dialogueForSlot','profileGenerationForSlot','oghmaTopicExtractorForSlo
     $player2Provider=ProviderFactory::$factory([],$player2Slot);
     $check((new \ReflectionProperty($player2Provider,'player2'))->getValue($player2Provider)===true,'Player2 identity reaches '.$factory);
 }
+$health=ProviderFactory::player2HealthRequest([],$player2Slot);
+$check($health['url']==='http://127.0.0.1:1234/v1/health'&&in_array('player2-game-key: LORKHAN',$health['headers'],true)
+    &&preg_grep('/^Authorization:/i',$health['headers'])===[]&&($health['curl'][CURLOPT_PROXY]??null)==='',
+    'Player2 health heartbeat uses the connector origin, game key and direct connection');
+try{ProviderFactory::player2HealthRequest([],$directSlot);$check(false,'non-Player2 connector produced a health heartbeat');}
+catch(RuntimeException $error){$check($error->getMessage()==='player2_connector_unavailable','non-Player2 connector produced a health heartbeat');}
 $check(LlmConnector::requestHeaders('',true)===['Content-Type: application/json','Accept: application/json','player2-game-key: LORKHAN']
     &&LlmConnector::requestHeaders('selected-game',true)[2]==='player2-game-key: selected-game'
     &&LlmConnector::requestHeaders('ordinary-key')[2]==='Authorization: Bearer ordinary-key','Player2 and ordinary credentials use separate headers');
