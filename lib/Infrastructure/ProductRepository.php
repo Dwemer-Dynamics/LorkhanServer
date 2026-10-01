@@ -3659,6 +3659,9 @@ WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.su
   AND (CAST(:is_narrator_target AS boolean) OR e.type<>'inputtext' OR COALESCE(m.target->>'kind','')<>'narrator')
   AND (NOT CAST(:hide_narrator_dialogue AS boolean) OR e.type<>'chat' OR COALESCE(m.speaker->>'kind','')<>'narrator')
   AND (e.type<>'chat' OR e.delivery_state IN ('emitted','pending','spoken','played'))
+  -- Server-side interruption/expiry ends utterances without a receipt, so the eventlog row can still read emitted.
+  AND (e.type<>'chat' OR m.dialogue_message_id IS NULL OR NOT EXISTS(SELECT 1 FROM dialogue_utterances unheard
+       WHERE unheard.dialogue_message_id=m.dialogue_message_id AND unheard.delivery_state IN ('interrupted','expired','failed')))
   AND (m.speaker @> CAST(:event_speaker AS jsonb)
        OR m.target @> CAST(:event_target AS jsonb)
        OR m.audience @> CAST(:event_audience AS jsonb))

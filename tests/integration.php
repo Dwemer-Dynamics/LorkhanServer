@@ -3430,6 +3430,18 @@ $db->prepare('UPDATE eventlog_metadata SET target=CAST(:target AS jsonb) WHERE r
 $assert(in_array($visibilityId,array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
     'an input addressed to an ordinary NPC named The Narrator was hidden');
 $db->exec('ROLLBACK TO SAVEPOINT narrator_visibility_probe');
+// Server-side interruption ends the utterance without a client receipt, leaving the eventlog row emitted.
+$db->exec('SAVEPOINT unheard_dialogue_history_probe');
+$unheardRow=$db->query("SELECT e.rowid,m.dialogue_message_id FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE e.type='chat' AND m.dialogue_message_id IS NOT NULL AND m.turn_id=".$db->quote($turn['turn_id'])." LIMIT 1")->fetch();
+$db->prepare("UPDATE eventlog SET ts=(extract(epoch FROM clock_timestamp())*1000)::bigint+3600000,delivery_state='emitted' WHERE rowid=:id")->execute(['id'=>$unheardRow['rowid']]);
+$db->prepare('UPDATE eventlog_metadata SET suppressed_at=NULL WHERE rowid=:id')->execute(['id'=>$unheardRow['rowid']]);
+$db->prepare("UPDATE dialogue_utterances SET delivery_state='pending' WHERE dialogue_message_id=:id")->execute(['id'=>$unheardRow['dialogue_message_id']]);
+$assert(in_array('event:'.$unheardRow['rowid'],array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
+    'in-flight emitted dialogue lost conversational continuity');
+$db->prepare("UPDATE dialogue_utterances SET delivery_state='interrupted' WHERE dialogue_message_id=:id")->execute(['id'=>$unheardRow['dialogue_message_id']]);
+$assert(!in_array('event:'.$unheardRow['rowid'],array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
+    'interrupted unheard dialogue shaped a future prompt');
+$db->exec('ROLLBACK TO SAVEPOINT unheard_dialogue_history_probe');
 $narrativeInsert=$db->prepare('INSERT INTO narrative_records(narrative_id,installation_id,profile_id,playthrough_id,kind,title,content,provenance,created_at,updated_at) '
     ."VALUES(:id,:installation,:profile,:playthrough,'diary','Recency probe',:content,'{\"source\":\"manual\"}',:now,:now)");
 for($i=0;$i<12;$i++)$narrativeInsert->execute(['id'=>$newUuid(3940+$i),'installation'=>$installationId,
