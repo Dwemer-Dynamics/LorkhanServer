@@ -82,9 +82,17 @@ flows. The installer provisions one Deepgram STT connector without overwriting a
 ## Worker supervision
 
 The independently authored durable worker uses `service/worker-runner.php` with source-controlled handlers,
-leases, heartbeats, bounded retries and dead letters. Install the tracked hardened oneshot service and
-timer from `deploy/systemd/` only after configuring `/etc/lorkhanserver/worker.env`; the service is not a
-placeholder and deliberately exits after bounded work/runtime so systemd can supervise restart.
+leases, heartbeats, bounded retries and dead letters. It runs as two lanes so background jobs cannot
+delay dialogue. `lorkhanserver-worker-interactive` passes `--lane=interactive` and claims only
+`turn.process`, `stt.process`, `speech.synthesize` and `dialogue.expire`; `lorkhanserver-worker` passes
+`--lane=background` and claims every other type. Install both tracked hardened oneshot services and
+timers from `deploy/systemd/` only after configuring `/etc/lorkhanserver/worker.env`; each service
+deliberately exits after bounded work/runtime so its timer restarts it. Without systemd,
+`/etc/init.d/lorkhanserver-worker` starts one `lorkhanserver-worker-loop` supervisor per lane
+(`/run/lorkhanserver-worker.pid` for background, `/run/lorkhanserver-worker-interactive.pid` for
+interactive); `status` succeeds only when both run. Running `worker-runner.php` without `--lane` keeps
+the single all-types worker for manual use. If `worker.types` leaves a lane with no types, that lane
+claims nothing, waits `idle_exit_seconds` and exits successfully rather than failing its timer.
 
 Adapt narrowly for actual connector/media needs. Worker heartbeat/lease state distinguishes a healthy
 web process from unavailable derived processing. Game requests never fork unbounded daemons.

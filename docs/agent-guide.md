@@ -52,7 +52,9 @@ Do not treat display names as stable TES3 actor keys or collapse playthrough dat
 1. Record client/server revisions, failure time, selected playthrough and symptom.
 2. Match request/turn/session/generation IDs between redacted client and server evidence.
 3. Inspect /var/log/lorkhanserver, Apache lorkhanserver-error.log and the supervised
-   lorkhanserver-worker service/timer. A working health endpoint does not prove worker,
+   lorkhanserver-worker (background jobs) and lorkhanserver-worker-interactive (dialogue,
+   STT, speech, expiry) services/timers, or both SysV lane supervisors. Worker status reports
+   the worse of the two lane states. A working health endpoint does not prove worker,
    provider or game delivery success.
 4. Check the configured route: direct WSL Apache normally uses port 8090; the Windows
    DwemerDistro launcher proxy uses 7514. Retain local access restrictions and pairing.

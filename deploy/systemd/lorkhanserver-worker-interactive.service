@@ -1,5 +1,5 @@
 [Unit]
-Description=LorkhanServer bounded background durable job worker
+Description=LorkhanServer bounded interactive dialogue job worker
 After=postgresql.service
 Wants=postgresql.service
 ConditionPathExists=/var/www/html/LorkhanServer/service/worker-runner.php
@@ -10,7 +10,7 @@ User=lorkhan
 Group=www-data
 WorkingDirectory=/var/www/html/LorkhanServer
 EnvironmentFile=/etc/lorkhanserver/worker.env
-ExecStart=/usr/bin/php /var/www/html/LorkhanServer/service/worker-runner.php --lane=background
+ExecStart=/usr/bin/php /var/www/html/LorkhanServer/service/worker-runner.php --lane=interactive
 TimeoutStartSec=7min
 Nice=5
 UMask=0077
