@@ -2636,14 +2636,39 @@ foreach(['pockettts','omnivoice','chatterbox','xtts-fastapi']as$driver){
         &&$localCalls[1]['fields']['force']==='false','OmniVoice includes catalog transcription and never forces replacement');
     $localResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
     $check(count($localCalls)===3,$driver.' discovers and preserves an existing remote voice without reuploading');
-    $registered=false;$localResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
-    $check(count($localCalls)===5,$driver.' re-registers automatically after the remote voice library is reset');
+    $localEntry=$inworldRoot.'/.local-voice-cache/'.hash_hmac('sha256',$driver.'|http://127.0.0.1:8999/prefix|mw_dark_elf_male|en','').'.json';
+    $check($localResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken())===['speaker_wav'=>'mw_dark_elf_male']
+        &&count($localCalls)===3&&(fileperms($localEntry)&0777)===0660,$driver.' reuses a listed registration without another list request');
+    $localResolver->resolve('mw_dark_elf_male','de',new NeverCancelledToken());
+    $check(count($localCalls)===4,$driver.' scopes cached registrations by language');
+    $saved=json_decode(file_get_contents($localEntry),true);file_put_contents($localEntry,json_encode(['confirmed_at'=>time()-120]+$saved));
+    $localResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
+    $check(count($localCalls)===5,$driver.' expires a cached registration and asks the live service again');
+    file_put_contents($inworldRoot.'/mw_dark_elf_male.wav',$wav."\0\0");
+    $localResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());file_put_contents($inworldRoot.'/mw_dark_elf_male.wav',$wav);
+    $check(count($localCalls)===6,$driver.' ignores a cached registration after its sample changes');
+    $check($localResolver->recover('mw_dark_elf_male','en',new NeverCancelledToken())===null&&count($localCalls)===7,
+        $driver.' rejected synthesis of a still-listed voice is not retried');
+    $registered=false;
+    $check($localResolver->recover('mw_dark_elf_male','en',new NeverCancelledToken())===['speaker_wav'=>'mw_dark_elf_male']
+        &&count($localCalls)===9&&!is_file($localEntry),$driver.' re-registers automatically after the remote voice library is reset');
+    // Another worker holds registration; this one waits, then reuses the entry that worker confirmed.
+    $held=fopen(substr($localEntry,0,-5).'.lock','c');flock($held,LOCK_EX);$polls=0;
+    $waiting=new \LorkhanServer\Application\CallbackCancellationToken(static function()use(&$polls,$held,$localEntry):bool{
+        if(++$polls===2){file_put_contents($localEntry,json_encode(['speaker_wav'=>'mw_dark_elf_male','sample_hash'=>hash('sha256',file_get_contents(dirname($localEntry,2).'/mw_dark_elf_male.wav')),'confirmed_at'=>time()]));flock($held,LOCK_UN);}
+        return false;});
+    $check($localResolver->resolve('mw_dark_elf_male','en',$waiting)===['speaker_wav'=>'mw_dark_elf_male']&&$polls>=2&&count($localCalls)===9,
+        $driver.' waits for a concurrent registration instead of failing busy');
+    unlink($localEntry);flock($held,LOCK_EX);$polls=0;
+    try{$localResolver->resolve('mw_dark_elf_male','en',new \LorkhanServer\Application\CallbackCancellationToken(static function()use(&$polls):bool{return ++$polls>3;}));$check(false,'cancelled registration wait');}
+    catch(\LorkhanServer\Application\OperationCancelled){$check(count($localCalls)===9,$driver.' cancellation stops a registration wait without provider calls');}
+    finally{flock($held,LOCK_UN);fclose($held);}
     $check($localResolver->resolve('provider_stock_voice','en',new NeverCancelledToken())===['speaker_wav'=>'provider_stock_voice']
-        &&count($localCalls)===5,$driver.' passes provider-owned voices through without sample uploads');
+        &&count($localCalls)===9,$driver.' passes provider-owned voices through without sample uploads');
     try{$localResolver->resolve('../escape','en',new NeverCancelledToken());$check(false,'local sample traversal rejected');}
     catch(RuntimeException $e){$check($e->getMessage()==='invalid_voice_name','local sample traversal rejected');}
     try{$localResolver->resolve('mw_dark_elf_male','en',new \LorkhanServer\Application\CallbackCancellationToken(static fn()=>true));$check(false,'local cancellation before upload');}
-    catch(\LorkhanServer\Application\OperationCancelled){$check(count($localCalls)===5,'local cancellation prevents discovery and upload');}
+    catch(\LorkhanServer\Application\OperationCancelled){$check(count($localCalls)===9,'local cancellation prevents discovery and upload');}
 }
 // Another PHP worker can delete a sample while this process retains its realpath cache.
 $removedSample=$inworldRoot.'/worker_removed.wav';
@@ -2652,7 +2677,7 @@ realpath($removedSample);
 $removeProcess=proc_open([PHP_BINARY,'-r','exit(unlink($argv[1]) ? 0 : 1);',$removedSample],[], $removePipes);
 if(!is_resource($removeProcess)||proc_close($removeProcess)!==0)throw new RuntimeException('sample removal fixture failed');
 $check($localResolver->resolve('worker_removed','en',new NeverCancelledToken())===['speaker_wav'=>'worker_removed']
-    &&count($localCalls)===5,'deleted local sample uses the provider voice despite a stale worker realpath cache');
+    &&count($localCalls)===9,'deleted local sample uses the provider voice despite a stale worker realpath cache');
 $legacyCalls=[];$legacyLatents=['speaker_embedding'=>[0.1,0.2],'gpt_cond_latent'=>[[0.3,0.4]]];
 $legacyResolver=new \LorkhanServer\Application\LocalVoiceResolver('http://127.0.0.1:8999/tts_stream','xtts',$inworldRoot,'',30000,
     static function(string $url,?array $fields)use(&$legacyCalls,$legacyLatents):array{
