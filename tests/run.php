@@ -470,6 +470,11 @@ try {
         });
     $check(false,'diagnostic observer did not run');
 }catch(RuntimeException $error){if($error->getMessage()!=='diagnostic-observed')throw$error;}
+$check(!$diagnosticProvider->transientFailure(),'a locally aborted request is not a transient provider outage');
+$refusedProvider=new OpenAiCompatibleProvider('http://127.0.0.1:9/v1/chat/completions',['127.0.0.1'],'fixture','',1000,allowLoopbackHttp:true);
+try{$refusedProvider->complete(['payload'=>['input'=>['text'=>'Hello']]],new NeverCancelledToken());$check(false,'refused provider completed');}
+catch(RuntimeException $error){$check($error->getMessage()==='provider_unavailable'&&$refusedProvider->transientFailure()
+    &&$refusedProvider->retryAfterSeconds()===0,'a refused provider connection is a transient outage for connector recovery');}
 $networkRoutes=[['dst'=>'default','dev'=>'eth0','gateway'=>'192.168.160.1']];
 $networkInterfaces=[['ifname'=>'eth0','addr_info'=>[['family'=>'inet','local'=>'192.168.169.218']]]];
 $networkClass=\LorkhanServer\Application\QuickstartLocalLlm::class;
