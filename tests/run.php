@@ -773,6 +773,25 @@ foreach(['valid/gamedata-barter-trade'=>true,'invalid/gamedata-barter-trade-no-i
     try{$validator->validate($document,'lorkhan.gamedata.v1');$check($valid,$fixture.' matches its strict barter expectation');}
     catch(ValidationException $error){$check(!$valid&&$error->getMessage()==='invalid_schema',$fixture.' matches its strict barter expectation');}
 }
+// RPG/quest calendars are optional for legacy clients, but a present date must be a real Morrowind instant.
+foreach(['valid/gamedata-rpg-calendar'=>true,'valid/gamedata-quest-calendar'=>true,'valid/gamedata-rpg-responder'=>true,
+    'valid/gamedata-quest-responder'=>true,'invalid/gamedata-quest-calendar-leap-day'=>false]as$fixture=>$valid){
+    $document=json_decode((string)file_get_contents(dirname($fixtureRoot).'/'.$fixture.'.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+    try{$validator->validate($document,'lorkhan.gamedata.v1');$check($valid,$fixture.' matches its observation calendar expectation');}
+    catch(ValidationException $error){$check(!$valid&&$error->getMessage()==='invalid_schema',$fixture.' matches its observation calendar expectation');}
+}
+$calendarObservation=json_decode((string)file_get_contents($fixtureRoot.'/gamedata-rpg-calendar.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+$boredCalendar=json_decode((string)file_get_contents($fixtureRoot.'/gamedata-bored-responder.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+$boredCalendar['payload']['calendar']=$calendarObservation['payload']['calendar'];
+foreach(['extra field'=>['days_passed'=>3],'string hour'=>['hour'=>'11'],'hour 24'=>['hour'=>24],'year 0'=>['year'=>0],'month 12'=>['month'=>12]]as$name=>$change){
+    $invalid=$calendarObservation;$invalid['payload']['calendar']=array_replace($invalid['payload']['calendar'],$change);
+    try{$validator->validate($invalid,'lorkhan.gamedata.v1');$check(false,'RPG calendar rejects '.$name);}
+    catch(ValidationException $error){$check($error->getMessage()==='invalid_schema','RPG calendar rejects '.$name);}
+}
+foreach(['bored event'=>$boredCalendar,'non-object calendar'=>array_replace_recursive($calendarObservation,['payload'=>['calendar'=>null]])]as$name=>$invalid){
+    try{$validator->validate($invalid,'lorkhan.gamedata.v1');$check(false,'observation calendar rejects '.$name);}
+    catch(ValidationException $error){$check($error->getMessage()==='invalid_schema','observation calendar rejects '.$name);}
+}
 $npcReceipt=json_decode((string)file_get_contents($fixtureRoot.'/debug-command-result.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
 $characterSession=json_decode((string)file_get_contents($fixtureRoot.'/session-init.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
 foreach([['character_id'=>null],['character_binding'=>null],['character_id'=>'PlayerName'],['character_binding'=>'automatic']] as $invalidCharacter){
