@@ -2038,13 +2038,25 @@ SQL);
     /** Resolve an actor profile's voice without exposing the rest of its roleplay document to a connector. */
     public function speechContext(string $installationId,string $playthroughId,array $identity,?array $connector=null):array
     {
+        return $this->speechContextFromProfile($this->speechProfile($installationId,$playthroughId,$identity),$identity,$connector);
+    }
+
+    /** Resolve the global race/gender fallback voice, ignoring the profile voice that could not be synthesized. */
+    public function fallbackSpeechContext(string $installationId,string $playthroughId,array $identity,?array $connector=null):array
+    {
+        $profile=$this->speechProfile($installationId,$playthroughId,$identity);
+        if(is_array($profile['content']??null))unset($profile['content']['voice']);
+        return $this->speechContextFromProfile($profile,$identity,$connector);
+    }
+
+    private function speechProfile(string $installationId,string $playthroughId,array $identity):?array
+    {
         $profileId=match($identity['kind']??null){
             'player'=>$this->playerProfileForInstallation($installationId,$playthroughId)['profile_id']??null,
             'narrator'=>$this->narratorProfileForInstallation($installationId)['profile_id']??null,
             default=>$this->selectedActorProfileId($installationId,$playthroughId,$identity),
         };
-        $profile=is_string($profileId)&&$profileId!==''?$this->getRevisioned('profile',$profileId):null;
-        return $this->speechContextFromProfile($profile,$identity,$connector);
+        return is_string($profileId)&&$profileId!==''?$this->getRevisioned('profile',$profileId):null;
     }
 
     /** Share voice resolution with saved narrative authors without consulting current actor bindings. */
