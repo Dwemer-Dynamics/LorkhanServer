@@ -131,6 +131,7 @@
     "lorkhan_internal.idempotency_requests",
     "lorkhan_internal.installations",
     "lorkhan_internal.media_objects",
+    "lorkhan_internal.menu_dialogue_tts_cancellations",
     "lorkhan_internal.menu_dialogue_tts_requests",
     "lorkhan_internal.operational_audit",
     "lorkhan_internal.pairing_tokens",

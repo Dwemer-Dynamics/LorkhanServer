@@ -79,6 +79,7 @@ actions carry both canonical fields and fail closed if the current inventory win
 | `POST /controls/select` | Idempotently select an installation model preference, bind an NPC profile, or queue revision-safe bound-NPC/narrator generation. |
 | `POST /stt` | Authenticate and persist a bounded WAV request, enqueue durable transcription, and return `lorkhan.stt.accepted.v1`. |
 | `POST /menu-dialogue-tts` | Synthesize one authenticated regular Morrowind dialogue response with the actor's normal TTS route and return short-lived media. |
+| `POST /menu-dialogue-tts/cancel` | Abandon one menu dialogue or book speech message; synthesis stops and returns `operation_cancelled` without media unless it already completed. |
 | `GET /events` | Return current session events after cursor, optionally wait at most 15 seconds. |
 | `POST /action-results` | Persist exactly one terminal result for an emitted current action. |
 | `POST /interruptions` | Cancel current turn/media/action continuation and emit terminal states. |

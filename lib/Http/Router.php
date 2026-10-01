@@ -4,10 +4,11 @@ declare(strict_types=1);
 namespace LorkhanServer\Http;
 
 use LorkhanServer\Application\MorrowindVoiceCatalog;
+use LorkhanServer\Application\CallbackCancellationToken;
 use LorkhanServer\Application\EffectiveSettingsResolver;
 use LorkhanServer\Application\MemoryEmbeddingPolicy;
 use LorkhanServer\Application\MiniMeEmbeddingProvider;
-use LorkhanServer\Application\NeverCancelledToken;
+use LorkhanServer\Application\OperationCancelled;
 use LorkhanServer\Application\PromptAssembler;
 use LorkhanServer\Application\Provider;
 use LorkhanServer\Application\ProviderFactory;
@@ -93,6 +94,7 @@ final class Router
             if ($request->method === 'POST' && $path === '/dialogue-delivery-results') return $this->deliveryResult($request);
             if ($request->method === 'POST' && $path === '/menu-dialogue-tts') return $this->menuDialogueTts($request);
             if ($request->method === 'POST' && $path === '/book/read-aloud') return $this->menuDialogueTts($request,true);
+            if ($request->method === 'POST' && $path === '/menu-dialogue-tts/cancel') return $this->menuDialogueTtsCancel($request);
             if ($request->method === 'POST' && $path === '/player-autochat') return $this->playerAutochat($request);
             throw new ApiException(404, 'not_found', 'Route not found.');
         } catch (ApiException $error) {
@@ -525,6 +527,9 @@ final class Router
             function()use($installation,$message,$session,$book,$route):Response{
                 return $this->idempotent($installation,$message['message_id'],$route,$message,
                     function()use($installation,$message,$session,$book):array{
+                        // A cancel can be processed by another worker before this request reaches synthesis.
+                        $cancellation=$this->menuDialogueCancellation($installation,$message);
+                        if($cancellation->isCancellationRequested())$this->menuDialogueCancelled($message);
                         $actor=$book?($this->products?->narratorProfileForInstallation($installation)['actor_identity']??null):$message['actor'];
                         if(!is_array($actor))throw new ApiException(409,'not_found','Configure the Narrator profile before reading aloud.',false);
                         $message['actor']=$actor;
@@ -564,7 +569,7 @@ final class Router
                             metadata:['mode'=>$book?'book_read_aloud':'menu_dialogue','configuration_id'=>$preset['configuration_id']??null,
                                 'configuration_revision'=>$preset['revision']??null,'profile_voice'=>isset($context['voice'])]);
                         try{
-                            $generated=$cached??$provider->synthesize($ttsText,new NeverCancelledToken(),$context);
+                            $generated=$cached??$provider->synthesize($ttsText,$cancellation,$context);
                             $mediaId=Uuid::v4();$sha=$this->mediaStore->put($mediaId,$generated['bytes'],$generated['codec'],$generated['mime_type']);
                             $speech=['media_id'=>$mediaId,'sha256'=>$sha,'bytes'=>strlen($generated['bytes']),
                                 'codec'=>$generated['codec'],'mime_type'=>$generated['mime_type'],'duration_ms'=>$generated['duration_ms'],
@@ -578,11 +583,56 @@ final class Router
                                 'generation'=>$message['generation'],'actor'=>$actor,'media'=>$media]];
                         }catch(Throwable $error){
                             if($mediaId!==null)$this->mediaStore->delete($mediaId);
-                            try{$this->providerAttempts?->finish($attemptId,'failed',errorCode:'provider_unavailable');}catch(Throwable){}
+                            $cancelled=$error instanceof OperationCancelled;
+                            try{$this->providerAttempts?->finish($attemptId,$cancelled?'cancelled':'failed',
+                                errorCode:$cancelled?'operation_cancelled':'provider_unavailable');}catch(Throwable){}
+                            if($cancelled)$this->menuDialogueCancelled($message);
                             throw $error;
                         }
                     });
             });
+    }
+
+    /** Record one client cancellation without waiting for the target speech request's idempotency lock. */
+    private function menuDialogueTtsCancel(Request $request): Response
+    {
+        $message=$this->json($request,'lorkhan.menu-dialogue-tts.cancel.v1');
+        $session=$this->repository->session((string)$message['session_id'],(int)$message['generation']);
+        $installation=(string)$session['installation_id'];$this->assertPrincipal($installation);
+        $this->requireIdempotency($request,$message['message_id']);
+        $route='/menu-dialogue-tts/cancel';
+        return $this->repository->serializedIdempotency($installation,$message['message_id'],$route,
+            fn():Response=>$this->idempotent($installation,$message['message_id'],$route,$message,
+                function()use($message,$session):array{
+                    $status=$this->repository->cancelMenuDialogueTts($message,$session);
+                    return[200,['schema'=>'lorkhan.menu-dialogue-tts.cancel.accepted.v1','message_id'=>$message['message_id'],
+                        'request_id'=>$message['request_id'],'session_id'=>$message['session_id'],
+                        'generation'=>$message['generation'],'target_message_id'=>$message['target_message_id'],'status'=>$status]];
+                }));
+    }
+
+    /** Stop menu/book speech after an explicit cancel or once its session generation is no longer current. */
+    private function menuDialogueCancellation(string $installation,array $message):CallbackCancellationToken
+    {
+        $checkedAt=0.0;$cancelled=false;
+        return new CallbackCancellationToken(function()use($installation,$message,&$checkedAt,&$cancelled):bool{
+            if($cancelled)return true;
+            // cURL progress callbacks run many times per second; bound the lookup rate.
+            $now=microtime(true);
+            if($now-$checkedAt<0.25)return false;
+            $checkedAt=$now;
+            try{
+                return $cancelled=$this->repository->menuDialogueTtsCancelled($installation,(string)$message['message_id'],
+                    (string)$message['session_id'],(int)$message['generation']);
+            }catch(Throwable){return false;}
+        });
+    }
+
+    /** A cancelled speech request is an expected outcome, never an internal error. */
+    private function menuDialogueCancelled(array $message):never
+    {
+        $this->repository->session((string)$message['session_id'],(int)$message['generation']);
+        throw new ApiException(409,'operation_cancelled','The speech request was cancelled.',false);
     }
 
     /** Rewrite one player intent through the dedicated profile route before the real turn is created. */
