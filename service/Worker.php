@@ -62,7 +62,7 @@ final class Worker
                     $heartbeat = fn(): bool => $this->jobs->heartbeat($job['job_id'], $job['lease_token'], $this->leaseSeconds);
                     try {
                         $handler = $this->handlers->for($job['job_type'], $job['schema_version']);
-                        $payload=$job['payload']+['_job'=>['job_id'=>$job['job_id'],'lease_token'=>$job['lease_token'],'attempt'=>$job['attempt_count']]];
+                        $payload=$job['payload']+['_job'=>['job_id'=>$job['job_id'],'lease_token'=>$job['lease_token'],'attempt'=>$job['attempt_count'],'max_attempts'=>$job['max_attempts']]];
                         $handler->handle($payload, $job['idempotency_key'], $heartbeat);
                         $this->jobs->succeed($job['job_id'], $job['lease_token']);
                         ++$stats['succeeded'];

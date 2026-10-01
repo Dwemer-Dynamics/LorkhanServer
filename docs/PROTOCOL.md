@@ -88,10 +88,18 @@ Menu dialogue TTS is isolated from AI turns, response events, delivery receipts,
 Its request and media provenance remain session/generation scoped and expire through the existing
 private media lifecycle.
 
-Contracted event types are `turn.accepted`, `dialogue.delta`, `dialogue.complete`, `speech.ready`, `stt.transcript`, `stt.failed`, `action.intent`,
+Contracted event types are `turn.accepted`, `dialogue.delta`, `dialogue.complete`, `speech.ready`, `speech.failed`, `stt.transcript`, `stt.failed`, `action.intent`,
 `turn.complete`, `turn.failed`, and `turn.cancelled`. The required `autonomy` array is always empty. Future variants such as status/notices require
-an atomic shared-schema revision before use. Bounded `dialogue.delta` text is display-only progress; `dialogue.complete` remains the validated durable utterance. TTS runs as a separate durable job, and `speech.ready` includes the matching `dialogue_message_id` so delayed group speech cannot bind to the wrong speaker. Each event has a monotonically increasing session sequence
+an atomic shared-schema revision before use. Bounded `dialogue.delta` text is display-only progress; `dialogue.complete` remains the validated durable utterance. TTS runs as a separate durable job, and `speech.ready` includes the matching `dialogue_message_id` so delayed group speech cannot bind to the wrong speaker. A pending line whose speech ends without audio receives one terminal `speech.failed` instead: no TTS connector (`provider_unconfigured`), or the final job attempt failing (`provider_unavailable`/`provider_timeout`) after one retry with the global race/gender fallback voice. Its payload is only `dialogue_message_id` and `code`; it never carries media. `speech.ready` cannot express this, because its descriptor requires an existing non-empty media object. Non-final failures keep normal retries, failed provider attempts stay recorded, and cancellation, generation fences and lost leases publish nothing. Exactly one of `speech.ready` or `speech.failed` ends a line's speech. Each event has a monotonically increasing session sequence
 and unique message ID. Cursor gaps use bounded replay or `cursor_expired`; the client never guesses.
+
+`speech.failed` is a shared-schema revision: sibling LORKHAN must import the matching `events.schema.json`,
+`valid/events.json` and `invalid/speech-failed-media.json` by manifest hash, and accept it in its native
+event parser and Lua `protocol.lua` validator before this server is promoted. Current clients reject unknown
+event types. On receipt the client resolves the waiting line by `dialogue_message_id` within the same
+request/turn/session, marks it subtitle-only (`speech_unavailable`), displays it for its normal subtitle
+duration without any audio or speech-lane playback, and reports its one terminal delivery result. A late or
+duplicate `speech.ready`/`speech.failed` for a line already resolved is ignored as stale.
 
 `ui_source=lorkhan_rechat` denotes a playback-driven continuation, not timer autonomy. Its bounded
 context carries chain/origin IDs, monotonic depth and previous speaker/listener identities. The server

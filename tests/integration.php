@@ -584,6 +584,8 @@ foreach(['inworld','cartesia','pockettts','omnivoice','chatterbox','xtts-fastapi
     $assert(($fallbackContext['voice']??'')==='global_bosmer_voice',$driver.' did not use the shared global fallback');
     $explicitContext=$products->speechContext($installationId,$session['playthrough_id'],$automaticTarget,$fallbackConnector);
     $assert(($explicitContext['voice']??'')==='mw_wood_elf_male','global fallback overrode an assigned NPC voice');
+    $assert(($products->fallbackSpeechContext($installationId,$session['playthrough_id'],$automaticTarget,$fallbackConnector)['voice']??'')==='global_bosmer_voice',
+        $driver.' speech failure fallback did not resolve the global race/gender voice for an assigned NPC voice');
 }
 $customFallbacks['wood_elf']['male']='';$globalFallbacks->save($customFallbacks);
 $assert(($products->speechContext($installationId,$session['playthrough_id'],$unprofiledActor,$fallbackConnector)['voice']??'')==='last_resort',
@@ -5052,6 +5054,66 @@ $assert($status===202&&$translationFailureStats===['claimed'=>1,'succeeded'=>1,'
     &&$translationFailureResponse['lines'][0]['tts_text']===$translationFailureOriginal
     &&$translationFailureAttempt->fetch()===['state'=>'failed','error_code'=>'provider_unavailable','error_detail'=>null],
     'translation failure did not preserve original dialogue with a redacted failed provider attempt');
+
+// Unvoiceable lines end in one terminal speech.failed notice without media, keeping non-final retries.
+$failingSpeech=new class implements \LorkhanServer\Application\SpeechProvider {
+    public int$calls=0;
+    public function synthesize(string$text,\LorkhanServer\Application\CancellationToken$cancellation,array$context=[]):array{
+        ++$this->calls;throw new RuntimeException('sensitive upstream detail');
+    }
+};
+$speechOutcomeWorker=function(?\LorkhanServer\Application\SpeechProvider$speechProvider,string$dialogueId)use($db,$mediaStore,$attempts):array{
+    $db->prepare("UPDATE durable_jobs SET next_run_at=clock_timestamp()-interval '1 day' WHERE job_type='speech.synthesize' AND idempotency_key=:key AND state='queued'")
+        ->execute(['key'=>'speech:'.$dialogueId]);
+    return(new Worker(new JobRepository($db),new \LorkhanServer\Application\JobHandlerRegistry([new \LorkhanServer\Application\SpeechSynthesizeJobHandler(
+        new Repository($db),$speechProvider,$mediaStore,$attempts,null)]),'speech-outcome-worker',5,1,1,0,10,
+        ['speech.synthesize'],static fn(int$microseconds):mixed=>null))->run();
+};
+$speechOutcome=function(string$dialogueId)use($db):array{
+    $media=$db->prepare('SELECT codec,mime_type,duration_ms,byte_count FROM media_objects WHERE dialogue_message_id=:id');$media->execute(['id'=>$dialogueId]);
+    $events=$db->prepare("SELECT event_type,payload FROM response_events WHERE event_type IN ('speech.ready','speech.failed') AND payload->>'dialogue_message_id'=:id ORDER BY sequence");$events->execute(['id'=>$dialogueId]);
+    $job=$db->prepare("SELECT state,attempt_count FROM durable_jobs WHERE job_type='speech.synthesize' AND idempotency_key=:key");$job->execute(['key'=>'speech:'.$dialogueId]);
+    return['media'=>$media->fetch()?:null,'events'=>array_map(static fn(array$row):array=>['type'=>$row['event_type'],
+        'payload'=>json_decode($row['payload'],true,8,JSON_THROW_ON_ERROR)],$events->fetchAll()),'job'=>$job->fetch()?:null];
+};
+$translationDialogueStatement->execute(['turn'=>$translationFailureTurn['turn_id']]);
+$failedSpeechDialogue=(string)$translationDialogueStatement->fetch()['dialogue_message_id'];
+$failedSpeechRetry=$speechOutcomeWorker($failingSpeech,$failedSpeechDialogue);$failedSpeechRetryOutcome=$speechOutcome($failedSpeechDialogue);
+$assert($failedSpeechRetry===['claimed'=>1,'succeeded'=>0,'retried'=>1,'dead'=>0]&&$failingSpeech->calls===1
+    &&$failedSpeechRetryOutcome['media']===null&&$failedSpeechRetryOutcome['events']===[]
+    &&$failedSpeechRetryOutcome['job']===['state'=>'queued','attempt_count'=>1],
+    'non-final speech failure did not keep the retry path: '.json_encode($failedSpeechRetryOutcome));
+$db->prepare("UPDATE durable_jobs SET max_attempts=2 WHERE job_type='speech.synthesize' AND idempotency_key=:key")->execute(['key'=>'speech:'.$failedSpeechDialogue]);
+$failedSpeechFinal=$speechOutcomeWorker($failingSpeech,$failedSpeechDialogue);$failedSpeechFinalOutcome=$speechOutcome($failedSpeechDialogue);
+$failedSpeechAttempts=$db->prepare("SELECT state,error_code,error_detail FROM provider_attempts WHERE turn_id=:turn AND provider_kind='tts' ORDER BY started_at");
+$failedSpeechAttempts->execute(['turn'=>$translationFailureTurn['turn_id']]);
+$assert($failedSpeechFinal===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]&&$failingSpeech->calls===2
+    &&$failedSpeechFinalOutcome['job']===['state'=>'succeeded','attempt_count'=>2]&&$failedSpeechFinalOutcome['media']===null
+    &&$failedSpeechFinalOutcome['events']===[['type'=>'speech.failed','payload'=>['code'=>'provider_unavailable',
+        'dialogue_message_id'=>$failedSpeechDialogue]]]
+    &&$failedSpeechAttempts->fetchAll()===array_fill(0,2,['state'=>'failed','error_code'=>'provider_unavailable','error_detail'=>null]),
+    'exhausted speech retries did not publish one terminal no-audio notice: '.json_encode($failedSpeechFinalOutcome));
+// The notice is terminal: a re-leased job neither re-synthesizes nor publishes a second outcome.
+$db->prepare("UPDATE durable_jobs SET state='queued',max_attempts=3 WHERE job_type='speech.synthesize' AND idempotency_key=:key")->execute(['key'=>'speech:'.$failedSpeechDialogue]);
+$failedSpeechReplay=$speechOutcomeWorker($failingSpeech,$failedSpeechDialogue);
+$assert($failedSpeechReplay['succeeded']===1&&$failingSpeech->calls===2&&$speechOutcome($failedSpeechDialogue)['events']===$failedSpeechFinalOutcome['events'],
+    'terminal speech.failed was not idempotent across a replayed speech job');
+$biographyService->revise('translation_policy',$translationCurrent['configuration_id'],$translationEnabled,'enable unconfigured speech probe');
+$unconfiguredSpeechTurn=$turn;$unconfiguredSpeechTurn['message_id']=$newUuid(771001);$unconfiguredSpeechTurn['request_id']=$newUuid(771002);
+$unconfiguredSpeechTurn['turn_id']=$newUuid(771003);$unconfiguredSpeechTurn['payload']['input']['text']='[oghma: Vivec] Speak without a voice.';
+[$status]=$call($router,'POST',$base.'/turns',$headers($unconfiguredSpeechTurn['message_id']),[],$unconfiguredSpeechTurn);
+$translationCurrent=$products->translationPolicyForInstallation($installationId);
+$biographyService->revise('translation_policy',$translationCurrent['configuration_id'],
+    \LorkhanServer\Application\TranslationPolicy::defaults(),'disable after unconfigured speech acceptance');
+$assert($status===202&&$runWorker(['turn.process'],new MockProvider(),null,$unavailableTranslation)['succeeded']===1,'unconfigured speech turn failed');
+$translationDialogueStatement->execute(['turn'=>$unconfiguredSpeechTurn['turn_id']]);
+$unconfiguredSpeechDialogue=(string)$translationDialogueStatement->fetch()['dialogue_message_id'];
+$unconfiguredSpeech=$speechOutcomeWorker(null,$unconfiguredSpeechDialogue);$unconfiguredSpeechOutcome=$speechOutcome($unconfiguredSpeechDialogue);
+$assert($unconfiguredSpeech===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
+    &&$unconfiguredSpeechOutcome['job']===['state'=>'succeeded','attempt_count'=>1]
+    &&$unconfiguredSpeechOutcome['media']===null&&$unconfiguredSpeechOutcome['events']===[['type'=>'speech.failed',
+        'payload'=>['code'=>'provider_unconfigured','dialogue_message_id'=>$unconfiguredSpeechDialogue]]],
+    'speech without a provider did not reach a terminal no-audio notice: '.json_encode($unconfiguredSpeechOutcome));
 
 // A result continuation replaces the client's generic text with the configured server-owned prompt.
 $configuredFollowupPrompt='Configured result prompt sentinel: react to the observed outcome only.';

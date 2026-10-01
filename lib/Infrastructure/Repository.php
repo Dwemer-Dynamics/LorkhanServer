@@ -889,8 +889,10 @@ final class Repository
                 . 'WHERE u.dialogue_message_id=:id FOR UPDATE OF u');
             $statement->execute(['id'=>$dialogueId]);$row=$statement->fetch();
             if(!$row) throw new \OutOfBoundsException('dialogue_not_found');
-            $existing=$this->db->prepare('SELECT 1 FROM media_objects WHERE dialogue_message_id=:id');
-            $existing->execute(['id'=>$dialogueId]);
+            // Media or a terminal speech.failed notice each end the line's speech exactly once.
+            $existing=$this->db->prepare('SELECT 1 FROM media_objects WHERE dialogue_message_id=:id UNION ALL '
+                . "SELECT 1 FROM response_events WHERE session_id=:session AND event_type='speech.failed' AND payload->>'dialogue_message_id'=:line");
+            $existing->execute(['id'=>$dialogueId,'session'=>$row['session_id'],'line'=>$dialogueId]);
             if($existing->fetchColumn()||$row['session_state']!=='active'||(int)$row['session_generation']!==(int)$row['generation']||$row['delivery_state']!=='pending') return null;
             try{$this->assertAiEnabled($row['installation_id']);}catch(\DomainException){return null;}
             foreach(['speaker','addressee','audience'] as$field)$row[$field]=$this->json($row[$field]);
@@ -922,6 +924,19 @@ final class Repository
             $descriptor['dialogue_message_id']=$current['dialogue_message_id'];
             return $this->event($current['session_id'],$current['generation'],$current['request_id'],$current['turn_id'],
                 'speech.ready',$descriptor);
+        });
+    }
+
+    /** End a pending line's speech without media; the client keeps the subtitle and reports delivery itself. */
+    public function failDialogueSpeech(array $dialogue, string $code, array $fence): array
+    {
+        if(!in_array($code,['provider_unconfigured','provider_timeout','provider_unavailable'],true))
+            throw new \InvalidArgumentException('invalid_speech_failure_code');
+        return $this->transaction(function () use ($dialogue, $code, $fence): array {
+            $current=$this->claimDialogueForSpeech((string)$dialogue['dialogue_message_id'],$fence);
+            if($current===null) return [];
+            return $this->event($current['session_id'],$current['generation'],$current['request_id'],$current['turn_id'],
+                'speech.failed',['dialogue_message_id'=>$current['dialogue_message_id'],'code'=>$code]);
         });
     }
 
