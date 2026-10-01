@@ -1424,6 +1424,112 @@ try{
             'valid '.$case.' history of '.count($witnessed).' witnessed events failed mock evolution or lost witnessed provenance');
     }
 }finally{$db->exec('ROLLBACK TO SAVEPOINT profile_history_limits_probe');if($historyOwns)$db->rollBack();}
+$speechOwns=!$db->inTransaction();if($speechOwns)$db->beginTransaction();$db->exec('SAVEPOINT evolution_speech_probe');
+try{
+    // Generated speech joins evolution only after a played receipt; that receipt is its frozen, rollback-checked source.
+    $speechNpc=$backfillTarget;$speechNpc['record_id']='evolution_speech_npc';$speechNpc['display_name']='Speech NPC';$speechNpc['refnum']['index']=8701;
+    $speechOther=$backfillTarget;$speechOther['record_id']='evolution_speech_other';$speechOther['display_name']='Other speaker';$speechOther['refnum']['index']=8702;
+    $speechNarrator=['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN'];
+    $speechTurn=$db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at)
+        VALUES(:turn,:request,:message,:session,7,'text','en',:input,CAST(:speaker AS jsonb),CAST(:target AS jsonb),'[]'::jsonb,CAST(:context AS jsonb),'complete',:now)");
+    $speechUtterance=$db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,
+        response_line_id,utterance_id,speaker,addressee,audience,text,emitted_at,delivery_deadline_at)
+        VALUES(:dialogue,:session,:turn,:request,7,1,1,:line,:utterance,CAST(:speaker AS jsonb),CAST(:addressee AS jsonb),CAST(:audience AS jsonb),:text,:emitted,:deadline)");
+    $speechSource=$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload)
+        VALUES(:id,:installation,:session,7,:kind,:now,:schema,:request,:turn,CAST(:payload AS jsonb))");
+    $speechReceipt=$db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at)
+        VALUES(:dialogue,:source,:message,:request,:turn,:session,7,CAST(:speaker AS jsonb),:status,'fixture',:now)");
+    $speechGameTime=950000000;$speechEvents=new EventLogRepository($db);
+    $speech=function(array $speaker,string $text,?string $status,int $day,?string $playerText=null)use($installationId,$session,$sessionId,$now,$playerProfile,$speechNpc,
+        $speechTurn,$speechUtterance,$speechSource,$speechReceipt,$speechEvents,&$speechGameTime):array{
+        $turnId=Uuid::v4();$requestId=Uuid::v4();$dialogueId=Uuid::v4();$inputSource=null;$receiptId=null;$speechGameTime+=10;
+        $context=['world'=>['game_time'=>$speechGameTime,'calendar'=>['year'=>427,'month'=>7,'day'=>$day,'hour'=>12]]];
+        $player=$playerProfile['actor_identity'];$audience=[$speaker,$player];
+        $speechTurn->execute(['turn'=>$turnId,'request'=>$requestId,'message'=>Uuid::v4(),'session'=>$sessionId,'input'=>$playerText??'',
+            'speaker'=>json_encode($player),'target'=>json_encode($speaker),'context'=>json_encode($context),'now'=>$now]);
+        if($playerText!==null){$inputSource=Uuid::v4();
+            $inputPayload=['speaker'=>$player,'target'=>$speechNpc,'input'=>['text'=>$playerText],
+                'context'=>['world'=>['game_time'=>$speechGameTime-5]+$context['world']]];
+            $speechSource->execute(['id'=>$inputSource,'installation'=>$installationId,'session'=>$sessionId,'now'=>$now,'kind'=>'turn.requested',
+                'schema'=>'lorkhan.turn.v1','request'=>$requestId,'turn'=>$turnId,'payload'=>json_encode($inputPayload)]);
+            $speechEvents->projectSource($inputSource,$installationId,$sessionId,'turn.requested',$now,$requestId,$turnId,null,$inputPayload);}
+        $speechUtterance->execute(['dialogue'=>$dialogueId,'session'=>$sessionId,'turn'=>$turnId,'request'=>$requestId,'line'=>Uuid::v4(),
+            'utterance'=>Uuid::v4(),'speaker'=>json_encode($speaker),'addressee'=>json_encode($player),'audience'=>json_encode($audience),
+            'text'=>$text,'emitted'=>$now,'deadline'=>gmdate('c',strtotime($now)+300)]);
+        $speechEvents->projectDialogue(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id'],'session_id'=>$sessionId,
+            'request_id'=>$requestId,'turn_id'=>$turnId,'payload'=>['context'=>$context]],
+            ['speaker'=>$speaker,'addressee'=>$player,'audience'=>$audience,'text'=>$text],$dialogueId,$now);
+        if($status!==null){$receiptId=Uuid::v4();
+            $speechSource->execute(['id'=>$receiptId,'installation'=>$installationId,'session'=>$sessionId,'now'=>$now,'kind'=>'dialogue.delivery',
+                'schema'=>'lorkhan.dialogue-delivery-result.v1','request'=>$requestId,'turn'=>$turnId,
+                'payload'=>json_encode(['dialogue_message_id'=>$dialogueId,'status'=>$status])]);
+            $speechReceipt->execute(['dialogue'=>$dialogueId,'source'=>$receiptId,'message'=>$receiptId,'request'=>$requestId,'turn'=>$turnId,
+                'session'=>$sessionId,'speaker'=>json_encode($speaker),'status'=>$status,'now'=>$now]);
+            $speechEvents->updateDialogueDelivery($dialogueId,$status);}
+        return['dialogue_message_id'=>$dialogueId,'receipt'=>$receiptId,'input'=>$inputSource];
+    };
+    $kept=$speech($speechNpc,'Kept delivered reply.','played',10,'Player question before the kept reply.');
+    $unrelated=$speech($speechOther,'Unrelated delivered reply.','played',10);
+    $speech($speechNpc,'Unplayed pending reply.',null,10);
+    $speech($speechNpc,'Failed playback reply.','failed',10);
+    $narratorAside=$speech($speechNarrator,'Narrator aside elsewhere.','played',10);
+    $narratorHeard=$speech($speechNarrator,'Narrator voice heard by the Speech NPC.','played',10);
+    $db->prepare('UPDATE eventlog_metadata SET audience=audience||CAST(:npc AS jsonb) WHERE dialogue_message_id=:dialogue')
+        ->execute(['npc'=>json_encode([$speechNpc]),'dialogue'=>$narratorHeard['dialogue_message_id']]);
+    $later=$speech($speechNpc,'Later reply from the retired branch.','played',20);
+    $speechContent=$dynamicContent;$speechContent['settings_overrides']['profile_evolution']['history_limit']=400;
+    $speechProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Speech NPC','playthrough_id'=>$session['playthrough_id'],
+        'actor_identity'=>$speechNpc,'core_profile_id'=>$evolutionCore['core_profile_id'],'content'=>$speechContent],$now);
+    $speechPayload=function(string $profileId)use($products,$db,$session,$sessionId):array{
+        $queued=$products->maybeEnqueueDynamicProfileEvolution($profileId,$session['playthrough_id'],$sessionId,true);
+        $q=$db->prepare('SELECT payload FROM durable_jobs WHERE job_id=:id');$q->execute(['id'=>$queued['job_id']??Uuid::v4()]);
+        return['queued'=>$queued]+json_decode((string)($q->fetchColumn()?:'{}'),true,64,JSON_THROW_ON_ERROR);};
+    $npcSpeech=$speechPayload($speechProfile['profile_id']);$npcWitnessed=$npcSpeech['witnessed_events']??[];
+    $npcSpeechText=json_encode($npcWitnessed,JSON_UNESCAPED_UNICODE);
+    $assert(($npcSpeech['queued']['queued']??false)===true
+        &&($npcSpeech['source_event_ids']??null)===[$kept['input'],$kept['receipt'],$later['receipt']]
+        &&array_column($npcWitnessed,'type')===['inputtext','chat','chat']
+        &&(array_column($npcWitnessed,'text')[1]??null)==='Speech NPC: Kept delivered reply.'
+        &&substr_count($npcSpeechText,'Player question before the kept reply.')===1
+        &&!str_contains($npcSpeechText,'Unrelated')&&!str_contains($npcSpeechText,'Unplayed')
+        &&!str_contains($npcSpeechText,'Failed playback')&&!str_contains($npcSpeechText,'Narrator'),
+        'NPC evolution did not freeze exactly its delivered generated speech: '.$npcSpeechText);
+    // The Narrator observes all delivered speech in the playthrough, still bounded by its own history limit.
+    $narratorSpeechContent=$speechContent;$narratorSpeechContent['settings_overrides']['profile_evolution']['history_limit']=5;
+    $narratorSpeechProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Speech narrator',
+        'actor_identity'=>$speechNarrator,'core_profile_id'=>$evolutionCore['core_profile_id'],'content'=>$narratorSpeechContent],$now);
+    $narratorSpeech=$speechPayload($narratorSpeechProfile['profile_id']);
+    $assert(($narratorSpeech['source_event_ids']??null)===[$kept['receipt'],$unrelated['receipt'],$narratorAside['receipt'],
+        $narratorHeard['receipt'],$later['receipt']],
+        'Narrator evolution did not freeze the latest shared delivered speech: '.json_encode($narratorSpeech['witnessed_events']??null));
+    // A loaded earlier save retires the day-20 reply; the queued source and its late commit must both be refused.
+    $speechLoad=$db->prepare("SELECT e.source_event_id FROM source_events e JOIN sessions s ON s.session_id=e.session_id
+        WHERE e.installation_id=:installation AND s.playthrough_id=:playthrough AND e.event_kind='session.init' LIMIT 1");
+    $speechLoad->execute(['installation'=>$installationId,'playthrough'=>$session['playthrough_id']]);$speechLoadId=$speechLoad->fetchColumn();
+    $assert(is_string($speechLoadId),'speech rollback fixture lacks a session.init source');
+    $speechTimeline=new \LorkhanServer\Infrastructure\LoadedSaveTimeline($db);
+    $assert($speechTimeline->eventSourcesActive($npcSpeech['source_event_ids'],$installationId,$session['playthrough_id']),
+        'delivered speech sources were inactive before rollback');
+    $speechTimeline->invalidate(['message_id'=>$speechLoadId,'installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id'],
+        'loaded_save'=>['year'=>427,'month'=>7,'day'=>15,'hour'=>12]]);
+    $assert(!$speechTimeline->eventSourcesActive($npcSpeech['source_event_ids'],$installationId,$session['playthrough_id'])
+        &&$speechTimeline->eventSourcesActive([$kept['input'],$kept['receipt']],$installationId,$session['playthrough_id']),
+        'loaded save did not retire exactly the queued later speech source');
+    $speechHandlerPayload=$npcSpeech;unset($speechHandlerPayload['queued']);
+    $speechHandlerPayload['_job']=['job_id'=>$npcSpeech['queued']['job_id'],'attempt'=>1];
+    $leaseProfileFixture->execute(['job'=>$npcSpeech['queued']['job_id'],'token'=>Uuid::v4()]);
+    (new \LorkhanServer\Application\ProfileGenerateJobHandler($products,new \LorkhanServer\Application\MockProfileGenerationProvider()))
+        ->handle($speechHandlerPayload,'evolution-speech-rollback',static fn():bool=>true);
+    $speechOutcome=$db->prepare("SELECT payload->>'generation_outcome' FROM durable_jobs WHERE job_id=:id");
+    $speechOutcome->execute(['id'=>$npcSpeech['queued']['job_id']]);
+    $assert($products->getRevisioned('profile',$speechProfile['profile_id'])['current_revision']===$npcSpeech['base_revision']
+        &&$speechOutcome->fetchColumn()==='commit_fence_changed','evolution committed speech from a retired save branch');
+    $db->prepare("UPDATE durable_jobs SET state='dead',lease_owner=NULL,lease_token=NULL,leased_at=NULL,lease_expires_at=NULL,heartbeat_at=NULL WHERE job_id=:id")
+        ->execute(['id'=>$npcSpeech['queued']['job_id']]);
+    $retrySpeech=$speechPayload($speechProfile['profile_id']);
+    $assert(($retrySpeech['source_event_ids']??null)===[$kept['input'],$kept['receipt']],
+        're-queued evolution kept retired-branch speech: '.json_encode($retrySpeech['witnessed_events']??null));
+}finally{$db->exec('ROLLBACK TO SAVEPOINT evolution_speech_probe');if($speechOwns)$db->rollBack();}
 
 // Routine metadata revisions must not discard an update or be overwritten by it.
 $baselineProbe=$products->getRevisioned('profile',$dynamicProfile['profile_id']);
