@@ -3513,15 +3513,20 @@ try {
     $check(false, 'named preset rejects connector fields');
 } catch (InvalidArgumentException) { $check(true, 'named preset rejects connector fields'); }
 
-// Dashboard worker status must not mistake stale PIDs or an idle systemd timer for a running worker.
+// Dashboard worker status must not mistake stale PIDs, an idle systemd timer or one live lane for a running worker.
 $workerFixture = sys_get_temp_dir().'/lorkhan-worker-status-'.bin2hex(random_bytes(4));
-mkdir($workerFixture); mkdir($workerFixture.'/1'); mkdir($workerFixture.'/123');
+mkdir($workerFixture); mkdir($workerFixture.'/1'); mkdir($workerFixture.'/123'); mkdir($workerFixture.'/124');
 file_put_contents($workerFixture.'/1/comm', "init\n");
 $workerStatus = static fn(?callable $query = null): string => \LorkhanServer\Infrastructure\BackgroundWorkerStatus::read($workerFixture, $workerFixture, $query);
 $check($workerStatus()==='Stopped', 'missing worker PID is stopped');
 file_put_contents($workerFixture.'/lorkhanserver-worker.pid', "123\n");
-file_put_contents($workerFixture.'/123/cmdline', "bash\0/usr/local/libexec/lorkhanserver-worker-loop\0");
-$check($workerStatus()==='Running', 'worker status verifies the exact supervisor process');
+file_put_contents($workerFixture.'/123/cmdline', "bash\0/usr/local/libexec/lorkhanserver-worker-loop\0background\0");
+$check($workerStatus()==='Stopped', 'background lane alone does not report a running worker');
+file_put_contents($workerFixture.'/lorkhanserver-worker-interactive.pid', "124\n");
+file_put_contents($workerFixture.'/124/cmdline', "bash\0/usr/local/libexec/lorkhanserver-worker-loop\0background\0");
+$check($workerStatus()==='Stopped', 'interactive PID must belong to the interactive lane supervisor');
+file_put_contents($workerFixture.'/124/cmdline', "bash\0/usr/local/libexec/lorkhanserver-worker-loop\0interactive\0");
+$check($workerStatus()==='Running', 'worker status verifies the exact supervisor process for both lanes');
 file_put_contents($workerFixture.'/123/cmdline', "bash\0/unrelated-worker\0");
 $check($workerStatus()==='Stopped', 'reused PID cannot report running');
 file_put_contents($workerFixture.'/lorkhanserver-worker.pid', '../123');
@@ -3529,12 +3534,30 @@ $check($workerStatus()==='Unavailable', 'invalid PID is rejected');
 file_put_contents($workerFixture.'/1/comm', "systemd\n");
 foreach ([['activating','active','Running'],['inactive','active','Waiting (timer active)'],['failed','active','Failed'],['inactive','inactive','Stopped']] as [$serviceState,$timerState,$expected]) {
     $query=static fn():array=>['lorkhanserver-worker.service'=>['LoadState'=>'loaded','ActiveState'=>$serviceState],
-        'lorkhanserver-worker.timer'=>['LoadState'=>'loaded','ActiveState'=>$timerState]];
+        'lorkhanserver-worker.timer'=>['LoadState'=>'loaded','ActiveState'=>$timerState],
+        'lorkhanserver-worker-interactive.service'=>['LoadState'=>'loaded','ActiveState'=>$serviceState],
+        'lorkhanserver-worker-interactive.timer'=>['LoadState'=>'loaded','ActiveState'=>$timerState]];
     $check($workerStatus($query)===$expected, 'systemd worker status '.$expected);
 }
+$check($workerStatus(static fn():array=>['lorkhanserver-worker.service'=>['LoadState'=>'loaded','ActiveState'=>'active'],
+    'lorkhanserver-worker.timer'=>['LoadState'=>'loaded','ActiveState'=>'active']])==='Unavailable',
+    'systemd status does not report running without the interactive lane');
 $check($workerStatus(static fn()=>null)==='Unavailable', 'failed systemd observation stays unknown');
-unlink($workerFixture.'/123/cmdline'); unlink($workerFixture.'/1/comm'); unlink($workerFixture.'/lorkhanserver-worker.pid');
-rmdir($workerFixture.'/123'); rmdir($workerFixture.'/1'); rmdir($workerFixture);
+foreach (['/123/cmdline','/124/cmdline','/1/comm','/lorkhanserver-worker.pid','/lorkhanserver-worker-interactive.pid'] as $workerFile) unlink($workerFixture.$workerFile);
+rmdir($workerFixture.'/123'); rmdir($workerFixture.'/124'); rmdir($workerFixture.'/1'); rmdir($workerFixture);
+// Supervised lanes split the job types without overlap; manual runs keep the configured all-types filter.
+$laneFilter = [\LorkhanServer\Application\Worker::class, 'laneFilter'];
+$check($laneFilter('all', null)===['types'=>null,'excluded_types'=>null]
+    &&$laneFilter('all', ['profile.generate'])===['types'=>['profile.generate'],'excluded_types'=>null], 'all lane preserves configured worker types');
+$check($laneFilter('interactive', null)===['types'=>['turn.process','stt.process','speech.synthesize','dialogue.expire'],'excluded_types'=>null]
+    &&$laneFilter('interactive', ['turn.process','profile.generate'])['types']===['turn.process'], 'interactive lane owns only dialogue jobs');
+$check($laneFilter('background', null)===['types'=>null,'excluded_types'=>\LorkhanServer\Application\Worker::INTERACTIVE_TYPES]
+    &&$laneFilter('background', ['turn.process','profile.generate'])['types']===['profile.generate'], 'background lane excludes every dialogue job');
+// A worker.types filter that empties one lane idles that lane instead of failing its supervisor.
+$check($laneFilter('interactive', ['profile.generate'])===['types'=>[],'excluded_types'=>null]
+    &&$laneFilter('background', ['turn.process'])===['types'=>[],'excluded_types'=>null], 'empty worker lane claims nothing without failing');
+try { $laneFilter('priority', null); $check(false, 'invalid worker lane accepted'); }
+catch (InvalidArgumentException) { $check(true, 'invalid worker lane rejected'); }
 
 $omniRoot=sys_get_temp_dir().'/lorkhan-omni-languages-'.bin2hex(random_bytes(4));
 $check(\LorkhanServer\Application\OmniVoiceLanguages::available($omniRoot)===[], 'missing OmniVoice catalogue stays empty');

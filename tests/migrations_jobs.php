@@ -1992,6 +1992,64 @@ $worker = new Worker($jobs, new JobHandlerRegistry([$handler]), 'bounded-worker'
 $stats = $worker->run();
 $check($stats === ['claimed' => 1, 'succeeded' => 1, 'retried' => 0, 'dead' => 0] && $handler->calls === 1, 'bounded worker failed');
 
+// Worker lanes: a held background job must not delay a newly queued turn, and background never claims turns.
+$check((int) $db->query("SELECT count(*) FROM durable_jobs WHERE job_type='turn.process' AND state IN ('queued','leased')")->fetchColumn() === 0,
+    'lane fixture requires no pending turns');
+$laneDb = Connection::open(['database_dsn' => $dsn, 'database_user' => getenv('LORKHAN_TEST_DB_USER') ?: '',
+    'database_password' => getenv('LORKHAN_TEST_DB_PASSWORD') ?: '']);
+$laneTurn = new class implements JobHandler {
+    public array $done = [];
+    public function supports(string $jobType, int $schemaVersion): bool { return $jobType === 'turn.process' && $schemaVersion === 1; }
+    public function handle(array $payload, string $idempotencyKey, callable $heartbeat): void { $this->done[$payload['mode']] = hrtime(true); }
+};
+$laneHold = new class implements JobHandler {
+    public mixed $during = null;
+    public array $released = [];
+    public function supports(string $jobType, int $schemaVersion): bool { return $jobType === 'test.background' && $schemaVersion === 1; }
+    public function handle(array $payload, string $idempotencyKey, callable $heartbeat): void
+    {
+        ($this->during)($payload['mode']);
+        usleep(250_000);
+        $this->released[$payload['mode']] = hrtime(true);
+    }
+};
+$laneQueued = [];
+$laneHold->during = static function (string $mode) use ($jobs, $laneDb, $laneTurn, &$laneQueued): void {
+    $laneQueued[$mode] = hrtime(true);
+    $jobs->enqueue(Uuid::v4(), 'turn.process', 1, 'lane-turn:' . $mode, ['mode' => $mode], 1, null, 100);
+    if ($mode !== 'lanes') return;
+    $interactive = Worker::laneFilter('interactive', ['turn.process']);
+    $laneStats = (new Worker(new JobRepository($laneDb), new JobHandlerRegistry([$laneTurn]), 'lane-interactive', 5, 1, 1, 0, 10,
+        $interactive['types'], static fn(int $microseconds): mixed => null, excludedTypes: $interactive['excluded_types']))->run();
+    if ($laneStats['succeeded'] !== 1) throw new RuntimeException('interactive lane did not run while background held');
+};
+$laneRegistry = new JobHandlerRegistry([$laneHold, $laneTurn]);
+foreach (['serial', 'lanes'] as $laneMode) {
+    $jobs->enqueue(Uuid::v4(), 'test.background', 1, 'lane-hold:' . $laneMode, ['mode' => $laneMode], 1);
+    $background = Worker::laneFilter($laneMode === 'serial' ? 'all' : 'background', ['test.background', 'turn.process']);
+    // The serial baseline is the previous single all-types worker; the lane worker leaves the turn to the interactive lane.
+    $laneStats = (new Worker($jobs, $laneRegistry, 'lane-' . $laneMode, 5, 1, 2, 0, 10, $background['types'],
+        static fn(int $microseconds): mixed => null, excludedTypes: $background['excluded_types']))->run();
+    $check($laneStats['succeeded'] === ($laneMode === 'serial' ? 2 : 1) && $laneStats['dead'] === 0, 'lane worker fixture failed: ' . $laneMode);
+}
+$serialMs = ($laneTurn->done['serial'] - $laneQueued['serial']) / 1e6;
+$lanesMs = ($laneTurn->done['lanes'] - $laneQueued['lanes']) / 1e6;
+$check($laneTurn->done['serial'] > $laneHold->released['serial'], 'serial baseline unexpectedly ran the turn during the held job');
+$check($laneTurn->done['lanes'] < $laneHold->released['lanes'], 'interactive turn waited for the held background job');
+$check($jobs->claim('lane-background-probe', 1, 5, ['turn.process', 'test.background'], Worker::INTERACTIVE_TYPES) === [],
+    'background exclusion claimed a dialogue job');
+$jobs->enqueue(Uuid::v4(), 'turn.process', 1, 'lane-turn:excluded', ['mode' => 'excluded'], 1, null, 100);
+$check($jobs->claim('lane-background-probe', 1, 5, ['turn.process'], Worker::INTERACTIVE_TYPES) === []
+    && (new Worker($jobs, $laneRegistry, 'lane-background-only', 5, 1, 1, 0, 10, ['test.background'],
+        static fn(int $microseconds): mixed => null, excludedTypes: Worker::INTERACTIVE_TYPES))->run()['claimed'] === 0,
+    'background lane claimed a queued turn');
+$check(count($jobs->claim('lane-interactive-probe', 1, 5, ['turn.process'])) === 1, 'interactive lane could not claim the queued turn');
+$db->exec("DELETE FROM durable_job_attempts WHERE job_id IN (SELECT job_id FROM durable_jobs WHERE idempotency_key LIKE 'lane-%')");
+$db->exec("DELETE FROM durable_jobs WHERE idempotency_key LIKE 'lane-%'");
+// Close the second session before replay needs the exclusive runtime gate.
+$laneHold->during = null; $laneDb = null; gc_collect_cycles();
+fwrite(STDOUT, sprintf("worker lanes: queued turn completed %.1f ms after enqueue with one serial worker, %.1f ms with lanes\n", $serialMs, $lanesMs));
+
 // Real backup and replay against the disposable migration fixture, never the deployed database.
 // The populated-history downgrade refusal was tested above. This success fixture needs an empty history table.
 $db->exec('DELETE FROM relationship_revisions');

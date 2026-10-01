@@ -29,10 +29,25 @@ try {
     if (!is_array($worker)) {
         throw new RuntimeException('Worker configuration is invalid.');
     }
-    $workerId = (string) ($worker['id'] ?? (gethostname() ?: 'localhost') . ':' . getmypid());
     $types = $worker['types'] ?? null;
     if ($types !== null && !is_array($types)) {
         throw new RuntimeException('Worker job types must be a list.');
+    }
+    // Supervisors pass a fixed lane argument; manual runs keep the single all-types worker.
+    $lane = 'all';
+    foreach (array_slice($argv ?? [], 1) as $argument) {
+        if (preg_match('/^--lane=([a-z]+)$/D', (string) $argument, $match) !== 1) throw new RuntimeException('Unknown worker argument.');
+        $lane = $match[1];
+    }
+    $filter = Worker::laneFilter($lane, $types);
+    $workerId = isset($worker['id']) ? (string) $worker['id'] . ($lane === 'all' ? '' : ':' . $lane)
+        : (gethostname() ?: 'localhost') . ($lane === 'all' ? '' : ':' . $lane) . ':' . getmypid();
+    if ($filter['types'] === []) {
+        // worker.types left this lane empty: idle like an empty queue so supervisors restart it slowly, not as a failure.
+        sleep(max(1, min((int) ($worker['idle_exit_seconds'] ?? 30), (int) ($worker['max_runtime_seconds'] ?? 300))));
+        fwrite(STDOUT, json_encode(['worker_id' => $workerId, 'lane' => $lane, 'claimed' => 0, 'succeeded' => 0, 'retried' => 0,
+            'dead' => 0, 'idle' => 'no_configured_job_types'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n");
+        exit(0);
     }
     // Workers acquire the runtime gate per job, not while idle between jobs.
     $database = Connection::open($config,false);
@@ -60,12 +75,13 @@ try {
         (int) ($worker['max_jobs'] ?? 100),
         (int) ($worker['idle_exit_seconds'] ?? 30),
         (int) ($worker['max_runtime_seconds'] ?? 300),
-        $types,
-        maintenance: $types===null||in_array('profile.generate',$types,true)
+        $filter['types'],
+        maintenance: $filter['types']===null||in_array('profile.generate',$filter['types'],true)
             ?static fn()=>(new \LorkhanServer\Infrastructure\ProfileEvolutionScheduler($database))->run():null,
+        excludedTypes: $filter['excluded_types'],
     );
     $stats = $runner->run();
-    fwrite(STDOUT, json_encode(['worker_id' => $workerId] + $stats, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n");
+    fwrite(STDOUT, json_encode(['worker_id' => $workerId, 'lane' => $lane] + $stats, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n");
 } catch (Throwable $error) {
     fwrite(STDERR, json_encode(['code' => 'worker_failed', 'message' => $error->getMessage()], JSON_UNESCAPED_SLASHES) . "\n");
     exit(1);

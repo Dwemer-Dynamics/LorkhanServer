@@ -12,43 +12,60 @@ set -eu
 
 name=lorkhanserver-worker
 daemon=/usr/local/libexec/lorkhanserver-worker-loop
-pidfile=/run/lorkhanserver-worker.pid
 logfile=/var/log/lorkhanserver/worker.log
+# The background lane keeps the original PID file; the interactive lane owns dialogue jobs.
+lanes="background interactive"
+
+pidfile_for() {
+    if [ "$1" = background ]; then
+        echo /run/lorkhanserver-worker.pid
+    else
+        echo "/run/lorkhanserver-worker-$1.pid"
+    fi
+}
 
 is_running() {
-    start-stop-daemon --status --quiet --pidfile "$pidfile" --user lorkhan
+    start-stop-daemon --status --quiet --pidfile "$(pidfile_for "$1")" --user lorkhan
 }
 
 case "${1:-}" in
     start)
-        if is_running; then
-            exit 0
-        fi
-        rm -f "$pidfile"
-        start-stop-daemon --start --quiet --background --make-pidfile \
-            --pidfile "$pidfile" --chuid lorkhan:lorkhan \
-            --chdir /var/www/html/LorkhanServer --startas "$daemon" \
-            --output "$logfile"
+        for lane in $lanes; do
+            if is_running "$lane"; then
+                continue
+            fi
+            pidfile=$(pidfile_for "$lane")
+            rm -f "$pidfile"
+            start-stop-daemon --start --quiet --background --make-pidfile \
+                --pidfile "$pidfile" --chuid lorkhan:lorkhan \
+                --chdir /var/www/html/LorkhanServer --startas "$daemon" \
+                --output "$logfile" -- "$lane"
+        done
         ;;
     stop)
-        if is_running; then
-            start-stop-daemon --stop --quiet --retry TERM/35/KILL/5 \
-                --pidfile "$pidfile" --user lorkhan --remove-pidfile
-        else
-            rm -f "$pidfile"
-        fi
+        for lane in $lanes; do
+            pidfile=$(pidfile_for "$lane")
+            if is_running "$lane"; then
+                start-stop-daemon --stop --quiet --retry TERM/35/KILL/5 \
+                    --pidfile "$pidfile" --user lorkhan --remove-pidfile
+            else
+                rm -f "$pidfile"
+            fi
+        done
         ;;
     restart|force-reload)
         "$0" stop
         "$0" start
         ;;
     status)
-        if is_running; then
-            echo "$name is running"
-            exit 0
-        fi
-        echo "$name is not running" >&2
-        exit 3
+        for lane in $lanes; do
+            if ! is_running "$lane"; then
+                echo "$name $lane lane is not running" >&2
+                exit 3
+            fi
+        done
+        echo "$name is running"
+        exit 0
         ;;
     *)
         echo "Usage: $0 {start|stop|restart|force-reload|status}" >&2

@@ -100,7 +100,8 @@ if [[ -f /etc/apache2/sites-available/lorkhanserver.conf ]]; then
     cp -p /etc/apache2/sites-available/lorkhanserver.conf "${rollback_root}/apache.conf"
 fi
 if [[ $(ps -p 1 -o comm=) == systemd ]]; then
-    for worker_unit in lorkhanserver-worker.timer lorkhanserver-worker.service; do
+    for worker_unit in lorkhanserver-worker.timer lorkhanserver-worker.service \
+        lorkhanserver-worker-interactive.timer lorkhanserver-worker-interactive.service; do
         if systemctl cat "${worker_unit}" >/dev/null 2>&1; then
             systemctl stop "${worker_unit}"
         fi
@@ -153,16 +154,21 @@ service apache2 restart
 
 if [[ $(ps -p 1 -o comm=) == systemd ]]; then
     command -v systemctl >/dev/null || { echo "Missing required command: systemctl" >&2; exit 1; }
-    install -m 0644 "${target_root}/deploy/systemd/lorkhanserver-worker.service" \
-        /etc/systemd/system/lorkhanserver-worker.service
-    install -m 0644 "${target_root}/deploy/systemd/lorkhanserver-worker.timer" \
-        /etc/systemd/system/lorkhanserver-worker.timer
+    # Background and interactive lanes share hardening but never claim each other's job types.
+    for worker_lane in lorkhanserver-worker lorkhanserver-worker-interactive; do
+        install -m 0644 "${target_root}/deploy/systemd/${worker_lane}.service" \
+            "/etc/systemd/system/${worker_lane}.service"
+        install -m 0644 "${target_root}/deploy/systemd/${worker_lane}.timer" \
+            "/etc/systemd/system/${worker_lane}.timer"
+    done
     systemctl daemon-reload
-    systemctl enable --now lorkhanserver-worker.timer >/dev/null
-    systemctl reset-failed lorkhanserver-worker.service >/dev/null 2>&1 || true
-    systemctl start --no-block lorkhanserver-worker.service
-    [[ $(systemctl is-enabled lorkhanserver-worker.timer) == enabled ]]
-    [[ $(systemctl is-active lorkhanserver-worker.timer) == active ]]
+    for worker_lane in lorkhanserver-worker lorkhanserver-worker-interactive; do
+        systemctl enable --now "${worker_lane}.timer" >/dev/null
+        systemctl reset-failed "${worker_lane}.service" >/dev/null 2>&1 || true
+        systemctl start --no-block "${worker_lane}.service"
+        [[ $(systemctl is-enabled "${worker_lane}.timer") == enabled ]]
+        [[ $(systemctl is-active "${worker_lane}.timer") == active ]]
+    done
 else
     for command in service start-stop-daemon update-rc.d; do
         command -v "${command}" >/dev/null || { echo "Missing required command: ${command}" >&2; exit 1; }

@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -u
 
+# The init script starts one supervisor per lane so background jobs cannot delay dialogue.
+lane=${1:-}
+if [[ ${lane} != interactive && ${lane} != background ]]; then
+    echo "Usage: $0 {interactive|background}" >&2
+    exit 2
+fi
+
 if [[ -r /etc/lorkhanserver/worker.env ]]; then
     set -a
     # The root-owned environment file contains the runtime database and provider variables.
@@ -21,7 +28,7 @@ stop_worker() {
 trap stop_worker TERM INT
 
 while true; do
-    /usr/bin/php /var/www/html/LorkhanServer/service/worker-runner.php &
+    /usr/bin/php /var/www/html/LorkhanServer/service/worker-runner.php "--lane=${lane}" &
     child_pid=$!
     status=0
     wait "${child_pid}" || status=$?

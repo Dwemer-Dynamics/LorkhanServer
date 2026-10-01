@@ -9,6 +9,27 @@ use Throwable;
 
 final class Worker
 {
+    /** Player-facing dialogue work; one process owns this lane so turn.process stays ordered. */
+    public const INTERACTIVE_TYPES = ['turn.process', 'stt.process', 'speech.synthesize', 'dialogue.expire'];
+    public const LANES = ['all', 'interactive', 'background'];
+
+    /**
+     * Resolve a lane against the configured type filter without overlap between lanes.
+     * A configured filter can leave one supervised lane empty; types=[] means that lane claims nothing.
+     * @return array{types:?list<string>,excluded_types:?list<string>}
+     */
+    public static function laneFilter(string $lane, ?array $types): array
+    {
+        if (!in_array($lane, self::LANES, true)) throw new \InvalidArgumentException('Worker lane is invalid.');
+        if ($lane === 'all') return ['types' => $types, 'excluded_types' => null];
+        if ($lane === 'interactive') {
+            $selected = $types === null ? self::INTERACTIVE_TYPES : array_values(array_intersect($types, self::INTERACTIVE_TYPES));
+            return ['types' => $selected, 'excluded_types' => null];
+        }
+        $selected = $types === null ? null : array_values(array_diff($types, self::INTERACTIVE_TYPES));
+        return ['types' => $selected, 'excluded_types' => $selected === [] ? null : self::INTERACTIVE_TYPES];
+    }
+
     /** @param callable(int):void|null $sleep */
     public function __construct(
         private readonly JobRepository $jobs,
@@ -22,6 +43,7 @@ final class Worker
         private readonly ?array $types = null,
         private readonly mixed $sleep = null,
         private readonly mixed $maintenance = null,
+        private readonly ?array $excludedTypes = null,
     ) {}
 
     /** @return array{claimed:int,succeeded:int,retried:int,dead:int} */
@@ -31,12 +53,19 @@ final class Worker
         $started = hrtime(true);
         $lastWork = $started;
         $lastMaintenance=0;
+        $gateClosed=false;
         while ($stats['claimed'] < $this->maxJobs && $this->secondsSince($started) < $this->maxRuntimeSeconds) {
             if(!$this->jobs->enterRuntime()){
+                $gateClosed=true;
                 // Avoid rapidly restarting the daemon while another worker restores the database.
                 if($this->secondsSince($lastWork)>=$this->idleExitSeconds)break;
                 ($this->sleep ?? static fn(int $microseconds): mixed => usleep($microseconds))(200_000);
                 continue;
+            }
+            if($gateClosed){
+                // Another lane may have replaced the database; restart before reusing handler state.
+                $this->jobs->leaveRuntime();
+                return $stats;
             }
             $runtimeGate=true;
             try{
@@ -44,7 +73,7 @@ final class Worker
                     $lastMaintenance=hrtime(true);($this->maintenance)();
                 }
                 // Claim just in time so queued work cannot expire while an earlier batch member runs.
-                $claimed = $this->jobs->claim($this->workerId, 1, $this->leaseSeconds, $this->types);
+                $claimed = $this->jobs->claim($this->workerId, 1, $this->leaseSeconds, $this->types, $this->excludedTypes);
                 if ($claimed === []) {
                     $this->jobs->leaveRuntime();$runtimeGate=false;
                     if ($this->secondsSince($lastWork) >= $this->idleExitSeconds) {
