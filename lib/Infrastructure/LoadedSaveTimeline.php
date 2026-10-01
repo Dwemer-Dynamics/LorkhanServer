@@ -146,6 +146,7 @@ final class LoadedSaveTimeline
             WHERE p.rowid=m.rowid AND m.turn_id=i.turn_id AND s.session_id=m.session_id
             AND s.installation_id=:installation AND s.playthrough_id=:playthrough');
         $actions->execute($scope);$counts['actions_issued']=$actions->rowCount();
+        $counts+=(new DynamicOghmaRepository($this->db))->rollback($scope['installation'],$scope['playthrough']);
         $counts+=$this->restoreGeneratedProfiles($scope,$message['message_id']);
         $counts+=(new RelationshipTimelineRepository($this->db))->restore($scope,$message['message_id']);
         return $counts;
