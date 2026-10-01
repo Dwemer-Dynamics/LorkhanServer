@@ -614,6 +614,42 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
         &&($deniedSelection['rows'][0]['content']??null)===''
         &&($deniedSelection['trace']['reasons']['_context']['denied_topics']??[])===['Forbidden Lore'],
         'recognized unauthorized Oghma topic was not preserved as structured denied prompt context');
+    // CHIM adds the speaker's own name to Oghma access tags; audience names and fallback profiles never do.
+    foreach([['Fargoth Stash','fargoth'],['Scholar Ledger','scholar'],['Nerevarine Secret','nerevarine']]as[$topic,$class])
+        $products->createKnowledge(['installation_id'=>$installation,'profile_id'=>null,'playthrough_id'=>null,'title'=>$topic,
+            'content'=>$topic.' advanced lore.','provenance'=>['source'=>'speaker-tag-test'],'topic'=>$topic,'aliases'=>'',
+            'topic_desc_basic'=>$topic.' basic lore.','knowledge_class'=>$class,'knowledge_class_basic'=>'common','tags'=>'','category'=>'Lore'],
+            [$topic],$clock->iso());
+    $speakerIdentity=static fn(string$record,int$index):array=>['kind'=>'npc','record_id'=>$record,'content_file'=>'Morrowind.esm',
+        'refnum'=>['index'=>$index,'content_file'=>0]];
+    $fargothSpeaker=$service->createRevisioned('profile',['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],
+        'name'=>'Fargoth','actor_identity'=>$speakerIdentity('fargoth_oghma',61010)+['display_name'=>'Fargoth'],
+        'content'=>['oghma_knowledge_tags'=>'scholar']]);
+    $hasphatSpeaker=$service->createRevisioned('profile',['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],
+        'name'=>'Hasphat Antabolis','actor_identity'=>$speakerIdentity('hasphat_oghma',61011)+['display_name'=>'Hasphat Antabolis'],'content'=>[]]);
+    $speakerKnowledge=static function(array$target,array$topics,array$context=[])use($products,$scope,$clock):array{
+        $selection=$products->promptContext($scope+['session_id'=>'20000000-0000-4000-8000-000000000099','payload'=>[
+            'input'=>['kind'=>'text','language'=>'en','text'=>'Tell me about '.implode(' and ',$topics).'.'],'ui_source'=>'lorkhan_text',
+            'target'=>$target,'context'=>$context]],$clock->iso(),
+            ['status'=>'grounded','request_eligible'=>true,'topics'=>$topics]);
+        return['levels'=>array_column($selection['knowledge'],'access_level','topic'),
+            'tags'=>$selection['knowledge_retrieval']['effective_knowledge_tags']??null];
+    };
+    $sameName=$speakerKnowledge($speakerIdentity('fargoth_oghma',61010)+['display_name'=>'Fargoth'],['Fargoth Stash','Scholar Ledger']);
+    $check($sameName['levels']===['Fargoth Stash'=>'advanced','Scholar Ledger'=>'advanced']
+        &&$sameName['tags']===['scholar','fargoth'],
+        'speaker name was not added to its own profile Oghma tags: '.json_encode($sameName));
+    $otherName=$speakerKnowledge($speakerIdentity('hasphat_oghma',61011)+['display_name'=>'Hasphat Antabolis'],
+        ['Fargoth Stash','Scholar Ledger'],['nearbyActors'=>[['display_name'=>'Fargoth','record_id'=>'fargoth_oghma']]]);
+    $check($otherName['levels']===['Fargoth Stash'=>'basic','Scholar Ledger'=>'basic']
+        &&$otherName['tags']===['hasphat antabolis'],
+        'nearby or unrelated actor names authorized another speaker Oghma class: '.json_encode($otherName));
+    $unprofiled=$speakerKnowledge($speakerIdentity('unprofiled_oghma',61012)+['display_name'=>'Fargoth'],['Fargoth Stash','Nerevarine Secret']);
+    $check($unprofiled['levels']===['Fargoth Stash'=>'basic','Nerevarine Secret'=>'basic']
+        &&$unprofiled['tags']===[],
+        'fallback session profile or unverified display name authorized speaker Oghma tags: '.json_encode($unprofiled));
+    $service->deleteRevisioned('profile',$fargothSpeaker['profile_id']);$service->deleteRevisioned('profile',$hasphatSpeaker['profile_id']);
+    $db->exec("DELETE FROM knowledge_documents WHERE provenance->>'source'='speaker-tag-test'");
     $disabledGlobal=$globalSettings;$disabledGlobal['oghma']['enabled']=false;
     $service->revise('global_settings',$globalConfiguration['configuration_id'],$disabledGlobal,'disable Oghma fixture');
     $disabledSelection=$products->groundedOghmaExtraction($groundedTurn);

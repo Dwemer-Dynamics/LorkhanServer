@@ -3516,7 +3516,8 @@ SQL);
         $knowledgeSelection=$contextSections['oghma']?$this->selectPromptKnowledge($turn,$profile,$knowledgeScope,
             DynamicOghmaRepository::overlay($this->knowledgeCandidates($knowledgeScope,array_keys($this->contentFilesForTurn($turn))),$turn['_dynamic_oghma_plan']??[]),
             (string)($effective['settings']['memory']['oghma_knowledge_tags']??''),
-            (int)($effective['settings']['oghma']['result_limit']??3),(array)($effective['settings']['oghma']??[]),$oghmaExtraction,$now)
+            (int)($effective['settings']['oghma']['result_limit']??3),(array)($effective['settings']['oghma']??[]),$oghmaExtraction,$now,
+            $selectedProfileId!==null?(string)$profile['name']:'')
             :['rows'=>[],'trace'=>['status'=>'disabled','reason'=>'disabled_by_global_context','result_ids'=>[]]];
         $knowledgeSelection['trace']['settings']=$effective['settings']['oghma']??[];
         $knowledgeSelection['trace']['settings_sources']=array_filter($effective['sources'],static fn(string$key):bool=>
@@ -3747,7 +3748,7 @@ SQL);
     }
 
     /** Rank extracted and forced Oghma topics, enforce access classes, and retain every bounded decision. */
-    private function selectPromptKnowledge(array $turn,array $profile,array $scope,array $rows,string $tagList,int $limit,array $settings,array $extraction,string $now):array
+    private function selectPromptKnowledge(array $turn,array $profile,array $scope,array $rows,string $tagList,int $limit,array $settings,array $extraction,string $now,string $speakerName=''):array
     {
         $topicCount=max(1,min(3,(int)($settings['topic_count']??1)));
         $status=(string)($extraction['status']??'not_run');
@@ -3756,6 +3757,10 @@ SQL);
         $topics=array_slice(array_values(array_unique($topics)),0,$topicCount);$conversation=$topics;
         $signals=$active?$this->forcedKnowledgeSignals($turn,$profile,$settings):['race'=>[],'location'=>[]];
         $knowledgeTags=$this->knowledgeValues($tagList);$limit=max(0,min(5,$limit));
+        // CHIM also authorizes the speaker's own name; only the resolved speaker profile supplies it, never a reserved tag.
+        $speakerTag=mb_strtolower(trim($speakerName),'UTF-8');$speakerClass=trim((string)preg_replace('/[^a-z0-9]+/u','_',$speakerTag),'_');
+        if($speakerClass!==''&&!in_array($speakerClass,['knowall','common','esoteric'],true)&&!str_starts_with($speakerTag,'!')
+            &&!in_array($speakerTag,$knowledgeTags,true))$knowledgeTags[]=$speakerTag;
         $selected=[];$selectedIds=[];$scores=[];$reasons=[];$rank=0;
         foreach([['conversation',$conversation,0.01],['location',$signals['location'],0.95],['race',$signals['race'],0.95]]as[$source,$sourceSignals,$minimum]){
             if(count($selected)>=$limit)break;
