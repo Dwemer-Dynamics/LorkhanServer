@@ -10,6 +10,8 @@ use RuntimeException;
 /** Retire the abandoned branch without deleting immutable transport or turn evidence. */
 final class LoadedSaveTimeline
 {
+    /** Lua-detected observations recorded only game_time before they captured a calendar. */
+    private const LEGACY_UNDATED=['gamedata.rpg_event','gamedata.quest_event'];
     private const SOURCE_CALENDAR="COALESCE(e.payload#>'{context,world,calendar}',e.payload#>'{payload,context,world,calendar}',e.payload->'calendar',e.payload#>'{payload,calendar}',CASE WHEN e.event_kind='session.init' THEN e.payload->'loaded_save' END)";
     public function __construct(private readonly PDO $db) {}
 
@@ -97,19 +99,27 @@ final class LoadedSaveTimeline
             $markTurn->execute($parameters+['id'=>$row['turn_id']]);$counts['turns']+=$markTurn->rowCount();
         }
         $sources=$this->db->prepare("SELECT e.source_event_id,e.session_id,e.event_kind,
-            ".self::SOURCE_CALENDAR." AS calendar,
+            ".self::SOURCE_CALENDAR." AS calendar,e.payload#>'{payload,game_time}' AS game_time,
             EXISTS(SELECT 1 FROM timeline_invalidated_turns i WHERE i.turn_id=e.turn_id) AS invalid_turn
             FROM source_events e JOIN sessions s ON s.session_id=e.session_id
             WHERE e.installation_id=:installation AND s.playthrough_id=:playthrough AND e.source_event_id<>:load
             AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=e.source_event_id)");
         $sources->execute($scope+['load'=>$message['message_id']]);
         $markSource=$this->db->prepare('INSERT INTO timeline_invalidated_sources(source_event_id,loaded_save_id,cutoff_minute) VALUES(:id,:load,:minute) ON CONFLICT DO NOTHING');
+        $anchors=null;
         while ($row=$sources->fetch()) {
             $second=self::calendarSecond($row['calendar']);
             // Undated observations cannot be placed on a loaded branch. With no load date, no older observation is safe.
             $unanchoredObservation=in_array($row['event_kind'],['gamedata.spell_cast','gamedata.item_pickup','gamedata.barter_trade',
                 'gamedata.actor_resurrected','gamedata.actor_died','gamedata.rpg_event','gamedata.quest_event'],true)
                 &&$row['session_id']!==$loadSession&&($second===null||$cutoffSecond===null);
+            // A legacy undated RPG/quest row is placed only by evidence: a dated observation from its own continuous
+            // session that came no earlier in game time and still precedes the save. Anything else stays ambiguous.
+            if($unanchoredObservation&&$second===null&&$cutoffSecond!==null&&in_array($row['event_kind'],self::LEGACY_UNDATED,true)){
+                $anchors??=$this->precedingSessionAnchors($scope,$cutoffSecond);
+                $gameTime=self::gameTime($row['game_time']);
+                if($gameTime!==null&&isset($anchors[$row['session_id']])&&$gameTime<=$anchors[$row['session_id']])$unanchoredObservation=false;
+            }
             if (!$row['invalid_turn']&&!$unanchoredObservation&&($cutoffSecond===null||$second===null||$second<$cutoffSecond)) continue;
             $markSource->execute($parameters+['id'=>$row['source_event_id']]);$counts['sources']+=$markSource->rowCount();
         }
@@ -210,6 +220,34 @@ final class LoadedSaveTimeline
             $update->execute($identity);$counts['profiles']++;
         }
         return$counts;
+    }
+
+    /**
+     * Per session, the latest game_time of a dated observation captured before the cutoff. game_time (DaysPassed)
+     * only orders captures within one continuous session; it is never converted to a calendar date.
+     */
+    private function precedingSessionAnchors(array $scope,float $cutoffSecond): array
+    {
+        $query=$this->db->prepare("SELECT e.session_id,e.payload#>'{payload,calendar}' AS calendar,e.payload#>'{payload,game_time}' AS game_time
+            FROM source_events e JOIN sessions s ON s.session_id=e.session_id
+            WHERE e.installation_id=:installation AND s.playthrough_id=:playthrough AND e.event_kind LIKE 'gamedata.%'
+            AND e.payload#>'{payload,calendar}' IS NOT NULL
+            UNION ALL SELECT t.session_id,t.context#>'{world,calendar}',t.context#>'{world,game_time}'
+            FROM turns t JOIN sessions s ON s.session_id=t.session_id
+            WHERE s.installation_id=:installation AND s.playthrough_id=:playthrough AND t.context#>'{world,calendar}' IS NOT NULL");
+        $query->execute($scope);$anchors=[];
+        while($row=$query->fetch()){
+            $second=self::calendarSecond($row['calendar']);$gameTime=self::gameTime($row['game_time']);
+            if($second===null||$gameTime===null||$second>=$cutoffSecond)continue;
+            $anchors[$row['session_id']]=max($anchors[$row['session_id']]??$gameTime,$gameTime);
+        }
+        return $anchors;
+    }
+
+    private static function gameTime(mixed $value): ?float
+    {
+        $value=is_string($value)?json_decode($value,true,2):$value;
+        return (is_int($value)||is_float($value))&&is_finite((float)$value)&&$value>=0?(float)$value:null;
     }
 
     /** Preserve fractional GameHour precision; UI minute formatting must not retire earlier seconds. */

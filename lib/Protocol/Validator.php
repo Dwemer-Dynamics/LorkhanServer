@@ -182,7 +182,8 @@ final class Validator
         $this->timestamp($message['observed_at']??null);
         $payload=$message['payload']??null;
         if(!is_array($payload)||array_is_list($payload))throw new ValidationException('invalid_schema');
-        if(in_array($type,['item_pickup','barter_trade','spell_cast','actor_resurrected','actor_died'],true)&&array_key_exists('calendar',$payload)){
+        if(in_array($type,['item_pickup','barter_trade','spell_cast','actor_resurrected','actor_died','rpg_event','quest_event'],true)
+            &&array_key_exists('calendar',$payload)){
             $calendar=$payload['calendar'];if(!is_array($calendar))throw new ValidationException('invalid_schema');
             $this->keys($calendar,['year','month','day','hour']);
             if((!is_int($calendar['hour'])&&!is_float($calendar['hour']))||!is_finite((float)$calendar['hour'])
@@ -333,7 +334,8 @@ final class Validator
             return;
         }
         if($type==='bored_event'||$type==='quest_event'){
-            $this->keys($payload,$type==='quest_event'?['responder','game_time','text']:['responder','game_time']);
+            $this->keys($payload,$type==='quest_event'?array_merge(['responder','game_time','text'],
+                array_key_exists('calendar',$payload)?['calendar']:[]):['responder','game_time']);
             if($type==='quest_event'&&(!is_string($payload['text']??null)||trim($payload['text'])===''
                 ||!mb_check_encoding($payload['text'],'UTF-8')||mb_strlen($payload['text'],'UTF-8')>8192))throw new ValidationException('invalid_schema');$this->identity($payload['responder']??null);
             if(($payload['responder']['kind']??null)!=='npc'
@@ -344,6 +346,7 @@ final class Validator
         }
         if($type==='rpg_event'){
             $fields=['kind','player','game_time','text'];
+            if(array_key_exists('calendar',$payload))$fields[]='calendar';
             if(array_key_exists('responder',$payload)){
                 $fields[]='responder';$this->identity($payload['responder']);
                 if(!in_array($payload['responder']['kind']??null,['npc','creature'],true))throw new ValidationException('invalid_schema');

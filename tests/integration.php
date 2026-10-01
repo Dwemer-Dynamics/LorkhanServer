@@ -1923,7 +1923,7 @@ try{
     $assert($q->fetchColumn()===true,'unanchored load retained an older pickup as known-past');
 }finally{$db->rollBack();}
 
-// Level-up and journal observations carry only game_time, so a load cannot keep an earlier session's copy.
+// Legacy level-up and journal observations carry only game_time; without same-session dated evidence a load cannot keep an earlier session's copy.
 $db->beginTransaction();
 try{
     $undated=[];$undatedWriter=new \LorkhanServer\Infrastructure\FirstPartyJobRepository($db);$undatedMemories=[];
@@ -1959,6 +1959,106 @@ try{
             &&str_contains($undatedPrompt,'Undated '.$type.' '.$branch)!==$abandoned,
             'loaded save misclassified '.$branch.' undated '.$type.': '.json_encode($state+['prompt'=>$undatedPrompt]));
     }
+}finally{$db->rollBack();}
+
+// CHIM keeps history before the loaded save: capture-time RPG/quest calendars retire only at-or-after copies,
+// with their memories, narratives and evolved profiles, while earlier sessions and legacy rows follow evidence.
+$db->beginTransaction();
+try{
+    $timelineWriter=new \LorkhanServer\Infrastructure\FirstPartyJobRepository($db);$timelineSources=[];$timelineMemories=[];$timelineNarratives=[];
+    $date=fn(int $day,float $hour):array=>['year'=>427,'month'=>7,'day'=>$day,'hour'=>$hour];
+    $observeTimeline=function(string $type,string $label,string $session,int $generation,float $gameTime,?array $calendar)
+        use($captured,$fixture,$repo,$timelineWriter,&$timelineSources,&$timelineMemories,&$timelineNarratives,$installationId,$turn,$actorProfile,$now):void{
+        $observation=$captured;$observation['type']=$type;$observation['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+        $observation['session_id']=$session;$observation['generation']=$generation;
+        $observation['payload']=$fixture($type==='rpg_event'?'gamedata-rpg-calendar':'gamedata-quest-calendar')['payload'];
+        $observation['payload']['text']='Timeline '.$type.' '.$label;$observation['payload']['game_time']=100000000+$gameTime; // Newest in the bounded witness prompt.
+        if($calendar===null)unset($observation['payload']['calendar']);else $observation['payload']['calendar']=$calendar;
+        (new Validator())->validate($observation,'lorkhan.gamedata.v1');$repo->acceptGameData($observation);
+        $source=$observation['request_id'];$timelineSources[$type][$label]=$source;
+        $memoryId=\LorkhanServer\Infrastructure\Uuid::v4();$narrativeId=\LorkhanServer\Infrastructure\Uuid::v4();
+        $timelineWriter->upsertMemory($memoryId,['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],
+            'profile_id'=>$actorProfile['profile_id'],'tier'=>'recent','content'=>'Timeline memory '.$type.' '.$label,
+            'source_event_id'=>$source,'provenance'=>['source'=>'calendar-event-regression']],$now);
+        $timelineWriter->upsertNarrative($narrativeId,['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],
+            'profile_id'=>$actorProfile['profile_id'],'kind'=>'diary','title'=>'Timeline diary','content'=>'Timeline diary '.$type.' '.$label,
+            'provenance'=>['source_event_ids'=>[$source]]],$now);
+        $timelineMemories[$type][$label]=$memoryId;$timelineNarratives[$type][$label]=$narrativeId;
+    };
+    // The session in which an earlier day was played. Its legacy rows can be placed only by this session's own dated captures.
+    $earlySession=$sessionId;
+    $anchor=$spell;$anchor['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();$anchor['session_id']=$earlySession;$anchor['generation']=7;
+    $anchor['payload']['spell_name']='Timeline anchor spell';$anchor['payload']['game_time']=100000200;$anchor['payload']['calendar']=$date(14,11.0);
+    (new Validator())->validate($anchor,'lorkhan.gamedata.v1');$repo->acceptGameData($anchor);
+    foreach(['rpg_event','quest_event']as$type){
+        $observeTimeline($type,'early dated',$earlySession,7,150,$date(14,10.0));
+        $observeTimeline($type,'early legacy anchored',$earlySession,7,100,null);
+        // Later in game time than every pre-save capture of its own session; another session's later capture is not evidence.
+        $observeTimeline($type,'early legacy unplaced',$earlySession,7,300,null);
+    }
+    // A later continuous session (reconnect, no load) in which the player saved at 15 Last Seed 12:00.
+    $saveMessage=$session;unset($saveMessage['loaded_save']);$saveMessage['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+    $saveMessage['generation']=8;$saveSession=\LorkhanServer\Infrastructure\Uuid::v4();$repo->createSession($saveMessage,$saveSession,$tokenHash);
+    foreach(['rpg_event','quest_event']as$type){
+        $observeTimeline($type,'save pre',$saveSession,8,1000,$date(15,11.5));
+        $observeTimeline($type,'save at',$saveSession,8,1100,$date(15,12.0));
+        $observeTimeline($type,'save post',$saveSession,8,1200,$date(15,12.5));
+        $observeTimeline($type,'save legacy anchored',$saveSession,8,950,null);
+        $observeTimeline($type,'save legacy unplaced',$saveSession,8,1050,null);
+    }
+    // Automatic profile evolution: one revision from pre-save history, then one from the abandoned branch.
+    $timelineBaseline=$products->getRevisioned('profile',$actorProfile['profile_id']);$timelineBaselineContent=$timelineBaseline['content'];
+    $timelineBaselineContent['management']['locked']=false;$timelineBaselineContent['personality']='TIMELINE BASELINE';
+    $products->revise('profile',$actorProfile['profile_id'],$timelineBaselineContent,'timeline baseline',$now);
+    $evolve=$db->prepare("INSERT INTO profile_revisions(profile_id,revision,content,change_reason,provenance)
+        VALUES(:profile,:revision,CAST(:content AS jsonb),'timeline evolution',CAST(:provenance AS jsonb))");
+    foreach(['save pre'=>'rpg_event','save post'=>'quest_event']as$label=>$type){
+        $current=$products->getRevisioned('profile',$actorProfile['profile_id']);$content=$current['content'];$content['personality']='EVOLVED FROM '.$label;
+        $evolve->execute(['profile'=>$actorProfile['profile_id'],'revision'=>$current['current_revision']+1,'content'=>json_encode($content,JSON_THROW_ON_ERROR),
+            'provenance'=>json_encode(['kind'=>'automatic_profile','mode'=>'profile_evolution','playthrough_id'=>$turn['playthrough_id'],
+                'base_revision'=>$current['current_revision'],'source_turn_ids'=>[],'source_event_ids'=>[$timelineSources[$type][$label]]],JSON_THROW_ON_ERROR)]);
+        $db->prepare('UPDATE profiles SET current_revision=:revision WHERE profile_id=:profile')
+            ->execute(['revision'=>$current['current_revision']+1,'profile'=>$actorProfile['profile_id']]);
+    }
+    $evolvedHead=$products->getRevisioned('profile',$actorProfile['profile_id']);
+    $loadMessage=$session;$loadMessage['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();$loadMessage['generation']=9;
+    $loadMessage['loaded_save']=$date(15,12.0);$loadSession=\LorkhanServer\Infrastructure\Uuid::v4();
+    $repo->createSession($loadMessage,$loadSession,$tokenHash);
+    $timelineState=$db->prepare('SELECT EXISTS(SELECT 1 FROM timeline_invalidated_sources WHERE source_event_id=:source) AS invalid,
+        (SELECT bool_and(suppressed_at IS NOT NULL) FROM eventlog_metadata WHERE source_event_id=:source) AS suppressed,
+        (SELECT deleted_at IS NOT NULL FROM memory_records WHERE memory_id=:memory) AS memory_retired,
+        (SELECT deleted_at IS NOT NULL FROM narrative_records WHERE narrative_id=:narrative) AS narrative_retired');
+    $timelineWitness=new ReflectionMethod($products,'evolutionWitnessedEvents');
+    $checkTimeline=function(array $retired,string $phase)use($timelineState,$timelineWitness,$products,$installationId,$turn,&$timelineSources,&$timelineMemories,&$timelineNarratives,$assert):void{
+        $prompt=json_encode($timelineWitness->invoke($products,$installationId,$turn['playthrough_id'],null,200),JSON_THROW_ON_ERROR);
+        foreach($timelineSources as$type=>$labels)foreach($labels as$label=>$source){
+            $timelineState->execute(['source'=>$source,'memory'=>$timelineMemories[$type][$label],'narrative'=>$timelineNarratives[$type][$label]]);
+            $state=$timelineState->fetch();$gone=in_array($label,$retired,true);
+            $assert($state['invalid']===$gone&&$state['suppressed']===$gone&&$state['memory_retired']===$gone&&$state['narrative_retired']===$gone
+                &&str_contains($prompt,'Timeline '.$type.' '.$label)!==$gone,
+                $phase.' misclassified '.$type.' '.$label.': '.json_encode($state));
+        }
+    };
+    $checkTimeline(['save at','save post','save legacy unplaced','early legacy unplaced'],'calendar load');
+    $restoredProfile=$products->getRevisioned('profile',$actorProfile['profile_id']);
+    $assert($restoredProfile['current_revision']===$evolvedHead['current_revision']+1
+        &&$restoredProfile['content']['personality']==='EVOLVED FROM save pre','save rollback did not keep only the pre-save profile evolution');
+    // The restored branch continues; a later save made on it keeps both its own and earlier pre-save history.
+    foreach(['rpg_event','quest_event']as$type){
+        $observeTimeline($type,'branch dated',$loadSession,9,1115,$date(15,12.25));
+        $observeTimeline($type,'branch legacy anchored',$loadSession,9,1110,null);
+        $observeTimeline($type,'branch post',$loadSession,9,1300,$date(15,14.0));
+    }
+    $laterLoad=$session;$laterLoad['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();$laterLoad['generation']=10;
+    $laterLoad['loaded_save']=$date(15,13.0);$repo->createSession($laterLoad,\LorkhanServer\Infrastructure\Uuid::v4(),$tokenHash);
+    $checkTimeline(['save at','save post','save legacy unplaced','early legacy unplaced','branch post'],'later calendar load');
+    $assert($products->getRevisioned('profile',$actorProfile['profile_id'])['current_revision']===$restoredProfile['current_revision'],
+        'later load changed a profile whose remaining sources precede its save');
+    // An unknown loaded-save date cannot place any older observation, dated or not.
+    $unknownLoad=$session;$unknownLoad['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();$unknownLoad['generation']=11;
+    $unknownLoad['loaded_save']=null;$repo->createSession($unknownLoad,\LorkhanServer\Infrastructure\Uuid::v4(),$tokenHash);
+    $everything=[];foreach($timelineSources as$labels)$everything=array_merge($everything,array_keys($labels));
+    $checkTimeline(array_values(array_unique($everything)),'unknown-date load');
 }finally{$db->rollBack();}
 
 $db->beginTransaction();
