@@ -1904,6 +1904,44 @@ try{
     $assert($q->fetchColumn()===true,'unanchored load retained an older pickup as known-past');
 }finally{$db->rollBack();}
 
+// Level-up and journal observations carry only game_time, so a load cannot keep an earlier session's copy.
+$db->beginTransaction();
+try{
+    $undated=[];$undatedWriter=new \LorkhanServer\Infrastructure\FirstPartyJobRepository($db);$undatedMemories=[];
+    $observeUndated=function(string $type,string $branch,string $session,int $generation)use($captured,$fixture,$repo,&$undated,$undatedWriter,&$undatedMemories,$installationId,$turn,$actorProfile,$now):void{
+        $observation=$captured;$observation['type']=$type;$observation['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+        $observation['session_id']=$session;$observation['generation']=$generation;
+        $observation['payload']=$fixture($type==='rpg_event'?'gamedata-rpg-responder':'gamedata-quest-responder')['payload'];
+        $observation['payload']['text']='Undated '.$type.' '.$branch;
+        (new Validator())->validate($observation,'lorkhan.gamedata.v1');$repo->acceptGameData($observation);
+        $undated[$type][$branch]=$observation['request_id'];$memoryId=\LorkhanServer\Infrastructure\Uuid::v4();
+        $undatedWriter->upsertMemory($memoryId,['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],
+            'profile_id'=>$actorProfile['profile_id'],'tier'=>'recent','content'=>'Undated memory '.$type.' '.$branch,
+            'source_event_id'=>$observation['request_id'],'provenance'=>['source'=>'undated-event-regression']],$now);
+        $undatedMemories[$type][$branch]=$memoryId;
+    };
+    foreach(['rpg_event','quest_event']as$type)$observeUndated($type,'prior',$sessionId,7);
+    $undatedLoad=$session;$undatedLoad['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();$undatedLoad['generation']=8;
+    $undatedLoad['loaded_save']=['year'=>427,'month'=>7,'day'=>15,'hour'=>12.0];$undatedSession=\LorkhanServer\Infrastructure\Uuid::v4();
+    $repo->createSession($undatedLoad,$undatedSession,$tokenHash);
+    foreach(['rpg_event','quest_event']as$type)$observeUndated($type,'current',$undatedSession,8);
+    // A replayed load for the same session must retain observations already made on the restored branch.
+    (new \LorkhanServer\Infrastructure\LoadedSaveTimeline($db))->invalidate($undatedLoad);
+    // The Narrator evolution prompt reads every unscoped witnessed event, including player-only level-ups.
+    $undatedWitness=new ReflectionMethod($products,'evolutionWitnessedEvents');
+    $undatedPrompt=json_encode($undatedWitness->invoke($products,$installationId,$turn['playthrough_id'],null,20),JSON_THROW_ON_ERROR);
+    $undatedState=$db->prepare('SELECT EXISTS(SELECT 1 FROM timeline_invalidated_sources WHERE source_event_id=:source) AS invalid,
+        (SELECT bool_and(suppressed_at IS NOT NULL) FROM eventlog_metadata WHERE source_event_id=:source) AS suppressed,
+        (SELECT deleted_at IS NOT NULL FROM memory_records WHERE memory_id=:memory) AS retired');
+    foreach($undated as$type=>$branches)foreach($branches as$branch=>$source){
+        $undatedState->execute(['source'=>$source,'memory'=>$undatedMemories[$type][$branch]]);$state=$undatedState->fetch();
+        $abandoned=$branch==='prior';
+        $assert($state['invalid']===$abandoned&&$state['suppressed']===$abandoned&&$state['retired']===$abandoned
+            &&str_contains($undatedPrompt,'Undated '.$type.' '.$branch)!==$abandoned,
+            'loaded save misclassified '.$branch.' undated '.$type.': '.json_encode($state+['prompt'=>$undatedPrompt]));
+    }
+}finally{$db->rollBack();}
+
 $db->beginTransaction();
 try{
     $spellCore=$products->getRevisioned('core_profile',$actorCoreProfile['core_profile_id']);$spellContent=$spellCore['content'];
