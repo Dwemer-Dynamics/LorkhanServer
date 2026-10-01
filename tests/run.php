@@ -803,6 +803,17 @@ foreach([['game_time'=>-1],['spell_id'=>'heal'],['actor'=>array_replace($resurre
     try{$validator->validate($invalidEvent,'lorkhan.gamedata.v1');$check(false,'resurrection rejects invented or malformed observation');}
     catch(ValidationException){$check(true,'resurrection rejects invented or malformed observation');}
 }
+$death=$resurrection;$death['type']='actor_died';$witness=$resurrection['payload']['actor'];$witness['refnum']['index']+=1;
+$death['payload']=['victim'=>$resurrection['payload']['actor'],'audience'=>[$witness],'game_time'=>1234,
+    'calendar'=>['year'=>427,'month'=>7,'day'=>16,'hour'=>9.5]];
+$validator->validate($death,'lorkhan.gamedata.v1');$check(true,'counted death names only its victim, witnesses and calendar');
+foreach([['killer'=>$witness],['weapon'=>'iron dagger'],['victim'=>array_replace($witness,['kind'=>'player'])],
+    ['victim'=>array_replace($witness,['kind'=>'narrator'])],['audience'=>[$resurrection['payload']['actor']]],
+    ['game_time'=>-1],['calendar'=>['year'=>427,'month'=>12,'day'=>1,'hour'=>1]],['actor'=>$witness]]as$invalidDeath){
+    $invalidEvent=$death;$invalidEvent['payload']=array_replace($death['payload'],$invalidDeath);
+    try{$validator->validate($invalidEvent,'lorkhan.gamedata.v1');$check(false,'death rejects invented or malformed observation');}
+    catch(ValidationException){$check(true,'death rejects invented or malformed observation');}
+}
 $modeTurn=json_decode((string)file_get_contents($fixtureRoot.'/turn.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
 foreach(['standard','narrator','director','cheat','hypnosis']as$mode){
     $modeTurn['payload']['execution_mode']=$mode;

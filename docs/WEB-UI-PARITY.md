@@ -6699,7 +6699,7 @@ Context section contains these reference controls:
 | DETECT_MAGIC_EVENT | Trace OpenMW spell/effect event production and gate only matching event capture/context. |
 | GROUND_ITEMS_DESCRIPTIONS_ONLY | Delivered in `66e948a`: resolved description availability filtering, independent of rendered description text. |
 | INVENTORY_ITEMS_DESCRIPTIONS_ONLY | Delivered in `7a4cca5`, after native player-inventory wiring in `b88f6f7`; target inventory capture remains a client gap. |
-| HIDE_AMBIENT_COMBAT | Missing client death-event producer confirmed against client remote main `6daab0c`; add typed death attribution/capture before the server history filter. See ambient combat dependency checkpoint. |
+| HIDE_AMBIENT_COMBAT | Client now emits victim-only `gamedata.actor_died` deaths, projected as killer-less `X died.` rows (2026-10-01). The pinned OpenMW engine still provides no reliable killer or party attribution, so ambient deaths cannot be classified yet and this filter matches nothing new. See ambient combat dependency checkpoint. |
 | DISABLE_REANIMATION_TRACKING | Establish whether supported OpenMW events carry a reanimation identity; no inert checkbox. |
 | TRANSFORMATION_DETECTION | Trace supported actor transformation signals and their context consumer. |
 | POWER_AWARENESS_ENABLED | Establish TES3 power/spell identity and observation semantics before exposing a toggle. |

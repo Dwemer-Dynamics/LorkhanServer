@@ -173,7 +173,7 @@ final class Validator
             'runtime_generation','observed_at','game','type','payload']);
         $type=$message['type']??null;
         if(($message['schema']??null)!=='lorkhan.gamedata.v1'||($message['game']??null)!=='tes3'
-            ||!in_array($type,['disposition','actor_profile','automatic_diary','captured_dialogue','rpg_event','bored_event','quest_event','journal','inventory','spell_cast','item_pickup','barter_trade','actor_resurrected'],true)
+            ||!in_array($type,['disposition','actor_profile','automatic_diary','captured_dialogue','rpg_event','bored_event','quest_event','journal','inventory','spell_cast','item_pickup','barter_trade','actor_resurrected','actor_died'],true)
             ||!is_int($message['generation'])||$message['generation']<1
             ||$message['generation']>9_007_199_254_740_991||!is_int($message['runtime_generation'])
             ||$message['runtime_generation']<1||$message['runtime_generation']>9_007_199_254_740_991)
@@ -182,7 +182,7 @@ final class Validator
         $this->timestamp($message['observed_at']??null);
         $payload=$message['payload']??null;
         if(!is_array($payload)||array_is_list($payload))throw new ValidationException('invalid_schema');
-        if(in_array($type,['item_pickup','barter_trade','spell_cast','actor_resurrected'],true)&&array_key_exists('calendar',$payload)){
+        if(in_array($type,['item_pickup','barter_trade','spell_cast','actor_resurrected','actor_died'],true)&&array_key_exists('calendar',$payload)){
             $calendar=$payload['calendar'];if(!is_array($calendar))throw new ValidationException('invalid_schema');
             $this->keys($calendar,['year','month','day','hour']);
             if((!is_int($calendar['hour'])&&!is_float($calendar['hour']))||!is_finite((float)$calendar['hour'])
@@ -245,6 +245,26 @@ final class Validator
                     ksort($witness);ksort($witness['cell']);ksort($witness['refnum']);$key=json_encode($witness,JSON_THROW_ON_ERROR);
                     if(isset($seen[$key]))throw new ValidationException('invalid_schema');$seen[$key]=true;}
             }
+            return;
+        }
+        if($type==='actor_died'){
+            // One counted non-player death: the victim only, never an inferred killer or weapon.
+            $fields=['victim','game_time'];
+            foreach(['audience','calendar']as$optional)if(array_key_exists($optional,$payload))$fields[]=$optional;
+            $this->keys($payload,$fields);$this->identity($payload['victim']??null);
+            if(!in_array($payload['victim']['kind']??null,['npc','creature'],true))throw new ValidationException('invalid_schema');
+            $victim=$payload['victim'];ksort($victim);ksort($victim['cell']);ksort($victim['refnum']);
+            $seen=[json_encode($victim,JSON_THROW_ON_ERROR)=>true];
+            if(array_key_exists('audience',$payload)){
+                if(!is_array($payload['audience'])||!array_is_list($payload['audience'])||count($payload['audience'])>12)throw new ValidationException('invalid_schema');
+                foreach($payload['audience']as$witness){$this->identity($witness);
+                    if(!in_array($witness['kind']??null,['player','npc','creature'],true))throw new ValidationException('invalid_schema');
+                    ksort($witness);ksort($witness['cell']);ksort($witness['refnum']);$key=json_encode($witness,JSON_THROW_ON_ERROR);
+                    if(isset($seen[$key]))throw new ValidationException('invalid_schema');$seen[$key]=true;}
+            }
+            if((!is_int($payload['game_time']??null)&&!is_float($payload['game_time']??null))
+                ||!is_finite((float)$payload['game_time'])||$payload['game_time']<0||$payload['game_time']>9_007_199_254_740_991)
+                throw new ValidationException('invalid_schema');
             return;
         }
         if($type==='spell_cast'||$type==='actor_resurrected'){

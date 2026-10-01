@@ -3654,7 +3654,7 @@ WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.su
   AND (e.type<>'itemfound' OR CASE WHEN jsonb_typeof(m.payload->'count')='number' AND jsonb_typeof(m.payload->'unit_value')='number'
        THEN (m.payload->>'count')::numeric*(m.payload->>'unit_value')::numeric>=CAST(:pickup_min_value AS numeric) ELSE false END)
   AND ((e.type NOT IN ('spellcast','npcspellcast','itemfound') AND COALESCE(m.projection_key,'') NOT LIKE 'resurrection:%'
-       AND COALESCE(m.projection_key,'') NOT LIKE 'barter:%') OR (
+       AND COALESCE(m.projection_key,'') NOT LIKE 'barter:%' AND COALESCE(m.projection_key,'') NOT LIKE 'actor-death:%') OR (
       NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=m.source_event_id)
       AND (EXISTS(SELECT 1 FROM source_events observation WHERE observation.source_event_id=m.source_event_id AND observation.session_id=:context_session AND observation.generation=COALESCE(CAST(:context_generation AS bigint),(SELECT generation FROM sessions WHERE session_id=:context_session)))
           OR (jsonb_typeof(m.payload->'calendar')='object' AND EXISTS(SELECT 1 FROM source_events load WHERE load.session_id=:context_session AND load.event_kind='session.init' AND jsonb_typeof(load.payload->'loaded_save')='object')))))
