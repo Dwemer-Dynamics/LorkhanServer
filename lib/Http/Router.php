@@ -20,10 +20,12 @@ use LorkhanServer\Application\TranslationPolicy;
 use LorkhanServer\Infrastructure\ManagementRepository;
 use LorkhanServer\Infrastructure\MediaStore;
 use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\PluginRuntimeRepository;
 use LorkhanServer\Infrastructure\ProviderAttemptRepository;
 use LorkhanServer\Infrastructure\Repository;
 use LorkhanServer\Infrastructure\Uuid;
 use LorkhanServer\Infrastructure\Logger;
+use LorkhanServer\Protocol\PluginContract;
 use LorkhanServer\Protocol\ValidationException;
 use LorkhanServer\Protocol\Validator;
 use LorkhanServer\Security\RequestMac;
@@ -57,6 +59,7 @@ final class Router
         private readonly ?SpeechToTextProvider $sttProviderOverride = null,
         private readonly array $providerConfig = [],
         private readonly ?PluginPackageRoutes $pluginPackages = null,
+        private readonly ?PluginRuntimeRepository $pluginRuntime = null,
     ) {
         if (($products === null) !== ($promptAssembler === null)) throw new \InvalidArgumentException('Incomplete prompt composition.');
     }
@@ -98,6 +101,8 @@ final class Router
             if ($request->method === 'POST' && $path === '/menu-dialogue-tts/cancel') return $this->menuDialogueTtsCancel($request);
             if ($request->method === 'POST' && $path === '/player-autochat') return $this->playerAutochat($request);
             if ($this->pluginPackages !== null && PluginPackageRoutes::matches($path)) return $this->pluginPackage($request, $path);
+            if ($this->pluginRuntime !== null && $request->method === 'POST' && $path === '/plugins/registrations') return $this->pluginRegistration($request);
+            if ($this->pluginRuntime !== null && $request->method === 'POST' && $path === '/plugins/events') return $this->pluginEvent($request);
             throw new ApiException(404, 'not_found', 'Route not found.');
         } catch (ApiException $error) {
             return $this->error($error, $correlation);
@@ -790,6 +795,58 @@ final class Router
         return Response::json($status, $body);
     }
 
+    /** Register or unregister client addons for the caller's live session generation. */
+    private function pluginRegistration(Request $request): Response
+    {
+        $m = $this->json($request, PluginContract::REGISTRATION, PluginContract::MAX_MANIFEST_BYTES);
+        $installation = $this->pluginPrincipal($request, $m);
+        return $this->repository->serializedIdempotency($installation, $m['message_id'], '/plugins/registrations', function () use ($installation, $m): Response {
+            $hash = $this->semanticHash($m);
+            $cached = $this->repository->idempotent($installation, $m['message_id'], '/plugins/registrations', $hash);
+            if ($cached !== null) return Response::json($cached['status'], $cached['body']);
+            // The receipt commits with the registration rows, so a replay can never observe a different accepted state.
+            return Response::json(201, $this->pluginRuntime->register($installation, $m, fn(array $body) =>
+                $this->repository->remember($installation, $m['message_id'], '/plugins/registrations', $hash, 201, $body)));
+        });
+    }
+
+    /** Persist one registered addon event; replays are answered before the declared per-minute cap is consumed. */
+    private function pluginEvent(Request $request): Response
+    {
+        $m = $this->json($request, PluginContract::EVENT, PluginContract::MAX_EVENT_BYTES);
+        $installation = $this->pluginPrincipal($request, $m);
+        return $this->repository->serializedIdempotency($installation, $m['message_id'], '/plugins/events', function () use ($installation, $m): Response {
+            $hash = $this->semanticHash($m);
+            $cached = $this->repository->idempotent($installation, $m['message_id'], '/plugins/events', $hash);
+            if ($cached !== null) return Response::json($cached['status'], ['duplicate' => true] + $cached['body']);
+            $body = ['schema' => PluginContract::EVENT_ACCEPTED, 'message_id' => $m['message_id'], 'request_id' => $m['request_id'],
+                'session_id' => $m['session_id'], 'generation' => $m['generation'], 'duplicate' => false];
+            // An expired receipt still has its immutable source event: replay it without consuming the rate cap.
+            $stored = $this->pluginRuntime->storedEvent($installation, $m['message_id']);
+            if ($stored !== null) {
+                if (!hash_equals($this->semanticHash($stored), $hash)) throw new DomainException('duplicate_conflict');
+                return Response::json(202, ['duplicate' => true] + $body);
+            }
+            $spec = $this->pluginRuntime->validateEvent($installation, $m);
+            if (!$this->repository->consumeRateLimit('plugin-event|' . $installation . '|' . $m['session_id'] . '|' . $spec['plugin_id']
+                . '|' . $spec['event'], $spec['max_per_minute'], 60)) {
+                throw new ApiException(429, 'rate_limited', 'Plugin event rate exceeded.', true, intdiv(60_000, $spec['max_per_minute']));
+            }
+            $this->pluginRuntime->persistEvent($installation, $m,
+                fn() => $this->repository->remember($installation, $m['message_id'], '/plugins/events', $hash, 202, $body));
+            return Response::json(202, $body);
+        });
+    }
+
+    /** Plugin messages carry no installation ID: the session owner must be the authenticated installation. */
+    private function pluginPrincipal(Request $request, array $message): string
+    {
+        if ($this->authenticatedInstallation === null) throw new ApiException(401, 'unauthorized', 'Authentication failed.');
+        $this->requireIdempotency($request, $message['message_id']);
+        $this->assertPrincipal($this->repository->sessionInstallation($message['session_id']));
+        return $this->authenticatedInstallation;
+    }
+
     private function authenticate(Request $request): void
     {
         foreach ($request->query as $key => $_) {
@@ -810,13 +867,13 @@ final class Router
             throw new ApiException(403,'forbidden','Installation does not match authenticated token.');
     }
 
-    private function json(Request $request, string $schema): array
+    private function json(Request $request, string $schema, ?int $maxBytes = null): array
     {
         $type = $request->header('Content-Type');
         if ($type === null || preg_match('#^application/json(?:\s*;\s*charset=utf-8)?$#iD', trim($type)) !== 1) {
             throw new ApiException(415, 'invalid_schema', 'JSON UTF-8 content type required.');
         }
-        $message = $this->validator->decode($request->body, $this->maxJsonBytes);
+        $message = $this->validator->decode($request->body, min($maxBytes ?? $this->maxJsonBytes, $this->maxJsonBytes));
         $this->validator->validate($message, $schema);
         return $message;
     }
@@ -888,7 +945,8 @@ final class Router
             'invalid_schema','media_unavailable','not_found','provider_action_not_allowed','provider_invalid_action',
             'provider_invalid_output','provider_timeout','provider_unavailable','rate_limited','request_mismatch',
             'rechat_chain_conflict','rechat_complete','rechat_cooldown','conversation_cooldown','rechat_no_responder','rechat_unavailable',
-            'invalid_rechat_context','stale_generation','turn_terminal','unauthorized','unknown_action','unknown_session','unknown_turn'];
+            'invalid_rechat_context','stale_generation','turn_terminal','unauthorized','unknown_action','unknown_session','unknown_turn',
+            'plugin_contract_unsupported','plugin_event_unregistered'];
         return in_array($code,$allowed,true)?$code:'internal_error';
     }
 

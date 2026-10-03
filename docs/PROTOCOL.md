@@ -174,13 +174,27 @@ distinguish created, emitted, delivered and terminal; no UI/prompt calls an acti
 A result completed after the intent's `expires_at` is accepted for five minutes only as `timed_out`,
 `cancelled` or `rejected`; `succeeded` and `failed` must complete before expiry.
 
-## Third-party plugin contract v1 (contract stage)
+## Third-party plugin contract v1
 
 `plugin.schema.json` defines the versioned addon contract shared byte-for-byte with the sibling
-repository. Stage 1 delivers schema, fixtures and validators only: there is no server route, package
-installer, Lua addon loader, prompt use or emitted plugin event yet, and the server does not
-negotiate `plugin.contract.v1`. Clients that do not advertise and receive that capability can never
-receive plugin actions; built-in `lorkhan.action-intent.v1` names, catalogs and negotiation are unchanged.
+repository. The server negotiates `plugin.contract.v1` for registrations, events and trusted server
+hooks only. It does not emit `plugin.action.intent` yet (custom model actions arrive with provider,
+policy and terminal-result integration). Clients that do not advertise and receive that capability
+can never receive plugin actions; built-in `lorkhan.action-intent.v1` names, catalogs and negotiation
+are unchanged.
+
+| Route under `/LorkhanServer/api/v1` | Body | Success | Response |
+| --- | --- | --- | --- |
+| `POST /plugins/registrations` | `lorkhan.plugin.registration.v1`, at most 64 KiB | 201 | `lorkhan.plugin.registration.accepted.v1` |
+| `POST /plugins/events` | `lorkhan.plugin.event.v1`, at most 16 KiB | 202 | `lorkhan.plugin.event.accepted.v1` (`duplicate` boolean) |
+
+Both use the paired request MAC, `Content-Type: application/json` and `Idempotency-Key` equal to the
+message's `message_id`. The session must be active, owned by the authenticated installation and at the
+same generation (`unknown_session` 404, `forbidden` 403, `stale_generation` 409; an unnegotiated session
+is 409 `plugin_contract_unsupported`). Responses echo `message_id`, `request_id`, `session_id` and
+`generation`. An identical event replay returns the stored acceptance with `duplicate: true` before the
+event's declared `max_per_minute` is consumed; over the cap is 429 `rate_limited` with `retry_after_ms`.
+An event for an inactive plugin or undeclared event is 409 `plugin_event_unregistered`.
 
 | Schema | Direction | Purpose |
 | --- | --- | --- |

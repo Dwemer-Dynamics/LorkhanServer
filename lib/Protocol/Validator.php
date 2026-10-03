@@ -51,7 +51,7 @@ final class Validator
             'lorkhan.debug-command-result.v1' => $this->debugCommandResult($message),
             'lorkhan.response.v1' => $this->response($message),
             PluginContract::MANIFEST, PluginContract::REGISTRATION, PluginContract::REGISTRATION_ACCEPTED,
-            PluginContract::ACTION_INTENT, PluginContract::EVENT => (new PluginContract($this))->validate($message, $expectedSchema),
+            PluginContract::ACTION_INTENT, PluginContract::EVENT, PluginContract::EVENT_ACCEPTED => (new PluginContract($this))->validate($message, $expectedSchema),
             default => throw new ValidationException('invalid_schema'),
         };
     }

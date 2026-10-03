@@ -15,6 +15,7 @@ final class TurnContextPreparation
         private readonly ?ProviderAttemptRepository $providerAttempts,
         private readonly array $providerConfig,
         private readonly CancellationToken $cancellation,
+        private readonly ?PluginHooks $plugins = null,
     ) {}
 
     public function prepare(array $m): array
@@ -34,6 +35,12 @@ final class TurnContextPreparation
         if(is_array($selection['power_observations']??null)&&$selection['power_observations']!==[])$providerInput['_power_observations']=$selection['power_observations'];
         if(is_array($selection['item_descriptions']??null)&&$selection['item_descriptions']!==[])$providerInput['_item_descriptions']=$selection['item_descriptions'];
         if(is_array($selection['scene_classification']??null))$providerInput['_scene_classification']=$selection['scene_classification'];
+        // Addon text is frozen with the prepared prompt, so retries and fallbacks reuse the same bounded contributions.
+        if($this->plugins!==null&&PluginHooks::negotiated($m)){
+            try{$contributions=$this->plugins->promptContributions($m);}
+            catch(Throwable $error){$contributions=[];error_log('[LORKHAN] plugin prompt hooks unavailable: '.$error::class);}
+            if($contributions!==[])$providerInput['_plugin_context']=$contributions;
+        }
         $assembled = (new PromptAssembler())->assemble($providerInput, $selection);
         $providerInput['_prompt'] = $assembled['provider_input'];
         $this->cancellation->throwIfCancellationRequested();

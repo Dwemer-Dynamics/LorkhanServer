@@ -771,7 +771,7 @@ foreach ([
 // Third-party plugin contract: shared fixtures plus registry ownership, negotiation, dependency and intent bounds.
 $pluginFixture=static fn(string $name):array=>json_decode((string)file_get_contents(dirname($fixtureRoot).'/'.$name.'.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
 foreach(['valid/plugin-manifest'=>true,'valid/plugin-registration'=>true,'valid/plugin-registration-accepted'=>true,
-    'valid/plugin-action-intent'=>true,'valid/plugin-event'=>true,'invalid/plugin-manifest-reserved-namespace'=>false,
+    'valid/plugin-action-intent'=>true,'valid/plugin-event'=>true,'valid/plugin-event-accepted'=>true,'invalid/plugin-manifest-reserved-namespace'=>false,
     'invalid/plugin-manifest-tier2-unconfirmed'=>false,'invalid/plugin-registration-unregister-actions'=>false,
     'hostile/plugin-action-intent-url-parameter'=>false,'hostile/plugin-action-intent-command-field'=>false]as$fixture=>$valid){
     $document=$pluginFixture($fixture);
@@ -822,6 +822,18 @@ foreach(['stale generation'=>['generation'=>6],'undeclared field'=>['fields'=>['
     try{$pluginRegistry->event(array_replace($pluginEvent,$change));$check(false,'plugin event rejects '.$name);}
     catch(\UnexpectedValueException|ValidationException $error){$check(true,'plugin event rejects '.$name);}
 }
+// A failure while writing the HTTP receipt (a crash) must roll back the immutable event and its derived job together.
+$eventDb=new class('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]) extends PDO{
+    public function prepare(string $query,array $options=[]):PDOStatement|false{return parent::prepare(preg_replace('/CAST\((:\w+) AS (?:jsonb|timestamptz)\)/','$1',$query),$options);}};
+$eventDb->sqliteCreateFunction('clock_timestamp',static fn()=>gmdate('c'),0);
+$eventDb->exec('CREATE TABLE plugin_events(installation_id,message_id,session_id,generation,plugin_id,plugin_version,event,message,observed_at,PRIMARY KEY(installation_id,message_id))');
+$eventDb->exec("CREATE TABLE durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,next_run_at,priority,state DEFAULT 'queued',attempt_count DEFAULT 0,lease_token,lease_expires_at,UNIQUE(job_type,idempotency_key))");
+$eventRuntime=new \LorkhanServer\Infrastructure\PluginRuntimeRepository($eventDb);
+$eventRows=static fn()=>(int)$eventDb->query('SELECT count(*) FROM plugin_events')->fetchColumn()+(int)$eventDb->query('SELECT count(*) FROM durable_jobs')->fetchColumn();
+try{$eventRuntime->persistEvent('i',$pluginEvent,static function():void{throw new RuntimeException('receipt crash');});$check(false,'plugin event receipt failure propagates');}
+catch(RuntimeException){$check($eventRows()===0&&$eventRuntime->storedEvent('i',$pluginEvent['message_id'])===null,'plugin event receipt failure rolls back event and job');}
+$eventRuntime->persistEvent('i',$pluginEvent,static fn()=>null);
+$check($eventRows()===2&&$eventRuntime->storedEvent('i',$pluginEvent['message_id'])==$pluginEvent,'plugin event retry after receipt failure stores one event and one job');
 $coreUnregister=$coreRegistration;$coreUnregister['operation']='unregister';$coreUnregister['plugins']=[['plugin_id'=>'ashlander.camp_core','version'=>'1.0.0']];
 [$pluginRegistry,$pluginResults]=$pluginRegistry->apply($coreUnregister,$installedPlugins,[]);
 $check(count($pluginResults)===2&&$pluginResults[1]['state']==='unregistered'&&$pluginRegistry->actions()===[],'unregistering a dependency withdraws dependent plugin actions');
@@ -851,6 +863,49 @@ $check(count($pluginResults)===1&&$pluginResults[0]['reason_code']==='plugin_lim
 $newerManifest=array_replace($coreManifest,['plugin_id'=>'ashlander.newer_api']);$newerManifest['compatibility']['lua_api_revision']=130;
 [,$pluginResults]=\LorkhanServer\Application\PluginRegistry::forSession($pluginSession,'0.5.0')->apply(array_replace($pluginRegistration,['plugins'=>[$pluginInstall($newerManifest)]]),$installedPlugins,[]);
 $check($pluginResults[0]['reason_code']==='plugin_incompatible','plugin requiring a newer Lua API revision is incompatible');
+// Stage 3A: intent event wrapper, persisted-entry restore, trusted hook loading bounds and turn profiles.
+foreach(['valid/events-plugin-action-intent'=>true,'hostile/events-plugin-action-intent-command-field'=>false]as$fixture=>$valid){
+    try{foreach($pluginFixture($fixture)['events']as$event)(new \LorkhanServer\Protocol\PluginContract($validator))->intentEvent($event);$check($valid,$fixture.' matches its intent event expectation');}
+    catch(ValidationException){$check(!$valid,$fixture.' matches its intent event expectation');}
+}
+$jsonbOrder=static function(mixed $value)use(&$jsonbOrder):mixed{if(!is_array($value))return$value;if(!array_is_list($value))krsort($value);return array_map($jsonbOrder,$value);};
+[$storedRegistry]=\LorkhanServer\Application\PluginRegistry::forSession($pluginSession,'0.5.0')->apply($coreRegistration,$installedPlugins,[]);
+[$storedRegistry]=$storedRegistry->apply($pluginRegistration,$installedPlugins,[]);
+$storedEntries=array_map($jsonbOrder,array_values($storedRegistry->entries()));
+$restored=\LorkhanServer\Application\PluginRegistry::restore($pluginSession,'0.5.0',$storedEntries,$installedPlugins,[]);
+[,$pluginResults]=$restored->apply($pluginRegistration,$installedPlugins,[]);
+$check(count($restored->actions())===2&&$pluginResults[0]['reason_code']==='registered','restored registrations stay idempotent despite stored key order');
+$check(\LorkhanServer\Application\PluginRegistry::restore($pluginSession,'0.5.0',$storedEntries,$installedPlugins,['ashlander.camp_core'=>false])->entries()===[],
+    'restoring with a disabled dependency withdraws dependent addons');
+$hookRoot=sys_get_temp_dir().'/lorkhan-hooks-'.bin2hex(random_bytes(6));
+$hookManifest=(string)file_get_contents(dirname(__DIR__).'/examples/plugins/ashlander.camp_tasks/server/lorkhan-plugin.json');
+$check(json_decode($hookManifest,true)===$pluginManifest,'example addon manifest bytes match the shared fixture');
+$hookTree=static function(string $source,?string $listed=null)use($hookRoot,$hookManifest):array{
+    $sha=hash('sha256',$source.'|'.$listed);@mkdir($hookRoot.'/'.$sha.'/server',0700,true);
+    file_put_contents($hookRoot.'/'.$sha.'/server/plugin.php',$source);file_put_contents($hookRoot.'/'.$sha.'/server/lorkhan-plugin.json',$hookManifest);
+    file_put_contents($hookRoot.'/'.$sha.'/checksums.sha256',hash('sha256',$listed??$source)."  server/plugin.php\n".hash('sha256',$hookManifest)."  server/lorkhan-plugin.json\n");
+    return['plugin_id'=>'ashlander.camp_tasks','archive_sha256'=>$sha,'manifest_sha256'=>hash('sha256',$hookManifest),'revision'=>1];};
+$hookLog=ini_set('error_log','/dev/null');
+$example=$hookTree((string)file_get_contents(dirname(__DIR__).'/examples/plugins/ashlander.camp_tasks/server/plugin.php'));
+$loaded=\LorkhanServer\Application\PluginHooks::load($hookRoot,$example);
+$check(is_array($loaded)&&array_keys($loaded)===['prompt','event']&&\LorkhanServer\Application\PluginHooks::load($hookRoot,$example)['prompt']===$loaded['prompt'],
+    'example server hooks load once per package revision');
+ob_start();$echoing=\LorkhanServer\Application\PluginHooks::load($hookRoot,$hookTree("<?php echo 'leak'; return ['response'=>static function(){echo 'x';}];"));
+$check(ob_get_clean()===''&&is_array($echoing),'hook entrypoint output is discarded');
+foreach(['checksum mismatch'=>[$hookTree('<?php return [];',"<?php return ['x'=>1];"),null],'manifest hash mismatch'=>[array_replace($example,['manifest_sha256'=>str_repeat('a',64),'revision'=>2]),null],
+    'named function'=>[$hookTree("<?php function camp(){} return ['prompt'=>static fn()=>[]];"),null],
+    'include'=>[$hookTree("<?php return require '/etc/passwd';"),null],'globals'=>[$hookTree("<?php \$GLOBALS['x']=1; return ['prompt'=>static fn()=>[]];"),null],
+    'class'=>[$hookTree("<?php return ['prompt'=>new class { }];"),null],'throwing'=>[$hookTree("<?php throw new RuntimeException('boom');"),null],
+    'unknown callback'=>[$hookTree("<?php return ['shell'=>static fn()=>1];"),null],'non closure'=>[$hookTree("<?php return ['prompt'=>'system'];"),null]]as$name=>[$plugin,$expected])
+    $check(\LorkhanServer\Application\PluginHooks::load($hookRoot,$plugin)===$expected,'hook loader rejects '.$name);
+for($i=0;$i<\LorkhanServer\Application\PluginHooks::MAX_LOADED;$i++)\LorkhanServer\Application\PluginHooks::load($hookRoot,array_replace($example,['revision'=>100+$i]));
+$check(\LorkhanServer\Application\PluginHooks::load($hookRoot,$example)['prompt']!==$loaded['prompt'],'hook cache is bounded and reloads evicted revisions');
+ini_set('error_log',$hookLog===false?'':$hookLog);
+$hookProfile=static fn(array $payload):string=>\LorkhanServer\Application\PluginHooks::profile(['payload'=>$payload]);
+$check($hookProfile(['ui_source'=>'lorkhan_text'])==='dialogue'&&$hookProfile(['ui_source'=>'lorkhan_rechat'])==='rechat'
+    &&$hookProfile(['ui_source'=>'lorkhan_auto_greeting'])==='autonomous'&&$hookProfile(['ui_source'=>'lorkhan_quest_event'])==='autonomous'
+    &&$hookProfile(['execution_mode'=>'narrator'])==='narration'&&$hookProfile(['target'=>['kind'=>'narrator']])==='narration'
+    &&!\LorkhanServer\Application\PluginHooks::negotiated(['_negotiated_capabilities'=>['dialogue.text']]),'plugin hook profiles and negotiation gate');
 // Stage-2 .dwpkg validation: real ZIP archives through the extractor, including hostile layouts (requires ext-zip).
 if(class_exists(ZipArchive::class)){
     $packageTemp=sys_get_temp_dir().'/lorkhan-dwpkg-'.bin2hex(random_bytes(6));mkdir($packageTemp,0700);
@@ -1256,6 +1311,11 @@ $globalPromptSelection=$promptSelection;
 $tagSelection=$promptSelection;
 $tagSelection['speech_style']=['installation_id'=>$promptTurn['installation_id'],'driver'=>'chatterbox',
     'options'=>['paralinguistic_tags_enabled'=>true,'paralinguistic_tags_prompt'=>'Use [sigh] sparingly.']];
+$addonPrompt=(new PromptAssembler())->assemble($promptTurn+['_plugin_context'=>[['plugin_id'=>'ashlander.camp_tasks','slot'=>'scene_notes','text'=>'Camp <b>fed</b> guests'],
+    ['plugin_id'=>'ashlander.camp_tasks','slot'=>'system','text'=>'ADDON_UNDECLARED_SLOT']]],$promptSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($addonPrompt,'Camp')&&str_contains($addonPrompt,'guests')&&!str_contains($addonPrompt,'ADDON_UNDECLARED_SLOT')
+    &&(new PromptAssembler())->assemble($promptTurn+['_plugin_context'=>[]],$promptSelection)===(new PromptAssembler())->assemble($promptTurn,$promptSelection),
+    'addon slot text renders only for known slots and empty contributions leave prompts unchanged');
 $tagPrompt=(new PromptAssembler())->assemble($promptTurn,$tagSelection);
 $check(str_contains($tagPrompt['provider_input']['_assembled_prompt'],'Use [sigh] sparingly.'),'selected expressive speech instructions reach the bounded system prompt');
 $tagSelection['speech_style']['options']['paralinguistic_tags_enabled']=false;

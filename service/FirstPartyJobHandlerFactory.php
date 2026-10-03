@@ -20,13 +20,14 @@ final class FirstPartyJobHandlerFactory
         $clock ??= new DeterministicClock();
         $repository = new FirstPartyJobRepository($db);
         $products = new \LorkhanServer\Infrastructure\ProductRepository($db);
+        $plugins = new PluginHooks(new \LorkhanServer\Infrastructure\PluginRuntimeRepository($db, $providerConfig));
         $handlers = [new ProfileGenerateJobHandler($products,null,
             new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db),(int)($providerConfig['provider']['timeout_ms']??30_000),$providerConfig)];
         if ($provider !== null) {
             $handlers[] = new TurnProcessJobHandler(new \LorkhanServer\Infrastructure\Repository($db,256,
                 new \LorkhanServer\Infrastructure\ActionCatalogRepository($db),new ActionPolicyValidator()), $provider,
                 $mediaStore, new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db), $providerTimeoutMs,$providerConfig,
-                $translationProvider,$speechProvider,$products);
+                $translationProvider,$speechProvider,$products,$plugins);
         }
         $handlers[] = new SpeechSynthesizeJobHandler(new \LorkhanServer\Infrastructure\Repository($db),$speechProvider,
             $mediaStore,new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db),$products,$providerConfig,
@@ -46,6 +47,7 @@ final class FirstPartyJobHandlerFactory
             new DatabaseReplayJobHandler($db,$providerConfig),
             new DatabaseFactoryResetJobHandler($db,$providerConfig),
             new PluginPackageJobHandler($db,$providerConfig),
+            new PluginEventJobHandler($plugins),
             new RelationshipBuildJobHandler(new \LorkhanServer\Infrastructure\RelationshipBuildRepository($db),$products,
                 new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db),$providerConfig),
             new RelationshipConversionJobHandler(new \LorkhanServer\Infrastructure\RelationshipConversionRepository($db),$products,
@@ -110,6 +112,7 @@ final class FirstPartyJobHandlerFactory
             DialogueExpiryJobHandler::TYPE,
             ProfileGenerateJobHandler::TYPE, NpcEvolutionReportJobHandler::TYPE,
             PluginPackageJobHandler::TYPE,
+            PluginEventJobHandler::TYPE,
         ];
     }
 }
