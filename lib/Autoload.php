@@ -38,6 +38,7 @@ spl_autoload_register(static function (string $class): void {
         'Application\\EmbeddingProvider' => '/connector/EmbeddingProvider.php',
         'Application\\FirstPartyJobHandlerFactory' => '/service/FirstPartyJobHandlerFactory.php',
         'Application\\FirstPartyJobHandlers' => '/service/FirstPartyJobHandlers.php',
+        'Application\\PluginPackageJobHandler' => '/service/PluginPackageJobHandler.php',
         'Application\\InlineNarrationRouter' => '/processor/InlineNarrationRouter.php',
         'Application\\InworldVoiceResolver' => '/tts/InworldVoiceResolver.php',
         'Application\\JobHandler' => '/service/JobHandler.php',

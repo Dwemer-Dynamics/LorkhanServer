@@ -77,7 +77,7 @@ final class ManagementRouter
         private readonly ProductService $service,private readonly string $basePath='/LorkhanServer/manage',
         private readonly int $maxJsonBytes=2_097_152,private readonly int $sessionTtl=3600,
         private readonly array $providerConfig=[],private readonly ?EventLogRepository $eventLogRepository=null,
-        private readonly ?OghmaCatalogImporter $oghmaCatalogImporter=null){ }
+        private readonly ?OghmaCatalogImporter $oghmaCatalogImporter=null,private readonly ?PluginPackageRoutes $pluginPackages=null){ }
 
     public function dispatch(Request $r):Response
     {
@@ -182,6 +182,14 @@ final class ManagementRouter
 
     private function api(Request $r,string $path,string $browserSession):Response
     {
+        if($this->pluginPackages!==null&&PluginPackageRoutes::matches(substr($path,7))){
+            // Browser management names the owning installation explicitly; session and CSRF were checked by dispatch().
+            if(array_diff(array_keys($r->query),['installation_id'])!==[])throw new InvalidArgumentException('package_invalid_request');
+            $installation=$this->queryUuid($r,'installation_id');
+            try{[$status,$body]=$this->pluginPackages->dispatch($r,substr($path,7),$installation);}
+            catch(\LorkhanServer\Application\PluginPackageException $error){return Response::json($error->status(),['error'=>$error->getMessage()]);}
+            return Response::json($status,$body);
+        }
         if($r->method==='GET'&&$path==='/api/v1/playthrough-characters'){
             if(array_keys($r->query)!==['installation_id']||!is_string($r->query['installation_id']))throw new InvalidArgumentException('invalid_installation_id');
             return Response::json(200,$this->repository->characterPlaythroughState($r->query['installation_id']));
