@@ -85,8 +85,7 @@ final class DiaryGenerateJobHandler implements JobHandler
                 'profile_revision'=>$payload['profile_revision'],'provider_configuration_id'=>$payload['provider_configuration_id']]);
         try{
             $output=DiaryGenerationPolicy::output($provider->generate($input,$token));$token->throwIfCancellationRequested();
-            if(!$this->narratives->narrativeSourcesActive($payload['source_turn_ids'],$payload))throw new OperationCancelled('diary_scope_changed');
-            $this->narratives->upsertNarrative($payload['narrative_id'],[
+            if(!$this->narratives->upsertNarrativeIfSourcesActive($payload['source_turn_ids'],$payload,$payload['narrative_id'],[
                 'installation_id'=>$payload['installation_id'],'profile_id'=>$payload['profile_id'],
                 'playthrough_id'=>$payload['playthrough_id'],'kind'=>'diary','title'=>$output['title'],'content'=>$output['content'],
                 'provenance'=>array_filter(['source'=>$automatic?'automatic-diary-generation':'manual-diary-generation',
@@ -96,7 +95,7 @@ final class DiaryGenerateJobHandler implements JobHandler
                     'profile_revision'=>$payload['profile_revision'],'provider_configuration_id'=>$payload['provider_configuration_id'],
                     'provider_revision'=>$payload['provider_revision'],'source_turn_ids'=>$payload['source_turn_ids']??[]],
                     static fn(mixed$value):bool=>$value!==null),
-            ],gmdate('Y-m-d\TH:i:s\Z'));
+            ],gmdate('Y-m-d\TH:i:s\Z')))throw new OperationCancelled('diary_scope_changed');
             $this->attempts->finish($attempt,'succeeded',strlen(json_encode($output,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)));
         }catch(OperationCancelled $error){$this->attempts->finish($attempt,'cancelled',errorCode:'operation_cancelled');throw$error;
         }catch(Throwable $error){try{$this->attempts->finish($attempt,'failed',errorCode:'provider_unavailable');}catch(Throwable){}throw$error;}

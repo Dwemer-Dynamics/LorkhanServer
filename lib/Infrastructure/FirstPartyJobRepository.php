@@ -312,8 +312,25 @@ final class FirstPartyJobRepository
             $owner=$this->db->prepare('SELECT 1 FROM profiles p WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL AND '.ProfileScopeSql::matches('p',':playthrough',true));
             $owner->execute($this->scope($scope));
             if(!$owner->fetchColumn()||!$timeline->sourcesBelongTo($turnIds,$scope['installation_id'],$scope['playthrough_id']))return false;
+            // A linked-character membership edit since enqueue makes the frozen witnessed context stale.
+            if(!(new ReferenceGroupRepository($this->db))->fenceHolds($scope,(string)$scope['profile_id']))return false;
         }
         return $timeline->sourcesActive($turnIds);
+    }
+
+    /** Recheck a generated diary's sources and membership and store it in one transaction, after provider I/O. */
+    public function upsertNarrativeIfSourcesActive(array $turnIds,array $scope,string $narrativeId,array $narrative,string $now):bool
+    {
+        $owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();
+        try{
+            $this->db->prepare('SELECT installation_id FROM installations WHERE installation_id=:installation FOR SHARE')
+                ->execute(['installation'=>$scope['installation_id']]);
+            (new ReferenceGroupRepository($this->db))->lockMembership((string)$scope['profile_id']);
+            $active=$this->narrativeSourcesActive($turnIds,$scope);
+            if($active)$this->upsertNarrative($narrativeId,$narrative,$now);
+            if($owns)$this->db->commit();
+            return $active;
+        }catch(\Throwable $error){if($owns&&$this->db->inTransaction())$this->db->rollBack();throw $error;}
     }
 
     /** Job replays preserve soft deletion; they are not restoration requests. */

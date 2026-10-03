@@ -165,16 +165,15 @@ final class EventLogRepository
             throw new InvalidArgumentException('invalid_event_type');
         }
         $limit = max(1, min(100, $limit));
-        $durable = ProfileId::durableIdentity($scope['identity']);
+        // A linked keeper shows every current member's events; each row keeps its physical speaker and target.
+        $owners = (new ReferenceGroupRepository($this->db))->characterScope($profileId, $scope['identity'])['identities'];
         $parameters = [
             'installation'=>$scope['installation_id'],'playthrough'=>$playthroughId,
-            'speaker'=>$this->encodeObject($durable),'target'=>$this->encodeObject($durable),
-            'audience'=>$this->encodeList([$durable]),'types'=>$this->pgArray($visibleTypes),
+            'owners'=>$this->encodeList($owners),'types'=>$this->pgArray($visibleTypes),
         ];
         $where = [
             'm.installation_id=:installation','m.playthrough_id=:playthrough','m.suppressed_at IS NULL',
-            'e.type=ANY(CAST(:types AS text[]))',
-            '(m.speaker @> CAST(:speaker AS jsonb) OR m.target @> CAST(:target AS jsonb) OR m.audience @> CAST(:audience AS jsonb))',
+            'e.type=ANY(CAST(:types AS text[]))',ReferenceGroupRepository::witnessSql('m','owners'),
         ];
         if ($selectedType !== '') {
             $where[] = 'e.type=:selected_type';
@@ -191,13 +190,13 @@ final class EventLogRepository
         foreach ($parameters as $key => $value) $statement->bindValue(':' . $key, $value);
         $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
         $statement->execute();
-        $events = array_map(function(array $row) use ($profileId, $scope): array {
+        $events = array_map(function(array $row) use ($profileId, $scope, $owners): array {
             $presented = $this->present($row);
             $presented['deletable'] = in_array($row['deletable'] ?? false, [true,1,'1','t','true'], true);
             // Owner history shows stored thoughts independently of the current generation switch.
             if ($row['private_thought'] !== null) {
                 $thought = PrivateThoughtPolicy::forOwner($this->decodeObject($row['private_thought']), $profileId,
-                    $scope['identity'], $this->decodeObject($row['thought_speaker']));
+                    $scope['identity'], $this->decodeObject($row['thought_speaker']), $owners);
                 if ($thought !== null) $presented['private_thought'] = $thought;
             }
             return $presented;
@@ -298,15 +297,14 @@ final class EventLogRepository
     {
         if ($rowId < 1) throw new InvalidArgumentException('invalid_event_row');
         $scope = $this->profileScope($profileId, $playthroughId);
-        $durable = ProfileId::durableIdentity($scope['identity']);
+        $owners = (new ReferenceGroupRepository($this->db))->characterScope($profileId, $scope['identity'])['identities'];
         $parameters = [
             'rowid'=>$rowId,'installation'=>$scope['installation_id'],'playthrough'=>$playthroughId,
-            'speaker'=>$this->encodeObject($durable),'target'=>$this->encodeObject($durable),
-            'audience'=>$this->encodeList([$durable]),
+            'owners'=>$this->encodeList($owners),
         ];
         $check = $this->db->prepare("SELECT 1 FROM eventlog_metadata m WHERE m.rowid=:rowid AND m.installation_id=:installation "
             . "AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL AND m.projection_kind='management_injection' "
-            . 'AND (m.speaker @> CAST(:speaker AS jsonb) OR m.target @> CAST(:target AS jsonb) OR m.audience @> CAST(:audience AS jsonb))');
+            . 'AND ' . ReferenceGroupRepository::witnessSql('m', 'owners'));
         $check->execute($parameters);
         if (!$check->fetchColumn()) throw new InvalidArgumentException('event_not_deletable');
         $statement = $this->db->prepare("UPDATE eventlog_metadata SET suppressed_at=clock_timestamp(),suppression_reason='npc_history_delete' "
