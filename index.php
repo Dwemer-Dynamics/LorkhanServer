@@ -26,6 +26,7 @@ use LorkhanServer\Infrastructure\ManagementRepository;
 use LorkhanServer\Infrastructure\MediaStore;
 use LorkhanServer\Infrastructure\OghmaCatalogImporter;
 use LorkhanServer\Infrastructure\PluginPackageRepository;
+use LorkhanServer\Infrastructure\PluginRuntimeRepository;
 use LorkhanServer\Infrastructure\ProductRepository;
 use LorkhanServer\Infrastructure\ProviderAttemptRepository;
 use LorkhanServer\Infrastructure\Repository;
@@ -118,6 +119,7 @@ try {
         new RechatCoordinator($repository, $products),
         providerConfig: $config,
         pluginPackages: $pluginPackages,
+        pluginRuntime: new PluginRuntimeRepository($database, $config),
     );
     $request = Request::fromGlobals();
     if (str_starts_with($request->path, (string) ($config['management_base_path'] ?? '/LorkhanServer/manage'))) {

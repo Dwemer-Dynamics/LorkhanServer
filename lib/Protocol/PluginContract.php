@@ -20,7 +20,8 @@ final class PluginContract
     public const REGISTRATION_ACCEPTED = 'lorkhan.plugin.registration.accepted.v1';
     public const ACTION_INTENT = 'lorkhan.plugin.action-intent.v1';
     public const EVENT = 'lorkhan.plugin.event.v1';
-    /** Reserved events.v1 discriminator for a future variant carrying one ACTION_INTENT. */
+    public const EVENT_ACCEPTED = 'lorkhan.plugin.event.accepted.v1';
+    /** events.v1 discriminator for the variant carrying one ACTION_INTENT (emitted from Stage 3B only). */
     public const INTENT_EVENT_TYPE = 'plugin.action.intent';
     public const PROMPT_SLOTS = ['actor_state', 'player_state', 'scene_notes', 'world_state'];
     public const RESERVED_NAMESPACES = ['builtin', 'core', 'lorkhan', 'morrowind', 'openmw', 'tes3'];
@@ -51,8 +52,25 @@ final class PluginContract
             self::REGISTRATION_ACCEPTED => $this->registrationAccepted($message),
             self::ACTION_INTENT => $this->actionIntent($message),
             self::EVENT => $this->event($message),
+            self::EVENT_ACCEPTED => $this->eventAccepted($message),
             default => throw new ValidationException('invalid_schema'),
         };
+    }
+
+    /**
+     * One events.v1 plugin.action.intent entry: closed envelope plus an intent bound to the same turn/session/generation.
+     *
+     * @param array<string,mixed> $event
+     */
+    public function intentEvent(array $event): void
+    {
+        $this->keys($event, ['message_id', 'request_id', 'turn_id', 'session_id', 'generation', 'sequence', 'created_at', 'type', 'payload']);
+        if ($event['type'] !== self::INTENT_EVENT_TYPE || !is_array($event['payload']) || !is_int($event['sequence']) || $event['sequence'] < 0) $this->fail();
+        foreach (['message_id', 'request_id', 'turn_id', 'session_id'] as $field) $this->validator->uuid($event[$field]);
+        $this->generation($event['generation']);
+        $this->validator->timestamp($event['created_at']);
+        $this->actionIntent($event['payload']);
+        foreach (['turn_id', 'session_id', 'generation'] as $field) if ($event['payload'][$field] !== $event[$field]) $this->fail();
     }
 
     /** Compare two validated MAJOR.MINOR.PATCH versions numerically. */
@@ -331,6 +349,13 @@ final class PluginContract
                 $this->fail();
             }
         });
+    }
+
+    /** @param array<string,mixed> $message */
+    private function eventAccepted(array $message): void
+    {
+        $this->envelope($message, self::EVENT_ACCEPTED, ['duplicate']);
+        if (!is_bool($message['duplicate'])) $this->fail();
     }
 
     /** @param array<string,mixed> $message @param list<string> $fields */

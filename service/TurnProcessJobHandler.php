@@ -28,6 +28,7 @@ final class TurnProcessJobHandler implements JobHandler
         private readonly ?TranslationProvider $translationProvider = null,
         private readonly ?SpeechProvider $speechProvider = null,
         private readonly ?ProductRepository $products = null,
+        private readonly ?PluginHooks $plugins = null,
     ) {}
 
     public function supports(string $jobType, int $schemaVersion): bool
@@ -65,7 +66,7 @@ final class TurnProcessJobHandler implements JobHandler
         try {
             if (($message['_deferred_context']??false)===true) {
                 if ($this->products===null) throw new \RuntimeException('prompt_context_unavailable');
-                $prepared=(new TurnContextPreparation($this->products,$this->attempts,$this->providerConfig,$token))->prepare($message);
+                $prepared=(new TurnContextPreparation($this->products,$this->attempts,$this->providerConfig,$token,$this->plugins))->prepare($message);
                 $message=$prepared['message'];
                 $this->repository->storePreparedTurn($message,$prepared['trace'],$fence);
             }
@@ -126,6 +127,10 @@ final class TurnProcessJobHandler implements JobHandler
                 && in_array('speech.say', $message['_negotiated_capabilities'], true);
             $this->repository->completeTurn($message,$result,null,$fence,$queueSpeech,$streamedDialogues,$privateThought);
             Logger::info('Turn completed: turn_id='.$turnId);
+            if($this->plugins!==null&&PluginHooks::negotiated($message)){
+                try{$this->plugins->notifyResponse($message,$result);}
+                catch(Throwable $error){error_log('[LORKHAN] plugin response notification failed: '.$error::class);}
+            }
             if($this->products!==null){
                 try{$this->products->maybeEnqueueSceneClassification($message);}
                 catch(Throwable $error){error_log('[LORKHAN] scene classification scheduling failed: '.$error::class);}

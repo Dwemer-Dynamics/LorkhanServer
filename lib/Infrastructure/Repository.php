@@ -15,7 +15,9 @@ final class Repository
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
         'action.inventory.inspect','action.confirmation','action.result-followup','action.service.barter','action.weapon.sheathe',
         'action.item.give','action.item.take','action.item.pickup','action.gold.give','action.gold.take','action.spell.cast','action.service.training',
-        'action.service.spells','action.service.travel','action.service.spellmaking','action.service.enchanting','action.service.repair'];
+        'action.service.spells','action.service.travel','action.service.spellmaking','action.service.enchanting','action.service.repair',
+        // Addon registrations, events and server hooks only; plugin.action.intent is not emitted before Stage 3B.
+        'plugin.contract.v1'];
     // NPC actions only; AdvancedActionPolicy::NAMES world actions remain unnegotiated.
     private const ENABLED_ACTIONS = ['inspect.report','inventory.inspect','ai.follow','ai.stop','conversation.end','ai.approach','ai.wait','ai.travel','ai.escort',
         'ai.face','ai.wander','combat.start','combat.stop','animation.play','item.equip','item.unequip','item.use','service.barter',

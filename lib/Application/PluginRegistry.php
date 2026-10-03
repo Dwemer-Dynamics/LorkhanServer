@@ -17,7 +17,8 @@ use UnexpectedValueException;
  *
  * A plugin is active only when its server-installed manifest matches the registered version and
  * hash, server policy enables it, the client registered it in the same negotiated session generation
- * and every dependency is active within range. Every apply revalidates the whole active set. Persistence, routes and prompt use belong to later stages.
+ * and every dependency is active within range. Every apply revalidates the whole active set; PluginRuntimeRepository persists
+ * accepted entries per session generation and restores them on each access.
  */
 final class PluginRegistry
 {
@@ -46,6 +47,30 @@ final class PluginRegistry
         }
         return new self($session['session_id'], $session['generation'], $serverVersion, $session['client_version'], [],
             new PluginContract(new Validator()));
+    }
+
+    /**
+     * Rebuild one persisted session generation. Stored entries replay through apply(), so every access revalidates the
+     * current installed manifest/hash, enabled policy and dependencies; disabled, removed or updated plugins drop out.
+     *
+     * @param array{session_id:string,generation:int,capabilities:list<string>,client_version:string} $session
+     * @param list<array<string,mixed>> $entries Previously accepted registration entries.
+     * @param array<string,array{manifest:array<string,mixed>,sha256:string}> $installed
+     * @param array<string,bool> $policy
+     */
+    public static function restore(array $session, string $serverVersion, array $entries, array $installed, array $policy): self
+    {
+        $registry = self::forSession($session, $serverVersion);
+        if ($entries === []) return $registry;
+        return $registry->apply(['schema' => PluginContract::REGISTRATION, 'message_id' => $session['session_id'],
+            'request_id' => $session['session_id'], 'session_id' => $session['session_id'], 'generation' => $session['generation'],
+            'created_at' => gmdate('Y-m-d\TH:i:s\Z'), 'operation' => 'register', 'plugins' => $entries], $installed, $policy)[0];
+    }
+
+    /** @return array<string,array<string,mixed>> Accepted registration entries of active plugins, by plugin ID. */
+    public function entries(): array
+    {
+        return array_map(static fn(array $plugin): array => $plugin['registration'], $this->active);
     }
 
     /**
@@ -85,7 +110,7 @@ final class PluginRegistry
                 continue;
             }
             if (isset($active[$id])) {
-                $same = $active[$id]['registration'] === $entry;
+                $same = self::canonical($active[$id]['registration']) === self::canonical($entry);
                 $results[$id] = $this->result($entry, $same ? 'active' : 'rejected', $same ? 'registered' : 'duplicate_conflict');
                 continue;
             }
@@ -261,6 +286,14 @@ final class PluginRegistry
             return 'registration_mismatch';
         }
         return null;
+    }
+
+    /** Persisted JSON objects do not keep key order; compare registrations by canonical content. */
+    private static function canonical(mixed $value): mixed
+    {
+        if (!is_array($value)) return $value;
+        if (!array_is_list($value)) ksort($value);
+        return array_map(self::canonical(...), $value);
     }
 
     /** @param array{manifest:array<string,mixed>} $plugin @return array<string,mixed> */

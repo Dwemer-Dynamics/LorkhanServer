@@ -88,7 +88,8 @@ This server does not provide the HerikaServer ext drop-in plugin contract. Do no
 an ext directory or assume another product's plugin hooks exist here. The versioned
 `lorkhan.plugin.*.v1` addon contract in [PROTOCOL.md](PROTOCOL.md) validates manifests,
 registrations, intents and events. The authenticated server `.dwpkg` lifecycle (see plugin-runtime.md)
-installs validated packages without executing them; registration routes and the loader are not implemented yet.
+installs validated packages; negotiated sessions register addons and submit events, and an enabled package may
+ship one trusted, unsandboxed `server/plugin.php` hook entrypoint (prompt slots, events, response notifications).
 
 For a custom provider, inspect the maintained
 [connector implementations](https://github.com/Dwemer-Dynamics/LorkhanServer/tree/lorkhan/connector),

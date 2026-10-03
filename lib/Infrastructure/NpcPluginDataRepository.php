@@ -19,7 +19,8 @@ final class NpcPluginDataRepository
     // Resolve public NPC IDs through their typed owner; names are never identity keys.
     private function scope(int $npcId, string $pluginId): string
     {
-        if ($npcId <= 0 || !preg_match('/^[a-z][a-z0-9_-]{0,63}$/D', $pluginId)) {
+        // Legacy single-segment IDs keep their stored namespaces; packaged addons use bounded author.plugin IDs.
+        if ($npcId <= 0 || !preg_match('/^(?:[a-z][a-z0-9_-]{0,63}|[a-z][a-z0-9_]{1,31}\.[a-z][a-z0-9_]{1,47})$/D', $pluginId)) {
             throw new InvalidArgumentException('A positive NPC ID and a lowercase plugin ID are required.');
         }
         return 'metadata.npc_id = :npc AND metadata.source_profile_id = profile.profile_id
