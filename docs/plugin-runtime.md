@@ -84,7 +84,15 @@ After one run, affinity is `5` with one effect and one history row. Repeating th
 
 ## Installation and updates
 
-There is no generic plugin catalog, URL installer, MO2 `.dwpkg` sync or CHIM tarball route here. The server and OpenMW client are separate deployments.
+There is no URL installer, MO2 `.dwpkg` sync or CHIM tarball route here. The server and OpenMW client are separate deployments.
+
+### Server Plugins page and catalog
+
+Configuration -> Settings -> Server Plugins manages packages for the selected installation. It lists installed, disabled and removed packages with their version, any queued install or update, and the last failure. Choose a `.dwpkg` file to install or update it: the page reads `manifest.json`, asks the server whether this is an install, an update, the same version or an older one, then uploads in 1 MiB chunks and waits for the job. Same-version, conflicting and older packages are refused before upload. Enable, Disable and Remove act at once; Remove asks first and keeps the plugin's data. A failed install or update leaves the current version and data in place.
+
+The curated catalog is [data/plugin-catalog.json](../data/plugin-catalog.json) (`schema_version` 1, `product` `lorkhan`, `game` `tes3`, `api_version` 1). It is empty until plugins are reviewed and listed, and the page says so. Each entry fixes `id`, `plugin_id`, `version`, `display_name`, `description`, `author`, an HTTPS `url` whose host is in `download_hosts`, `size`, `sha256` and `compatibility` (`product`, `game`, `api_version`, `min_server_version`). Any invalid entry, other product or other game makes the whole catalog unavailable. Browsers send only an entry ID (`POST /plugin-catalog/install {request_id,entry_id}`); the server refuses older, same-version and pending installs first, then downloads without redirects, through checked and pinned public DNS, up to the declared size, and requires the exact size and SHA-256 before the bytes go through the same upload and install job. Management also has `GET /plugin-manager` (packages plus queued and latest finished operations) and `GET /plugin-catalog`; all three need an active `installation_id`.
+
+A runnable example pairs with the client's `examples/plugin-parity`: [examples/plugins/parity.example](../examples/plugins/parity.example/README.md) carries the same `lorkhan-plugin.json` bytes, schema-4 package metadata and an `event` hook that stores each NPC's reported camp mood once per `message_id`.
 
 ### Server package lifecycle
 

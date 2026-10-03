@@ -1,0 +1,9 @@
+{
+  "schema_version": 4,
+  "name": "parity.example",
+  "version": "1.0.0",
+  "display_name": "Parity Example",
+  "description": "Minimal LORKHAN_Addons v1 example with one GLOBAL and one SELF action.",
+  "author": "Dwemer Dynamics",
+  "server": {}
+}

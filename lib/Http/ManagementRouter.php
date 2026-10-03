@@ -182,11 +182,11 @@ final class ManagementRouter
 
     private function api(Request $r,string $path,string $browserSession):Response
     {
-        if($this->pluginPackages!==null&&PluginPackageRoutes::matches(substr($path,7))){
+        if($this->pluginPackages!==null&&(PluginPackageRoutes::matches(substr($path,7))||PluginPackageRoutes::managementMatches(substr($path,7)))){
             // Browser management names the owning installation explicitly; session and CSRF were checked by dispatch().
             if(array_diff(array_keys($r->query),['installation_id'])!==[])throw new InvalidArgumentException('package_invalid_request');
             $installation=$this->queryUuid($r,'installation_id');
-            try{[$status,$body]=$this->pluginPackages->dispatch($r,substr($path,7),$installation);}
+            try{[$status,$body]=$this->pluginPackages->management($r,substr($path,7),$installation);}
             catch(\LorkhanServer\Application\PluginPackageException $error){return Response::json($error->status(),['error'=>$error->getMessage()]);}
             return Response::json($status,$body);
         }

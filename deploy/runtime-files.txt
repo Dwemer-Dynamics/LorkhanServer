@@ -9,6 +9,7 @@ prompts/
 service/
 conf/server.example.php
 data/playthrough-table-policy.json
+data/plugin-catalog.json
 data/migrations/
 data/restore/
 data/factory/

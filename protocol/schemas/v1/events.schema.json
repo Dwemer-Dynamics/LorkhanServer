@@ -4,6 +4,7 @@
   "additionalProperties": false,
   "properties": {
     "autonomy": {
+      "$comment": "Retained as an always-empty v1 compatibility field. Rechat is emitted as a normal correlated turn.",
       "items": {
         "additionalProperties": false,
         "properties": {
@@ -34,7 +35,6 @@
         ],
         "type": "object"
       },
-      "$comment": "Retained as an always-empty v1 compatibility field. Rechat is emitted as a normal correlated turn.",
       "maxItems": 0,
       "type": "array"
     },
@@ -785,43 +785,32 @@
                 "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
               },
               "payload": {
-                "type": "object",
                 "additionalProperties": false,
                 "properties": {
-                  "plan_id": {
-                    "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
-                  },
-                  "origin_turn_id": {
-                    "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
-                  },
                   "expires_at": {
                     "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/timestamp"
                   },
                   "instructions": {
-                    "type": "array",
-                    "minItems": 1,
-                    "maxItems": 12,
                     "items": {
-                      "type": "object",
                       "additionalProperties": false,
                       "properties": {
-                        "instruction_id": {
-                          "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
-                        },
                         "actor": {
                           "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"
+                        },
+                        "instruction": {
+                          "maxLength": 2000,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "instruction_id": {
+                          "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
                         },
                         "recipient": {
                           "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"
                         },
-                        "instruction": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 2000
-                        },
                         "scene_note": {
-                          "type": "string",
-                          "maxLength": 1000
+                          "maxLength": 1000,
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -830,8 +819,18 @@
                         "recipient",
                         "instruction",
                         "scene_note"
-                      ]
-                    }
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 12,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "origin_turn_id": {
+                    "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+                  },
+                  "plan_id": {
+                    "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
                   }
                 },
                 "required": [
@@ -839,7 +838,8 @@
                   "origin_turn_id",
                   "expires_at",
                   "instructions"
-                ]
+                ],
+                "type": "object"
               },
               "request_id": {
                 "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
@@ -854,8 +854,8 @@
                 "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
               },
               "type": {
-                "type": "string",
-                "const": "director.instructions"
+                "const": "director.instructions",
+                "type": "string"
               }
             },
             "required": [
@@ -884,19 +884,8 @@
                 "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
               },
               "payload": {
-                "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "adjustment_id",
-                  "actor",
-                  "player",
-                  "delta",
-                  "expires_at"
-                ],
                 "properties": {
-                  "adjustment_id": {
-                    "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
-                  },
                   "actor": {
                     "additionalProperties": false,
                     "properties": {
@@ -955,8 +944,8 @@
                         "type": "string"
                       },
                       "kind": {
-                        "type": "string",
-                        "const": "npc"
+                        "const": "npc",
+                        "type": "string"
                       },
                       "record_id": {
                         "maxLength": 256,
@@ -991,6 +980,23 @@
                       "display_name"
                     ],
                     "type": "object"
+                  },
+                  "adjustment_id": {
+                    "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+                  },
+                  "delta": {
+                    "enum": [
+                      -3,
+                      -2,
+                      -1,
+                      1,
+                      2,
+                      3
+                    ],
+                    "type": "integer"
+                  },
+                  "expires_at": {
+                    "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/timestamp"
                   },
                   "player": {
                     "additionalProperties": false,
@@ -1050,8 +1056,8 @@
                         "type": "string"
                       },
                       "kind": {
-                        "type": "string",
-                        "const": "player"
+                        "const": "player",
+                        "type": "string"
                       },
                       "record_id": {
                         "maxLength": 256,
@@ -1086,22 +1092,16 @@
                       "display_name"
                     ],
                     "type": "object"
-                  },
-                  "delta": {
-                    "type": "integer",
-                    "enum": [
-                      -3,
-                      -2,
-                      -1,
-                      1,
-                      2,
-                      3
-                    ]
-                  },
-                  "expires_at": {
-                    "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/timestamp"
                   }
-                }
+                },
+                "required": [
+                  "adjustment_id",
+                  "actor",
+                  "player",
+                  "delta",
+                  "expires_at"
+                ],
+                "type": "object"
               },
               "request_id": {
                 "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
@@ -1143,6 +1143,11 @@
     },
     "next_after": {
       "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/sequence"
+    },
+    "plugin_policy_revision": {
+      "description": "Opaque installation package policy revision, present only for negotiated addon sessions.",
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
     },
     "schema": {
       "const": "lorkhan.events.v1",

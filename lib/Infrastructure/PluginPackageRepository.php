@@ -49,7 +49,7 @@ final class PluginPackageRepository
             throw new PackageError('package_invalid_request');
         }
         if ($body['size'] > PluginPackageArchive::MAX_ARCHIVE_BYTES) throw new PackageError('package_too_large');
-        $this->installation($installation);
+        $this->assertInstallation($installation);
         $directory = $this->directory('uploads');
         $lock = $this->lockUploads($directory);
         try {
@@ -290,6 +290,18 @@ final class PluginPackageRepository
         return array_map(fn(array $row): array => $this->publicPackage($row), $q->fetchAll(PDO::FETCH_ASSOC));
     }
 
+    /** Queued operations plus the latest finished one per addon (last 30 days), newest first, for the manager UI. */
+    public function recentOperations(string $installation): array
+    {
+        $q = $this->db->prepare("SELECT * FROM (SELECT DISTINCT ON (plugin_id) * FROM plugin_package_operations
+            WHERE installation_id=:installation AND state<>'queued' AND created_at > clock_timestamp() - interval '30 days'
+            ORDER BY plugin_id, created_at DESC) latest
+            UNION ALL SELECT * FROM plugin_package_operations WHERE installation_id=:installation AND state='queued'
+            ORDER BY created_at DESC LIMIT 50");
+        $q->execute(['installation' => $installation]);
+        return array_map(fn(array $row): array => $this->publicOperation($row), $q->fetchAll(PDO::FETCH_ASSOC));
+    }
+
     public function operation(string $installation, string $operationId): array
     {
         $row = Uuid::isValid($operationId) ? $this->operationRow($installation, $operationId) : null;
@@ -463,7 +475,8 @@ final class PluginPackageRepository
         @rmdir($path);
     }
 
-    private function installation(string $installation): void
+    /** Browser management may only act for a known, unrevoked installation. */
+    public function assertInstallation(string $installation): void
     {
         $q = $this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:id AND revoked_at IS NULL');
         $q->execute(['id' => $installation]);

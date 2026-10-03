@@ -1020,6 +1020,15 @@ final class Repository
         });
     }
 
+    /** A bounded opaque revision lets the existing event poll signal package policy changes without another request loop. */
+    public function pluginPolicyRevision(string $installation): string
+    {
+        $rows=$this->db->prepare('SELECT plugin_id,version,manifest_sha256,enabled,state,revision FROM plugin_packages '
+            .'WHERE installation_id=:installation ORDER BY plugin_id');
+        $rows->execute(['installation'=>$installation]);
+        return hash('sha256',json_encode($rows->fetchAll(PDO::FETCH_ASSOC),JSON_THROW_ON_ERROR));
+    }
+
     public function events(string $sessionId, int $generation, int $after, int $limit): array
     {
         $session = $this->session($sessionId, $generation, false, true);
