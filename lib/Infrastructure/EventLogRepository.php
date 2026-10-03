@@ -165,10 +165,11 @@ final class EventLogRepository
             throw new InvalidArgumentException('invalid_event_type');
         }
         $limit = max(1, min(100, $limit));
+        $durable = ProfileId::durableIdentity($scope['identity']);
         $parameters = [
             'installation'=>$scope['installation_id'],'playthrough'=>$playthroughId,
-            'speaker'=>$this->encodeObject($scope['identity']),'target'=>$this->encodeObject($scope['identity']),
-            'audience'=>$this->encodeList([$scope['identity']]),'types'=>$this->pgArray($visibleTypes),
+            'speaker'=>$this->encodeObject($durable),'target'=>$this->encodeObject($durable),
+            'audience'=>$this->encodeList([$durable]),'types'=>$this->pgArray($visibleTypes),
         ];
         $where = [
             'm.installation_id=:installation','m.playthrough_id=:playthrough','m.suppressed_at IS NULL',
@@ -297,10 +298,11 @@ final class EventLogRepository
     {
         if ($rowId < 1) throw new InvalidArgumentException('invalid_event_row');
         $scope = $this->profileScope($profileId, $playthroughId);
+        $durable = ProfileId::durableIdentity($scope['identity']);
         $parameters = [
             'rowid'=>$rowId,'installation'=>$scope['installation_id'],'playthrough'=>$playthroughId,
-            'speaker'=>$this->encodeObject($scope['identity']),'target'=>$this->encodeObject($scope['identity']),
-            'audience'=>$this->encodeList([$scope['identity']]),
+            'speaker'=>$this->encodeObject($durable),'target'=>$this->encodeObject($durable),
+            'audience'=>$this->encodeList([$durable]),
         ];
         $check = $this->db->prepare("SELECT 1 FROM eventlog_metadata m WHERE m.rowid=:rowid AND m.installation_id=:installation "
             . "AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL AND m.projection_kind='management_injection' "

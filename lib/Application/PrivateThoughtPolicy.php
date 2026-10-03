@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace LorkhanServer\Application;
 
+use LorkhanServer\Domain\ProfileId;
+
 /**
  * Profile-controlled private NPC thoughts. A thought is generated only for an exact placed TES3 actor
  * that owns its NPC profile. It is never spoken, sent to the game client, acted on or written to generic
@@ -90,10 +92,17 @@ final class PrivateThoughtPolicy
     {
         if (!is_array($attachment) || ($attachment['schema'] ?? null) !== self::SCHEMA
             || ($attachment['profile_id'] ?? null) !== $profileId) return null;
-        $owner = self::stableIdentity($attachment['actor'] ?? null);
-        if ($owner === null || $owner !== self::stableIdentity($actor)
-            || ($speaker !== null && $owner !== self::stableIdentity($speaker))) return null;
+        $owner = self::historyIdentity($attachment['actor'] ?? null);
+        if ($owner === null || $owner !== self::historyIdentity($actor)
+            || ($speaker !== null && $owner !== self::historyIdentity($speaker))) return null;
         return self::text($attachment['text'] ?? null);
+    }
+
+    /** Stored thoughts follow their placed reference after a load-order change; the RefNum slot is not durable. */
+    private static function historyIdentity(mixed $identity): ?array
+    {
+        $stable = self::stableIdentity($identity);
+        return $stable === null ? null : ProfileId::durableIdentity($stable);
     }
 
     public static function sameActor(mixed $left, mixed $right): bool

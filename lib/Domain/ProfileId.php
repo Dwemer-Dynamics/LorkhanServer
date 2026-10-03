@@ -28,6 +28,19 @@ final class ProfileId
         return $file.'|'.$index;
     }
 
+    /**
+     * Durable history key for JSON containment: kind, base record, content file and local RefNum index.
+     * The RefNum load-order slot, cell and display name are runtime snapshots. Untyped, fractional, negative or
+     * out-of-range legacy references stay exact, as in SQL durable_actor_identity_key.
+     */
+    public static function durableIdentity(array $identity):array
+    {
+        $durable=array_intersect_key($identity,array_flip(['kind','record_id','content_file','refnum']));
+        $index=is_array($durable['refnum']??null)?($durable['refnum']['index']??null):null;
+        if(is_int($index)&&$index>=0&&$index<=4294967295)$durable['refnum']=['index'=>$index];
+        return $durable;
+    }
+
     public static function forActor(string $installation,string $playthrough,array $identity):string
     {
         $id='ref:'.$installation.':'.$playthrough.':'.self::reference($identity);

@@ -207,8 +207,8 @@ final class RelationshipEvaluationRepository
     {
         $query=$this->db->prepare('SELECT relationship_id,revision,deleted_at,disposition,affinity,relationship_type,details FROM relationship_records '
             .'WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough '
-            .'AND md5(relationship_identity_key(actor_identity)::text)=md5(relationship_identity_key(CAST(:identity AS jsonb))::text) '
-            .'AND relationship_identity_key(actor_identity)=relationship_identity_key(CAST(:exact_identity AS jsonb)) '
+            .'AND md5(durable_actor_identity_key(actor_identity)::text)=md5(durable_actor_identity_key(CAST(:identity AS jsonb))::text) '
+            .'AND durable_actor_identity_key(actor_identity)=durable_actor_identity_key(CAST(:exact_identity AS jsonb)) '
             .'ORDER BY relationship_id LIMIT 101 FOR UPDATE');
         $identity=json_encode($source['target_identity'],JSON_THROW_ON_ERROR);
         $query->execute(['installation'=>$source['installation_id'],'profile'=>$source['profile_id'],'playthrough'=>$source['playthrough_id'],

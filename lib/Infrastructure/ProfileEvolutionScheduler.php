@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace LorkhanServer\Infrastructure;
 
 use LorkhanServer\Application\MorrowindCalendar;
+use LorkhanServer\Domain\ProfileId;
 use PDO;
 
 /** Durable game-calendar scheduling; provider calls remain ordinary leased profile jobs. */
@@ -48,7 +49,7 @@ final class ProfileEvolutionScheduler
                 WHERE profile_id=:profile AND playthrough_id=:playthrough')->execute($scope+['epoch'=>$clock['epoch'],'minute'=>$clock['started_minute']]);
             $progress['consumed_events']=0;$progress['last_game_minute']=$clock['started_minute'];$progress['attempted_at']=null;$progress['manual_requested']=false;
         }
-        $stable=array_intersect_key($identity,array_fill_keys(['kind','record_id','content_file','refnum'],true));
+        $stable=ProfileId::durableIdentity($identity);
         $query=$this->db->prepare("INSERT INTO lorkhan_internal.profile_evolution_events(profile_id,playthrough_id,epoch,rowid)
             SELECT :profile,:playthrough,:epoch,e.rowid FROM eventlog e JOIN eventlog_metadata m USING(rowid)
             WHERE m.installation_id=:installation AND m.playthrough_id=:scope_playthrough AND m.suppressed_at IS NULL AND m.created_at>=:started
