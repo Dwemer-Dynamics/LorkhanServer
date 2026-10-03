@@ -7,6 +7,7 @@ namespace LorkhanServer\Application;
 use LorkhanServer\Infrastructure\DatabaseSqlBackup;
 use LorkhanServer\Infrastructure\JobRepository;
 use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\SchemaEpoch;
 use LorkhanServer\Infrastructure\Uuid;
 use PDO;
 use RuntimeException;
@@ -28,6 +29,8 @@ final class DatabaseRestoreJobHandler implements JobHandler
         try{
             $maintenance=filter_var($this->db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn(),FILTER_VALIDATE_BOOL);
             if(!$maintenance)throw new RuntimeException('maintenance_busy');
+            // Legacy-format restores never write rollback records into or replace a clean/future-epoch database.
+            SchemaEpoch::assertLegacySchemaPath($this->db);
             $record=(new ProductRepository($this->db))->configurationBackupRecord($payload['backup_id']);
             $store=new DatabaseSqlBackup($this->config);$path=$store->path($payload['backup_id']);
             if(($record['scope']['kind']??'')!=='database_sql'||!is_file($path)||is_link($path)

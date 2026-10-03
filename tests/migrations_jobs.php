@@ -24,6 +24,8 @@ use LorkhanServer\Infrastructure\OghmaCatalogImporter;
 use LorkhanServer\Infrastructure\ProductRepository;
 use LorkhanServer\Infrastructure\Repository;
 use LorkhanServer\Infrastructure\ProviderAttemptRepository;
+use LorkhanServer\Infrastructure\SchemaEpoch;
+use LorkhanServer\Infrastructure\SchemaEpochMismatch;
 use LorkhanServer\Infrastructure\Uuid;
 
 require dirname(__DIR__) . '/lib/Autoload.php';
@@ -50,7 +52,54 @@ $expectedVersions = array_map(
 );
 sort($expectedVersions, SORT_NUMERIC);
 $latestVersion = $expectedVersions[array_key_last($expectedVersions)] ?? throw new RuntimeException('no source migrations found');
+// Schema-epoch preflight: deterministic catalog/ledger snapshots prove rejected databases stay untouched.
+$epochSnapshot = static function () use ($db): string {
+    $catalog = $db->query("SELECT string_agg(n.nspname||'.'||c.relname||':'||c.relkind::text, ',' ORDER BY n.nspname, c.relname)
+        FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg\\_%'")->fetchColumn();
+    $schemas = $db->query("SELECT string_agg(nspname, ',' ORDER BY nspname) FROM pg_namespace")->fetchColumn();
+    $ledger = $db->query("SELECT to_regclass('lorkhan_internal.schema_migrations') IS NOT NULL")->fetchColumn()
+        ? json_encode($db->query('SELECT version,name,checksum,applied_at FROM lorkhan_internal.schema_migrations ORDER BY version')->fetchAll(), JSON_THROW_ON_ERROR) : '';
+    $marker = $db->query("SELECT to_regclass('lorkhan_meta.schema_epoch') IS NOT NULL")->fetchColumn()
+        ? json_encode($db->query('SELECT * FROM lorkhan_meta.schema_epoch')->fetchAll(), JSON_THROW_ON_ERROR) : '';
+    return hash('sha256', $catalog . "\0" . $schemas . "\0" . $ledger . "\0" . $marker);
+};
+$epochRejects = static function (callable $operation, string $state, string $message) use ($check, $epochSnapshot): void {
+    $before = $epochSnapshot();
+    try { $operation(); $check(false, $message . ' was accepted'); }
+    catch (SchemaEpochMismatch $error) { $check($error->state === $state && $error->getMessage() === 'schema_epoch_' . $state, $message . ' returned ' . $error->getMessage()); }
+    $check($epochSnapshot() === $before, $message . ' mutated the database');
+};
+$check(SchemaEpoch::inspect($db)['state'] === SchemaEpoch::EMPTY, 'fresh disposable database was not classified empty');
+$epochRejects(static fn() => SchemaEpoch::requireClean($db), SchemaEpoch::EMPTY, 'clean preflight on an uninitialized database');
+$db->exec('CREATE TABLE public.epoch_foreign_probe(value text)');
+$check(SchemaEpoch::inspect($db)['state'] === SchemaEpoch::UNRECOGNIZED, 'foreign nonempty database was not rejected');
+$epochRejects(static fn() => SchemaEpoch::initializeEmpty($db), SchemaEpoch::UNRECOGNIZED, 'clean epoch over foreign objects');
+$db->exec('DROP TABLE public.epoch_foreign_probe');
+$check(SchemaEpoch::initializeEmpty($db) === true && SchemaEpoch::initializeEmpty($db) === false, 'empty epoch initialization is not idempotent');
+SchemaEpoch::requireClean($db);
+$check(SchemaEpoch::inspect($db) === ['state' => 'clean', 'epoch' => 'lorkhan-clean-v2', 'legacy_ledger' => null], 'clean epoch inspection changed');
+// The legacy runner (and replay/factory paths through it) must not create or relocate a ledger inside a clean epoch.
+$epochRejects(static fn() => $runner->up(), SchemaEpoch::CLEAN_STATE, 'legacy migrations over a clean epoch');
+$epochRejects(static fn() => $runner->replayFingerprint(false), SchemaEpoch::CLEAN_STATE, 'legacy fingerprint over a clean epoch');
+$db->exec("UPDATE lorkhan_meta.schema_epoch SET epoch='lorkhan-clean-v3'");
+$epochRejects(static fn() => SchemaEpoch::requireClean($db), SchemaEpoch::UNSUPPORTED_EPOCH, 'future epoch preflight');
+$epochRejects(static fn() => SchemaEpoch::initializeEmpty($db), SchemaEpoch::UNSUPPORTED_EPOCH, 'future epoch reinitialization');
+$epochRejects(static fn() => $runner->status(), SchemaEpoch::UNSUPPORTED_EPOCH, 'legacy status over a future epoch');
+// Test-only reset of the disposable database; the staged clean baseline has no production installer yet.
+$db->exec('DROP SCHEMA lorkhan_meta CASCADE');
+$check(SchemaEpoch::inspect($db)['state'] === SchemaEpoch::EMPTY, 'epoch reset did not restore an empty database');
 $check($runner->up() === $expectedVersions, 'fresh up did not apply ordered migrations');
+// The legacy compatibility baseline is never classified or initializable as clean.
+$check(SchemaEpoch::inspect($db) === ['state' => 'legacy', 'epoch' => null, 'legacy_ledger' => 'lorkhan_internal.schema_migrations'], 'legacy schema was not classified legacy');
+$epochRejects(static fn() => SchemaEpoch::requireClean($db), SchemaEpoch::LEGACY, 'clean preflight over the legacy schema');
+$epochRejects(static fn() => SchemaEpoch::initializeEmpty($db), SchemaEpoch::LEGACY, 'clean epoch over the legacy schema');
+$db->beginTransaction();
+try {
+    $db->exec("CREATE SCHEMA lorkhan_meta; CREATE TABLE lorkhan_meta.schema_epoch(singleton boolean PRIMARY KEY, epoch text NOT NULL); INSERT INTO lorkhan_meta.schema_epoch VALUES(true,'lorkhan-clean-v2')");
+    $check(SchemaEpoch::inspect($db)['state'] === SchemaEpoch::CONFLICTING, 'legacy ledger beside an epoch marker was not conflicting');
+    $epochRejects(static fn() => $runner->status(), SchemaEpoch::CONFLICTING, 'legacy status over a conflicting epoch');
+} finally { $db->rollBack(); }
+$check(SchemaEpoch::inspect($db)['state'] === SchemaEpoch::LEGACY, 'conflicting-epoch fixture escaped its transaction');
 fwrite(STDOUT,'Fresh schema head: '.$latestVersion.'; applied migrations: '.count($expectedVersions)."\n");
 require dirname(__DIR__) . '/scripts/check-prompt-trace-labels.php';
 $advancedDefinitions=array_intersect_key(array_column((new ActionCatalogRepository($db))->enabledDefinitions(),null,'code_name'),

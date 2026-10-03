@@ -3,7 +3,7 @@
 declare(strict_types=1);
 namespace LorkhanServer\Application;
 
-use LorkhanServer\Infrastructure\{DatabaseImportStore,DatabaseSqlBackup,IsolatedSqlImport,JobRepository,MigrationReplayState,SqlImportData,Uuid};
+use LorkhanServer\Infrastructure\{DatabaseImportStore,DatabaseSqlBackup,IsolatedSqlImport,JobRepository,MigrationReplayState,SchemaEpoch,SqlImportData,Uuid};
 use PDO;
 use RuntimeException;
 
@@ -27,6 +27,8 @@ final class DatabaseImportJobHandler implements JobHandler
             if(!$runtime)throw new RuntimeException('restore_runtime_busy');
             $maintenance=filter_var($this->db->query('SELECT pg_try_advisory_lock(7514,113)')->fetchColumn(),FILTER_VALIDATE_BOOL);
             if(!$maintenance)throw new RuntimeException('maintenance_busy');
+            // Legacy-format imports never stage into, back up or replace a clean/future-epoch database.
+            SchemaEpoch::assertLegacySchemaPath($this->db);
             (new IsolatedSqlImport())->read($path,$payload['source_sha256'],$heartbeat,function($stream)use($payload,$job,$heartbeat):void{
                 $data=new SqlImportData(SqlImportData::destinationTables($this->db),SqlImportData::destinationSequences($this->db));
                 $validationDeadline=hrtime(true)+600000000000;$lastHeartbeat=0;

@@ -349,6 +349,8 @@ final class MigrationRunner
 
     private function locked(callable $callback, bool $initialize = true): mixed
     {
+        // Epoch preflight precedes ledger creation/relocation: legacy migrations never touch a clean or future epoch.
+        SchemaEpoch::assertLegacySchemaPath($this->db);
         if($initialize)$this->ensureTable();
         $statement = $this->db->prepare('SELECT pg_advisory_lock(:lock)');
         $statement->execute(['lock' => self::LOCK_ID]);
