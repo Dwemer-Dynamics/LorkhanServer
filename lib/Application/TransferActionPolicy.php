@@ -23,6 +23,8 @@ final class TransferActionPolicy
         foreach (['kind','record_id','refnum','content_file','cell'] as $key) {
             if (!isset($left[$key],$right[$key]) || $left[$key] != $right[$key]) return false;
         }
+        // Exact current dynamic UUID and runtime_ref; absent on both sides for placed actors.
+        if (($left['dynamic'] ?? null) !== ($right['dynamic'] ?? null)) return false;
         return in_array($left['kind'], ['npc','creature','player'], true);
     }
 

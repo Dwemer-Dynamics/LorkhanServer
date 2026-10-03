@@ -738,6 +738,11 @@ final class EventLogRepository
             || !is_int($stable['refnum']['index'] ?? null) || !is_int($stable['refnum']['content_file'] ?? null))) {
             throw new InvalidArgumentException('invalid_profile_identity');
         }
+        // A dynamic actor's history follows its saved UUID; the runtime_ref slot is not part of the key.
+        if (array_key_exists('dynamic', $identity)) {
+            if (!ProfileId::validDynamic($identity)) throw new InvalidArgumentException('invalid_profile_identity');
+            $stable['dynamic'] = ['uuid' => $identity['dynamic']['uuid']];
+        }
         return $stable;
     }
 
@@ -843,9 +848,9 @@ final class EventLogRepository
             if (!is_array($identity)) continue;
             $name = $this->displayName($identity, '');
             if ($name === '') continue;
-            // Match the placed-reference key, never a display name or load-order slot.
+            // Match the placed-reference or dynamic UUID key, never a display name, load-order or runtime slot.
             try {
-                $reference = ProfileId::reference($identity);
+                $reference = ProfileId::actorReference($identity);
                 $key = (string) ($identity['kind'] ?? 'npc') . ':' . $reference;
                 $names[$key] = str_replace('|', '/', $name) . ' [' . str_replace('|', ':', $reference) . ']';
             } catch (InvalidArgumentException) {

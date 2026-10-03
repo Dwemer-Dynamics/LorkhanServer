@@ -12,6 +12,8 @@ use LorkhanServer\Protocol\ValidationException;
 /** Persist bounded book snapshots and game-side receipts independently of model actions. */
 final class PhysicalDiaryRepository
 {
+    private const DYNAMIC_WITNESS_WINDOW=1000;
+
     public function __construct(private readonly PDO $db) {}
 
     public function claim(array $message): ?array
@@ -21,7 +23,15 @@ final class PhysicalDiaryRepository
             $session=$repository->session($message['session_id'],$message['generation'],true);
             $this->capability($session);
             // Filter opt-outs before the bounded scan, and rotate already-attempted NPCs behind new recipients.
-            $query=$this->db->prepare("WITH candidates AS (
+            // Dynamic witnesses come from one bounded newest-first session window (source_events_session_order), filtered
+            // to this generation after the limit. A witness older than the window only defers the optional diary.
+            $query=$this->db->prepare("WITH dynamic_witnesses AS MATERIALIZED (SELECT DISTINCT w->'dynamic'->'uuid' AS uuid,
+                    w->'dynamic'->'runtime_ref' AS runtime_ref,w->'kind' AS kind,w->'record_id' AS record_id
+                FROM (SELECT se.generation,se.payload FROM source_events se WHERE CAST(:dynamic AS boolean) AND se.session_id=:session
+                    ORDER BY se.received_at DESC,se.source_event_id DESC LIMIT ".self::DYNAMIC_WITNESS_WINDOW.") recent
+                CROSS JOIN LATERAL jsonb_path_query(recent.payload,'\$.** ? (@.dynamic.type() == \"object\")') w
+                WHERE recent.generation=:generation),
+            candidates AS (
                 SELECT p.profile_id,p.name,COALESCE(b.actor_identity,p.actor_identity) AS actor_identity
                 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision
                 LEFT JOIN core_profiles c ON c.core_profile_id=COALESCE(p.core_profile_id,
@@ -50,9 +60,14 @@ final class PhysicalDiaryRepository
                     AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_turns i
                         WHERE COALESCE(j.payload->'source_turn_ids','[]'::jsonb) @> jsonb_build_array(i.turn_id::text))))
                 SELECT * FROM candidates WHERE jsonb_exists(actor_identity,'refnum') AND jsonb_exists(actor_identity,'cell')
+                -- A dynamic recipient needs a negotiated session and its exact UUID/runtime_ref/kind/record observed this generation.
+                AND (NOT jsonb_exists(actor_identity,'dynamic') OR (CAST(:dynamic AS boolean) AND EXISTS(SELECT 1 FROM dynamic_witnesses w
+                    WHERE w.uuid=actor_identity#>'{dynamic,uuid}' AND w.runtime_ref=actor_identity#>'{dynamic,runtime_ref}'
+                        AND w.kind=actor_identity->'kind' AND w.record_id=actor_identity->'record_id')))
                 ORDER BY (SELECT max(d.checked_at) FROM physical_diary_deliveries d
                     WHERE d.session_id=:session AND d.profile_id=candidates.profile_id) NULLS FIRST,profile_id LIMIT 100");
-            $query->execute(['installation'=>$session['installation_id'],'playthrough'=>$session['playthrough_id'],'session'=>$session['session_id']]);
+            $query->execute(['installation'=>$session['installation_id'],'playthrough'=>$session['playthrough_id'],'session'=>$session['session_id'],
+                'generation'=>$session['generation'],'dynamic'=>in_array(Repository::DYNAMIC_IDENTITY_CAPABILITY,$session['capabilities'],true)?'true':'false']);
             foreach($query->fetchAll()as$profile){
                 $settings=(new ProductRepository($this->db))->effectiveSettingsForProfile($session['installation_id'],$profile['profile_id']);
                 if(($settings['settings']['diary']['materialize_enabled']??false)!==true)continue;

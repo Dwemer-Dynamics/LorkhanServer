@@ -4606,6 +4606,109 @@ try{
     $check($review->document()===$fixture,'approvals do not mutate generated voice data');
 }finally{foreach(glob($reviewRoot.'/*') as $file)unlink($file);rmdir($reviewRoot);}
 
+// actor.identity.dynamic.v1: shared fixtures, strict wire form, frozen-snapshot uniqueness and UUID-scoped keys.
+$dynamicFixture=static fn(string $name):array=>json_decode((string)file_get_contents(dirname(__DIR__).'/protocol/fixtures/v1/'.$name.'.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+$dynamicIntent=$dynamicFixture('valid/action-intent-dynamic-actor');
+$validator->identity($dynamicIntent['actor']);$validator->identity($dynamicIntent['target']);
+$check(true,'shared dynamic action fixture actor and placed target validate');
+$validator->validate($dynamicFixture('valid/controls-select-dynamic-profile'),'lorkhan.controls.select.v1');
+$check(Validator::dynamicSnapshot($dynamicFixture('valid/controls-select-dynamic-profile')),'dynamic profile selection validates and requires negotiation');
+foreach(['action-intent-dynamic-nil-uuid','action-intent-dynamic-placed-refnum','action-intent-placed-dynamic-sentinel']as$fixture){
+    $instance=$dynamicFixture('invalid/'.$fixture);
+    try{$validator->identity($instance['actor']);$validator->identity($instance['target']);$check(false,$fixture.' rejected');}
+    catch(ValidationException $error){$check($error->getMessage()==='invalid_schema',$fixture.' rejected');}
+}
+try{$validator->validate($dynamicFixture('invalid/controls-select-dynamic-nil-profile'),'lorkhan.controls.select.v1');$check(false,'nil dyn: profile rejected');}
+catch(ValidationException){$check(true,'nil dyn: profile rejected');}
+$dynamicActor=$dynamicIntent['actor'];$dynamicUuid=$dynamicActor['dynamic']['uuid'];
+foreach([
+    'uppercase uuid'=>static function(array $a):array{$a['dynamic']['uuid']=strtoupper($a['dynamic']['uuid']);return$a;},
+    'nil uuid'=>static function(array $a):array{$a['dynamic']['uuid']='00000000-0000-0000-0000-000000000000';return$a;},
+    'zero runtime slot'=>static function(array $a):array{$a['dynamic']['runtime_ref']='@0x0';return$a;},
+    'leading zero runtime slot'=>static function(array $a):array{$a['dynamic']['runtime_ref']='@0x01';return$a;},
+    'oversized runtime slot'=>static function(array $a):array{$a['dynamic']['runtime_ref']='@0x100000000';return$a;},
+    'placed refnum'=>static function(array $a):array{$a['refnum']['index']=7;return$a;},
+    'placed content file'=>static function(array $a):array{$a['content_file']='Morrowind.esm';return$a;},
+    'player kind'=>static function(array $a):array{$a['kind']='player';return$a;},
+    'extra dynamic member'=>static function(array $a):array{$a['dynamic']['slot']=1;return$a;},
+    'missing runtime_ref'=>static function(array $a):array{unset($a['dynamic']['runtime_ref']);return$a;},
+]as$case=>$mutate){
+    try{$validator->identity($mutate($dynamicActor));$check(false,'dynamic identity rejects '.$case);}
+    catch(ValidationException){$check(true,'dynamic identity rejects '.$case);}
+}
+$placedGuard=$dynamicIntent['target'];
+$check(!Validator::dynamicSnapshot(['payload'=>['target'=>$placedGuard,'context'=>['nearby'=>[$placedGuard]]]]),'placed-only message needs no negotiation');
+$check(Validator::dynamicSnapshot(['payload'=>['target'=>$placedGuard,'context'=>['nearby'=>[$dynamicActor,$dynamicActor]]]]),'repeated identical dynamic identity is one actor');
+$dynamicCopy=$dynamicActor;$dynamicCopy['dynamic']=['uuid'=>'00000000-0000-4000-8000-0000000000d2','runtime_ref'=>'@0x20'];
+$check(Validator::dynamicSnapshot(['payload'=>['target'=>$dynamicActor,'audience'=>[$dynamicCopy]]]),'same-name same-record copies are distinct dynamic actors');
+$slotTwin=$dynamicCopy;$slotTwin['dynamic']['runtime_ref']=$dynamicActor['dynamic']['runtime_ref'];
+$uuidTwin=$dynamicActor;$uuidTwin['dynamic']['runtime_ref']='@0x21';
+$recordTwin=$dynamicActor;$recordTwin['record_id']='other guard';
+$sentinelOnly=$placedGuard;$sentinelOnly['content_file']='lorkhan:dynamic';
+$malformedNested=$dynamicActor;$malformedNested['dynamic']['uuid']='00000000-0000-0000-0000-000000000000';
+foreach(['runtime slot bound to two UUIDs'=>$slotTwin,'UUID bound to two runtime slots'=>$uuidTwin,'UUID bound to two records'=>$recordTwin,
+    'sentinel without dynamic member'=>$sentinelOnly,'malformed dynamic identity in context'=>$malformedNested]as$case=>$conflict){
+    try{Validator::dynamicSnapshot(['payload'=>['target'=>$dynamicActor,'context'=>['actors'=>[['identity'=>$conflict]]]]]);$check(false,'frozen snapshot rejects '.$case);}
+    catch(ValidationException){$check(true,'frozen snapshot rejects '.$case);}
+}
+$dynamicProfile=\LorkhanServer\Domain\ProfileId::forActor($referenceInstallation,$referenceWorld,$dynamicActor);
+$check($dynamicProfile==='dyn:'.$referenceInstallation.':'.$referenceWorld.':'.$dynamicUuid&&strlen($dynamicProfile)===114
+    &&\LorkhanServer\Domain\ProfileId::isValid($dynamicProfile),'dynamic profile key is dyn:<installation>:<playthrough>:<uuid>');
+$dynamicMoved=$dynamicActor;$dynamicMoved['dynamic']['runtime_ref']='@0x99';$dynamicMoved['cell']=['kind'=>'exterior','grid_x'=>1,'grid_y'=>2];$dynamicMoved['display_name']='Renamed';
+$check(\LorkhanServer\Domain\ProfileId::forActor($referenceInstallation,$referenceWorld,$dynamicMoved)===$dynamicProfile
+    &&\LorkhanServer\Domain\ProfileId::durableIdentity($dynamicMoved)===\LorkhanServer\Domain\ProfileId::durableIdentity($dynamicActor)
+    &&\LorkhanServer\Domain\ProfileId::durableIdentity($dynamicActor)==['kind'=>'npc','record_id'=>'imperial guard','content_file'=>'lorkhan:dynamic',
+        'refnum'=>['index'=>0],'dynamic'=>['uuid'=>$dynamicUuid]],'runtime slot, cell and name changes keep the UUID key; only runtime_ref is dropped');
+$recycled=$dynamicActor;$recycled['dynamic']['uuid']='00000000-0000-4000-8000-0000000000d9';
+$check(\LorkhanServer\Domain\ProfileId::forActor($referenceInstallation,$referenceWorld,$recycled)!==$dynamicProfile
+    &&\LorkhanServer\Domain\ProfileId::forActor($referenceInstallation,$referenceWorld,$dynamicCopy)!==$dynamicProfile
+    &&\LorkhanServer\Domain\ProfileId::durableIdentity($recycled)!==\LorkhanServer\Domain\ProfileId::durableIdentity($dynamicActor),
+    'recycled runtime slot with a new UUID and same-record copies get distinct keys');
+$check(\LorkhanServer\Domain\ProfileId::forActor($referenceInstallation,'00000000-0000-4000-8000-000000000003',$dynamicActor)!==$dynamicProfile
+    &&\LorkhanServer\Domain\ProfileId::forActor('00000000-0000-4000-8000-000000000004',$referenceWorld,$dynamicActor)!==$dynamicProfile,
+    'dynamic profile keys are isolated by installation and playthrough');
+foreach([str_replace($dynamicUuid,'00000000-0000-0000-0000-000000000000',$dynamicProfile),strtoupper($dynamicProfile),$dynamicProfile.'x','dyn:'.$referenceInstallation.':'.$referenceWorld]as$invalidDynamic)
+    $check(!\LorkhanServer\Domain\ProfileId::isValid($invalidDynamic),'malformed or nil dyn: profile key is rejected');
+try{\LorkhanServer\Domain\ProfileId::reference($dynamicActor);$check(false,'dynamic identity has no placed reference');}
+catch(InvalidArgumentException){$check(true,'dynamic identity has no placed reference for group mapping');}
+$dynamicKeys=new \LorkhanServer\Infrastructure\ProductRepository(new class extends PDO{public function __construct(){}});
+$check($dynamicKeys->actorKey($dynamicActor)===$dynamicKeys->actorKey($dynamicMoved)&&$dynamicKeys->actorKey($dynamicActor)!==$dynamicKeys->actorKey($dynamicCopy)
+    &&$dynamicKeys->actorKey($dynamicActor)!==$dynamicKeys->actorKey($recycled)&&$dynamicKeys->actorKey($dynamicActor)===hash('sha256','dyn|'.$dynamicUuid),
+    'binding actor key uses the dynamic UUID, never runtime_ref or the sentinel reference');
+$check(\LorkhanServer\Application\PrivateThoughtPolicy::sameActor($dynamicActor,$dynamicMoved)&&!\LorkhanServer\Application\PrivateThoughtPolicy::sameActor($dynamicActor,$dynamicCopy)
+    &&\LorkhanServer\Application\PrivateThoughtPolicy::stableIdentity($malformedNested)===null,'private thought owners follow the dynamic UUID');
+$check(!\LorkhanServer\Application\TransferActionPolicy::sameIdentity($dynamicActor,['cell'=>$dynamicActor['cell']]+$dynamicMoved)
+    &&\LorkhanServer\Application\TransferActionPolicy::sameIdentity($dynamicActor,$dynamicActor),'physical transfer targeting requires the exact runtime_ref');
+$check(\LorkhanServer\Application\RelationshipIdentity::validate($dynamicActor)===$dynamicActor,'relationship identity accepts an exact dynamic actor');
+try{\LorkhanServer\Application\RelationshipIdentity::validate($sentinelOnly);$check(false,'relationship sentinel without dynamic rejected');}
+catch(InvalidArgumentException){$check(true,'relationship sentinel without dynamic rejected');}
+$check($eventPeople->invoke($historyScopeProbe,$dynamicActor,$dynamicCopy,[$dynamicActor])==='|Imperial Guard [dyn:'.$dynamicUuid.']|Imperial Guard [dyn:00000000-0000-4000-8000-0000000000d2]|',
+    'event people separates same-name dynamic copies by UUID');
+
+// Free-context dynamic actors get the full strict identity before any authority; unrelated item records are not actors.
+foreach([
+    'malformed cell'=>static function(array $a):array{$a['cell']=['kind'=>'interior'];return$a;},
+    'list cell'=>static function(array $a):array{$a['cell']=['interior','Balmora'];return$a;},
+    'string grid'=>static function(array $a):array{$a['cell']=['kind'=>'exterior','grid_x'=>'1','grid_y'=>2];return$a;},
+    'integer record_id'=>static function(array $a):array{$a['record_id']=7;return$a;},
+    'oversized record_id'=>static function(array $a):array{$a['record_id']=str_repeat('a',257);return$a;},
+    'empty display_name'=>static function(array $a):array{$a['display_name']='';return$a;},
+    'oversized cell name'=>static function(array $a):array{$a['cell']=['kind'=>'interior','name'=>str_repeat('c',257)];return$a;},
+    'missing cell'=>static function(array $a):array{unset($a['cell']);return$a;},
+    'extra member'=>static function(array $a):array{$a['profile_id']='x';return$a;},
+]as$case=>$mutate){
+    try{Validator::dynamicSnapshot(['payload'=>['target'=>$placedGuard,'context'=>['nearby'=>[['identity'=>$mutate($dynamicActor)]]]]]);$check(false,'free-context dynamic actor rejects '.$case);}
+    catch(ValidationException){$check(true,'free-context dynamic actor rejects '.$case);}
+}
+$check(!Validator::dynamicSnapshot(['payload'=>['context'=>['items'=>[['record_id'=>'iron dagger','content_file'=>'Morrowind.esm','count'=>2]]]]]),
+    'unrelated placed item record in context is not reclassified as an actor');
+// PHP/SQL durable_actor_identity_key_v2 parity for malformed legacy dynamic members: only a JSON object is reduced to its uuid.
+$legacyBase=['kind'=>'npc','record_id'=>'imperial guard','content_file'=>'lorkhan:dynamic','refnum'=>['index'=>0,'content_file'=>0]];
+$legacyDurable=static fn(mixed $dynamic):mixed=>\LorkhanServer\Domain\ProfileId::durableIdentity($legacyBase+['dynamic'=>$dynamic])['dynamic'];
+$check($legacyDurable(['@0x10',$dynamicUuid])===['@0x10',$dynamicUuid]&&$legacyDurable('legacy')==='legacy'&&$legacyDurable(7)===7
+    &&$legacyDurable(null)===null&&$legacyDurable([])===[]&&$legacyDurable(['runtime_ref'=>'@0x10'])===['uuid'=>null]
+    &&$legacyDurable(['uuid'=>5,'runtime_ref'=>'@0x10'])===['uuid'=>5],'malformed legacy dynamic list/scalar stays exact and objects keep only uuid');
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

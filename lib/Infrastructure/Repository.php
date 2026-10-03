@@ -10,7 +10,8 @@ use Throwable;
 
 final class Repository
 {
-    private const SERVER_CAPABILITIES = ['relationship.disposition', 'diary.books.v1', 'dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'debug.npc_manager.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
+    public const DYNAMIC_IDENTITY_CAPABILITY = 'actor.identity.dynamic.v1';
+    private const SERVER_CAPABILITIES = [self::DYNAMIC_IDENTITY_CAPABILITY, 'relationship.disposition', 'diary.books.v1', 'dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'debug.npc_manager.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
         'action.ai.stop', 'action.conversation.end', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
         'action.inventory.inspect','action.confirmation','action.result-followup','action.service.barter','action.weapon.sheathe',
@@ -507,6 +508,7 @@ final class Repository
         // Cell and display name may change; an actor's content source and RefNum remain the authority.
         $identity=array_intersect_key($actor,array_fill_keys(['kind','record_id','content_file','refnum'],true));
         if(count($identity)!==4)throw new \InvalidArgumentException('invalid_conversation_actor');
+        $identity=\LorkhanServer\Domain\ProfileId::withDynamicUuid($identity,$actor);
         $statement=$this->db->prepare("SELECT 1 FROM action_intents a JOIN action_results r ON r.action_id=a.action_id "
             ."JOIN sessions s ON s.session_id=a.session_id WHERE s.installation_id=:installation "
             ."AND s.playthrough_id=:playthrough AND s.state='active' AND a.generation=s.generation "
