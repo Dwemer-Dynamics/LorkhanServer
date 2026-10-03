@@ -249,12 +249,18 @@ final class Router
                 $source=$m['payload']['ui_source']??null;
                 $rechatActions=$source==='lorkhan_rechat'
                     &&($m['payload']['context']['rechat']['allow_actions']??false)===true;
-                $providerInput['_allowed_action_definitions'] = in_array($m['payload']['execution_mode']??'standard',['injection_log','injection_chat'],true)
+                $actionsGated = in_array($m['payload']['execution_mode']??'standard',['injection_log','injection_chat'],true)
                     ||($source==='lorkhan_rechat'&&!$rechatActions)
                     ||in_array($source,['lorkhan_auto_greeting','lorkhan_auto_boredom','lorkhan_auto_combat_bark','lorkhan_rpg_event','lorkhan_quest_event'],true)
                     ||str_starts_with((string)$source,'lorkhan_narrator_')
-                    ||($source==='lorkhan_action_followup'&&!($m['_action_continuation']['allow_action']??false))
+                    ||($source==='lorkhan_action_followup'&&!($m['_action_continuation']['allow_action']??false));
+                $providerInput['_allowed_action_definitions'] = $actionsGated
                     ?[]:$this->repository->allowedPromptActions($m['session_id'],$m['generation'],$m['payload']);
+                // Addon actions are resolved on the worker per attempt; only ordinary NPC/creature turns may offer them.
+                if(!$actionsGated&&in_array(\LorkhanServer\Protocol\PluginContract::CAPABILITY,(array)($m['runtime']['capabilities']??[]),true)
+                    &&($m['payload']['execution_mode']??'standard')==='standard'&&!isset($providerInput['_director_response'])
+                    &&!isset($m['payload']['director_instruction_id'])&&in_array($m['payload']['target']['kind']??null,['npc','creature'],true))
+                    $providerInput['_plugin_actions_allowed']=true;
                 if (($m['payload']['execution_mode'] ?? 'standard') === 'narrator') {
                     $providerInput['_narrator_action_executors']=$this->repository->narratorExecutors($m['session_id'],$m['generation'],$m['payload']);
                     $providerInput['_allowed_action_definitions']=[];

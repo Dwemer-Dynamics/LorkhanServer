@@ -70,6 +70,11 @@ final class TurnProcessJobHandler implements JobHandler
                 $message=$prepared['message'];
                 $this->repository->storePreparedTurn($message,$prepared['trace'],$fence);
             }
+            // Addon actions come from the live registry on every attempt and are never frozen into the prepared prompt.
+            if(($message['_plugin_actions_allowed']??false)===true&&PluginHooks::negotiated($message)){
+                try{$message['_plugin_action_definitions']=$this->repository->pluginPromptActions($message);}
+                catch(Throwable $error){error_log('[LORKHAN] plugin actions unavailable: '.$error::class);}
+            }
             $policy=$this->translationPolicy($message);
             $streamedDialogues=[];$pendingInlineSpeech=null;$streamCommitted=false;$heldNarration='';$narrationOpen=false;$privateThought=null;
             $streamSpeech=$this->canStreamSpeech($message,$policy);

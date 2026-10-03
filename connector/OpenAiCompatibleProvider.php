@@ -297,6 +297,8 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             }
         }
         }
+        // Addon variants come from the per-attempt live registry snapshot; completeTurn revalidates the choice.
+        if(!$narrator)array_push($actions,...PluginActionPolicy::responseSchemas($turn['_plugin_action_definitions']??[]));
         $properties = ($turn['_prompt']['_llm_tts_language']??false)===true ? ['language'=>['type'=>'string','enum'=>SpeechLanguage::CODES]] : [];
         $textSchema=['type'=>'string','minLength'=>1,'maxLength'=>4096];
         $moodSchema=['type'=>'string','maxLength'=>64,'pattern'=>'^[a-zA-Z -]*$'];
@@ -392,6 +394,10 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         $keys = array_keys($action);
         sort($keys);
         $narrator=ExecutionModePolicy::mode($turn['payload']??[])==='narrator';
+        if (array_key_exists('plugin',$action)) {
+            $result['action']=$narrator?null:PluginActionPolicy::proposal($action,$turn);
+            return $result;
+        }
         if ($keys === ['actor', 'name', 'parameters', 'target', 'tier']&&!$narrator) return $result;
         $executor=null;
         if($narrator){
