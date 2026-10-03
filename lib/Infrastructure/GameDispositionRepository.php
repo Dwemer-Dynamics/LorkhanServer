@@ -30,7 +30,7 @@ final class GameDispositionRepository
         // Only the bound NPC's relationship to this exact player is a game mirror.
         // A changed score invalidates queued evaluations; repeated identical snapshots do not.
         if($q->rowCount()>0){
-            $sync=$this->db->prepare('UPDATE relationship_records r SET disposition=:disposition,updated_at=clock_timestamp() FROM actor_profile_bindings b WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:actor AND r.installation_id=b.installation_id AND r.playthrough_id=b.playthrough_id AND r.profile_id=b.profile_id AND r.deleted_at IS NULL AND durable_actor_identity_key(r.actor_identity)=durable_actor_identity_key(CAST(:player_json AS jsonb)) AND r.disposition<>:effective');
+            $sync=$this->db->prepare('UPDATE relationship_records r SET disposition=:disposition,updated_at=clock_timestamp() FROM actor_profile_bindings b WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:actor AND r.installation_id=b.installation_id AND r.playthrough_id=b.playthrough_id AND r.profile_id=b.profile_id AND r.deleted_at IS NULL AND durable_actor_identity_key_v2(r.actor_identity)=durable_actor_identity_key_v2(CAST(:player_json AS jsonb)) AND r.disposition<>:effective');
             $sync->execute(['installation'=>$message['installation_id'],'playthrough'=>$message['playthrough_id'],'actor'=>$keys['actor'],'player_json'=>json_encode($p['player'],JSON_THROW_ON_ERROR),'disposition'=>$p['disposition'],'effective'=>$p['disposition']]);
         }
     }

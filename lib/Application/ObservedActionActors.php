@@ -19,9 +19,15 @@ final class ObservedActionActors
         elseif (($cell['kind']??null)==='exterior' && is_int($cell['grid_x']??null) && is_int($cell['grid_y']??null))
             $cell=['kind'=>'exterior','grid_x'=>$cell['grid_x'],'grid_y'=>$cell['grid_y']];
         else return null;
-        return ['kind'=>$row['kind'],'record_id'=>$row['record_id'],
+        $identity=['kind'=>$row['kind'],'record_id'=>$row['record_id'],
             'refnum'=>['index'=>$row['refnum']['index'],'content_file'=>$row['refnum']['content_file']],
             'content_file'=>$row['content_file'],'cell'=>$cell,'display_name'=>$row['display_name']];
+        // Dynamic actors are echoed with their exact current UUID/runtime_ref; malformed or sentinel-only rows are unavailable.
+        if (array_key_exists('dynamic',$row)) {
+            if (!\LorkhanServer\Domain\ProfileId::validDynamic($row)) return null;
+            $identity['dynamic']=['uuid'=>$row['dynamic']['uuid'],'runtime_ref'=>$row['dynamic']['runtime_ref']];
+        } elseif ($row['content_file']===\LorkhanServer\Domain\ProfileId::DYNAMIC_CONTENT_FILE) return null;
+        return $identity;
     }
 
     /** Preserve nearby list indices so omitted unavailable actors never renumber later selectors. */

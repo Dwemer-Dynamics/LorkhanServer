@@ -50,6 +50,8 @@ final class ReferenceGroupRepository
             if(!$this->db->inTransaction())throw new \LogicException('reference_group_observation_requires_transaction');
             $this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:id FOR KEY SHARE')->execute(['id'=>$installation]);
         }
+        // Dynamic actors have no placed reference: no canonical, alias, member or name rule ever adopts the sentinel.
+        if(ProfileId::isDynamic($identity))return $identity;
         $group=$this->owner($installation,$identity,$observe);
         if($group===null)return $identity;
         [$file,$index]=explode('|',$group['canonical_ref'],2);

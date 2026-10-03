@@ -884,6 +884,15 @@ final class Router
         }
         $message = $this->validator->decode($request->body, min($maxBytes ?? $this->maxJsonBytes, $this->maxJsonBytes));
         $this->validator->validate($message, $schema);
+        // actor.identity.dynamic.v1 exists only on sessions that negotiated it; there is no placed-identity fallback.
+        if (Validator::dynamicSnapshot($message)) {
+            $session = is_string($message['session_id'] ?? null) && is_int($message['generation'] ?? null)
+                ? $this->repository->session($message['session_id'], $message['generation'], false, true) : null;
+            if ($session === null || $session['state'] !== 'active'
+                || !in_array(Repository::DYNAMIC_IDENTITY_CAPABILITY, $session['capabilities'], true)) {
+                throw new ValidationException('invalid_schema');
+            }
+        }
         return $message;
     }
 

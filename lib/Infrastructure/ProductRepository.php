@@ -1154,7 +1154,7 @@ final class ProductRepository
         $values=[];foreach($fields as$field)$values[$field]=$content[$field]??'';
         $history=(int)($policy['history_limit']??50);
         if($history===0)$history=(int)($effective['settings']['memory']['recent_turn_limit']??20);
-        return ['name'=>$profile['name'],'identity'=>array_intersect_key($identity,array_flip(['kind','record_id','content_file','refnum'])),
+        return ['name'=>$profile['name'],'identity'=>ProfileId::withDynamicUuid(array_intersect_key($identity,array_flip(['kind','record_id','content_file','refnum'])),$identity),
             'core_profile_id'=>$profile['core_profile_id']??null,'enabled'=>($content['dynamic_profile']??false)===true,
             'locked'=>($content['management']['locked']??false)===true,'fields'=>$fields,'values'=>$values,
             'policy'=>array_intersect_key($policy,array_flip(['interval_days','min_events','cooldown_minutes'])),'history_limit'=>$history];
@@ -1393,6 +1393,7 @@ final class ProductRepository
             if(!$provider)throw new \InvalidArgumentException('diary_generation_connector_unavailable');
             $identity=$this->json($profile['actor_identity']);$actor=[];
             foreach(['kind','record_id','content_file','refnum']as$field)if(array_key_exists($field,$identity))$actor[$field]=$identity[$field];
+            $actor=ProfileId::withDynamicUuid($actor,$identity);
             if(!isset($actor['kind']))$actor['kind']='actor';
             // A linked character writes from every member's witnessed events; each row keeps its physical speaker.
             $owners=$this->characterScope($scope['profile_id'],$actor)['identities'];
@@ -1896,7 +1897,8 @@ WHERE p.installation_id=:installation AND p.profile_id=:profile AND p.deleted_at
   AND t.target->>'kind'=CASE WHEN p.actor_identity->>'kind'='actor' THEN 'npc' ELSE p.actor_identity->>'kind' END
   AND t.target->>'record_id'=p.actor_identity->>'record_id'
   AND t.target->>'content_file'=p.actor_identity->>'content_file'
-  AND durable_actor_identity_key(t.target)->'refnum' IS NOT DISTINCT FROM durable_actor_identity_key(p.actor_identity)->'refnum'
+  AND durable_actor_identity_key_v2(t.target)->'refnum' IS NOT DISTINCT FROM durable_actor_identity_key_v2(p.actor_identity)->'refnum'
+   AND durable_actor_identity_key_v2(t.target)->'dynamic' IS NOT DISTINCT FROM durable_actor_identity_key_v2(p.actor_identity)->'dynamic'
   AND jsonb_typeof(t.context->'targetState')='object' AND t.context->'targetState'<>'{}'::jsonb
 ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT 1
 SQL);
@@ -2187,7 +2189,8 @@ SQL);
             $existingProfile=$existing->fetch();
             if($existingProfile!==false){
                 $known=$this->json($existingProfile['actor_identity']);
-                if(ProfileId::reference($known)===ProfileId::reference($target)
+                // Dynamic profiles are keyed by saved UUID; a changed kind/record under the same key is never adopted as a refresh.
+                if(ProfileId::actorReference($known)===ProfileId::actorReference($target)
                     && (strtolower((string)($known['record_id']??''))!==strtolower((string)($target['record_id']??''))
                         ||($known['kind']??'npc')!==($target['kind']??'npc')))
                     throw new InvalidArgumentException('actor_reference_mismatch');
@@ -2603,6 +2606,7 @@ SQL);
         foreach(['kind','record_id','content_file']as$field)if(is_string($actor[$field]??null)&&$actor[$field]!=='')$key[$field]=$actor[$field];
         if(!isset($key['record_id'],$key['content_file']))return [];
         if(is_array($actor['refnum']??null))$key['refnum']=$actor['refnum'];
+        $key=ProfileId::withDynamicUuid($key,$actor);
         // A linked keeper digests scenes witnessed by any current member; unlinked members and twins stay out.
         $owners=$this->characterScope($profile,$key)['identities'];
         $scope=['installation_id'=>$installation,'playthrough_id'=>$playthrough,'profile_id'=>$profile];
@@ -2863,8 +2867,8 @@ SQL);
                 $lock->execute(['key'=>'relationship:'.implode(':',$scope).':'.$this->actorKey($input['actor_identity'])]);
                 $find=$this->db->prepare('SELECT relationship_id FROM relationship_records WHERE installation_id=:installation '
                     .'AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL '
-                    .'AND md5(durable_actor_identity_key(actor_identity)::text)=md5(durable_actor_identity_key(CAST(:identity AS jsonb))::text) '
-                    .'AND durable_actor_identity_key(actor_identity)=durable_actor_identity_key(CAST(:exact_identity AS jsonb)) LIMIT 1');
+                    .'AND md5(durable_actor_identity_key_v2(actor_identity)::text)=md5(durable_actor_identity_key_v2(CAST(:identity AS jsonb))::text) '
+                    .'AND durable_actor_identity_key_v2(actor_identity)=durable_actor_identity_key_v2(CAST(:exact_identity AS jsonb)) LIMIT 1');
                 $find->execute($scope+['identity'=>$identity,'exact_identity'=>$identity]);
                 if($find->fetchColumn())throw new RuntimeException('relationship_already_exists');
                 $id=Uuid::v4();
@@ -3014,8 +3018,8 @@ SQL);
             $lock=$this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))');$lock->execute(['key'=>$lockKey]);
             $query=$this->db->prepare('SELECT relationship_id,disposition,affinity,relationship_type,custom_info,details,deleted_at FROM relationship_records '
                 .'WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough '
-                .'AND md5(durable_actor_identity_key(actor_identity)::text)=md5(durable_actor_identity_key(CAST(:identity AS jsonb))::text) '
-                .'AND durable_actor_identity_key(actor_identity)=durable_actor_identity_key(CAST(:exact_identity AS jsonb)) '
+                .'AND md5(durable_actor_identity_key_v2(actor_identity)::text)=md5(durable_actor_identity_key_v2(CAST(:identity AS jsonb))::text) '
+                .'AND durable_actor_identity_key_v2(actor_identity)=durable_actor_identity_key_v2(CAST(:exact_identity AS jsonb)) '
                 .'ORDER BY relationship_id LIMIT 101 FOR UPDATE');
             $query->execute($this->scopeParams($scope)+['identity'=>$identityJson,'exact_identity'=>$identityJson]);
             $existing=$query->fetchAll();
@@ -3058,6 +3062,10 @@ SQL);
         $profiles->execute(['installation'=>$session['installation_id'],'profile_playthrough'=>$session['playthrough_id']]);
         $profileRows=array_map(static fn(array$row):array=>['profile_id'=>(string)$row['profile_id'],
             'name'=>(string)$row['name'],'revision'=>(int)$row['current_revision']],$profiles->fetchAll());
+        // Clients without actor.identity.dynamic.v1 cannot parse dyn: keys; the management UI still lists them.
+        $dynamicKeys=in_array(Repository::DYNAMIC_IDENTITY_CAPABILITY,(array)($session['capabilities']??[]),true);
+        $visibleKey=static fn(?string $id):?string=>$id!==null&&!$dynamicKeys&&str_starts_with($id,'dyn:')?null:$id;
+        $profileRows=array_values(array_filter($profileRows,static fn(array $row):bool=>$visibleKey($row['profile_id'])!==null));
         $narrator=$this->narratorProfileForInstallation((string)$session['installation_id']);
         $effective=$this->effectiveSettingsForActor((string)$session['installation_id'],(string)$session['playthrough_id'],$target);
         $profile=is_array($effective['npc_profile']??null)?$effective['npc_profile']:null;
@@ -3088,7 +3096,7 @@ SQL);
             (in_array($selectedModel,$configuredKeys,true)?$selectedModel:($configuredKeys[0]??null));
         $effectiveSettings=[
             'schema'=>'lorkhan.effective-settings.v1',
-            'profile_id'=>$profile===null?null:(string)$profile['profile_id'],
+            'profile_id'=>$profile===null?null:$visibleKey((string)$profile['profile_id']),
             'profile_revision'=>$profile===null?null:(int)($profile['revision']??$profile['current_revision']??0),
             'core_profile_id'=>$core===null?null:(string)$core['core_profile_id'],
             'core_profile_revision'=>$core===null?null:(int)($core['revision']??$core['current_revision']??0),
@@ -3097,8 +3105,8 @@ SQL);
         return ['model_slots'=>$modelSlots,'profiles'=>$profileRows,
             'selected_model_slot_key'=>$selectedModel,'resolved_model_slot_key'=>$resolvedModel,
             'narrator_profile_id'=>$narrator===null?null:(string)$narrator['profile_id'],
-            'selected_profile_id'=>$this->selectedActorProfileId((string)$session['installation_id'],
-                (string)$session['playthrough_id'],$target),
+            'selected_profile_id'=>$visibleKey($this->selectedActorProfileId((string)$session['installation_id'],
+                (string)$session['playthrough_id'],$target)),
             'effective_settings'=>$effectiveSettings,
             'settings_editor'=>$this->inGameSettingsState($session,$target,$effective)['editor']];
     }
@@ -3335,6 +3343,10 @@ SQL);
             if($profileId===null){$delete=$this->db->prepare('DELETE FROM actor_profile_bindings WHERE installation_id=:installation '
                 .'AND playthrough_id=:playthrough AND actor_key=:key');$delete->execute(['installation'=>$session['installation_id'],
                     'playthrough'=>$session['playthrough_id'],'key'=>$key]);return;}
+            // A dyn: profile belongs only to its own saved UUID, and a dynamic actor never borrows a placed reference profile.
+            if(str_starts_with($profileId,'dyn:')?!ProfileId::isDynamic($target)
+                ||ProfileId::forActor((string)$session['installation_id'],(string)$session['playthrough_id'],$target)!==$profileId
+                :ProfileId::isDynamic($target)&&str_starts_with($profileId,'ref:'))throw new \DomainException('request_mismatch');
             $profile=$this->db->prepare('SELECT 1 FROM profiles WHERE profile_id=:profile AND installation_id=:installation AND deleted_at IS NULL AND '.ProfileScopeSql::matches('profiles',':playthrough'));
             $profile->execute(['playthrough'=>$session['playthrough_id'],'profile'=>$profileId,'installation'=>$session['installation_id']]);
             if(!$profile->fetchColumn())throw new \OutOfBoundsException('not_found');
@@ -3439,6 +3451,7 @@ SQL);
         if(is_array($actor['refnum']??null)&&!array_is_list($actor['refnum'])){$refnum=[];
             foreach(['index','content_file']as$field)if(is_int($actor['refnum'][$field]??null))$refnum[$field]=$actor['refnum'][$field];
             if($refnum!==[])$actorKey['refnum']=$refnum;}
+        if(array_key_exists('dynamic',$actor))$actorKey['dynamic']=$actor['dynamic'];
         if(!isset($actorKey['record_id'],$actorKey['content_file']))return'';
         $actorKey=ProfileId::durableIdentity($actorKey);
         $actorJson=$this->encode($actorKey);$audienceJson=$this->encode([$actorKey]);
@@ -3581,6 +3594,7 @@ SQL);
             $refnum=[];foreach(['index','content_file']as$field)if(is_int($actor['refnum'][$field]??null))$refnum[$field]=$actor['refnum'][$field];
             if($refnum!==[])$actorKey['refnum']=$refnum;
         }
+        if(array_key_exists('dynamic',$actor))$actorKey['dynamic']=$actor['dynamic'];
         if(!isset($actorKey['record_id'],$actorKey['content_file']))throw new RuntimeException('invalid_actor_identity');
         // History and memory witnesses follow the placed reference across load-order and cell changes.
         $actorKey=ProfileId::durableIdentity($actorKey);
@@ -4078,7 +4092,8 @@ JOIN LATERAL (
  WHERE s.installation_id=:installation AND s.playthrough_id=:playthrough
    AND t.target->>'kind'=c.identity->>'kind' AND t.target->>'record_id'=c.identity->>'record_id'
    AND t.target->>'content_file'=c.identity->>'content_file'
-   AND durable_actor_identity_key(t.target)->'refnum' IS NOT DISTINCT FROM durable_actor_identity_key(c.identity)->'refnum'
+   AND durable_actor_identity_key_v2(t.target)->'refnum' IS NOT DISTINCT FROM durable_actor_identity_key_v2(c.identity)->'refnum'
+   AND durable_actor_identity_key_v2(t.target)->'dynamic' IS NOT DISTINCT FROM durable_actor_identity_key_v2(c.identity)->'dynamic'
    AND NOT jsonb_exists(t.context,'rechat')
    AND jsonb_typeof(t.context#>'{targetState,stats,level}')='number'
  ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT 1
@@ -4441,10 +4456,12 @@ SQL);
     /** Keep operator actor parameters within the closed common identity contract. */
     private function npcManagerActor(array $identity):array
     {
-        $fields=['kind','record_id','content_file','refnum','cell','display_name'];
+        $fields=['kind','record_id','content_file','refnum','cell','display_name','dynamic'];
         $actor=array_intersect_key($identity,array_flip($fields));
         $actor['kind']=($actor['kind']??null)==='actor'?'npc':($actor['kind']??null);
-        if(count($actor)!==6||!in_array($actor['kind'],['npc','creature'],true))throw new InvalidArgumentException('invalid_debug_parameters');
+        if(array_key_exists('dynamic',$actor)?!ProfileId::validDynamic($actor):$actor['content_file']===ProfileId::DYNAMIC_CONTENT_FILE)
+            throw new InvalidArgumentException('invalid_debug_parameters');
+        if(count($actor)!==(array_key_exists('dynamic',$actor)?7:6)||!in_array($actor['kind'],['npc','creature'],true))throw new InvalidArgumentException('invalid_debug_parameters');
         foreach(['record_id','content_file','display_name']as$field){
             if(!is_string($actor[$field])||$actor[$field]===''||strlen($actor[$field])>256
                 ||!mb_check_encoding($actor[$field],'UTF-8')||preg_match('/[\x00-\x1f\x7f]/',$actor[$field]))
@@ -4498,14 +4515,21 @@ SQL);
         if(count($bindings)>1&&$bindings[0]['updated_at']===$bindings[1]['updated_at']){$scope['reason_code']='npc_manager_ambiguous_actor';return$scope;}
         $identity=$this->json($bindings[0]['actor_identity']);
         {
-            $observed=$this->db->prepare("SELECT target FROM active_turns WHERE session_id=:session AND generation=:generation AND target->>'record_id'=:record AND target->>'content_file'=:content AND target->'refnum'=CAST(:refnum AS jsonb) AND target->>'kind'=:kind ORDER BY accepted_at DESC,turn_id DESC LIMIT 1");
-            $observed->execute(['session'=>$session['session_id'],'generation'=>$session['generation'],'kind'=>$identity['kind']==='actor'?'npc':$identity['kind'],'record'=>$identity['record_id'],'content'=>$identity['content_file'],'refnum'=>$this->encode($identity['refnum'])]);
+            $observed=$this->db->prepare("SELECT target FROM active_turns WHERE session_id=:session AND generation=:generation AND target->>'record_id'=:record AND target->>'content_file'=:content AND target->'refnum'=CAST(:refnum AS jsonb) AND target->>'kind'=:kind AND target#>>'{dynamic,uuid}' IS NOT DISTINCT FROM CAST(:uuid AS text) ORDER BY accepted_at DESC,turn_id DESC LIMIT 1");
+            $observed->execute(['session'=>$session['session_id'],'generation'=>$session['generation'],'kind'=>$identity['kind']==='actor'?'npc':$identity['kind'],'record'=>$identity['record_id'],'content'=>$identity['content_file'],'refnum'=>$this->encode($identity['refnum']),
+                'uuid'=>is_array($identity['dynamic']??null)?(string)($identity['dynamic']['uuid']??''):null]);
             $target=$observed->fetchColumn();$target=$target===false?[]:$this->json($target);
             foreach(['cell','display_name']as$field)if(isset($target[$field]))$identity[$field]=$target[$field];
+            // A dynamic actor is addressable only by its exact runtime_ref observed in the current session generation.
+            if(array_key_exists('dynamic',$identity)){
+                if(!isset($target['dynamic'])){$scope['reason_code']='npc_manager_exact_actor_required';return$scope;}
+                $identity['dynamic']=$target['dynamic'];
+            }
         }
         try{$scope['actor']=$this->npcManagerActor($identity);}catch(InvalidArgumentException){$scope['reason_code']='npc_manager_exact_actor_required';return$scope;}
         $capabilities=$this->parsePgArray((string)$session['capabilities']);
-        if(!in_array('debug.commands.v1',$capabilities,true)||!in_array('debug.npc_manager.v1',$capabilities,true)){
+        if(!in_array('debug.commands.v1',$capabilities,true)||!in_array('debug.npc_manager.v1',$capabilities,true)
+            ||(isset($scope['actor']['dynamic'])&&!in_array(Repository::DYNAMIC_IDENTITY_CAPABILITY,$capabilities,true))){
             $scope['reason_code']='npc_manager_unsupported';return$scope;
         }
         $scope['supported']=true;return$scope;
@@ -4519,7 +4543,7 @@ SQL);
         $this->db->prepare("UPDATE debug_commands SET state='expired',completed_at=clock_timestamp(),reason_code='command_expired' WHERE session_id=:session AND generation=:generation AND state IN ('queued','delivered') AND expires_at<=clock_timestamp()")
             ->execute(['session'=>$scope['session_id'],'generation'=>$scope['generation']]);
         $query=$this->db->prepare("SELECT command_id,command_name AS name,state,reason_code,observed,created_at,completed_at,expires_at FROM debug_commands WHERE session_id=:session AND generation=:generation AND command_name IN ('npc.status','npc.visit','npc.teleport','npc.return') AND parameters->'actor' @> CAST(:actor AS jsonb) ORDER BY created_at DESC,command_id DESC LIMIT 20");
-        $query->execute(['session'=>$scope['session_id'],'generation'=>$scope['generation'],'actor'=>$this->encode(array_intersect_key($scope['actor'],array_flip(['kind','record_id','content_file','refnum'])))]);
+        $query->execute(['session'=>$scope['session_id'],'generation'=>$scope['generation'],'actor'=>$this->encode(ProfileId::withDynamicUuid(array_intersect_key($scope['actor'],array_flip(['kind','record_id','content_file','refnum'])),$scope['actor']))]);
         foreach($query->fetchAll()as$row){
             $row['observed']=$row['observed']===null?null:$this->json($row['observed']);$scope['items'][]=$row;
             if(in_array($row['state'],['succeeded','failed','rejected'],true)&&is_bool($row['observed']['return_available']??null)
@@ -4641,7 +4665,7 @@ SQL);
                 ->execute(['session'=>$sessionId]);
             if(in_array($name,['npc.visit','npc.teleport','npc.return'],true)){
                 $pendingActor=$this->db->prepare("SELECT 1 FROM debug_commands WHERE session_id=:session AND state IN ('queued','delivered') AND command_name IN ('npc.visit','npc.teleport','npc.return') AND parameters->'actor' @> CAST(:actor AS jsonb) LIMIT 1");
-                $pendingActor->execute(['session'=>$sessionId,'actor'=>$this->encode(array_intersect_key($parameters['actor'],array_flip(['kind','record_id','content_file','refnum'])))]);
+                $pendingActor->execute(['session'=>$sessionId,'actor'=>$this->encode(ProfileId::withDynamicUuid(array_intersect_key($parameters['actor'],array_flip(['kind','record_id','content_file','refnum'])),$parameters['actor']))]);
                 if($pendingActor->fetchColumn())throw new InvalidArgumentException('npc_manager_command_pending');
             }
             $pending=$this->db->prepare("SELECT count(*) FROM debug_commands WHERE session_id=:session AND state IN ('queued','delivered')");
@@ -4774,7 +4798,7 @@ SQL);
     public function actorKey(array $identity):string
     {
         $kind=$identity['kind']??'npc';
-        $key=in_array($kind,['player','narrator'],true)?$kind.'|'.strtolower((string)($identity['record_id']??$kind)):ProfileId::reference($identity);
+        $key=in_array($kind,['player','narrator'],true)?$kind.'|'.strtolower((string)($identity['record_id']??$kind)):ProfileId::actorReference($identity);
         return hash('sha256',$key);
     }
     private function encodeCanonical(mixed $value):string{$sort=static function(mixed $item)use(&$sort):mixed{if(!is_array($item))return$item;if(array_is_list($item))return array_map($sort,$item);ksort($item,SORT_STRING);foreach($item as&$child)$child=$sort($child);return$item;};return json_encode($sort($value),JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);}

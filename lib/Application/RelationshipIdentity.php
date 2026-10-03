@@ -8,7 +8,11 @@ final class RelationshipIdentity
     public static function validate(mixed $value,bool $allowLegacy=false):array
     {
         if(!is_array($value)||array_is_list($value)
-            ||array_diff(array_keys($value),['kind','record_id','content_file','display_name','refnum','cell'])!==[])
+            ||array_diff(array_keys($value),['kind','record_id','content_file','display_name','refnum','cell','dynamic'])!==[])
+            throw new \InvalidArgumentException('invalid_actor_identity');
+        // A dynamic actor relationship requires the exact actor.identity.dynamic.v1 form; the sentinel never stands alone.
+        if(array_key_exists('dynamic',$value)?!\LorkhanServer\Domain\ProfileId::validDynamic($value)
+            :!$allowLegacy&&($value['content_file']??null)===\LorkhanServer\Domain\ProfileId::DYNAMIC_CONTENT_FILE)
             throw new \InvalidArgumentException('invalid_actor_identity');
         if(!$allowLegacy&&!in_array($value['kind']??null,['npc','creature','player'],true))
             throw new \InvalidArgumentException('invalid_actor_identity');
