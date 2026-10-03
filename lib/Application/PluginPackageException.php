@@ -11,7 +11,7 @@ final class PluginPackageException extends \RuntimeException
         'package_not_installed' => 404, 'package_route_not_found' => 404,'package_too_large' => 413, 'package_storage_full' => 507,
         'package_storage_unavailable' => 503, 'package_storage_busy' => 503,'package_upload_out_of_order' => 409, 'package_upload_incomplete' => 409,
         'package_operation_pending' => 409, 'package_already_installed' => 409, 'package_version_not_newer' => 409,
-        'duplicate_conflict' => 409,
+        'duplicate_conflict' => 409, 'catalog_entry_not_found' => 404, 'catalog_unavailable' => 503, 'catalog_download_failed' => 502,
     ];
 
     public function __construct(string $code)

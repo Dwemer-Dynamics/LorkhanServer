@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace LorkhanServer\Http;
 
+use LorkhanServer\Application\PluginCatalog;
 use LorkhanServer\Application\PluginPackageException;
 use LorkhanServer\Infrastructure\PluginPackageRepository;
 
@@ -14,11 +15,31 @@ final class PluginPackageRoutes
 {
     private const MAX_JSON_BYTES = 16_384;
 
-    public function __construct(private readonly PluginPackageRepository $packages) {}
+    public function __construct(private readonly PluginPackageRepository $packages, private readonly ?PluginCatalog $catalog = null) {}
 
     public static function matches(string $path): bool
     {
         return $path === '/plugin-packages' || str_starts_with($path, '/plugin-packages/');
+    }
+
+    /** Browser-only manager routes: overview with operations, curated catalog, install by catalog entry ID. */
+    public static function managementMatches(string $path): bool
+    {
+        return in_array($path, ['/plugin-manager', '/plugin-catalog', '/plugin-catalog/install'], true);
+    }
+
+    /** Every management call names an active installation; unknown or revoked installations see nothing. */
+    public function management(Request $r, string $path, string $installation): array
+    {
+        $this->packages->assertInstallation($installation);
+        if (!self::managementMatches($path)) return $this->dispatch($r, $path, $installation);
+        if ($r->method === 'GET' && $path === '/plugin-manager') {
+            return [200, ['packages' => $this->packages->packages($installation), 'operations' => $this->packages->recentOperations($installation)]];
+        }
+        if ($this->catalog === null) throw new PluginPackageException('catalog_unavailable');
+        if ($r->method === 'GET' && $path === '/plugin-catalog') return [200, ['entries' => $this->catalog->entries()]];
+        if ($r->method === 'POST' && $path === '/plugin-catalog/install') return [202, ['operation' => $this->catalog->install($this->packages, $installation, $this->json($r))]];
+        throw new PluginPackageException('package_route_not_found');
     }
 
     /** Collapse opaque IDs so rate limits apply per route shape. */

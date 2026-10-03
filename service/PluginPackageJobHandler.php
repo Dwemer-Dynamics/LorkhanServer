@@ -15,7 +15,8 @@ final class PluginPackageJobHandler implements JobHandler
     public function handle(array $payload, string $idempotencyKey, callable $heartbeat): void
     {
         $job = $payload['_job'] ?? []; unset($payload['_job']);
-        $keys = array_keys($payload); sort($keys);
+        $keys = array_keys($payload);
+        $keys = array_values(array_diff($keys, ['expected_manifest_sha256'])); sort($keys);
         if ($keys !== ['installation_id', 'operation_id', 'upload_id'] || ($payload['operation_id'] ?? null) !== $idempotencyKey) {
             throw new \InvalidArgumentException('invalid_plugin_package_job');
         }

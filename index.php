@@ -5,6 +5,7 @@ use LorkhanServer\Application\ActionPolicyValidator;
 use LorkhanServer\Application\DeterministicClock;
 use LorkhanServer\Application\FirstPartyJobHandlerFactory;
 use LorkhanServer\Application\MorrowindVoiceCatalog;
+use LorkhanServer\Application\PluginCatalog;
 use LorkhanServer\Application\ProductService;
 use LorkhanServer\Application\PromptAssembler;
 use LorkhanServer\Application\Provider;
@@ -90,7 +91,8 @@ try {
         if (!$speechProvider instanceof SpeechProvider) throw new RuntimeException('Speech provider factory did not return a SpeechProvider.');
     }
     $products = new ProductRepository($database);
-    $pluginPackages = new PluginPackageRoutes(new PluginPackageRepository($database, $config));
+    $pluginPackages = new PluginPackageRoutes(new PluginPackageRepository($database, $config),
+        new PluginCatalog(__DIR__ . '/data/plugin-catalog.json', trim((string) @file_get_contents(__DIR__ . '/version.txt'))));
     $defaultConnectors = new DefaultConnectorProvisioner(
         $database,
         (string) ($config['voice_storage_path'] ?? '/var/lib/lorkhanserver/voices'),

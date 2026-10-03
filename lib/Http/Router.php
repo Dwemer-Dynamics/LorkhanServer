@@ -382,6 +382,9 @@ final class Router
         $next = $events === [] ? $after : $events[array_key_last($events)]['sequence'];
         $body = ['schema' => 'lorkhan.events.v1', 'session_id' => $session,
             'generation' => $generation, 'next_after' => $next, 'events' => $events,'autonomy'=>[]];
+        $owner=$this->repository->session($session,$generation,false,true);
+        if(in_array(\LorkhanServer\Protocol\PluginContract::CAPABILITY,(array)$owner['capabilities'],true))
+            $body['plugin_policy_revision']=$this->repository->pluginPolicyRevision((string)$owner['installation_id']);
         // Log the actual native wire response, never empty polls or a claimed playback acknowledgement.
         if ($events !== []) Logger::write('output_to_plugin.log', json_encode(\LorkhanServer\Security\Redactor::value($body),
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\r\n");

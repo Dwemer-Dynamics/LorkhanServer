@@ -1,0 +1,66 @@
+/* Server Plugins: compact LORKHAN configuration page (embedded in Configuration -> Settings). */
+body.server-plugins-page-shell { color: var(--chim-text, #f5f1e8); font-family: "Futura CondensedLight", Arial, sans-serif; font-size: 15px; line-height: 1.5; overflow-x: hidden; }
+body.server-plugins-page-shell.embedded-page { padding-top: 0; }
+body.server-plugins-page-shell > main.server-plugins-page { box-sizing: border-box; width: 100%; max-width: 1100px; margin: 0 auto; padding: 24px 12px 16px; }
+body.server-plugins-page-shell > main.server-plugins-page.embedded { padding-top: 16px; }
+.server-plugins-page *, .server-plugins-page *::before, .server-plugins-page *::after { box-sizing: border-box; }
+
+.server-plugins-page .plugins-header,
+.server-plugins-page .plugins-panel { margin: 0 0 14px; padding: 14px 16px; border: 1px solid #3a3a3a; border-radius: 10px;
+    background: linear-gradient(180deg, rgba(42, 42, 42, .95), rgba(34, 34, 34, .98)); box-shadow: 0 2px 8px rgba(0, 0, 0, .15); }
+.server-plugins-page .plugins-header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; }
+.server-plugins-page .plugins-header h1 { margin: 0 0 4px; color: var(--chim-accent, #bc9d5a); font-family: MagicCards, serif; font-size: 1.8em; font-weight: 400; word-spacing: 6px; }
+.server-plugins-page .plugins-header p { max-width: 62ch; margin: 0; color: #bbb; }
+.server-plugins-page .plugins-context { display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; color: #ccc; font-size: .9em; }
+.server-plugins-page .plugins-context select { max-width: 100%; min-height: 36px; }
+
+.server-plugins-page h2 { margin: 0 0 8px; color: #e2d5b9; font-family: MagicCards, serif; font-size: 1.2em; font-weight: 400; word-spacing: 4px; }
+.server-plugins-page h2:focus { outline: none; }
+.server-plugins-page .plugins-panel-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.server-plugins-page .plugins-panel-head h2 { margin: 0; }
+
+.server-plugins-page .plugins-status:empty { display: none; }
+.server-plugins-page .plugins-status { margin: 0 0 14px; padding: 10px 12px; border: 1px solid rgba(188, 157, 90, .3); border-radius: 8px; background: rgba(42, 42, 42, .9); color: #e7cfac; overflow-wrap: anywhere; }
+.server-plugins-page .plugins-status[data-tone="success"] { border-color: rgba(66, 163, 109, .5); color: #bfe5cd; }
+.server-plugins-page .plugins-status[data-tone="error"] { border-color: rgba(198, 83, 83, .6); color: #f2c4c4; }
+
+.server-plugins-page .plugins-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.server-plugins-page .plugins-card { min-width: 0; padding: 12px; border: 1px solid #3a3a3a; border-radius: 8px; background: rgba(29, 29, 29, .85); }
+.server-plugins-page .plugins-card:focus-visible { outline: 2px solid var(--chim-accent, #bc9d5a); outline-offset: 2px; }
+.server-plugins-page .plugins-card-head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.server-plugins-page .plugins-card-head h3 { margin: 0; color: #f8f9fa; font-size: 1.05em; font-weight: 600; overflow-wrap: anywhere; }
+.server-plugins-page .plugins-meta { margin: 4px 0 0; color: #aaa69e; font-size: .9em; overflow-wrap: anywhere; }
+.server-plugins-page .plugins-meta code { color: #d9c18c; }
+.server-plugins-page .plugins-note { margin: 6px 0 0; color: #aaa69e; font-size: .92em; }
+.server-plugins-page .plugins-op { margin: 6px 0 0; font-size: .92em; overflow-wrap: anywhere; }
+.server-plugins-page .plugins-op.is-pending { color: var(--chim-warning, #d5a849); }
+.server-plugins-page .plugins-op.is-failed { color: #f2c4c4; }
+.server-plugins-page .plugins-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.server-plugins-page .plugins-actions:empty { display: none; }
+.server-plugins-page button { min-height: 36px; }
+.server-plugins-page button:disabled { cursor: not-allowed; opacity: .55; }
+.server-plugins-page button:focus-visible,
+.server-plugins-page input:focus-visible,
+.server-plugins-page select:focus-visible { outline: 2px solid var(--chim-accent-bright, #d9c18c); outline-offset: 2px; }
+
+.server-plugins-page .plugins-empty { margin: 0; color: #aaa69e; }
+.server-plugins-page .plugins-error { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; color: #f2c4c4; }
+.server-plugins-page .plugins-error p { margin: 0; }
+
+.server-plugins-page .plugins-file-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-top: 10px; }
+.server-plugins-page .plugins-file-label { display: flex; flex: 1 1 260px; flex-direction: column; gap: 4px; min-width: 0; color: #ccc; font-size: .9em; }
+.server-plugins-page .plugins-file-label input { width: 100%; max-width: 100%; color: #ddd; }
+.server-plugins-page .plugins-file-summary { min-height: 1.5em; margin: 8px 0 0; color: #ddd; overflow-wrap: anywhere; }
+.server-plugins-page progress { width: 100%; height: 8px; margin-top: 6px; accent-color: var(--chim-accent, #bc9d5a); }
+
+.server-plugins-page .plugins-dialog { width: min(440px, calc(100vw - 24px)); padding: 18px; border: 1px solid #555; border-radius: 10px; background: #232323; color: #f5f1e8; }
+.server-plugins-page .plugins-dialog::backdrop { background: rgba(0, 0, 0, .6); }
+.server-plugins-page .plugins-dialog p { margin: 0 0 14px; color: #ddd; }
+.server-plugins-page .plugins-dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+
+@media (max-width: 480px) {
+    body.server-plugins-page-shell > main.server-plugins-page { padding: 12px 6px; }
+    .server-plugins-page .plugins-header, .server-plugins-page .plugins-panel { padding: 12px 10px; }
+    .server-plugins-page .plugins-header h1 { font-size: 1.5em; }
+    .server-plugins-page .plugins-actions button, .server-plugins-page .plugins-file-row button { flex: 1 1 auto; }
+}

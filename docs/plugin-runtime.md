@@ -84,7 +84,15 @@ After one run, affinity is `5` with one effect and one history row. Repeating th
 
 ## Installation and updates
 
-There is no generic plugin catalog, URL installer, MO2 `.dwpkg` sync or CHIM tarball route here. The server and OpenMW client are separate deployments.
+There is no URL installer, MO2 `.dwpkg` sync or CHIM tarball route here. The server and OpenMW client are separate deployments.
+
+### Server Plugins page and catalog
+
+Configuration -> Settings -> Server Plugins manages packages for the selected installation. It lists installed, disabled and removed packages with their version, any queued install or update, and the last failure. Choose a `.dwpkg` file to install or update it: the page reads `manifest.json`, asks the server whether this is an install, an update, the same version or an older one, then uploads in 1 MiB chunks and waits for the job. Same-version, conflicting and older packages are refused before upload. Enable, Disable and Remove act at once; Remove asks first and keeps the plugin's data. A failed install or update leaves the current version and data in place.
+
+The curated catalog is [data/plugin-catalog.json](../data/plugin-catalog.json) (`schema_version` 1, `product` `lorkhan`, `game` `tes3`, `api_version` 1). It is empty until plugins are reviewed and listed, and the page says so. Each entry fixes `id`, `plugin_id`, `version`, `display_name`, `description`, `author`, an HTTPS `url` whose host is in `download_hosts`, `size`, `sha256` and `compatibility` (`product`, `game`, `api_version`, `min_server_version`). Any invalid entry, other product or other game makes the whole catalog unavailable. Browsers send only an entry ID (`POST /plugin-catalog/install {request_id,entry_id}`); the server refuses older, same-version and pending installs first, then downloads without redirects, through checked and pinned public DNS, up to the declared size, and requires the exact size and SHA-256 before the bytes go through the same upload and install job. Management also has `GET /plugin-manager` (packages plus queued and latest finished operations) and `GET /plugin-catalog`; all three need an active `installation_id`.
+
+A runnable example pairs with the client's `examples/plugin-parity`: [examples/plugins/parity.example](../examples/plugins/parity.example/README.md) carries the same `lorkhan-plugin.json` bytes, schema-4 package metadata and an `event` hook that stores each NPC's reported camp mood once per `message_id`.
 
 ### Server package lifecycle
 
@@ -97,10 +105,12 @@ Routes exist under the paired native API (`/LorkhanServer/api/v1/plugin-packages
 | `GET /plugin-packages` | Installed and removed packages for the installation. |
 | `POST /plugin-packages/uploads` `{plugin_id,version,size,sha256}` | Start an upload (16 open and 256 MiB reserved per server under one shared lock, 24 h expiry; `package_storage_full`, or `package_storage_busy` when the lock stays contended). |
 | `PUT /plugin-packages/uploads/{id}/chunks/{n}` (octet-stream, at most 1 MiB) | Append in order; the final chunk must match the declared size and SHA-256. |
-| `POST /plugin-packages/install` or `/update` `{request_id,upload_id}` | Persist an operation plus a `plugin_package.apply` durable job (202). |
+| `POST /plugin-packages/install` or `/update` `{request_id,upload_id[,expected_manifest_sha256]}` | Persist an operation plus a `plugin_package.apply` durable job (202). |
 | `GET /plugin-packages/operations/{id}` | `queued`, `succeeded` or `failed` with a stable `error_code`. |
 | `POST /plugin-packages/{plugin_id}/enable`, `/disable`, `/remove` | Synchronous policy and state change. |
 | `POST /plugin-packages/probe` `{plugin_id,version[,sha256]}` | `install`, `update`, `current`, `older` or `conflict`, plus `pending`. |
+
+Automatic client sync binds the operation to `expected_manifest_sha256`, the exact addon manifest bytes. A replay cannot change that binding. The worker rejects a mismatch before seeding data or activating the package. Older manual callers may omit the binding.
 
 The background worker validates and extracts uploads outside database transactions. Each verified tree is stored under `plugin_package_storage_path` (default `/var/lib/lorkhanserver/plugin-packages`, outside the web root) as `store/<archive sha256>`; once activated the tree is sealed read-only (files 0440, directories 0550) and never written again. The worker then switches the active row in one transaction. A failed update leaves the previous version active. A partial unique index plus a per-package advisory lock serializes operations on the same package. Mutable files are seeded into `data/<installation>/<plugin_id>/` only where nothing exists yet, so updates add new defaults but never overwrite. A link at any destination component fails the operation with `package_link_rejected`. Removal keeps that data, every stored tree and all NPC plugin namespaces. Responses and job errors carry stable codes only, never file paths. The lifecycle itself never executes packaged PHP; only the hook loader below does, for active registered addons.
 

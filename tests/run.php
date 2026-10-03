@@ -937,6 +937,45 @@ foreach(['checksum mismatch'=>[$hookTree('<?php return [];',"<?php return ['x'=>
     $check(\LorkhanServer\Application\PluginHooks::load($hookRoot,$plugin)===$expected,'hook loader rejects '.$name);
 for($i=0;$i<\LorkhanServer\Application\PluginHooks::MAX_LOADED;$i++)\LorkhanServer\Application\PluginHooks::load($hookRoot,array_replace($example,['revision'=>100+$i]));
 $check(\LorkhanServer\Application\PluginHooks::load($hookRoot,$example)['prompt']!==$loaded['prompt'],'hook cache is bounded and reloads evicted revisions');
+// Stage 6: the runnable parity.example server half carries the client manifest bytes and loads only an event hook.
+$parityRoot=dirname(__DIR__).'/examples/plugins/parity.example';
+$parityManifest=(string)file_get_contents($parityRoot.'/server/lorkhan-plugin.json');$paritySource=(string)file_get_contents($parityRoot.'/server/plugin.php');
+try{(new \LorkhanServer\Protocol\PluginContract($validator))->validate(json_decode($parityManifest,true,64,JSON_THROW_ON_ERROR),\LorkhanServer\Protocol\PluginContract::MANIFEST);$parityValid=true;}
+catch(ValidationException){$parityValid=false;}
+$check($parityValid&&hash('sha256',$parityManifest)==='4a44b0af71ffdda44c3a7f68fd70d340b4a0e8fa142b16fdfd2d107ef62e20b0'
+    &&json_decode((string)file_get_contents($parityRoot.'/manifest.json'),true)['version']==='1.0.0','parity.example keeps the client manifest bytes and package identity');
+$paritySha=hash('sha256',$paritySource.'|parity');@mkdir($hookRoot.'/'.$paritySha.'/server',0700,true);
+file_put_contents($hookRoot.'/'.$paritySha.'/server/plugin.php',$paritySource);file_put_contents($hookRoot.'/'.$paritySha.'/server/lorkhan-plugin.json',$parityManifest);
+file_put_contents($hookRoot.'/'.$paritySha.'/checksums.sha256',hash('sha256',$paritySource)."  server/plugin.php\n".hash('sha256',$parityManifest)."  server/lorkhan-plugin.json\n");
+$parityHooks=\LorkhanServer\Application\PluginHooks::load($hookRoot,['plugin_id'=>'parity.example','archive_sha256'=>$paritySha,'manifest_sha256'=>hash('sha256',$parityManifest),'revision'=>1]);
+$check(is_array($parityHooks)&&array_keys($parityHooks)===['event'],'parity.example loads one event hook and no prompt hook');
+// Stage 6: the bundled catalog is honest (valid, empty); invalid or other-game catalogs and bad downloads are refused.
+$catalogError=static function(callable $call):string{try{$call();return'ok';}catch(\LorkhanServer\Application\PluginPackageException $error){return$error->getMessage();}};
+$check((new \LorkhanServer\Application\PluginCatalog(dirname(__DIR__).'/data/plugin-catalog.json','0.5.0'))->entries()===[],'bundled plugin catalog is valid and empty');
+$catalogFile=sys_get_temp_dir().'/lorkhan-catalog-'.bin2hex(random_bytes(6)).'.json';$catalogBytes=str_repeat('p',64);
+$catalogEntry=['id'=>'parity-example-1.0.0','plugin_id'=>'parity.example','version'=>'1.0.0','display_name'=>'Parity Example','description'=>'','author'=>'Dwemer Dynamics',
+    'url'=>'https://plugins.example.org/parity.dwpkg','size'=>64,'sha256'=>hash('sha256',$catalogBytes),'compatibility'=>['product'=>'lorkhan','game'=>'tes3','api_version'=>1,'min_server_version'=>'0.5.0']];
+$writeCatalog=static function(array $change=[],array $entry=[])use($catalogFile,$catalogEntry):void{file_put_contents($catalogFile,json_encode(array_replace(['schema_version'=>1,'product'=>'lorkhan','game'=>'tes3','api_version'=>1,
+    'download_hosts'=>['plugins.example.org'],'entries'=>[array_replace($catalogEntry,$entry)]],$change),JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));};
+$catalogWith=static fn(int $status,string $body)=>new \LorkhanServer\Application\PluginCatalog($catalogFile,'0.5.0',static function(string $url,array $hosts,int $max,$sink)use($status,$body):int{fwrite($sink,substr($body,0,$max+1));return$status;});
+$writeCatalog();$fixtureCatalog=$catalogWith(200,$catalogBytes);
+$check(count($fixtureCatalog->entries())===1&&$fixtureCatalog->entries()[0]['compatible']&&!isset($fixtureCatalog->entries()[0]['url'])
+    &&stream_get_contents($fixtureCatalog->download($fixtureCatalog->entry('parity-example-1.0.0')))===$catalogBytes,'catalog entry downloads only its exact verified bytes');
+foreach(['wrong hash'=>[$catalogWith(200,str_repeat('q',64)),'package_hash_mismatch'],'short body'=>[$catalogWith(200,'p'),'catalog_download_failed'],
+    'oversized body'=>[$catalogWith(200,str_repeat('p',65)),'package_too_large'],'redirect'=>[$catalogWith(302,''),'catalog_redirect_rejected'],
+    'server error'=>[$catalogWith(500,''),'catalog_download_failed']]as$name=>[$catalog,$code]){
+    $check($catalogError(fn()=>$catalog->download($catalog->entry('parity-example-1.0.0')))===$code,'catalog download refuses '.$name);
+}
+$check($catalogError(fn()=>$fixtureCatalog->entry('missing'))==='catalog_entry_not_found','catalog refuses unknown entry IDs');
+foreach(['CHIM product'=>[['product'=>'chim'],[]],'other game'=>[[],['compatibility'=>['product'=>'lorkhan','game'=>'skyrim','api_version'=>1,'min_server_version'=>'0.5.0']]],
+    'schema mismatch'=>[['schema_version'=>2],[]],'plain HTTP'=>[[],['url'=>'http://plugins.example.org/parity.dwpkg']],
+    'unlisted host'=>[[],['url'=>'https://other.example.org/parity.dwpkg']],'extra key'=>[[],['command'=>'x']]]as$name=>[$change,$entry]){
+    $writeCatalog($change,$entry);
+    $check($catalogError(fn()=>(new \LorkhanServer\Application\PluginCatalog($catalogFile,'0.5.0'))->entries())==='catalog_unavailable','catalog refuses '.$name);
+}
+$writeCatalog([],['compatibility'=>['product'=>'lorkhan','game'=>'tes3','api_version'=>1,'min_server_version'=>'9.0.0']]);$newerCatalog=$catalogWith(200,$catalogBytes);
+$check(!$newerCatalog->entries()[0]['compatible']&&$catalogError(fn()=>$newerCatalog->download($newerCatalog->entry('parity-example-1.0.0')))==='package_incompatible','catalog refuses entries needing a newer server');
+unlink($catalogFile);
 ini_set('error_log',$hookLog===false?'':$hookLog);
 $hookProfile=static fn(array $payload):string=>\LorkhanServer\Application\PluginHooks::profile(['payload'=>$payload]);
 $check($hookProfile(['ui_source'=>'lorkhan_text'])==='dialogue'&&$hookProfile(['ui_source'=>'lorkhan_rechat'])==='rechat'

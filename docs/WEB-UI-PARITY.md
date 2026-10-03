@@ -4409,7 +4409,7 @@ Captured 28 live read-only Config Hub states across Profiles, NPCs, LLM, TTS,
 TTS Studio, STT and API Keys at 1280/390 pixels. Capturing is not acceptance:
 visually reviewed LLM and TTS desktop entry views, TTS Studio desktop and
 STT narrow views. Remaining captured pages still need visual inspection.
-The reference has excluded ITT/Server Plugins buttons; these stay absent.
+The reference has excluded ITT/Server Plugins buttons; ITT stays absent. Settings now has a LORKHAN Server Plugins tab for `.dwpkg` packages (see plugin-runtime.md); it is not the Herika plugin page.
 
 Compared the same DeepSeek Chat V3.2 OpenRouter editor in both products at
 1280/390. Desktop form hierarchy, service icons, model/provider/API-key rows
