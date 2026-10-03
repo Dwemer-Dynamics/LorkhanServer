@@ -613,7 +613,7 @@ final class ProductRepository
         $id = $input['core_profile_id'] ?? null;
         $setting = $input['setting'] ?? null;
         $revision = $input['revision'] ?? null;
-        $allowed = ['quest_comments.enabled', 'quest_comments.chance_percent', 'bored_event.chance_percent', 'response.max_words', 'response.core_lang', 'response.lang_llm_xtts', 'behavior.rechat_max_depth', 'behavior.rechat_probability_percent',
+        $allowed = ['quest_comments.enabled', 'quest_comments.chance_percent', 'bored_event.chance_percent', 'response.max_words', 'response.core_lang', 'response.lang_llm_xtts', 'response.private_thoughts_enabled', 'behavior.rechat_max_depth', 'behavior.rechat_probability_percent',
             'profile_evolution.history_limit','profile_evolution.interval_days','profile_evolution.min_events','profile_evolution.cooldown_minutes', 'behavior.rechat_allow_actions', 'behavior.combat_bark_period_seconds', 'memory.recent_turn_limit', 'diary.context_turn_limit',
             'diary.automatic_interval_seconds', 'diary.prompt'];
         if (!is_string($id) || !Uuid::isValid($id) || !is_string($setting) || !in_array($setting, $allowed, true)
@@ -3603,6 +3603,9 @@ SQL);
         }
 
         $recentTurnLimit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
+        // Only the exact profile-owning placed actor reads, and later generates, its own private thoughts.
+        $thoughtOwner=\LorkhanServer\Application\PrivateThoughtPolicy::owner($turn,$selectedProfileId,
+            $ownsProfile&&($effective['settings']['response']['private_thoughts_enabled']??false)===true);
         $history=[];
         if($contextSections['conversation_history']&&$recentTurnLimit>0){$typeParameters=[];$historyParameters=[];
         $excludedEventTypes=$contextPolicy['event_types_excluded'];
@@ -3626,7 +3629,8 @@ SELECT 'event:'||e.rowid::text AS id,
                'listener_identity',CASE WHEN m.target='{}'::jsonb THEN NULL ELSE m.target END,
                'audience',CASE WHEN jsonb_array_length(m.audience)=0 THEN NULL ELSE m.audience END,
                'location',e.location,'game_time',NULLIF(e.gamets,0),'event_time',e.ts,
-               'delivery_state',e.delivery_state))
+               'delivery_state',e.delivery_state,
+               'private_thought',CASE WHEN CAST(:private_thoughts AS boolean) THEN m.payload->'private_thought' END))
        ELSE
            jsonb_strip_nulls(jsonb_build_object(
                'kind','event','type',e.type,'turn_id',m.turn_id,
@@ -3680,6 +3684,7 @@ SQL);
             'event_speaker'=>$actorJson,'event_target'=>$actorJson,'event_audience'=>$audienceJson,
             'hide_narrator_dialogue'=>$hideNarratorDialogue?'true':'false',
             'is_narrator_target'=>$isNarratorTarget?'true':'false',
+            'private_thoughts'=>$thoughtOwner===null?'false':'true',
             'candidate_limit'=>min(500,max(40,$recentTurnLimit*5)),
         ]);
         // Match CHIM: every visible event consumes one history slot, including input and response rows.
@@ -3687,7 +3692,13 @@ SQL);
         $magicBlacklist=[];foreach($contextPolicy['magic_effects_blacklist']as$spell)$magicBlacklist[mb_strtolower(trim((string)$spell),'UTF-8')]=true;
         $itemBlacklist=[];foreach($contextPolicy['item_blacklist']as$item)$itemBlacklist[mb_strtolower(trim((string)$item),'UTF-8')]=true;
         foreach($historyStatement->fetchAll()as$row){
-            $content=$this->json($row['content']);$location=mb_strtolower(trim((string)($content['location']??$content['details']['location']??'')),'UTF-8');
+            $content=$this->json($row['content']);
+            if(array_key_exists('private_thought',$content)){
+                $thought=$thoughtOwner===null?null:\LorkhanServer\Application\PrivateThoughtPolicy::forOwner($content['private_thought'],
+                    $thoughtOwner['profile_id'],$thoughtOwner['actor'],$content['speaker_identity']??null);
+                if($thought===null)unset($content['private_thought']);else $content['private_thought']=$thought;
+            }
+            $location=mb_strtolower(trim((string)($content['location']??$content['details']['location']??'')),'UTF-8');
             if($location!==''&&isset($locationBlacklist[$location]))continue;
             if(in_array($content['type']??null,['spellcast','npcspellcast'],true)
                 &&(isset($magicBlacklist[mb_strtolower(trim((string)($content['details']['spell_id']??'')),'UTF-8')])
@@ -3731,6 +3742,7 @@ SQL);
             $promptKeys[]='dialogue_line_inline_response_'.$suffix;$promptKeys[]='inline_narration_prompt_'.$suffix;
         }
         return ['profile'=>$profile,'core_profile'=>$coreProfile,'selected_profile_id'=>$activeProfileId,'speech_style'=>$speechStyle,
+            'private_thought'=>$thoughtOwner,
             'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources'],'context'=>$contextPolicy,'prompt'=>$effective['prompt'],
                 'settings'=>array_intersect_key($effective['settings'], ['memory'=>true,'response'=>true])],
             'scene_classification'=>$contextSections['world']?(new SceneClassificationRepository($this->db))->context($turn['installation_id'],$turn['playthrough_id'],$activeProfileId):null,

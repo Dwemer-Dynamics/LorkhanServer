@@ -757,9 +757,9 @@ final class Repository
     }
 
     public function completeTurn(array $m, array $providerResult, ?array $speech = null, ?array $fence = null,
-        bool $queueSpeech = false, array $streamedDialogues = []): array
+        bool $queueSpeech = false, array $streamedDialogues = [], ?string $privateThought = null): array
     {
-        return $this->transaction(function () use ($m, $providerResult, $speech, $fence, $queueSpeech, $streamedDialogues): array {
+        return $this->transaction(function () use ($m, $providerResult, $speech, $fence, $queueSpeech, $streamedDialogues, $privateThought): array {
             $session = $this->session($m['session_id'], $m['generation'], true);
             $turn = $this->lockPendingTurn($m['turn_id'], $m['session_id'], $fence);
             $m['runtime_generation'] ??= (int) $turn['runtime_generation'];
@@ -848,6 +848,16 @@ final class Repository
                             'duration' => $currentSpeech['duration_ms'], 'expires' => $currentSpeech['expires_at']]);
                     $descriptor = $currentSpeech; unset($descriptor['mime_type']);
                     $speechEvents[] = $this->event($m['session_id'], $m['generation'], $turn['request_id'], $m['turn_id'], 'speech.ready', $descriptor);
+                }
+            }
+            // The thought joins the owner's final line in this transaction; other speakers' lines never carry it.
+            $privateThought = \LorkhanServer\Application\PrivateThoughtPolicy::text($privateThought);
+            if ($privateThought !== null && \LorkhanServer\Application\PrivateThoughtPolicy::requested($m)) {
+                for ($index = count($dialogueLines) - 1; $index >= 0; --$index) {
+                    if (!\LorkhanServer\Application\PrivateThoughtPolicy::sameActor($dialogueLines[$index]['speaker_identity'], $m['_private_thought']['actor'])) continue;
+                    $this->eventLog()->attachPrivateThought((string) $dialogues[$index]['message_id'],
+                        \LorkhanServer\Application\PrivateThoughtPolicy::attachment($m['_private_thought'], $privateThought));
+                    break;
                 }
             }
             $action = null;

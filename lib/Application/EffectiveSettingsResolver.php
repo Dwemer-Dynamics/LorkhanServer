@@ -94,7 +94,8 @@ final class EffectiveSettingsResolver
         // legacy copy retained in Global Settings before applying that profile below.
         $settings['narrator'] = SettingsCatalog::clientDefaults()['narrator'];
         $settings['diary'] = DiaryGenerationPolicy::defaults();
-        $settings['response'] = ['max_words' => 0];
+        // Private NPC thoughts are server-only and off unless a Core or NPC profile enables them.
+        $settings['response'] = ['max_words' => 0, 'private_thoughts_enabled' => false];
         $settings['profile_evolution'] = ['history_limit' => 50,'interval_days'=>1,'min_events'=>30,'cooldown_minutes'=>5];
         $settings['profile_management'] = array_intersect_key($global['profile_management'],
             array_flip(['autofill_custom_profiles','autofill_custom_profiles_trigger']));
@@ -505,10 +506,11 @@ final class EffectiveSettingsResolver
         // Response length is a server prompt instruction, not an OpenMW client control.
         if (array_key_exists('response', $validation)) {
             $response = $validation['response'];
-            if (!is_array($response) || $response === [] || array_diff(array_keys($response), ['max_words', 'core_lang', 'lang_llm_xtts']) !== []
+            if (!is_array($response) || $response === [] || array_diff(array_keys($response), ['max_words', 'core_lang', 'lang_llm_xtts', 'private_thoughts_enabled']) !== []
                 || (array_key_exists('max_words', $response) && (!is_int($response['max_words']) || $response['max_words'] < 0 || $response['max_words'] > 10000))
                 || (array_key_exists('core_lang', $response) && (!is_string($response['core_lang']) || !array_key_exists($response['core_lang'], CoreProfileLanguage::LABELS)))
-                || (array_key_exists('lang_llm_xtts', $response) && !is_bool($response['lang_llm_xtts'])))
+                || (array_key_exists('lang_llm_xtts', $response) && !is_bool($response['lang_llm_xtts']))
+                || (array_key_exists('private_thoughts_enabled', $response) && !is_bool($response['private_thoughts_enabled'])))
                 throw new InvalidArgumentException('invalid_settings_overrides');
             unset($validation['response']);
         }

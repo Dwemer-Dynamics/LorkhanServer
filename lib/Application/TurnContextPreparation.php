@@ -25,6 +25,8 @@ final class TurnContextPreparation
         $oghmaExtraction=isset($m['_director_response'])?[]:$this->oghmaExtraction($knowledgeTurn);$semanticMemory=isset($m['_director_response'])?[]:$this->semanticMemory($m);
         $selection = $this->products->promptContext($knowledgeTurn,gmdate('Y-m-d\TH:i:s\Z'),$oghmaExtraction,$semanticMemory);
         $providerInput['_selected_profile_id']=$selection['selected_profile_id'];
+        // Freeze thought ownership with the prepared prompt so retries and fallbacks use the same owner.
+        if(is_array($selection['private_thought']??null))$providerInput['_private_thought']=$selection['private_thought'];
         if(is_array($selection['player_profile']??null))$providerInput['_player_profile']=$selection['player_profile'];
         if(is_array($selection['narrator_profile']??null))$providerInput['_narrator_profile']=$selection['narrator_profile'];
         if(is_array($selection['narrator_event_prompts']??null))$providerInput['_narrator_event_prompts']=$selection['narrator_event_prompts'];

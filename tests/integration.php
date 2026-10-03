@@ -3912,6 +3912,62 @@ $assert($status===202&&$directionStats===['claimed'=>1,'succeeded'=>1,'retried'=
     'disabled narration streamed or queued stage directions as NPC speech: '.json_encode(['types'=>$directionTypes,
         'subtitles'=>$directionSubtitles,'history'=>$directionHistory,'lines'=>$directionResponse['lines']??null,'tts'=>$directionTts,'jobs'=>$directionJobs]));
 $interruptedEvents['next_after']=$directionPage['next_after'];
+// Private NPC thoughts persist only on the owner's dialogue event and return only to that owner's later context/history.
+$thoughtProfileId=$fallbackProfile['profile_id'];$thoughtProfileOriginal=$products->getRevisioned('profile',$thoughtProfileId)['content'];
+$thoughtProfileEnabled=$thoughtProfileOriginal;$thoughtProfileEnabled['settings_overrides']['response']['private_thoughts_enabled']=true;
+$products->revise('profile',$thoughtProfileId,$thoughtProfileEnabled,'private thought fixture',$now);
+$thoughtProvider=new class implements \LorkhanServer\Application\StreamingProvider {
+    public array$turns=[];
+    public function complete(array $turn, CancellationToken $cancellation): array { throw new RuntimeException('streaming expected'); }
+    public function completeStreaming(array $turn, CancellationToken $cancellation, callable $onDialogueDelta): array {
+        $this->turns[]=$turn;$onDialogueDelta('I never saw your ring.');
+        return['utterances'=>[['text'=>'I never saw your ring.']],'action'=>null,'_private_thought'=>'Private sentinel '.count($this->turns).': it is under my bed.'];
+    }
+};
+$thoughtTurns=[];
+foreach([760,764]as$thoughtSeed){
+    $thoughtTurn=$directionTurn;$thoughtTurn['message_id']=$newUuid($thoughtSeed);$thoughtTurn['request_id']=$newUuid($thoughtSeed+1);
+    $thoughtTurn['turn_id']=$newUuid($thoughtSeed+2);$thoughtTurn['payload']['input']['text']='Have you seen my ring?';
+    [$status]=$call($fallbackRouter,'POST',$base.'/turns',$headers($thoughtTurn['message_id']),[],$thoughtTurn);
+    $assert($status===202&&$runTurnWorker($thoughtProvider)===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],'private thought turn did not complete');
+    $thoughtTurns[]=$thoughtTurn;
+}
+$thoughtMessage=$repo->turnMessage($thoughtTurns[0]['turn_id']);
+$thoughtStored=$db->query("SELECT m.payload->'private_thought' FROM eventlog_metadata m WHERE m.projection_kind='dialogue' AND m.turn_id="
+    .$db->quote($thoughtTurns[0]['turn_id']))->fetchAll(PDO::FETCH_COLUMN);
+$thoughtLike=$db->quote('%Private sentinel%');
+$thoughtLeaks=$db->query("SELECT (SELECT count(*) FROM response_events WHERE payload::text LIKE $thoughtLike)
+    +(SELECT count(*) FROM turns WHERE response_payload::text LIKE $thoughtLike)+(SELECT count(*) FROM responselog WHERE payload::text LIKE $thoughtLike)
+    +(SELECT count(*) FROM speech WHERE speech LIKE $thoughtLike)+(SELECT count(*) FROM dialogue_utterances WHERE text LIKE $thoughtLike)
+    +(SELECT count(*) FROM durable_jobs WHERE payload::text LIKE $thoughtLike)+(SELECT count(*) FROM action_intents WHERE parameters::text LIKE $thoughtLike)
+    +(SELECT count(*) FROM prompt_trace_sources WHERE redacted_preview LIKE $thoughtLike)+(SELECT count(*) FROM prompt_trace_sections WHERE redacted_preview LIKE $thoughtLike)
+    +(SELECT count(*) FROM eventlog WHERE data LIKE $thoughtLike)")->fetchColumn();
+$storedThought=json_decode((string)($thoughtStored[0]??'null'),true);
+$assert(($thoughtMessage['_private_thought']['profile_id']??null)===$thoughtMessage['_selected_profile_id']
+    &&count($thoughtStored)===1&&($storedThought['text']??null)==='Private sentinel 1: it is under my bed.'
+    &&($storedThought['actor']['refnum']['index']??null)===733&&(int)$thoughtLeaks===0,
+    'private thought was not stored once on the owner line or leaked into speech, client, action or trace data: '.json_encode([$thoughtStored,$thoughtLeaks]));
+$assert(str_contains((string)($thoughtProvider->turns[1]['_prompt']['_messages'][0]['content']??''),'unknown to others: Private sentinel 1')
+    &&!str_contains((string)($thoughtProvider->turns[0]['_prompt']['_messages'][0]['content']??''),'Private sentinel'),
+    'owner did not receive its earlier private thought in later prompt context');
+$thoughtProbe=$thoughtMessage;$thoughtProbe['turn_id']=$newUuid(768);
+$thoughtTwinProbe=$thoughtProbe;$thoughtTwinProbe['payload']['target']['refnum']['index']=734;
+$thoughtTwinProbe['payload']['audience']=[$thoughtTwinProbe['payload']['target']];
+$thoughtScope=['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']];
+$thoughtEvents=new EventLogRepository($db);
+$assert(str_contains(json_encode($products->promptContext($thoughtProbe,$now)['history']),'Private sentinel 1')
+    &&!str_contains(json_encode($products->promptContext($thoughtTwinProbe,$now)),'Private sentinel')
+    &&!str_contains(json_encode($thoughtEvents->page($thoughtScope+['limit'=>500])),'Private sentinel')
+    &&str_contains(json_encode($thoughtEvents->profileHistory($thoughtProfileId,$session['playthrough_id'])),'Private sentinel 1'),
+    'private thought escaped its owner or was hidden from owner history');
+$products->revise('profile',$thoughtProfileId,$thoughtProfileOriginal,'private thought fixture off',$now);
+$assert(!str_contains(json_encode($products->promptContext($thoughtProbe,$now)['history']),'Private sentinel')
+    &&str_contains(json_encode($thoughtEvents->profileHistory($thoughtProfileId,$session['playthrough_id'])),'Private sentinel 1'),
+    'disabled private thoughts still reached context or stored history was discarded');
+$db->exec("UPDATE dialogue_utterances SET delivery_state='interrupted' WHERE turn_id=".$db->quote($thoughtTurns[0]['turn_id']));
+$assert(!str_contains(json_encode($thoughtEvents->profileHistory($thoughtProfileId,$session['playthrough_id'])),'Private sentinel 1')
+    &&str_contains(json_encode($thoughtEvents->profileHistory($thoughtProfileId,$session['playthrough_id'])),'Private sentinel 2'),
+    'interrupted dialogue kept its private thought in owner history');
 // Display-only progress (group audience disables streamed speech) is not durable dialogue, so the fallback still runs.
 $displayOnlyTurn=$fallbackTurn;$displayOnlyTurn['message_id']=$newUuid(746);$displayOnlyTurn['request_id']=$newUuid(747);
 $displayOnlyTurn['turn_id']=$newUuid(748);$displayOnlyTurn['payload']['input']['text']='[fallback] Progress then fail.';

@@ -593,6 +593,34 @@ body.view-characters .npc-editor-meta > input {
     white-space: pre-wrap;
 }
 
+.npc-history-thought {
+    max-width: 320px;
+    margin-top: 6px;
+    color: #bbb;
+    font-size: 12px;
+}
+
+.npc-history-thought > summary {
+    width: fit-content;
+    color: rgb(188, 157, 90);
+    font-style: italic;
+    cursor: pointer;
+}
+
+.npc-history-thought > summary:focus-visible {
+    outline: 2px solid rgb(188, 157, 90);
+    outline-offset: 2px;
+}
+
+.npc-history-thought > p {
+    margin: 4px 0 0;
+    padding-left: 8px;
+    border-left: 2px solid rgba(188, 157, 90, .5);
+    font-style: italic;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
 .npc-history-locked {
     color: #888;
     white-space: nowrap;
@@ -658,7 +686,8 @@ body.view-characters .npc-editor-meta > input {
         flex: 1 1 100%;
     }
 
-    .npc-history-event-text {
+    .npc-history-event-text,
+    .npc-history-thought {
         max-width: 220px;
     }
 }
