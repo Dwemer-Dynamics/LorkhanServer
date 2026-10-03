@@ -174,6 +174,46 @@ distinguish created, emitted, delivered and terminal; no UI/prompt calls an acti
 A result completed after the intent's `expires_at` is accepted for five minutes only as `timed_out`,
 `cancelled` or `rejected`; `succeeded` and `failed` must complete before expiry.
 
+## Third-party plugin contract v1 (contract stage)
+
+`plugin.schema.json` defines the versioned addon contract shared byte-for-byte with the sibling
+repository. Stage 1 delivers schema, fixtures and validators only: there is no server route, package
+installer, Lua addon loader, prompt use or emitted plugin event yet, and the server does not
+negotiate `plugin.contract.v1`. Clients that do not advertise and receive that capability can never
+receive plugin actions; built-in `lorkhan.action-intent.v1` names, catalogs and negotiation are unchanged.
+
+| Schema | Direction | Purpose |
+| --- | --- | --- |
+| `lorkhan.plugin.manifest.v1` | package | Plugin ID, semantic version, `api_version` 1, product/game/client/server/Lua API compatibility, dependencies, default enabled state, actions, events and prompt slots. |
+| `lorkhan.plugin.registration.v1` | client to server | `register`/`unregister` of installed, locally active addons for one session generation. |
+| `lorkhan.plugin.registration.accepted.v1` | server to client | Per-plugin `active`, `disabled`, `rejected` or `unregistered` state with a reason code. |
+| `lorkhan.plugin.action-intent.v1` | server to client | One registered plugin action with exact actor/target identity, declared parameters and expiry. Reserved event type: `plugin.action.intent`. |
+| `lorkhan.plugin.event.v1` | client to server | One registered plugin event with declared typed fields. |
+
+- Plugin IDs are `author.name` (`[a-z][a-z0-9_]`, 2-32 and 2-48 characters). `builtin`, `core`,
+  `lorkhan`, `morrowind`, `openmw` and `tes3` authors are reserved. Versions are `MAJOR.MINOR.PATCH`
+  without prerelease labels. Dependencies use an inclusive minimum and optional exclusive maximum.
+- At most 16 plugins, 16 actions, 16 events, 8 parameters/fields and 4 prompt slots. Slots are
+  `actor_state`, `player_state`, `scene_notes` and `world_state`, each at most 1024 characters.
+- Action parameters are `integer`, `number`, `boolean`, `enum` (declared lowercase tokens) or `actor`
+  (exact TES3 identity of declared kinds). Free text is allowed only in client-observed event fields
+  (at most 512 characters, no control characters). No code, command, path or URL type exists.
+- Plugin actions use tiers 0-2 and `none`/`optional`/`required` confirmation; tier 2 requires
+  confirmation. Executors are NPCs or creatures. A registration may scope an action to up to 12
+  exact actor identities (kind, record, content file and RefNum; never display name or cell).
+- Registrations are client-owned and bound to session ID and generation. A plugin becomes active only
+  when the server-installed manifest matches its version and SHA-256, server policy enables it
+  (manifest default otherwise), the client/server versions are compatible and every dependency is
+  active in range. Dependants of a rejected or unregistered plugin are withdrawn. A new generation
+  starts empty; identical re-registration is idempotent and a different one is `duplicate_conflict`.
+  Every apply revalidates the active set against current installed manifests/policy (changed or
+  removed: `unregistered`; disabled: `disabled`), with one result per plugin. More than 16 active
+  plugins is `plugin_limit_exceeded`; a manifest `lua_api_revision` above the pinned 129 is
+  `plugin_incompatible` on both server and client activation.
+- Intents expire `timeout_seconds` (1-300) after creation and declare whether they may be cancelled
+  before commit. Each intent still needs exactly one `lorkhan.action-result.v1` terminal result
+  under the existing late-result rules. HTTP acceptance is not addon success.
+
 ## Errors and idempotency
 
 Stable codes include `invalid_schema`, `payload_too_large`, `unauthorized`, `forbidden`,

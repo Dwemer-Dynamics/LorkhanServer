@@ -4,7 +4,7 @@ This guide covers LorkhanServer's current `unstable` source. Read the [agent gui
 
 ## Integration points and timing
 
-LORKHAN does not load CHIM-style `ext/*` hooks or `.dwpkg` packages. Creating `prerequest.php` or copying a plugin folder does not register an integration. Use the existing typed providers, repositories and handlers; a new integration needs a reviewed source change, explicit runtime loading and any required protocol coordination.
+LORKHAN does not load CHIM-style `ext/*` hooks or `.dwpkg` packages. Creating `prerequest.php` or copying a plugin folder does not register an integration. Use the existing typed providers, repositories and handlers; a new integration needs a reviewed source change, explicit runtime loading and any required protocol coordination. The `lorkhan.plugin.*.v1` addon contract in [PROTOCOL.md](PROTOCOL.md) currently provides validation only ([PluginContract](../lib/Protocol/PluginContract.php), [PluginRegistry](../lib/Application/PluginRegistry.php)); it is not negotiated and loads no code.
 
 | Stage | Source boundary | Contract |
 |---|---|---|

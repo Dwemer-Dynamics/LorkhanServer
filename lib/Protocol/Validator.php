@@ -50,6 +50,8 @@ final class Validator
             'lorkhan.debug-command.query.v1' => $this->debugCommandQuery($message),
             'lorkhan.debug-command-result.v1' => $this->debugCommandResult($message),
             'lorkhan.response.v1' => $this->response($message),
+            PluginContract::MANIFEST, PluginContract::REGISTRATION, PluginContract::REGISTRATION_ACCEPTED,
+            PluginContract::ACTION_INTENT, PluginContract::EVENT => (new PluginContract($this))->validate($message, $expectedSchema),
             default => throw new ValidationException('invalid_schema'),
         };
     }
@@ -786,7 +788,7 @@ final class Validator
         }
     }
 
-    private function identity(mixed $identity): void
+    public function identity(mixed $identity): void
     {
         if (!is_array($identity) || ($identity !== [] && array_is_list($identity))) {
             throw new ValidationException('invalid_schema');
@@ -844,14 +846,14 @@ final class Validator
         }
     }
 
-    private function uuid(mixed $value): void
+    public function uuid(mixed $value): void
     {
         if (!is_string($value) || !preg_match(self::UUID, $value)) {
             throw new ValidationException('invalid_schema');
         }
     }
 
-    private function timestamp(mixed $value): void
+    public function timestamp(mixed $value): void
     {
         if (!is_string($value) || !preg_match(self::TIMESTAMP, $value)) {
             throw new ValidationException('invalid_schema');
