@@ -75,6 +75,8 @@ final class StreamingDialogueText
 
     private function extractVisibleText(string $json): string
     {
+        // A private thought is never speech, even when a provider malforms it as an utterance-like object.
+        $json = PrivateThoughtPolicy::beforeThought($json);
         $visible = '';
         $this->spans = [];
         $offset = 0;

@@ -309,6 +309,18 @@
                     text.className = 'npc-history-event-text';
                     text.textContent = value;
                     cell.appendChild(text);
+                    // The server includes a thought only for this exact owning NPC; render it collapsed as text.
+                    const thought = historyText(event.private_thought);
+                    if (thought !== '') {
+                        const details = document.createElement('details');
+                        details.className = 'npc-history-thought';
+                        const summary = document.createElement('summary');
+                        summary.textContent = 'Unspoken thought';
+                        const body = document.createElement('p');
+                        body.textContent = thought;
+                        details.append(summary, body);
+                        cell.appendChild(details);
+                    }
                 } else cell.textContent = value;
                 row.appendChild(cell);
             });

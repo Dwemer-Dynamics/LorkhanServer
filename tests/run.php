@@ -1231,6 +1231,7 @@ foreach(['builtin:default'=>[75,100,50,0,2,50,true,false],
     $check($applied['settings_overrides']['rpg_comments']===['events'=>['sleep'],'chance_percent'=>$rpgChance],
         'Built-in Core presets match CHIM RPG probabilities without replacing event choices');
     $settings=$applied['settings_overrides'];
+    $check(($settings['response']['private_thoughts_enabled']??null)===false,$builtin.' resets private NPC thoughts off like CHIM built-ins');
     $autonomyExpected=['builtin:default'=>[30,30],'builtin:local_llm'=>[30,100],'builtin:follower'=>[50,20],'builtin:passive'=>[5,120]][$builtin];
     $check([$settings['bored_event']['chance_percent'],$settings['behavior']['combat_bark_period_seconds']]===$autonomyExpected,
         $builtin.' matches reference bored probability and combat cooldown');
@@ -2053,6 +2054,130 @@ $check(array_column($roleMessages,'role')===['system','user']
     &&substr_count($rolePrompt['_assembled_prompt'],'Where is my ring?')===1
     &&!str_contains(json_encode($roleMessages,JSON_THROW_ON_ERROR),'smoke test'),
     'compact chat history is included once with explicit speakers and control noise filtered');
+// Private NPC thoughts: exact owner only, unspoken, stripped before canonical validation, and absent from traces.
+$thoughtTarget=['kind'=>'npc','record_id'=>'Fargoth','content_file'=>'Morrowind.esm','refnum'=>['index'=>112,'content_file'=>0],'display_name'=>'Fargoth'];
+$thoughtTwin=$thoughtTarget;$thoughtTwin['refnum']['index']=113;
+$thoughtTurn=$promptTurn;$thoughtTurn['payload']['target']=$thoughtTarget;
+$thoughtOwner=\LorkhanServer\Application\PrivateThoughtPolicy::owner($thoughtTurn,'ref:fixture',true);
+$check($thoughtOwner===['profile_id'=>'ref:fixture','actor'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'morrowind.esm','refnum'=>['index'=>112,'content_file'=>0]]]
+    &&\LorkhanServer\Application\PrivateThoughtPolicy::owner($thoughtTurn,'ref:fixture',false)===null
+    &&\LorkhanServer\Application\PrivateThoughtPolicy::owner($thoughtTurn,null,true)===null
+    &&\LorkhanServer\Application\PrivateThoughtPolicy::owner($promptTurn,'ref:fixture',true)===null,
+    'private thoughts are off by default and need an owning profile and exact placed RefNum');
+foreach([['execution_mode'=>'director'],['execution_mode'=>'hypnosis'],['execution_mode'=>'cheat'],['director_instruction_id'=>'x'],['target'=>['kind'=>'narrator']+$thoughtTarget],['target'=>['kind'=>'creature']+$thoughtTarget]]as$thoughtMode){
+    $ineligible=$thoughtTurn;$ineligible['payload']=array_replace($ineligible['payload'],$thoughtMode);
+    $check(\LorkhanServer\Application\PrivateThoughtPolicy::owner($ineligible,'ref:fixture',true)===null,'private thoughts stay limited to ordinary NPC dialogue: '.json_encode($thoughtMode));
+}
+$thoughtAttachment=\LorkhanServer\Application\PrivateThoughtPolicy::attachment($thoughtOwner,'He suspects me.');
+$check(\LorkhanServer\Application\PrivateThoughtPolicy::forOwner($thoughtAttachment,'ref:fixture',$thoughtTarget,$thoughtTarget)==='He suspects me.'
+    &&\LorkhanServer\Application\PrivateThoughtPolicy::forOwner($thoughtAttachment,'ref:other',$thoughtTarget)===null
+    &&\LorkhanServer\Application\PrivateThoughtPolicy::forOwner($thoughtAttachment,'ref:fixture',$thoughtTwin)===null
+    &&\LorkhanServer\Application\PrivateThoughtPolicy::forOwner($thoughtAttachment,'ref:fixture',$thoughtTarget,$thoughtTwin)===null
+    &&\LorkhanServer\Application\PrivateThoughtPolicy::forOwner(['text'=>'Unscoped.'],'ref:fixture',$thoughtTarget)===null,
+    'stored thoughts resolve only for the exact owning profile and RefNum, never a same-name actor');
+$thoughtProvider=new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions',['api.openai.com'],'gpt-test','test-key',options:['json_schema'=>true]);
+$thoughtSchema=new ReflectionMethod($thoughtProvider,'responseSchema');
+$requestedTurn=$thoughtTurn+['_private_thought'=>$thoughtOwner];
+$thoughtProperties=(array)$thoughtSchema->invoke($thoughtProvider,$requestedTurn)['properties'];
+$check(array_keys($thoughtProperties)===['utterances','action','internal_thought']&&$thoughtProperties['internal_thought']['maxLength']===600
+    &&in_array('internal_thought',$thoughtSchema->invoke($thoughtProvider,$requestedTurn)['required'],true)
+    &&!array_key_exists('internal_thought',(array)$thoughtSchema->invoke($thoughtProvider,$thoughtTurn)['properties'])
+    &&!array_key_exists('internal_thought',(array)$thoughtSchema->invoke(new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions',
+        ['api.openai.com'],'gpt-test','test-key',options:['json_schema'=>true,'json_mode'=>false]),$requestedTurn)['properties']),
+    'structured provider schema asks for internal_thought only for an enabled owner with JSON output');
+$thoughtMessages=\LorkhanServer\Application\PrivateThoughtPolicy::promptMessages([['role'=>'system','content'=>'Return one JSON object with exactly two keys: "utterances" and "action". Rest.'],['role'=>'user','content'=>'Hi']]);
+$check(str_contains($thoughtMessages[0]['content'],'exactly three keys: "utterances", "action" and "internal_thought"')
+    &&str_contains($thoughtMessages[0]['content'],'## Private Thought')&&$thoughtMessages[1]===['role'=>'user','content'=>'Hi'],
+    'private thought instructions extend only the actual provider output contract');
+$thoughtResult=['utterances'=>[['text'=>'Hello.']],'action'=>null,'internal_thought'=>'  He seems honest.  '];
+$extractedThought=\LorkhanServer\Application\PrivateThoughtPolicy::extract($thoughtResult);
+$validateProviderResult->invoke($actionProvider,$thoughtResult);
+$check($extractedThought==='He seems honest.'&&!array_key_exists('internal_thought',$thoughtResult),'internal_thought is stripped before the canonical envelope check');
+foreach([str_repeat('é',601),['nested'],"bad\0thought",'   ',42]as$badThought){
+    $badResult=['utterances'=>[['text'=>'Hello.']],'action'=>null,'internal_thought'=>$badThought];
+    $check(\LorkhanServer\Application\PrivateThoughtPolicy::extract($badResult)===null&&array_keys($badResult)===['utterances','action'],
+        'invalid private thoughts are dropped without failing dialogue');
+}
+$check(\LorkhanServer\Application\PrivateThoughtPolicy::text(str_repeat('é',600))===str_repeat('é',600),'private thoughts allow exactly 600 UTF-8 characters');
+$unrequestedThought=['utterances'=>[],'action'=>null,'_private_thought'=>'Leaked.'];
+$check(\LorkhanServer\Application\PrivateThoughtPolicy::take($unrequestedThought,$thoughtTurn)===null&&!isset($unrequestedThought['_private_thought']),
+    'an unrequested provider thought is discarded before routing');
+try{$validateProviderResult->invoke($actionProvider,['utterances'=>[['text'=>'Hello.']],'action'=>null,'internal_thought'=>'x']);$check(false,'unrequested internal_thought kept the strict envelope');}
+catch(RuntimeException){$check(true,'unrequested internal_thought keeps the strict envelope invalid');}
+$thoughtFixtureDir=sys_get_temp_dir().'/lorkhan-thought-'.bin2hex(random_bytes(6));mkdir($thoughtFixtureDir,0700);
+file_put_contents($thoughtFixtureDir.'/router.php','<?php file_put_contents(__DIR__."/request.json",file_get_contents("php://input"));'
+    .'$c=json_encode(["utterances"=>[["text"=>"Welcome, outlander. Mind the guards."]],"action"=>null,"internal_thought"=>"Secret \\"text\\": \\"never spoken\\"."]);'
+    .'header("Content-Type: text/event-stream");foreach(str_split($c,7) as $p)echo "data: ".json_encode(["choices"=>[["delta"=>["content"=>$p]]]])."\n\n";'
+    .'echo "data: ".json_encode(["choices"=>[["delta"=>[],"finish_reason"=>"stop"]]])."\n\ndata: [DONE]\n\n";');
+$thoughtSocket=stream_socket_server('tcp://127.0.0.1:0');$thoughtPort=(int)substr(strrchr(stream_socket_get_name($thoughtSocket,false),':'),1);fclose($thoughtSocket);
+$thoughtServer=proc_open([PHP_BINARY,'-S','127.0.0.1:'.$thoughtPort,$thoughtFixtureDir.'/router.php'],[1=>['file','/dev/null','w'],2=>['file','/dev/null','w']],$thoughtPipes);
+try{
+    for($i=0;$i<100&&@fsockopen('127.0.0.1',$thoughtPort)===false;++$i)usleep(20_000);
+    $streamProvider=new OpenAiCompatibleProvider('http://127.0.0.1:'.$thoughtPort.'/v1/chat/completions',['127.0.0.1'],'fixture','',5000,
+        options:['json_schema'=>true],allowLoopbackHttp:true,directConnection:true);
+    $streamedThoughtText=[];$thoughtDiagnostics=[];
+    $streamedThoughtTurn=$requestedTurn;$streamedThoughtTurn['_allowed_action_definitions']=[];
+    $streamedThoughtTurn['_prompt']['_messages']=[['role'=>'system','content'=>'Return one JSON object with exactly two keys: "utterances" and "action".'],
+        ['role'=>'assistant','content'=>"I have not seen it.\n".\LorkhanServer\Application\PrivateThoughtPolicy::historyNote("I hid\nthe ring.")],
+        ['role'=>'user','content'=>'Player: Where is my ring?']];
+    $thoughtLogBefore=['context'=>filesize($logRoot.'/context_sent_to_llm.log'),'output'=>filesize($logRoot.'/output_from_llm.log')];
+    $streamedThoughtResult=$streamProvider->completeStreaming($streamedThoughtTurn,new NeverCancelledToken(),
+        static function(string $delta)use(&$streamedThoughtText):void{$streamedThoughtText[]=$delta;},
+        static function(string $stage,array $value)use(&$thoughtDiagnostics):void{$thoughtDiagnostics[$stage]=$value;});
+    $thoughtRequest=json_decode((string)file_get_contents($thoughtFixtureDir.'/request.json'),true);
+    $check(($streamedThoughtResult['_private_thought']??null)==='Secret "text": "never spoken".'
+        &&$streamedThoughtResult['utterances']===[['text'=>'Welcome, outlander. Mind the guards.']]
+        &&!str_contains(implode("\n",$streamedThoughtText),'Secret')&&!str_contains(json_encode($thoughtDiagnostics['response']??[]),'Secret')
+        &&isset($thoughtRequest['response_format']['json_schema']['schema']['properties']['internal_thought'])
+        &&str_contains((string)$thoughtRequest['messages'][0]['content'],'## Private Thought'),
+        'streamed structured dialogue never speaks or diagnoses the private thought: '.json_encode([$streamedThoughtText,$streamedThoughtResult]));
+    clearstatcache();
+    $thoughtContextLog=substr((string)file_get_contents($logRoot.'/context_sent_to_llm.log'),$thoughtLogBefore['context']);
+    $thoughtOutputLog=substr((string)file_get_contents($logRoot.'/output_from_llm.log'),$thoughtLogBefore['output']);
+    $check(str_contains((string)$thoughtRequest['messages'][1]['content'],'unknown to others: I hid the ring.]')
+        &&str_contains($thoughtContextLog,'I have not seen it.')&&str_contains($thoughtContextLog,'[private thought withheld]')
+        &&!str_contains($thoughtContextLog,'I hid')&&!str_contains(json_encode($thoughtDiagnostics['request']??[]),'I hid')
+        &&str_contains($thoughtOutputLog,'Welcome, outlander. Mind the guards.')&&str_contains($thoughtOutputLog,'[private thought withheld]')
+        &&!str_contains($thoughtOutputLog,'Secret'),
+        'owner prompt replays its thought while context, output and diagnostics withhold new and replayed thoughts');
+    $streamProvider->completeStreaming(array_replace($streamedThoughtTurn,['_private_thought'=>null]),new NeverCancelledToken(),static function():void{});
+    $check(false,'unrequested streamed internal_thought accepted');
+}catch(RuntimeException $error){$check(isset($thoughtRequest)&&$error->getMessage()==='provider_invalid_output','unrequested streamed internal_thought stays invalid output');}
+finally{proc_terminate($thoughtServer);proc_close($thoughtServer);@unlink($thoughtFixtureDir.'/router.php');@unlink($thoughtFixtureDir.'/request.json');@rmdir($thoughtFixtureDir);}
+clearstatcache();
+$check(!str_contains((string)file_get_contents($logRoot.'/output_from_llm.log'),'Secret'),'rejected streamed output never logs its internal_thought');
+foreach(['{"utterances":[{"text":"Hi."}],"action":null,"internal_thought":"Partial sec',
+    '{"utterances":[{"text":"Hi."}],"action":null,"internal\u005fthought":"Escaped sec"}',
+    '{"utterances":[{"text":"Hi."}],"action":null, "Internal_Thought" :"Cased sec"}',
+    '{"utterances":[{"text":"Hi."}],"action":null,"internal_thought":{"text":"Object sec."}}']as$thoughtRaw){
+    $thoughtRedacted=\LorkhanServer\Application\PrivateThoughtPolicy::redactOutput($thoughtRaw);
+    $thoughtSpeech=new \LorkhanServer\Application\StreamingDialogueText();
+    $thoughtSpoken=array_merge(...array_map(static fn(string$part):array=>$thoughtSpeech->push($part),str_split($thoughtRaw,5)),...[$thoughtSpeech->push('',true)]);
+    $check(str_starts_with($thoughtRedacted,'{"utterances":[{"text":"Hi."}],"action":null,')&&!str_contains($thoughtRedacted,'sec')
+        &&$thoughtSpoken===['Hi.'],'partial, escaped and malformed thoughts are withheld from logs and speech: '.$thoughtRaw);
+}
+$check(\LorkhanServer\Application\PrivateThoughtPolicy::redactOutput('{"utterances":[{"text":"Say \\"internal_thought\\": aloud."}],"action":null}')
+    ==='{"utterances":[{"text":"Say \\"internal_thought\\": aloud."}],"action":null}','ordinary dialogue output is logged unchanged');
+$thoughtHistory=$roleHistory;$thoughtHistory['history']=[
+    ['history_id'=>'own-line','content'=>['kind'=>'speech','text'=>'I have not seen it.','speaker'=>'Fargoth','speaker_identity'=>$thoughtTarget,'private_thought'=>'I hid the ring.']],
+    ['history_id'=>'twin-line','content'=>['kind'=>'speech','text'=>'Neither have I.','speaker'=>'Fargoth','speaker_identity'=>$thoughtTwin,'private_thought'=>'Twin secret.']],
+];
+$thoughtAssembled=(new PromptAssembler(8192,1024))->assemble($thoughtTurn,$thoughtHistory);
+$thoughtSystem=$thoughtAssembled['provider_input']['_messages'][0]['content'];
+$check(str_contains($thoughtSystem,'unknown to others: I hid the ring.')&&!str_contains($thoughtSystem,'Twin secret')
+    &&!str_contains(json_encode($thoughtAssembled['trace'],JSON_THROW_ON_ERROR),'I hid the ring'),
+    'owner context includes its own thought, excludes a same-name actor, and keeps the prompt trace metadata-only');
+$thoughtSettings=(new EffectiveSettingsResolver())->resolve([],[],[]);
+$thoughtNpcSettings=(new EffectiveSettingsResolver())->resolve([],[],['settings_overrides'=>['response'=>['private_thoughts_enabled'=>true]]]);
+$check($thoughtSettings['settings']['response']['private_thoughts_enabled']===false
+    &&$thoughtNpcSettings['settings']['response']['private_thoughts_enabled']===true&&$thoughtNpcSettings['sources']['settings.response.private_thoughts_enabled']==='npc'
+    &&!str_contains(json_encode(EffectiveSettingsResolver::controlsProjection($thoughtNpcSettings)),'private_thoughts'),
+    'private thoughts default off, accept NPC overrides and stay out of the client controls contract');
+try{EffectiveSettingsResolver::validateSettingsOverrides(['response'=>['private_thoughts_enabled'=>'true']]);$check(false,'non-boolean private thought setting rejected');}
+catch(InvalidArgumentException){$check(true,'non-boolean private thought setting rejected');}
+$check(\LorkhanServer\Application\ProfileAssignmentRule::METADATA_FIELDS['PRIVATE_NPC_THOUGHTS_ENABLED']===['response','private_thoughts_enabled','boolean']
+    &&\LorkhanServer\Application\CoreProfilePreset::capture(['settings_overrides'=>['response'=>['private_thoughts_enabled'=>true]]])['settings_overrides']['response']===['private_thoughts_enabled'=>true],
+    'private thought setting maps CHIM metadata and survives named Core presets');
 $semanticHistory=$promptSelection;$semanticHistory['memory']=[];$semanticHistory['recent_action_results']=[];
 $timedHistory = $roleHistory;
 $timedHistory['effective_settings']['context'] = \LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];

@@ -53,6 +53,8 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         $cancellation->throwIfCancellationRequested();
         $this->reportedUsage=[];$this->transientFailure=false;$this->retryAfterSeconds=0;
         $messages = $this->promptMessages($turn);
+        $thoughtRequested = $this->privateThoughtRequested($turn);
+        if ($thoughtRequested) $messages = PrivateThoughtPolicy::promptMessages($messages);
         $languageEnabled=($turn['_prompt']['_llm_tts_language']??false)===true;
         $prefix = LlmConnector::prefillMessages($messages, $this->options, $languageEnabled?'language':'utterances');
         $request = LlmConnector::requestOptions($this->options,$this->directConnection?null:0.7,$this->disableReasoning,
@@ -68,9 +70,11 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             $request['stream_options']=['include_usage'=>true];
             $body=json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
         }
-        $this->emitDiagnostic($diagnosticObserver, 'request', $request);
+        // Replayed owner thoughts are prompt-only; logs and diagnostics receive a withheld marker instead.
+        $loggedRequest = PrivateThoughtPolicy::redactRequest($request);
+        $this->emitDiagnostic($diagnosticObserver, 'request', $loggedRequest);
         $logStarted = date(DATE_ATOM);
-        Logger::context($request, $this->apiKey);
+        Logger::context($loggedRequest, $this->apiKey);
         $networkOptions = OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection,$this->localNetwork);
         $handle = curl_init($this->endpoint);
         if ($handle === false) throw new RuntimeException('provider_unavailable');
@@ -174,7 +178,8 @@ final class OpenAiCompatibleProvider implements StreamingProvider
                 throw new RuntimeException('provider_unavailable');
             }
         } catch (\Throwable $error) {
-            Logger::output($content, $this->apiKey, started: $logStarted);
+            // Partial, cancelled or invalid output may already contain a private thought; never log it.
+            Logger::output(PrivateThoughtPolicy::redactOutput($content), $this->apiKey, started: $logStarted);
             Logger::warn('LLM request '.($error instanceof OperationCancelled ? 'cancelled' : 'failed').' model='.$this->model);
             throw $error;
         } finally {
@@ -199,9 +204,11 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             $this->reportedUsage['cost_usd']=(float)$usage['cost'];
         }
         if (!is_string($content) || $content === '') throw new RuntimeException('provider_invalid_output');
-        Logger::output($content, $this->apiKey, started: $logStarted);
+        Logger::output(PrivateThoughtPolicy::redactOutput($content), $this->apiKey, started: $logStarted);
         foreach ($visible->push('', true) as $index => $text) $onDialogueDelta($text, $languageEnabled?SpeechLanguage::fromJsonPrefix(str_starts_with(ltrim($content),'{')?$content:$prefix.$content):null, $visible->chunkMoods()[$index] ?? null, $visible->chunkTones()[$index] ?? null);
         $result = $this->decodeStructuredContent($content, $prefix);
+        // Strip the private field before the canonical envelope check; an unrequested field stays invalid output.
+        $thought = $thoughtRequested ? PrivateThoughtPolicy::extract($result) : null;
         $language=$languageEnabled?SpeechLanguage::normalize($result['language']??null):null;
         if($languageEnabled)unset($result['language']);
         $this->validateResultShape($result);
@@ -209,7 +216,14 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         unset($utterance);
         $result = $this->normalizeAction($result, $turn);
         $this->emitDiagnostic($diagnosticObserver, 'response', $result);
+        if ($thought !== null) $result[PrivateThoughtPolicy::RESULT_KEY] = $thought;
         return $result;
+    }
+
+    /** Only structured JSON responses for a frozen eligible owner may carry a private thought. */
+    private function privateThoughtRequested(array $turn): bool
+    {
+        return ($this->options['json_mode'] ?? true) === true && PrivateThoughtPolicy::requested($turn);
     }
 
     /** Explicit test readers receive bounded body data only, with the selected key removed even if echoed. */
@@ -292,7 +306,8 @@ final class OpenAiCompatibleProvider implements StreamingProvider
                 'items'=>['anyOf'=>[LlmConnector::objectSchema(['text'=>$textSchema]), LlmConnector::objectSchema(['mood'=>$moodSchema,'text'=>$textSchema]),
                     LlmConnector::objectSchema(['tones'=>$toneSchema,'text'=>$textSchema]), LlmConnector::objectSchema(['tones'=>$toneSchema,'mood'=>$moodSchema,'text'=>$textSchema])]]],
             'action'=>count($actions) === 1 ? $actions[0] : ['anyOf'=>$actions],
-        ]);
+        ] + ($this->privateThoughtRequested($turn) ? [PrivateThoughtPolicy::RESPONSE_FIELD=>['type'=>'string',
+            'maxLength'=>PrivateThoughtPolicy::MAX_CHARACTERS,'description'=>PrivateThoughtPolicy::INSTRUCTIONS]] : []));
     }
 
     /** Enforce the typed utterance envelope before a provider attempt can be marked successful. */

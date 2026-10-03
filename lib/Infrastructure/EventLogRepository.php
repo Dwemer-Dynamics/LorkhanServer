@@ -6,6 +6,7 @@ namespace LorkhanServer\Infrastructure;
 
 use LorkhanServer\Application\PlayerMoodPolicy;
 use LorkhanServer\Application\MorrowindCalendar;
+use LorkhanServer\Application\PrivateThoughtPolicy;
 use LorkhanServer\Domain\ProfileId;
 use InvalidArgumentException;
 use PDO;
@@ -180,14 +181,24 @@ final class EventLogRepository
         }
         $base = ' FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid LEFT JOIN turns t ON t.turn_id=m.turn_id WHERE ' . implode(' AND ', $where);
         $statement = $this->db->prepare('SELECT e.type,e.data,e.people,e.gamets,e.localts,e.ts,e.rowid,e.location,e.delivery_state,'
-            . "COALESCE(m.payload#>'{context,world,calendar}',m.payload->'calendar',t.context#>'{world,calendar}') AS calendar_data,(m.projection_kind='management_injection') AS deletable" . $base
+            . "COALESCE(m.payload#>'{context,world,calendar}',m.payload->'calendar',t.context#>'{world,calendar}') AS calendar_data,(m.projection_kind='management_injection') AS deletable,"
+            // Stored thoughts follow only lines that were not interrupted, expired or failed.
+            . "CASE WHEN e.type='chat' AND m.payload->'private_thought' IS NOT NULL AND e.delivery_state IN ('emitted','pending','spoken','played') "
+            . "AND NOT EXISTS(SELECT 1 FROM dialogue_utterances unheard WHERE unheard.dialogue_message_id=m.dialogue_message_id "
+            . "AND unheard.delivery_state IN ('interrupted','expired','failed')) THEN m.payload->'private_thought' END AS private_thought,m.speaker AS thought_speaker" . $base
             . ' ORDER BY e.gamets DESC,e.ts DESC,e.localts DESC,e.rowid DESC LIMIT :limit');
         foreach ($parameters as $key => $value) $statement->bindValue(':' . $key, $value);
         $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
         $statement->execute();
-        $events = array_map(function(array $row): array {
+        $events = array_map(function(array $row) use ($profileId, $scope): array {
             $presented = $this->present($row);
             $presented['deletable'] = in_array($row['deletable'] ?? false, [true,1,'1','t','true'], true);
+            // Owner history shows stored thoughts independently of the current generation switch.
+            if ($row['private_thought'] !== null) {
+                $thought = PrivateThoughtPolicy::forOwner($this->decodeObject($row['private_thought']), $profileId,
+                    $scope['identity'], $this->decodeObject($row['thought_speaker']));
+                if ($thought !== null) $presented['private_thought'] = $thought;
+            }
             return $presented;
         }, $statement->fetchAll());
 
@@ -583,6 +594,14 @@ final class EventLogRepository
             'data'=>$this->displayName($speaker,'NPC').': '.$text,'projection_kind'=>'dialogue',
             'projection_key'=>'dialogue:'.$dialogueMessageId,'delivery_state'=>'emitted','utterance_id'=>$dialogueMessageId,
             'dialogue_message_id'=>$dialogueMessageId]);
+    }
+
+    /** Attach one owner thought to its dialogue projection; replays keep the first stored thought. */
+    public function attachPrivateThought(string $dialogueMessageId, array $thought): void
+    {
+        $this->db->prepare("UPDATE eventlog_metadata SET payload=jsonb_set(payload,'{private_thought}',CAST(:thought AS jsonb)) "
+            . "WHERE dialogue_message_id=:dialogue AND projection_kind='dialogue' AND payload->'private_thought' IS NULL")
+            ->execute(['thought'=>$this->encodeObject($thought),'dialogue'=>$dialogueMessageId]);
     }
 
     public function updateDialogueDelivery(string $dialogueMessageId, string $state): void

@@ -18,7 +18,7 @@ $overrideLabels = [
     'memory.mid_term_enabled'=>'Middle Term Memory', 'memory.long_term_enabled'=>'Long Term Memory',
     'response.max_words'=>'Maximum Response Words',
     'memory.short_term_max_summaries'=>'Max Summaries',
-    'response.core_lang'=>'Core Language', 'response.lang_llm_xtts'=>'LLM Output Language',
+    'response.core_lang'=>'Core Language', 'response.lang_llm_xtts'=>'LLM Output Language', 'response.private_thoughts_enabled'=>'Private NPC Thoughts',
     'diary.prompt'=>'Diary Prompt', 'diary.automatic_interval_seconds'=>'Diary Cooldown',
     'diary.context_turn_limit'=>'Context History Diary Event Count',
     'profile_evolution.history_limit'=>'Context History Dynamic Profile Event Count',
@@ -51,6 +51,7 @@ $help=[
             'behavior.end_conversation_cooldown_seconds'=>'Seconds this NPC refuses AI conversation after a successful End Conversation action (0–300). Zero removes the cooldown; ordinary Rechat completion does not trigger it.',
             'relationship.update_chance_percent'=>'Percent chance that an eligible completed response queues a relationship update (0–100). Zero stops automatic updates; saved relationships remain in context. Relationship System must be enabled.',
             'response.core_lang'=>'Language of built-in roleplay instructions. Blank uses English; custom prompts and output translation are unchanged.',
+            'response.private_thoughts_enabled'=>'Off by default. Ask for a brief unspoken thought after this NPC’s lines. Never spoken, sent to the game or used for actions; only this NPC recalls it, and only its History tab shows it.',
             'response.lang_llm_xtts'=>'Ask the LLM for the spoken language and use it for XTTS/Chatterbox. Missing or unsupported codes keep the configured voice language.',
             'memory.short_term_max_summaries'=>'Maximum past-scene summaries included in a response (1–50). Used only when Short Term Memory is enabled.',
             'diary.prompt'=>'Instructions for this NPC’s diary generation. Keep between 1 and 8192 UTF-8 bytes; this does not enable automatic diaries.',
@@ -79,6 +80,7 @@ foreach (\LorkhanServer\Application\SettingsCatalog::npcOverrideFields() as $sec
         if($path==='behavior.combat_bark_period_seconds')$range=[min(10,(int)$default),600];
         if($path==='response.core_lang')$default=$effectiveSettings['settings']['response']['core_lang']??'';
         if($path==='response.lang_llm_xtts')$default=$effectiveSettings['settings']['response']['lang_llm_xtts']??false;
+        if($path==='response.private_thoughts_enabled')$default=($effectiveSettings['settings']['response']['private_thoughts_enabled']??false)===true;
         $overrideCatalog[$path]=['label'=>$overrideLabels[$path],'type'=>$range?'integer':'boolean','range'=>$range,'value'=>$default];
         if($path==='profile_evolution.interval_days')$overrideCatalog[$path]['type']='number';
         if($path==='quest_comments.chance_percent')$overrideCatalog[$path]=[

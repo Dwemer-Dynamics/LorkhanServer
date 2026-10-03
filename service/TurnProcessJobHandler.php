@@ -70,7 +70,7 @@ final class TurnProcessJobHandler implements JobHandler
                 $this->repository->storePreparedTurn($message,$prepared['trace'],$fence);
             }
             $policy=$this->translationPolicy($message);
-            $streamedDialogues=[];$pendingInlineSpeech=null;$streamCommitted=false;$heldNarration='';$narrationOpen=false;
+            $streamedDialogues=[];$pendingInlineSpeech=null;$streamCommitted=false;$heldNarration='';$narrationOpen=false;$privateThought=null;
             $streamSpeech=$this->canStreamSpeech($message,$policy);
             $progress = function (string $delta, ?string $language=null, ?string $mood=null, ?array $tones=null) use ($message, $fence, $policy, $job, $heartbeat, $streamSpeech,
                 &$streamedDialogues,&$pendingInlineSpeech,&$streamCommitted,&$heldNarration,&$narrationOpen): void {
@@ -105,6 +105,8 @@ final class TurnProcessJobHandler implements JobHandler
                 try{
                     $completed=$this->completeWithFallback($message,$job,$token,$progress,
                         static function()use(&$streamCommitted):bool{return $streamCommitted;});
+                    // Only a complete accepted response keeps its thought; it never reaches routing, speech or actions.
+                    $privateThought=PrivateThoughtPolicy::take($completed,$message);
                 }catch(OperationCancelled$error){throw$error;}
                 catch(Throwable$error){
                     // Committed sentences may already be heard; finish with exactly those instead of a failed turn.
@@ -122,7 +124,7 @@ final class TurnProcessJobHandler implements JobHandler
             if($streamedDialogues!==[])$result=$this->reconcileStreamedResult($message,$result,$streamedDialogues,$heldNarration);
             $queueSpeech = $this->mediaStore !== null
                 && in_array('speech.say', $message['_negotiated_capabilities'], true);
-            $this->repository->completeTurn($message,$result,null,$fence,$queueSpeech,$streamedDialogues);
+            $this->repository->completeTurn($message,$result,null,$fence,$queueSpeech,$streamedDialogues,$privateThought);
             Logger::info('Turn completed: turn_id='.$turnId);
             if($this->products!==null){
                 try{$this->products->maybeEnqueueSceneClassification($message);}

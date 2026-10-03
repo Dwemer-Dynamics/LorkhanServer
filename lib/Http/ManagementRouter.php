@@ -1629,7 +1629,8 @@ final class ManagementRouter
             + (isset($overrides['prompt']) ? ['prompt'=>$overrides['prompt']] : [])
             + (isset($overrides['relationship']) ? ['relationship'=>array_intersect_key($overrides['relationship'],array_flip(['enabled','update_chance_percent']))] : [])
             + (isset($overrides['profile_management']) ? ['profile_management'=>$overrides['profile_management']] : [])
-            + (isset($overrides['profile_evolution']) ? ['profile_evolution'=>$overrides['profile_evolution']] : []) + ['response'=>['max_words'=>(int)($overrides['response']['max_words']??0),'core_lang'=>(string)($overrides['response']['core_lang']??''),'lang_llm_xtts'=>($overrides['response']['lang_llm_xtts']??false)===true],
+            + (isset($overrides['profile_evolution']) ? ['profile_evolution'=>$overrides['profile_evolution']] : []) + ['response'=>['max_words'=>(int)($overrides['response']['max_words']??0),'core_lang'=>(string)($overrides['response']['core_lang']??''),'lang_llm_xtts'=>($overrides['response']['lang_llm_xtts']??false)===true]
+                + (($overrides['response']['private_thoughts_enabled']??false)===true ? ['private_thoughts_enabled'=>true] : []),
             'behavior'=>['rechat'=>($overrides['behavior']['rechat']??false)===true,
             'rechat_max_depth'=>(int)($overrides['behavior']['rechat_max_depth']??2),
             'rechat_probability_percent'=>(int)($overrides['behavior']['rechat_probability_percent']??50),
@@ -2665,6 +2666,13 @@ final class ManagementRouter
         foreach(['memory'=>['long_term_enabled'],'diary'=>['enabled','include_in_context']] as $section=>$fields)
             foreach($fields as $field)if(array_key_exists($field,$previousContent['settings_overrides'][$section]??[]))
                 $overrides[$section][$field]=$previousContent['settings_overrides'][$section][$field];
+
+        // Private thoughts change only with their explicit control; other form saves keep the stored choice.
+        if (isset($values['private_thoughts_present'])) {
+            $overrides['response']['private_thoughts_enabled']=isset($values['setting_response_private_thoughts_enabled']);
+        } elseif (array_key_exists('private_thoughts_enabled',$previousContent['settings_overrides']['response']??[])) {
+            $overrides['response']['private_thoughts_enabled']=$previousContent['settings_overrides']['response']['private_thoughts_enabled'];
+        }
 
         if (isset($values['diary_materialize_present'])) {
             $overrides['diary']['materialize_enabled']=isset($values['setting_diary_materialize_enabled']);

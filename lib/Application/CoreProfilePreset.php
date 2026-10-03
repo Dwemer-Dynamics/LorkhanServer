@@ -12,7 +12,7 @@ final class CoreProfilePreset
     private const FIELDS = [
         'context'=>['prompt_timestamp','ground_items_descriptions_only','inventory_items_descriptions_only','power_awareness_enabled','transformation_detection','short_term_in_compact_chat','hide_ambient_combat','detect_magic_events','item_pickup_min_value','location_blacklist','item_blacklist','magic_effects_blacklist','event_types_excluded','sections','details'],
         'prompt'=>['prompt_head','emote_moods'],
-        'response'=>['max_words','core_lang','lang_llm_xtts'],
+        'response'=>['max_words','core_lang','lang_llm_xtts','private_thoughts_enabled'],
         'rpg_comments'=>['events','chance_percent'],
         'bored_event'=>['chance_percent'],
         'quest_comments'=>['enabled','chance_percent'],
@@ -40,7 +40,7 @@ final class CoreProfilePreset
         $evolution['enabled']=$automatic;$evolution['history_limit']=$evolutionHistory;
         $preset=['schema'=>'lorkhan.named-core-preset.v1','routing'=>['llm_randomizer_enabled'=>false],
             'settings_overrides'=>[
-                'response'=>['max_words'=>$words],
+                'response'=>['max_words'=>$words,'private_thoughts_enabled'=>false],
                 'rpg_comments'=>['chance_percent'=>$rpgChance],
                 'bored_event'=>['chance_percent'=>$boredChance],
                 'quest_comments'=>['enabled'=>$automatic],
