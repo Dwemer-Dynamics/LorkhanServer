@@ -54,6 +54,7 @@ final class RelationshipEvaluationRepository
         if($policy===null||$policy['locked']||$policy['provider_configuration_id']==='')return null;
         foreach($policy as$field=>$value){
             if($field==='player2_policy_revision'&&!array_key_exists($field,$payload)&&$value===0)continue;
+if($field==='membership_fence'&&!array_key_exists($field,$payload)){if(!hash_equals(ReferenceGroupRepository::independentFence(),$value))return null;continue;}
             if(($payload[$field]??null)!==$value)return null;
         }
         $records=$this->records($source);
@@ -85,7 +86,8 @@ final class RelationshipEvaluationRepository
             $lock=$this->db->prepare('SELECT installation_id FROM installations WHERE installation_id=:installation FOR UPDATE');
             $lock->execute(['installation'=>$payload['installation_id']]);
             $source=$this->source($payload['source_event_id']);if($source===null)return false;
-            $this->lockIdentity($source);$input=$this->input($payload);if($input===null)return false;
+            $this->lockIdentity($source);(new ReferenceGroupRepository($this->db))->lockMembership($source['profile_id']);
+            $input=$this->input($payload);if($input===null)return false;
             $record=$input['record'];$beforeDisposition=(int)($record['disposition']??0);$beforeAffinity=(int)($record['affinity']??0);
             $gameOwned=($source['owner_identity']['kind']??'')==='npc'&&($source['target_identity']['kind']??'')==='player';
             $disposition=$gameOwned?$beforeDisposition:max(-100,min(100,$beforeDisposition+$output['disposition_delta']));
@@ -195,7 +197,9 @@ final class RelationshipEvaluationRepository
             $core?json_decode($core['content'],true,32,JSON_THROW_ON_ERROR):[],$content);
         $player2=new Player2RoutingRepository($this->db);$player2State=$player2->state($installation,$player2Revision);
         $resolved['routing']=$player2->apply($installation,$resolved['routing'],$player2State['revision']);
-        return ['player2_policy_revision'=>$player2State['revision'],'profile_revision'=>(int)$owner['current_revision'],'core_profile_id'=>$core['core_profile_id']??null,
+        // Linked-character membership is part of the owner: an edit, unlink or relink invalidates queued work.
+        return ['player2_policy_revision'=>$player2State['revision'],'profile_revision'=>(int)$owner['current_revision'],
+            'membership_fence'=>(new ReferenceGroupRepository($this->db))->fence($profile),'core_profile_id'=>$core['core_profile_id']??null,
             'core_profile_revision'=>isset($core['current_revision'])?(int)$core['current_revision']:null,
             'global_configuration_id'=>$global['configuration_id']??null,
             'global_revision'=>isset($global['current_revision'])?(int)$global['current_revision']:null,

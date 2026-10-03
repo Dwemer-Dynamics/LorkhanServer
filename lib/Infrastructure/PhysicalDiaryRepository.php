@@ -32,6 +32,13 @@ final class PhysicalDiaryRepository
                 WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND ".ProfileScopeSql::matches('p',':playthrough')." AND p.actor_identity->>'kind' IN ('npc','creature')
                 AND (SELECT count(*) FROM actor_profile_bindings ab WHERE ab.installation_id=p.installation_id
                     AND ab.playthrough_id=:playthrough AND ab.profile_id=p.profile_id)<=1
+                AND NOT EXISTS(SELECT 1 FROM npc_reference_groups g WHERE g.installation_id=p.installation_id AND g.enabled
+                    AND g.canonical_ref<>substring(p.profile_id from '^ref:[^:]+:[^:]+:(.*)$')
+                    AND (jsonb_exists(g.aliases,substring(p.profile_id from '^ref:[^:]+:[^:]+:(.*)$'))
+                        OR EXISTS(SELECT 1 FROM npc_reference_group_members m WHERE m.installation_id=g.installation_id
+                            AND m.group_key=g.group_key AND m.member_ref=substring(p.profile_id from '^ref:[^:]+:[^:]+:(.*)$')))
+                    AND NOT EXISTS(SELECT 1 FROM npc_reference_group_optouts o WHERE o.installation_id=g.installation_id
+                        AND o.group_key=g.group_key AND o.member_ref=substring(p.profile_id from '^ref:[^:]+:[^:]+:(.*)$')))
                 AND COALESCE(r.content->'diary'->>'materialize_enabled',r.content->'settings_overrides'->'diary'->>'materialize_enabled',
                     cr.content->'settings_overrides'->'diary'->>'materialize_enabled','false')='true'
                 AND EXISTS(SELECT 1 FROM narrative_records n JOIN durable_jobs j ON j.payload->>'narrative_id'=n.narrative_id::text
@@ -114,15 +121,17 @@ final class PhysicalDiaryRepository
         try{(new Validator())->validate(['schema'=>'lorkhan.controls.query.v1','message_id'=>Uuid::v4(),
             'request_id'=>Uuid::v4(),'session_id'=>$session['session_id'],'generation'=>(int)$session['generation'],
             'target'=>$target],'lorkhan.controls.query.v1');}catch(ValidationException){return null;}
+        // A linked keeper's book also holds dormant members' entries, read in place; the target stays the physical member.
+        $profiles=(new ReferenceGroupRepository($this->db))->characterScope((string)$profile['profile_id'],is_array($target)?$target:[])['profile_ids'];
         $query=$this->db->prepare("SELECT n.title,n.content FROM narrative_records n WHERE n.installation_id=:installation
-            AND n.profile_id=:profile AND n.playthrough_id=:playthrough AND n.kind='diary' AND n.deleted_at IS NULL
+            AND n.profile_id IN (SELECT jsonb_array_elements_text(CAST(:profiles AS jsonb))) AND n.playthrough_id=:playthrough AND n.kind='diary' AND n.deleted_at IS NULL
             AND EXISTS(SELECT 1 FROM durable_jobs j WHERE j.job_type='narrative.generate' AND j.state='succeeded'
                 AND j.payload->>'narrative_id'=n.narrative_id::text AND j.payload->>'installation_id'=n.installation_id::text
                 AND j.payload->>'profile_id'=n.profile_id::text AND j.payload->>'playthrough_id'=n.playthrough_id::text
                 AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_turns i
                     WHERE COALESCE(j.payload->'source_turn_ids','[]'::jsonb) @> jsonb_build_array(i.turn_id::text)))
             ORDER BY n.created_at DESC,n.narrative_id DESC LIMIT 5");
-        $query->execute(['installation'=>$session['installation_id'],'profile'=>$profile['profile_id'],'playthrough'=>$session['playthrough_id']]);
+        $query->execute(['installation'=>$session['installation_id'],'profiles'=>json_encode($profiles,JSON_THROW_ON_ERROR),'playthrough'=>$session['playthrough_id']]);
         $parts=[];foreach(array_reverse($query->fetchAll())as$entry){
             $text=trim($entry['content']);if($text==='')continue;
             $heading=trim($entry['title']);$parts[]=($heading!==''?'['.$heading."]\n":'').$text;

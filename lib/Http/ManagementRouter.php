@@ -497,16 +497,25 @@ final class ManagementRouter
     private function submit(string $domain,Request $r):Response
     {
         $v=$this->form($r);$scope=$this->scopeForm($v);
-        if(in_array($domain,['reference-group-save','reference-group-delete'],true)){
+        if(in_array($domain,['reference-group-save','reference-group-delete','reference-group-unlink','reference-group-relink'],true)){
             $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
-            if($domain==='reference-group-delete')$this->repository->deleteReferenceGroup($installation,$this->need($v,'group_key'));
-            else $this->repository->saveReferenceGroup($installation,[
-                'group_key'=>(string)($v['group_key']??''),'name'=>$this->need($v,'name'),
-                'match_name'=>(string)($v['match_name']??''),
-                'enabled'=>in_array($v['enabled']??false,[true,1,'1','on'],true),
-                'canonical_ref'=>(string)($v['canonical_ref']??''),'aliases'=>(string)($v['aliases']??'')]);
-            return$this->redirect($this->uiPath('characters').'?'.http_build_query([
-                'installation_id'=>$installation,'tab'=>'reference-groups','status'=>'saved']));
+            $query=['installation_id'=>$installation,'tab'=>'reference-groups'];
+            try{
+                if($domain==='reference-group-delete')$this->repository->deleteReferenceGroup($installation,$this->need($v,'group_key'));
+                elseif($domain==='reference-group-unlink')$this->repository->unlinkReferenceGroupMember($installation,$this->need($v,'group_key'),$this->need($v,'member_ref'));
+                elseif($domain==='reference-group-relink')$this->repository->relinkReferenceGroupMember($installation,$this->need($v,'group_key'),$this->need($v,'member_ref'));
+                else $this->repository->saveReferenceGroup($installation,[
+                    'group_key'=>(string)($v['group_key']??''),'name'=>$this->need($v,'name'),
+                    'match_name'=>(string)($v['match_name']??''),'revision'=>(string)($v['revision']??''),
+                    'enabled'=>in_array($v['enabled']??false,[true,1,'1','on'],true),
+                    'canonical_ref'=>(string)($v['canonical_ref']??''),'aliases'=>(string)($v['aliases']??'')]);
+                $query['status']='saved';
+            }catch(InvalidArgumentException $error){
+                // Guard failures return to the open dialog with a fixed code; the page maps it to plain text.
+                if(preg_match('/^(invalid_actor_reference|invalid_reference_group(_name|_aliases)?|name_already_in_group|reference_already_in_group|reference_group_[a-z_]+)$/D',$error->getMessage())!==1)throw $error;
+                $query['group_error']=$error->getMessage();
+            }
+            return$this->redirect($this->uiPath('characters').'?'.http_build_query($query));
         }
 
         if ($domain === 'narrator-prompt-save') {
