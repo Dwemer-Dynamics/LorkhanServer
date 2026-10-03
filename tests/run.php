@@ -2605,6 +2605,23 @@ $customPortDetections=0;$pocketCustomPort=new PocketTtsSpeechProvider('http://12
 try{$pocketCustomPort->synthesize('custom port',new NeverCancelledToken());$check(false,'custom PocketTTS ports remain authoritative');}
 catch(RuntimeException$error){$check($error->getMessage()==='provider_unavailable'&&$customPortDetections===0,
     'custom PocketTTS ports never trigger known-port discovery');}
+// TTS Studio asks the same resolver where synthesis would run before syncing samples.
+$pocketResolver=static fn(array$modes):PocketTtsSpeechProvider=>new PocketTtsSpeechProvider('http://127.0.0.1:8024','pocket-tts','default','en',[], '',30000,null,
+    static fn(string$endpoint,string$mode):\LorkhanServer\Application\SpeechProvider=>$unavailableProvider,
+    static fn(string$endpoint,\LorkhanServer\Application\CancellationToken$cancellation):string=>$modes[(int)parse_url($endpoint,PHP_URL_PORT)]??'');
+$check($pocketResolver([8020=>'standard',8086=>''])->unavailableRuntime(new NeverCancelledToken())
+    ===['state'=>'fallback','endpoint'=>'http://127.0.0.1:8020','mode'=>'standard','checked'=>['http://127.0.0.1:8024','http://127.0.0.1:8086','http://127.0.0.1:8020']],
+    'Studio resolves a Standard API PocketTTS fallback when the configured port is down');
+$check($pocketResolver([8086=>'audio_cpp',8020=>'standard'])->unavailableRuntime(new NeverCancelledToken())
+    ===['state'=>'fallback','endpoint'=>'http://127.0.0.1:8086','mode'=>'audio_cpp','checked'=>['http://127.0.0.1:8024','http://127.0.0.1:8086']],
+    'Studio resolves the same first audio.cpp fallback synthesis uses');
+$check($pocketResolver([])->unavailableRuntime(new NeverCancelledToken())['state']==='none'
+    &&$pocketResolver([])->unavailableRuntime(new NeverCancelledToken())['checked']===['http://127.0.0.1:8024','http://127.0.0.1:8086','http://127.0.0.1:8020'],
+    'Studio reports every PocketTTS endpoint checked when none respond');
+$check($pocketResolver([8024=>'standard',8086=>'audio_cpp'])->unavailableRuntime(new NeverCancelledToken())['state']==='configured',
+    'Studio keeps a still-responding configured PocketTTS service instead of rerouting');
+$check($pocketCustomPort->unavailableRuntime(new NeverCancelledToken())===['state'=>'none','endpoint'=>'','mode'=>'','checked'=>[]]&&$customPortDetections===0,
+    'Studio never probes known ports for a custom PocketTTS port');
 $localPreset=static fn(string $driver):array=>['kind'=>'tts_provider','content'=>['driver'=>$driver,
     'endpoint'=>'http://127.0.0.1:8999','model'=>'default','voice'=>'default','language'=>'en','timeout_ms'=>30000,'options'=>[]]];
 foreach(['melotts','mimic3','piper-tts','stylettsv2'] as $driver){
