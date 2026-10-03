@@ -105,10 +105,12 @@ Routes exist under the paired native API (`/LorkhanServer/api/v1/plugin-packages
 | `GET /plugin-packages` | Installed and removed packages for the installation. |
 | `POST /plugin-packages/uploads` `{plugin_id,version,size,sha256}` | Start an upload (16 open and 256 MiB reserved per server under one shared lock, 24 h expiry; `package_storage_full`, or `package_storage_busy` when the lock stays contended). |
 | `PUT /plugin-packages/uploads/{id}/chunks/{n}` (octet-stream, at most 1 MiB) | Append in order; the final chunk must match the declared size and SHA-256. |
-| `POST /plugin-packages/install` or `/update` `{request_id,upload_id}` | Persist an operation plus a `plugin_package.apply` durable job (202). |
+| `POST /plugin-packages/install` or `/update` `{request_id,upload_id[,expected_manifest_sha256]}` | Persist an operation plus a `plugin_package.apply` durable job (202). |
 | `GET /plugin-packages/operations/{id}` | `queued`, `succeeded` or `failed` with a stable `error_code`. |
 | `POST /plugin-packages/{plugin_id}/enable`, `/disable`, `/remove` | Synchronous policy and state change. |
 | `POST /plugin-packages/probe` `{plugin_id,version[,sha256]}` | `install`, `update`, `current`, `older` or `conflict`, plus `pending`. |
+
+Automatic client sync binds the operation to `expected_manifest_sha256`, the exact addon manifest bytes. A replay cannot change that binding. The worker rejects a mismatch before seeding data or activating the package. Older manual callers may omit the binding.
 
 The background worker validates and extracts uploads outside database transactions. Each verified tree is stored under `plugin_package_storage_path` (default `/var/lib/lorkhanserver/plugin-packages`, outside the web root) as `store/<archive sha256>`; once activated the tree is sealed read-only (files 0440, directories 0550) and never written again. The worker then switches the active row in one transaction. A failed update leaves the previous version active. A partial unique index plus a per-package advisory lock serializes operations on the same package. Mutable files are seeded into `data/<installation>/<plugin_id>/` only where nothing exists yet, so updates add new defaults but never overwrite. A link at any destination component fails the operation with `package_link_rejected`. Removal keeps that data, every stored tree and all NPC plugin namespaces. Responses and job errors carry stable codes only, never file paths. The lifecycle itself never executes packaged PHP; only the hook loader below does, for active registered addons.
 

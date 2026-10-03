@@ -14,7 +14,7 @@ return [
         $actor = $event['fields']['actor'];
         $camp = $npcData->get($actor) ?? [];
         if (($camp['last_message_id'] ?? null) === $event['message_id']) return;
-        if (isset($camp['marked_at']) && strcmp((string)$event['observed_at'], (string)$camp['marked_at']) < 0) return;
+        if (isset($camp['marked_at']) && new DateTimeImmutable((string)$event['observed_at']) < new DateTimeImmutable((string)$camp['marked_at'])) return;
         $npcData->set($actor, ['mood' => mb_substr((string) $event['fields']['mood'], 0, 16),
             'marked_at' => (string) $event['observed_at'], 'last_message_id' => $event['message_id']]);
     },

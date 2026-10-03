@@ -142,13 +142,15 @@ final class PluginPackageRepository
     /** Persist the operation and its durable job together; extraction happens later in the worker. */
     public function queue(string $installation, string $operation, array $body): array
     {
-        $this->keys($body, ['request_id', 'upload_id']);
+        $this->keys($body, ['request_id', 'upload_id'], ['expected_manifest_sha256']);
+        $expected = $body['expected_manifest_sha256'] ?? null;
+        if ($expected !== null && (!is_string($expected) || preg_match('/^[0-9a-f]{64}$/D', $expected) !== 1)) throw new PackageError('package_invalid_request');
         if (!in_array($operation, ['install', 'update'], true) || !is_string($body['request_id']) || !Uuid::isValid($body['request_id'])) {
             throw new PackageError('package_invalid_request');
         }
         $existing = $this->operationRow($installation, $body['request_id']);
         if ($existing !== null) {
-            if ($existing['operation'] !== $operation || $existing['upload_id'] !== $body['upload_id']) throw new PackageError('duplicate_conflict');
+            if ($existing['operation'] !== $operation || $existing['upload_id'] !== $body['upload_id'] || ($existing['expected_manifest_sha256'] ?? null) !== $expected) throw new PackageError('duplicate_conflict');
             return $this->publicOperation($existing);
         }
         [$handle, $meta] = $this->openUpload($installation, (string) $body['upload_id']);
@@ -163,7 +165,7 @@ final class PluginPackageRepository
                 ->execute(['id' => $body['request_id'], 'installation' => $installation, 'plugin' => $meta['plugin_id'], 'operation' => $operation,
                     'version' => $meta['version'], 'sha' => $meta['sha256']]);
             (new JobRepository($this->db))->enqueue($body['request_id'], self::JOB_TYPE, 1, $body['request_id'],
-                ['operation_id' => $body['request_id'], 'installation_id' => $installation, 'upload_id' => $body['upload_id']], 3);
+                ['operation_id' => $body['request_id'], 'installation_id' => $installation, 'upload_id' => $body['upload_id'], 'expected_manifest_sha256' => $expected], 3);
             $this->db->commit();
         } catch (PDOException $error) {
             if ($this->db->inTransaction()) $this->db->rollBack();
@@ -200,6 +202,7 @@ final class PluginPackageRepository
             }
             $package = (new PluginPackageArchive($serverVersion))->extract($archive, $stage);
             if ($package['plugin_id'] !== $op['plugin_id'] || $package['version'] !== $op['version']) throw new PackageError('package_identity_mismatch');
+            if (($op['expected_manifest_sha256'] ?? null) !== null && !hash_equals($op['expected_manifest_sha256'], $package['manifest_sha256'])) throw new PackageError('package_manifest_mismatch');
             $tree = $this->directory('store') . '/' . $op['archive_sha256'];
             if (is_link($tree)) throw new PackageError('package_storage_unavailable');
             if (is_dir($tree)) $this->remove($stage, $this->directory('staging'));
@@ -411,7 +414,7 @@ final class PluginPackageRepository
 
     private function operationRow(string $installation, string $operationId): ?array
     {
-        $q = $this->db->prepare("SELECT o.*,j.payload->>'upload_id' AS upload_id FROM plugin_package_operations o
+        $q = $this->db->prepare("SELECT o.*,j.payload->>'upload_id' AS upload_id,j.payload->>'expected_manifest_sha256' AS expected_manifest_sha256 FROM plugin_package_operations o
             LEFT JOIN durable_jobs j ON j.job_id=o.operation_id AND j.job_type=:type WHERE o.operation_id=:id AND o.installation_id=:installation");
         $q->execute(['id' => $operationId, 'installation' => $installation, 'type' => self::JOB_TYPE]);
         return $q->fetch(PDO::FETCH_ASSOC) ?: null;
