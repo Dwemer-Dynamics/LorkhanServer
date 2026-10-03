@@ -201,8 +201,10 @@ final class ActionPolicyValidator
             return $cue."action must be null or an object with exactly actor_id, name and parameters. actor_id is required and must use an exact selector below; never emit a full actor identity. World actions, item.give, gold.give and spell.cast may additionally specify recipient_id, outside parameters; omission targets the player. Use self only for spell.cast. Choose only actions listed for the selected actor.\n".implode("\n",$rows);
         }
         $definitions = $turn['_allowed_action_definitions'] ?? [];
+        $addons = PluginActionPolicy::contract($turn);
         if ($definitions === []) {
-            return $cue.'action must be null. No actions are available for this turn.';
+            return $cue.($addons === '' ? 'action must be null. No actions are available for this turn.'
+                : "action must be null or one addon action below.\n".$addons);
         }
         $actions = [];
         foreach ($definitions as $definition) {
@@ -227,7 +229,14 @@ final class ActionPolicyValidator
             break;
         }
         return $cue."action must be null or an object with name and parameters; the server adds actor, target, and tier.\n"
-            ."Use only these actions and their compact typed parameters:\n".implode("\n",$actions).$recipientHelp;
+            ."Use only these actions and their compact typed parameters:\n".implode("\n",$actions).$recipientHelp
+            .($addons === '' ? '' : "\n".$addons);
+    }
+
+    /** Addon actions use the same policy switch, tier ceiling and allow/deny lists, keyed as plugin_id/action. */
+    public function addonAllowed(array $loaded, string $pluginId, string $action, int $tier): bool
+    {
+        return $this->policyAllows($pluginId.'/'.$action, $tier, $this->normalizePolicy($loaded['policy']['content'] ?? null));
     }
 
     /** @return array{enabled:bool,max_tier:int,allow:?list<string>,deny:list<string>,overrides:array<string,array<string,mixed>>} */

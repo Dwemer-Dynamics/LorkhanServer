@@ -806,6 +806,43 @@ $pluginIntent=$pluginFixture('valid/plugin-action-intent');
 $pluginProposal=['plugin_id'=>'ashlander.camp_tasks','action'=>'fetch_water','actor'=>$pluginIntent['actor'],'target'=>null,'parameters'=>['trips'=>2,'vessel'=>'jug']];
 $builtIntent=$pluginRegistry->intent($pluginProposal,$pluginIntent['action_id'],$pluginIntent['turn_id'],new DateTimeImmutable('2026-10-02T12:00:00Z'));
 $check($builtIntent===$pluginIntent,'registry builds the exact shared plugin intent with bounded expiry');
+// Addon model actions: observed-actor selectors, policy gate, bounded tool budget, structured schema and compact proposals.
+$addonPlayer=['kind'=>'player','record_id'=>'player','content_file'=>'Morrowind.esm','refnum'=>['index'=>1,'content_file'=>0],
+    'cell'=>$pluginIntent['actor']['cell'],'display_name'=>'Nerevar'];
+$addonGuest=array_replace($pluginIntent['actor'],['record_id'=>'arrille','display_name'=>'Arrille','refnum'=>['index'=>113,'content_file'=>0]]);
+$addonPayload=['target'=>$pluginIntent['actor'],'speaker'=>$addonPlayer,'audience'=>[$pluginIntent['actor'],$addonGuest]];
+$addonDefinitions=\LorkhanServer\Application\PluginActionPolicy::definitions($pluginRegistry->actions(),$addonPayload,static fn()=>true);
+$check(array_column($addonDefinitions,'actor_ids','name')===['fetch_water'=>['target'],'share_meal'=>['target','audience:2']]
+    &&$addonDefinitions[1]['target_ids']===['speaker']&&$addonDefinitions[0]['target_ids']===[],
+    'addon actions offer only observed executors of registered kind and exact actor scope, never the player');
+$addonPolicy=['policy'=>['content'=>['max_tier'=>1,'denied_actions'=>['ashlander.camp_tasks/fetch_water']]]];
+$check(\LorkhanServer\Application\PluginActionPolicy::definitions($pluginRegistry->actions(),$addonPayload,
+    static fn(string $plugin,string $action,int $tier)=>(new ActionPolicyValidator())->addonAllowed($addonPolicy,$plugin,$action,$tier))===[],
+    'addon actions obey the effective action policy tier ceiling and plugin_id/action deny list');
+$check(\LorkhanServer\Application\PluginActionPolicy::definitions(array_fill(0,20,$pluginRegistry->actions()[0]),$addonPayload,static fn()=>true)!==[]
+    &&count(\LorkhanServer\Application\PluginActionPolicy::definitions(array_fill(0,20,$pluginRegistry->actions()[0]),$addonPayload,static fn()=>true))
+        ===\LorkhanServer\Application\PluginActionPolicy::MAX_PROMPT_ACTIONS,'addon tool exposure is bounded per turn');
+$addonTurn=['payload'=>$addonPayload,'_plugin_action_definitions'=>$addonDefinitions,'_allowed_action_definitions'=>[]];
+$addonSchema=(new ReflectionMethod($actionProvider,'responseSchema'))->invoke($actionProvider,$addonTurn);
+$addonVariants=json_decode(json_encode($addonSchema['properties']->action),true)['anyOf']??[];
+$check(count($addonVariants)===3&&$addonVariants[2]['properties']['target_id']['enum']===['speaker']
+    &&$addonVariants[1]['properties']['parameters']['properties']['trips']===['type'=>'integer','minimum'=>1,'maximum'=>3],
+    'structured response schema adds one strict variant per addon action and target shape');
+$addonContract=(new ActionPolicyValidator())->promptContract($addonTurn);
+$check(str_contains($addonContract,'name `fetch_water(trips: integer 1..3, vessel?: bucket|jug)`')&&!str_contains($addonContract,'"refnum"')
+    &&str_contains($addonContract,'never claim it happened'),'addon prompt contract lists typed tuples and selectors, never identities');
+$addonNormalized=$normalizeAction->invoke($actionProvider,['utterances'=>[['text'=>'Fine.']],'action'=>['plugin'=>'ashlander.camp_tasks',
+    'name'=>'fetch_water','actor_id'=>'target','parameters'=>['trips'=>2,'vessel'=>'jug']]],$addonTurn)['action'];
+$check($addonNormalized===$pluginProposal&&$pluginRegistry->intent($addonNormalized,$pluginIntent['action_id'],$pluginIntent['turn_id'],
+    new DateTimeImmutable('2026-10-02T12:00:00Z'))===$pluginIntent,'compact addon proposal maps to the exact registry intent');
+foreach(['unlisted executor'=>['actor_id'=>'audience:2'],'player executor'=>['actor_id'=>'speaker'],'model identity'=>['actor'=>$addonGuest],
+    'unlisted target'=>['target_id'=>'speaker'],'unknown action'=>['name'=>'burn_camp']]as$name=>$change){
+    $proposed=$normalizeAction->invoke($actionProvider,['utterances'=>[['text'=>'Fine.']],'action'=>array_replace(['plugin'=>'ashlander.camp_tasks',
+        'name'=>'fetch_water','actor_id'=>'target','parameters'=>['trips'=>1]],$change)],$addonTurn)['action'];
+    $check($proposed===null,'compact addon proposal rejects '.$name);
+}
+$check(!\LorkhanServer\Application\PluginActionPolicy::observedProposal($addonDefinitions[1],['actor'=>$addonGuest,'target'=>$pluginIntent['actor'],
+    'parameters'=>[]],$addonPayload),'post-provider revalidation rejects an actor outside the definition selectors');
 $otherActor=$pluginIntent['actor'];$otherActor['refnum']['index']=113;
 foreach(['undeclared parameter'=>[['parameters'=>['trips'=>2,'path'=>'x']],'action_parameters_invalid'],
     'out-of-range parameter'=>[['parameters'=>['trips'=>9]],'action_parameters_invalid'],

@@ -236,7 +236,7 @@ final class ActionCatalogRepository
     private function lastActionTimes(string $sessionId,int $generation):array
     {
         $statement=$this->db->prepare('SELECT action_name,max(emitted_at) AS emitted_at FROM action_intents '
-            .'WHERE session_id=:session AND generation=:generation GROUP BY action_name');
+            .'WHERE session_id=:session AND generation=:generation AND plugin_id IS NULL GROUP BY action_name');
         $statement->execute(['session'=>$sessionId,'generation'=>$generation]);$result=[];
         foreach($statement->fetchAll()as$row)$result[(string)$row['action_name']]=(string)$row['emitted_at'];
         return$result;

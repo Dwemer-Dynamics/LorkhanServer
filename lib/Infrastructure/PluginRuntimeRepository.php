@@ -63,6 +63,7 @@ final class PluginRuntimeRepository
                     'installation' => $installation, 'version' => $entry['version'], 'sha' => $entry['manifest_sha256'],
                     'entry' => json_encode($entry, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)]);
             }
+            $this->withdraw($message['session_id'], $message['generation'], $registry);
             $body = ['schema' => PluginContract::REGISTRATION_ACCEPTED, 'message_id' => $message['message_id'],
                 'request_id' => $message['request_id'], 'session_id' => $message['session_id'], 'generation' => $message['generation'],
                 'plugins' => $results];
@@ -140,6 +141,39 @@ final class PluginRuntimeRepository
         }
         usort($active, static fn(array $a, array $b): int => strcmp($a['plugin_id'], $b['plugin_id']));
         return $active;
+    }
+
+    /**
+     * Live registry for one session generation, or null when stale, ended or unnegotiated. Pending addon intents of plugins
+     * no longer active in it are withdrawn on this access.
+     */
+    public function registry(string $installation, string $sessionId, int $generation): ?PluginRegistry
+    {
+        try {
+            [$registry] = $this->state($installation, $sessionId, $generation, false);
+        } catch (OutOfBoundsException | UnexpectedValueException | DomainException) {
+            return null;
+        }
+        $this->withdraw($sessionId, $generation, $registry);
+        return $registry;
+    }
+
+    /**
+     * Retire pending intents of disabled, removed, updated, unregistered or older-generation addons like an interrupt does:
+     * no outcome is invented, so the client's actual terminal result (even a committed non-cancellable effect, which cannot
+     * be undone) is still stored if it arrives within the result window.
+     */
+    private function withdraw(string $sessionId, int $generation, PluginRegistry $registry): void
+    {
+        $active = [];
+        foreach ($registry->entries() as $id => $entry) $active[] = $id . '@' . $entry['version'];
+        $this->db->prepare("WITH withdrawn AS (UPDATE action_intents SET state = 'terminal' WHERE session_id = :session
+                AND plugin_id IS NOT NULL AND state <> 'terminal'
+                AND (generation <> :generation OR NOT (plugin_id || '@' || plugin_version = ANY (CAST(:active AS text[]))))
+                RETURNING action_id)
+            UPDATE action_delivery delivery SET terminal_at = COALESCE(delivery.terminal_at, clock_timestamp()), continuation_state = 'none',
+                updated_at = clock_timestamp() FROM withdrawn WHERE delivery.action_id = withdrawn.action_id")
+            ->execute(['session' => $sessionId, 'generation' => $generation, 'active' => '{' . implode(',', $active) . '}']);
     }
 
     /** @return array{0:PluginRegistry,1:array<string,array<string,mixed>>} */
