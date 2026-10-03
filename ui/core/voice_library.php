@@ -6,6 +6,8 @@ use LorkhanServer\Application\ConnectorCatalog;
 use LorkhanServer\Application\SpeechPreviewCatalog;
 use LorkhanServer\Application\CloudVoiceLibrary;
 use LorkhanServer\Application\CredentialStore;
+use LorkhanServer\Application\NeverCancelledToken;
+use LorkhanServer\Application\PocketTtsSpeechProvider;
 use LorkhanServer\Infrastructure\ProductRepository;
 use LorkhanServer\Infrastructure\TtsPronunciationRepository;
 use LorkhanServer\Security\OutboundUrlPolicy;
@@ -39,6 +41,7 @@ if($requestedLanguage!==''){
     try{$discoverLanguage=lorkhan_voice_language($requestedLanguage);}
     catch(InvalidArgumentException){$requestedLanguage='';$error='invalid_voice_language';}
 }
+$pocketRuntime=null;
 $pronunciations=new TtsPronunciationRepository($database);$pronunciationEntries=[];$pronunciationNotice='';$pronunciationError='';
 // The Pronunciations tab narrows its editable list by one Oghma tag read straight from the URL.
 $pronunciationFilter=trim((string)($_GET['oghma_tag']??''));
@@ -237,6 +240,52 @@ function lorkhan_voice_sync_connector(array $preset,string $path,string $voice,s
     }finally{curl_close($handle);}
 }
 
+/** Show only a service endpoint's scheme, host, port and path; never credentials, query or fragment. */
+function lorkhan_voice_display_endpoint(string $endpoint):string
+{
+    $parts=parse_url(trim($endpoint));$scheme=is_array($parts)?strtolower((string)($parts['scheme']??'')):'';
+    if(!in_array($scheme,['http','https'],true)||(string)($parts['host']??'')==='')return'(invalid endpoint)';
+    $display=$scheme.'://'.$parts['host'].(isset($parts['port'])?':'.(int)$parts['port']:'').rtrim((string)($parts['path']??''),'/');
+    return(string)preg_replace('/[\x00-\x20\x7f]/','',$display);
+}
+
+/**
+ * Run a sample-library request where PocketTTS synthesis will run: the configured endpoint, or the same-host
+ * runtime PocketTtsSpeechProvider falls back to once that endpoint stops answering. An audio.cpp fallback reads
+ * local samples directly, so the request is skipped (null) and nothing is uploaded. Other drivers pass through.
+ */
+function lorkhan_voice_runtime_request(array $preset,callable $request,?array &$runtime):mixed
+{
+    $runtime=null;$content=is_array($preset['content']??null)?$preset['content']:[];
+    if(($content['driver']??'')!=='pockettts')return$request($preset);
+    $configured=rtrim((string)($content['endpoint']??''),'/');
+    $runtime=['configured'=>$configured,'endpoint'=>$configured,'mode'=>'standard','fallback'=>false,'checked'=>[]];
+    try{return$request($preset);}
+    catch(RuntimeException $error){
+        if($error->getMessage()==='voice_provider_http_429')throw$error;
+        $found=(new PocketTtsSpeechProvider($configured,'pocket-tts','default'))->unavailableRuntime(new NeverCancelledToken());
+        // A configured service that still identifies as PocketTTS, or a custom port, keeps its own error.
+        if($found['state']==='configured'||$found['checked']===[])throw$error;
+        $runtime['checked']=$found['checked'];
+        if($found['state']!=='fallback'){$runtime['endpoint']='';$runtime['mode']='';throw new RuntimeException('pockettts_runtime_unavailable');}
+        $runtime=array_merge($runtime,['endpoint'=>$found['endpoint'],'mode'=>$found['mode'],'fallback'=>true]);
+        if($found['mode']==='audio_cpp')return null;
+        $preset['content']['endpoint']=$found['endpoint'];
+        return$request($preset);
+    }
+}
+
+/** Describe the PocketTTS runtime a Studio request reached, or the endpoints that did not respond. */
+function lorkhan_voice_pocket_runtime_message(array $runtime):string
+{
+    $configured=lorkhan_voice_display_endpoint($runtime['configured']);
+    if($runtime['mode']==='')return'PocketTTS did not respond at '.implode(', ',array_map('lorkhan_voice_display_endpoint',$runtime['checked'])).'. Start PocketTTS or update the connector endpoint, then try again.';
+    $used=lorkhan_voice_display_endpoint($runtime['endpoint']);
+    return$runtime['mode']==='audio_cpp'
+        ?'The configured PocketTTS endpoint '.$configured.' did not respond. Synthesis will use PocketTTS audio.cpp at '.$used.', which reads local samples directly, so nothing was uploaded.'
+        :'The configured PocketTTS endpoint '.$configured.' did not respond. Used the Standard API PocketTTS service at '.$used.', which synthesis also falls back to.';
+}
+
 /** Validate the whole multi-file selection before publishing any samples; never overwrite existing voices. */
 function lorkhan_voice_import_uploads(array $upload,string $voice,string $voiceRoot):array
 {
@@ -312,9 +361,15 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
             if(!is_array($preset))throw new InvalidArgumentException('voice_discovery_unsupported');
             $discoverLanguage=strtolower(trim((string)($_POST['language']??'en'))?:'en');
-            $discoveredVoices=lorkhan_voice_discover($preset,$discoverLanguage,$cloudLibrary);$discoveredPreset=$preset;$selectedDiscoveryId=$configurationId;$catalogLoaded=true;
-            $products->replaceConnectorVoiceCatalog($configurationId,$discoveredVoices,gmdate('Y-m-d\TH:i:s\Z'));
-            $notice=count($discoveredVoices).' provider voices discovered.';
+            $selectedDiscoveryId=$configurationId;
+            $discovered=lorkhan_voice_runtime_request($preset,static fn(array $target):array=>lorkhan_voice_discover($target,$discoverLanguage,$cloudLibrary),$pocketRuntime);
+            if($discovered===null)$notice=lorkhan_voice_pocket_runtime_message($pocketRuntime);
+            else{
+                $discoveredVoices=$discovered;$discoveredPreset=$preset;$catalogLoaded=true;
+                $products->replaceConnectorVoiceCatalog($configurationId,$discoveredVoices,gmdate('Y-m-d\TH:i:s\Z'));
+                $notice=count($discoveredVoices).' provider voices discovered.';
+                if(($pocketRuntime['fallback']??false)===true)$notice.=' '.lorkhan_voice_pocket_runtime_message($pocketRuntime);
+            }
         }elseif($action==='upload'){
             $upload=$_FILES['voice_sample']??null;if(!is_array($upload))throw new InvalidArgumentException('voice_upload_failed');
             $expected=(string)($_POST['upload_count']??'');$received=is_array($upload['name']??null)?count($upload['name']):1;
@@ -342,6 +397,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
             if(!is_array($preset)||!is_file($path))throw new InvalidArgumentException('voice_sample_not_found');
             $language=lorkhan_voice_language(trim((string)($_POST['language']??'en'))?:'en');
+            $synced=true;
             if(in_array($preset['content']['driver'],['cartesia','inworld'],true)){
                 if(($_POST['consent']??'')!=='1')throw new InvalidArgumentException('voice_upload_confirmation_required');
                 $catalog=$products->connectorVoiceCatalog($configurationId);
@@ -349,9 +405,12 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
                 $catalog=array_values(array_filter($catalog,static fn(array $row):bool=>$row['id']!==$generated['id']&&$row['id']!==$generated['previous_id']&&mb_strtolower($row['display'])!==mb_strtolower($generated['display'])));
                 $catalog[]=$generated;
                 $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
-            }else lorkhan_voice_sync_connector($preset,$path,pathinfo($filename,PATHINFO_FILENAME),$language);
+            }else $synced=lorkhan_voice_runtime_request($preset,static function(array $target)use($path,$filename,$language):bool{
+                lorkhan_voice_sync_connector($target,$path,pathinfo($filename,PATHINFO_FILENAME),$language);return true;},$pocketRuntime);
             $selectedDiscoveryId=$configurationId;
-            $notice='Voice sample synced to '.(string)($preset['name']??'the selected connector').'.';
+            // An audio.cpp fallback skips the upload (null), so only the runtime message is reported.
+            $notice=$synced===null?'':'Voice sample synced to '.(string)($preset['name']??'the selected connector').'.';
+            if(($pocketRuntime['fallback']??false)===true)$notice=trim($notice.' '.lorkhan_voice_pocket_runtime_message($pocketRuntime));
             if(!empty($generated['previous_kept']))$notice.=' The previous remote voice was kept because profiles or connectors still use its ID.';
             if(!empty($generated['cleanup_failed']))$notice.=' The new voice is active, but the old remote clone could not be deleted.';
         }elseif($action==='batch_sync'){
@@ -363,7 +422,13 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $ajax=($_POST['_batch_ajax']??'')==='1';$phase=(string)($_POST['_batch_phase']??'');
             if($ajax&&!in_array($phase,['plan','voice'],true))throw new InvalidArgumentException('invalid_voice_action');
             $language=lorkhan_voice_language(trim((string)($_POST['language']??'en'))?:'en');
-            $catalog=lorkhan_voice_discover($preset,$language,$cloudLibrary);
+            $catalog=lorkhan_voice_runtime_request($preset,static fn(array $target):array=>lorkhan_voice_discover($target,$language,$cloudLibrary),$pocketRuntime);
+            if($catalog===null)throw new RuntimeException('pockettts_runtime_local_only');
+            // Every upload in this request goes to the runtime discovery reached, so samples land where synthesis runs.
+            $syncPreset=$preset;if(($pocketRuntime['fallback']??false)===true)$syncPreset['content']['endpoint']=$pocketRuntime['endpoint'];
+            // Plain text built only from sanitized display endpoints. Each AJAX voice request re-resolves the runtime
+            // (and re-probes while the configured endpoint is down) because the server never trusts a client-echoed endpoint.
+            $runtimeMessage=($pocketRuntime['fallback']??false)===true?lorkhan_voice_pocket_runtime_message($pocketRuntime):'';
             $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
             $known=[];foreach($catalog as$row){if($preset['content']['driver']==='omnivoice'&&!lorkhan_voice_omnivoice_ready($row))continue;$known[strtolower($row['id'])]=true;$known[strtolower($row['display'])]=true;}
             $pending=[];
@@ -372,7 +437,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             }
             if($ajax&&$phase==='plan'){
                 if(count($pending)>512)throw new InvalidArgumentException('invalid_voice_upload_selection');
-                header('Content-Type: application/json');echo json_encode(['voices'=>$pending],JSON_THROW_ON_ERROR);exit;
+                header('Content-Type: application/json');echo json_encode(['voices'=>$pending,'runtime'=>$runtimeMessage],JSON_THROW_ON_ERROR);exit;
             }
             // The browser freezes one plan and submits each named voice once, even if discovery lags.
             $requested=$ajax&&$phase==='voice'?pathinfo(lorkhan_voice_filename($voice),PATHINFO_FILENAME):($pending[0]??'');
@@ -387,14 +452,15 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
                         $catalog=array_values(array_filter($catalog,static fn(array $row):bool=>$row['id']!==$generated['id']&&$row['id']!==$generated['previous_id']&&mb_strtolower($row['display'])!==mb_strtolower($generated['display'])));
                         $catalog[]=$generated;
                         $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
-                    }else lorkhan_voice_sync_connector($preset,$path,$name,$language);
+                    }else lorkhan_voice_sync_connector($syncPreset,$path,$name,$language);
                     $count++;
                 }catch(Throwable $exception){$failed++;$rateLimited=$exception->getMessage()==='voice_provider_http_429';}
             }
             $notice=$count.' voices uploaded; '.$failed.' failed. Run again for remaining voices.';
             if($previousKept)$notice.=' The previous remote voice was kept because profiles or connectors still use its ID.';
             if($cleanupFailed)$notice.=' The new voice is active, but the old remote clone could not be deleted.';
-            if($ajax){header('Content-Type: application/json');echo json_encode(['previous_kept'=>$previousKept,'cleanup_failed'=>$cleanupFailed,'voice'=>$requested,'uploaded'=>$count,'failed'=>$failed,'skipped'=>$skipped,'rate_limited'=>$rateLimited,'remaining'=>max(0,count($pending)-$count)],JSON_THROW_ON_ERROR);exit;}
+            if($runtimeMessage!=='')$notice.=' '.$runtimeMessage;
+            if($ajax){header('Content-Type: application/json');echo json_encode(['previous_kept'=>$previousKept,'cleanup_failed'=>$cleanupFailed,'voice'=>$requested,'uploaded'=>$count,'failed'=>$failed,'skipped'=>$skipped,'rate_limited'=>$rateLimited,'remaining'=>max(0,count($pending)-$count),'runtime'=>$runtimeMessage],JSON_THROW_ON_ERROR);exit;}
         }elseif(in_array($action,['unsync','delete_managed'],true)){
             $filename=lorkhan_voice_filename($voice);$name=pathinfo($filename,PATHINFO_FILENAME);
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
@@ -443,7 +509,8 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
         if($postedAction==='batch_sync'&&($_POST['_batch_ajax']??'')==='1'){
             $unauthorized=$exception->getMessage()==='unauthorized';
             http_response_code($unauthorized?401:422);header('Content-Type: application/json');
-            echo json_encode(['error'=>$unauthorized?'Your management session expired. Reload the page.':'Could not check the provider voice library. Refresh the page and verify the connector before retrying.'],JSON_THROW_ON_ERROR);exit;
+            echo json_encode(['error'=>$unauthorized?'Your management session expired. Reload the page.':(is_array($pocketRuntime)&&str_starts_with($exception->getMessage(),'pockettts_runtime_')
+                ?lorkhan_voice_pocket_runtime_message($pocketRuntime):'Could not check the provider voice library. Refresh the page and verify the connector before retrying.')],JSON_THROW_ON_ERROR);exit;
         }
         if($pronunciationAction){
             $pronunciationError=match($exception->getMessage()){
@@ -453,7 +520,9 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
                 'unauthorized'=>'Your management session expired. Reload the page and try again.',
                 default=>'The pronunciation change could not be saved. Check for a duplicate term and scope.',
             };
-        }else{$error=preg_match('/^voice_provider_http_[0-9]{1,3}$/D',$exception->getMessage())?$exception->getMessage():(in_array($exception->getMessage(),['voice_remote_in_use','voice_not_managed','voice_validation_failed','voice_validation_cleanup_failed','voice_clone_reused_id','voice_registration_busy','voice_cache_unavailable','invalid_voice_fallbacks','invalid_voice_name','invalid_voice_language','invalid_voice_sample','invalid_voice_archive','invalid_voice_upload_selection','voice_sample_exists','voice_sample_in_use','voice_upload_failed','voice_sample_not_found','voice_sync_unsupported','voice_sync_unavailable','voice_sync_failed','voice_discovery_unsupported','voice_discovery_unavailable','voice_discovery_failed','voice_delete_failed','voice_upload_confirmation_required','voice_credential_missing','unauthorized'],true)?$exception->getMessage():'voice_action_failed');}
+        }elseif($exception->getMessage()==='pockettts_runtime_local_only'&&is_array($pocketRuntime)){
+            $notice=lorkhan_voice_pocket_runtime_message($pocketRuntime);
+        }else{$error=preg_match('/^voice_provider_http_[0-9]{1,3}$/D',$exception->getMessage())?$exception->getMessage():(in_array($exception->getMessage(),['voice_remote_in_use','voice_not_managed','voice_validation_failed','voice_validation_cleanup_failed','voice_clone_reused_id','voice_registration_busy','voice_cache_unavailable','invalid_voice_fallbacks','invalid_voice_name','invalid_voice_language','invalid_voice_sample','invalid_voice_archive','invalid_voice_upload_selection','voice_sample_exists','voice_sample_in_use','voice_upload_failed','voice_sample_not_found','voice_sync_unsupported','voice_sync_unavailable','voice_sync_failed','voice_discovery_unsupported','voice_discovery_unavailable','voice_discovery_failed','voice_delete_failed','voice_upload_confirmation_required','voice_credential_missing','pockettts_runtime_unavailable','unauthorized'],true)?$exception->getMessage():'voice_action_failed');}
     }
 }
 
