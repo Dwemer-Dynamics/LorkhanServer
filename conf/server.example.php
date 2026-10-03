@@ -58,6 +58,8 @@ return [
     'voice_storage_path' => '/var/lib/lorkhanserver/voices',
     'portrait_storage_path' => '/var/lib/lorkhanserver/profile-portraits',
     'backup_storage_path' => '/var/lib/lorkhanserver/backups',
+    // Uploaded .dwpkg archives, immutable extracted trees and per-installation plugin data; never inside the web root.
+    'plugin_package_storage_path' => '/var/lib/lorkhanserver/plugin-packages',
     // Browser-managed provider credentials remain outside the web root and are never returned by the UI.
     'credential_storage_path' => '/var/lib/lorkhanserver/credentials/provider-keys.json',
     'media_max_bytes' => 32 * 1024 * 1024,

@@ -137,6 +137,8 @@
     "lorkhan_internal.pairing_tokens",
     "lorkhan_internal.physical_diary_deliveries",
     "lorkhan_internal.player2_health_heartbeats",
+    "lorkhan_internal.plugin_package_operations",
+    "lorkhan_internal.plugin_packages",
     "lorkhan_internal.player_speech_style_drafts",
     "lorkhan_internal.playthrough_associations",
     "lorkhan_internal.provider_attempts",

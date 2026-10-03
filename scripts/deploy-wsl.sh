@@ -50,6 +50,7 @@ install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/profile-portra
 find /var/lib/lorkhanserver/profile-portraits -xdev -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.webp' \) -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
 install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/backups
 install -d -o lorkhan -g www-data -m 2770 /var/lib/lorkhanserver/backups/sql
+install -d -o lorkhan -g www-data -m 2770 /var/lib/lorkhanserver/plugin-packages
 find /var/lib/lorkhanserver/backups/sql -xdev -type f -name 'sql-*.sql*' -exec chown lorkhan:www-data -- {} + -exec chmod 0640 -- {} +
 find /var/lib/lorkhanserver/backups -xdev -type f -name '*.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
 install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/credentials
@@ -135,6 +136,7 @@ return [
     'voice_storage_path' => '/var/lib/lorkhanserver/voices',
     'portrait_storage_path' => '/var/lib/lorkhanserver/profile-portraits',
     'backup_storage_path' => '/var/lib/lorkhanserver/backups',
+    'plugin_package_storage_path' => '/var/lib/lorkhanserver/plugin-packages',
     'credential_storage_path' => '/var/lib/lorkhanserver/credentials/provider-keys.json',
     'media_max_bytes' => 32 * 1024 * 1024,
     'media_quota_bytes' => 256 * 1024 * 1024,

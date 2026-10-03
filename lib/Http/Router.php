@@ -56,6 +56,7 @@ final class Router
         private readonly ?RechatCoordinator $rechatCoordinator = null,
         private readonly ?SpeechToTextProvider $sttProviderOverride = null,
         private readonly array $providerConfig = [],
+        private readonly ?PluginPackageRoutes $pluginPackages = null,
     ) {
         if (($products === null) !== ($promptAssembler === null)) throw new \InvalidArgumentException('Incomplete prompt composition.');
     }
@@ -96,6 +97,7 @@ final class Router
             if ($request->method === 'POST' && $path === '/book/read-aloud') return $this->menuDialogueTts($request,true);
             if ($request->method === 'POST' && $path === '/menu-dialogue-tts/cancel') return $this->menuDialogueTtsCancel($request);
             if ($request->method === 'POST' && $path === '/player-autochat') return $this->playerAutochat($request);
+            if ($this->pluginPackages !== null && PluginPackageRoutes::matches($path)) return $this->pluginPackage($request, $path);
             throw new ApiException(404, 'not_found', 'Route not found.');
         } catch (ApiException $error) {
             return $this->error($error, $correlation);
@@ -775,6 +777,19 @@ final class Router
         $m=$this->json($request,'lorkhan.dialogue-delivery-result.v1');$this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));$this->requireIdempotency($request,$m['message_id']);$result=$this->repository->dialogueDeliveryResult($m);return Response::json(200,['schema'=>'lorkhan.dialogue-delivery-result.accepted.v1','message_id'=>$m['message_id'],'request_id'=>$m['request_id'],'dialogue_message_id'=>$m['dialogue_message_id'],'turn_id'=>$m['turn_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation'],'status'=>$m['status'],'duplicate'=>$result['duplicate']]);
     }
 
+    /** Package writes use the paired installation as owner; install/update also need a coherent Idempotency-Key. */
+    private function pluginPackage(Request $request, string $path): Response
+    {
+        if ($this->authenticatedInstallation === null) throw new ApiException(401, 'unauthorized', 'Authentication failed.');
+        $key = preg_match('#^/plugin-packages/(?:install|update)$#D', $path) === 1 ? $this->requireIdempotency($request) : null;
+        try {
+            [$status, $body] = $this->pluginPackages->dispatch($request, $path, $this->authenticatedInstallation, $key);
+        } catch (\LorkhanServer\Application\PluginPackageException $error) {
+            throw new ApiException($error->status(), $error->getMessage(), 'Package request rejected.', $error->status() >= 500);
+        }
+        return Response::json($status, $body);
+    }
+
     private function authenticate(Request $request): void
     {
         foreach ($request->query as $key => $_) {
@@ -850,7 +865,7 @@ final class Router
     {
         if (preg_match('#^/media/[0-9a-f-]{36}$#D', $path)) return '/media/{id}';
         if (preg_match('#^/sessions/[0-9a-f-]{36}$#D', $path)) return '/sessions/{id}';
-        return $path;
+        return PluginPackageRoutes::matches($path) ? PluginPackageRoutes::rateLimitRoute($path) : $path;
     }
 
     private function uuid(string $value): bool

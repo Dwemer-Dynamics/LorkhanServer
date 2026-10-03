@@ -34,6 +34,7 @@ return [
     'voice_storage_path' => $controlDirectory . '/voices',
     'portrait_storage_path' => $controlDirectory . '/profile-portraits',
     'backup_storage_path' => $controlDirectory . '/backups',
+    'plugin_package_storage_path' => $controlDirectory . '/plugin-packages',
     'credential_storage_path' => $controlDirectory . '/credentials/provider-keys.json',
     'media_max_bytes' => 32 * 1024 * 1024,
     'media_quota_bytes' => 64 * 1024 * 1024,

@@ -13,6 +13,7 @@ use LorkhanServer\Application\RechatCoordinator;
 use LorkhanServer\Application\SpeechProvider;
 use LorkhanServer\Application\Worker;
 use LorkhanServer\Http\ManagementRouter;
+use LorkhanServer\Http\PluginPackageRoutes;
 use LorkhanServer\Http\Request;
 use LorkhanServer\Http\Response;
 use LorkhanServer\Http\Router;
@@ -24,6 +25,7 @@ use LorkhanServer\Infrastructure\JobRepository;
 use LorkhanServer\Infrastructure\ManagementRepository;
 use LorkhanServer\Infrastructure\MediaStore;
 use LorkhanServer\Infrastructure\OghmaCatalogImporter;
+use LorkhanServer\Infrastructure\PluginPackageRepository;
 use LorkhanServer\Infrastructure\ProductRepository;
 use LorkhanServer\Infrastructure\ProviderAttemptRepository;
 use LorkhanServer\Infrastructure\Repository;
@@ -87,6 +89,7 @@ try {
         if (!$speechProvider instanceof SpeechProvider) throw new RuntimeException('Speech provider factory did not return a SpeechProvider.');
     }
     $products = new ProductRepository($database);
+    $pluginPackages = new PluginPackageRoutes(new PluginPackageRepository($database, $config));
     $defaultConnectors = new DefaultConnectorProvisioner(
         $database,
         (string) ($config['voice_storage_path'] ?? '/var/lib/lorkhanserver/voices'),
@@ -114,6 +117,7 @@ try {
         MorrowindVoiceCatalog::bundled(),
         new RechatCoordinator($repository, $products),
         providerConfig: $config,
+        pluginPackages: $pluginPackages,
     );
     $request = Request::fromGlobals();
     if (str_starts_with($request->path, (string) ($config['management_base_path'] ?? '/LorkhanServer/manage'))) {
@@ -121,7 +125,7 @@ try {
             new ProductService($products, new DeterministicClock()),
             (string) ($config['management_base_path'] ?? '/LorkhanServer/manage'),
             (int) ($config['max_json_bytes'] ?? 2_097_152), (int) ($config['browser_session_ttl_seconds'] ?? 3600), $config,
-            new EventLogRepository($database),new OghmaCatalogImporter($database));
+            new EventLogRepository($database),new OghmaCatalogImporter($database),$pluginPackages);
         $management->dispatch($request)->emit();
     } else {
         $response=$router->dispatch($request);$response->emit();

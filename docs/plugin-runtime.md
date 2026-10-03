@@ -4,7 +4,7 @@ This guide covers LorkhanServer's current `unstable` source. Read the [agent gui
 
 ## Integration points and timing
 
-LORKHAN does not load CHIM-style `ext/*` hooks or `.dwpkg` packages. Creating `prerequest.php` or copying a plugin folder does not register an integration. Use the existing typed providers, repositories and handlers; a new integration needs a reviewed source change, explicit runtime loading and any required protocol coordination. The `lorkhan.plugin.*.v1` addon contract in [PROTOCOL.md](PROTOCOL.md) currently provides validation only ([PluginContract](../lib/Protocol/PluginContract.php), [PluginRegistry](../lib/Application/PluginRegistry.php)); it is not negotiated and loads no code.
+LORKHAN does not load CHIM-style `ext/*` hooks, and it does not execute code from installed `.dwpkg` packages. Creating `prerequest.php` or copying a plugin folder does not register an integration. Use the existing typed providers, repositories and handlers; a new integration needs a reviewed source change, explicit runtime loading and any required protocol coordination. The `lorkhan.plugin.*.v1` addon contract in [PROTOCOL.md](PROTOCOL.md) currently provides validation only ([PluginContract](../lib/Protocol/PluginContract.php), [PluginRegistry](../lib/Application/PluginRegistry.php)); it is not negotiated and loads no code. Server packages can be installed through the [package lifecycle](#server-package-lifecycle) below, which validates and stores them without running them.
 
 | Stage | Source boundary | Contract |
 |---|---|---|
@@ -84,7 +84,25 @@ After one run, affinity is `5` with one effect and one history row. Repeating th
 
 ## Installation and updates
 
-There is no generic plugin catalog, MO2 `.dwpkg` sync or CHIM tarball route here. The server and OpenMW client are separate deployments.
+There is no generic plugin catalog, URL installer, MO2 `.dwpkg` sync or CHIM tarball route here. The server and OpenMW client are separate deployments.
+
+### Server package lifecycle
+
+A schema-4 `.dwpkg` holds `manifest.json` (`schema_version` 4, `name` = plugin ID, `version` = `MAJOR.MINOR.PATCH`, optional `display_name`/`description`/`author`, and `server.mutable_paths`), `checksums.sha256` (one `sha256  path` line for every other file) and a server-only payload under `server/`. Native executables/libraries and game plugins or archives (`.exe`, `.dll`, `.so`, `.dylib`, `.esm`, `.esp`, `.omwaddon`, `.bsa` and similar, or PE/ELF/Mach-O/TES3/TES4/BSA leading bytes) are rejected. `mutable_paths` may name only `server/data` or `server/config` subtrees containing `.json`, `.txt`, `.csv`, `.md`, `.yaml`, `.yml` or `.toml` files, never hooks or the contract manifest. `server/lorkhan-plugin.json` must be a valid `lorkhan.plugin.manifest.v1` with the same plugin ID and version. Its byte SHA-256 is the `manifest_sha256` passed to `PluginRegistry`. [PluginPackageArchive](../lib/Application/PluginPackageArchive.php) rejects unsafe, absolute, non-ASCII or case-colliding paths, links and special files, duplicates, encryption, unsupported compression, archives over 64 MiB, more than 2000 entries, more than 256 MiB inflated, and high-ratio entries. It verifies the bytes actually inflated.
+
+Routes exist under the paired native API (`/LorkhanServer/api/v1/plugin-packages...`, owner = authenticated installation; install/update need `Idempotency-Key` = `request_id`). They are also under the browser management API (`/LorkhanServer/manage/api/v1/plugin-packages...?installation_id=...`, session plus CSRF for writes). There are no unauthenticated or query-token routes.
+
+| Method and path | Effect |
+|---|---|
+| `GET /plugin-packages` | Installed and removed packages for the installation. |
+| `POST /plugin-packages/uploads` `{plugin_id,version,size,sha256}` | Start an upload (16 open and 256 MiB reserved per server under one shared lock, 24 h expiry; `package_storage_full`, or `package_storage_busy` when the lock stays contended). |
+| `PUT /plugin-packages/uploads/{id}/chunks/{n}` (octet-stream, at most 1 MiB) | Append in order; the final chunk must match the declared size and SHA-256. |
+| `POST /plugin-packages/install` or `/update` `{request_id,upload_id}` | Persist an operation plus a `plugin_package.apply` durable job (202). |
+| `GET /plugin-packages/operations/{id}` | `queued`, `succeeded` or `failed` with a stable `error_code`. |
+| `POST /plugin-packages/{plugin_id}/enable`, `/disable`, `/remove` | Synchronous policy and state change. |
+| `POST /plugin-packages/probe` `{plugin_id,version[,sha256]}` | `install`, `update`, `current`, `older` or `conflict`, plus `pending`. |
+
+The background worker validates and extracts uploads outside database transactions. Each verified tree is stored under `plugin_package_storage_path` (default `/var/lib/lorkhanserver/plugin-packages`, outside the web root) as `store/<archive sha256>`; once activated the tree is sealed read-only (files 0440, directories 0550) and never written again. The worker then switches the active row in one transaction. A failed update leaves the previous version active. A partial unique index plus a per-package advisory lock serializes operations on the same package. Mutable files are seeded into `data/<installation>/<plugin_id>/` only where nothing exists yet, so updates add new defaults but never overwrite. A link at any destination component fails the operation with `package_link_rejected`. Removal keeps that data, every stored tree and all NPC plugin namespaces. Responses and job errors carry stable codes only, never file paths. Stage 3 adds hook loading. The current lifecycle never includes, requires or executes packaged PHP.
 
 1. Identify whether existing provider/profile/prompt configuration is enough. For source integrations, specify supported client/server revisions and the explicit interface/registration point.
 2. Add runtime classes to the actual loader/composition paths as needed. Composer classmaps do not replace `lib/Autoload.php`.

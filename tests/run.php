@@ -851,6 +851,50 @@ $check(count($pluginResults)===1&&$pluginResults[0]['reason_code']==='plugin_lim
 $newerManifest=array_replace($coreManifest,['plugin_id'=>'ashlander.newer_api']);$newerManifest['compatibility']['lua_api_revision']=130;
 [,$pluginResults]=\LorkhanServer\Application\PluginRegistry::forSession($pluginSession,'0.5.0')->apply(array_replace($pluginRegistration,['plugins'=>[$pluginInstall($newerManifest)]]),$installedPlugins,[]);
 $check($pluginResults[0]['reason_code']==='plugin_incompatible','plugin requiring a newer Lua API revision is incompatible');
+// Stage-2 .dwpkg validation: real ZIP archives through the extractor, including hostile layouts (requires ext-zip).
+if(class_exists(ZipArchive::class)){
+    $packageTemp=sys_get_temp_dir().'/lorkhan-dwpkg-'.bin2hex(random_bytes(6));mkdir($packageTemp,0700);
+    $contractBytes=json_encode(array_replace($pluginManifest,['dependencies'=>[]]),JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);
+    $dwpkg=static function(array $change=[],?callable $raw=null)use($packageTemp,$contractBytes):string{
+        $files=array_replace(['manifest.json'=>json_encode(['schema_version'=>4,'name'=>'ashlander.camp_tasks','version'=>'1.2.0',
+            'server'=>['mutable_paths'=>['server/data']]],JSON_THROW_ON_ERROR),'server/lorkhan-plugin.json'=>$contractBytes,'server/data/state.json'=>'{}'],$change);
+        $files=array_filter($files,static fn($v)=>$v!==null);$sums='';
+        foreach($files as$name=>$bytes)$sums.=hash('sha256',$bytes).'  '.$name."\n";
+        $path=$packageTemp.'/'.bin2hex(random_bytes(6)).'.dwpkg';$zip=new ZipArchive();$zip->open($path,ZipArchive::CREATE);
+        foreach($files+['checksums.sha256'=>$sums]as$name=>$bytes)$zip->addFromString($name,$bytes);
+        if($raw!==null)$raw($zip);$zip->close();return$path;};
+    $extractPackage=static function(string $archive)use($packageTemp):array|string{
+        try{return(new \LorkhanServer\Application\PluginPackageArchive('0.5.0'))->extract($archive,$packageTemp.'/x-'.bin2hex(random_bytes(6)));}
+        catch(\LorkhanServer\Application\PluginPackageException $error){return$error->getMessage();}};
+    $extracted=$extractPackage($dwpkg());
+    $check(is_array($extracted)&&$extracted['plugin_id']==='ashlander.camp_tasks'&&$extracted['manifest_sha256']===hash('sha256',$contractBytes)
+        &&$extracted['mutable_paths']===['server/data']&&$extracted['files']===4,'valid schema-4 package extracts with its contract manifest hash');
+    $tampered=$dwpkg([],static fn(ZipArchive $zip)=>$zip->addFromString('server/data/state.json','{"x":1}'));
+    $bomb=str_repeat("\0",2_097_152);
+    foreach(['traversal'=>[$dwpkg(['server/../evil.php'=>'x']),'package_path_unsafe'],
+        'absolute path'=>[$dwpkg(['/etc/x'=>'x']),'package_path_unsafe'],
+        'symbolic link'=>[$dwpkg([],static fn(ZipArchive $zip)=>$zip->setExternalAttributesName('server/data/state.json',ZipArchive::OPSYS_UNIX,0120777<<16)),'package_link_rejected'],
+        'checksum mismatch'=>[$tampered,'package_checksum_mismatch'],
+        'uncovered file'=>[$dwpkg([],static fn(ZipArchive $zip)=>$zip->addFromString('server/extra.php','<?php')),'package_checksums_invalid'],
+        'case collision'=>[$dwpkg(['server/A.txt'=>'a','server/a.txt'=>'b']),'package_path_collision'],
+        'file used as directory'=>[$dwpkg(['server/data'=>'x']),'package_path_collision'],
+        'client payload'=>[$dwpkg(['client/scripts/x.lua'=>'x']),'package_payload_unsupported'],
+        'native library by name'=>[$dwpkg(['server/bin/helper.DLL'=>'x']),'package_payload_unsupported'],
+        'game plugin by name'=>[$dwpkg(['server/assets/camp.omwaddon'=>'x']),'package_payload_unsupported'],
+        'ELF executable by content'=>[$dwpkg(['server/tools/helper'=>"\x7fELF\x02\x01\x01"]),'package_payload_unsupported'],
+        'TES3 plugin by content'=>[$dwpkg(['server/assets/camp.dat'=>'TES3'.str_repeat("\0",12)]),'package_payload_unsupported'],
+        'mutable hook PHP'=>[$dwpkg(['server/data/hook.php'=>'<?php']),'package_manifest_invalid'],
+        'mutable path outside data/config'=>[$dwpkg(['manifest.json'=>json_encode(['schema_version'=>4,'name'=>'ashlander.camp_tasks','version'=>'1.2.0','server'=>['mutable_paths'=>['server/hooks']]])]),'package_manifest_invalid'],
+        'outer version mismatch'=>[$dwpkg(['manifest.json'=>json_encode(['schema_version'=>4,'name'=>'ashlander.camp_tasks','version'=>'1.2.1','server'=>[]])]),'package_identity_mismatch'],
+        'old schema'=>[$dwpkg(['manifest.json'=>json_encode(['schema_version'=>3,'name'=>'ashlander.camp_tasks','version'=>'1.2.0','server'=>[]])]),'package_manifest_invalid'],
+        'reserved namespace'=>[$dwpkg(['server/lorkhan-plugin.json'=>str_replace('ashlander.camp_tasks','lorkhan.camp_tasks',$contractBytes)]),'package_contract_invalid'],
+        'missing contract'=>[$dwpkg(['server/lorkhan-plugin.json'=>null]),'package_contract_invalid'],
+        'compression bomb'=>[$dwpkg(['server/bomb.bin'=>$bomb]),'package_bomb_rejected']]as$name=>[$archive,$code]){
+        $check($extractPackage($archive)===$code,'package archive rejects '.$name);
+    }
+    foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($packageTemp,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST)as$item)$item->isDir()?rmdir($item->getPathname()):unlink($item->getPathname());
+    rmdir($packageTemp);
+}
 foreach(['valid/gamedata-barter-trade'=>true,'invalid/gamedata-barter-trade-no-items'=>false,'valid/gamedata-item-pickup'=>true]as$fixture=>$valid){
     $document=json_decode((string)file_get_contents(dirname($fixtureRoot).'/'.$fixture.'.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
     try{$validator->validate($document,'lorkhan.gamedata.v1');$check($valid,$fixture.' matches its strict barter expectation');}

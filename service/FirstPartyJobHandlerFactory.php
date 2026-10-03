@@ -45,6 +45,7 @@ final class FirstPartyJobHandlerFactory
             new DatabaseImportJobHandler($db,$providerConfig),
             new DatabaseReplayJobHandler($db,$providerConfig),
             new DatabaseFactoryResetJobHandler($db,$providerConfig),
+            new PluginPackageJobHandler($db,$providerConfig),
             new RelationshipBuildJobHandler(new \LorkhanServer\Infrastructure\RelationshipBuildRepository($db),$products,
                 new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db),$providerConfig),
             new RelationshipConversionJobHandler(new \LorkhanServer\Infrastructure\RelationshipConversionRepository($db),$products,
@@ -108,6 +109,7 @@ final class FirstPartyJobHandlerFactory
             ProviderReconciliationJobHandler::TYPE,
             DialogueExpiryJobHandler::TYPE,
             ProfileGenerateJobHandler::TYPE, NpcEvolutionReportJobHandler::TYPE,
+            PluginPackageJobHandler::TYPE,
         ];
     }
 }
