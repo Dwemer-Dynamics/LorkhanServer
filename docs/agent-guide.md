@@ -85,7 +85,9 @@ those commands modify a running system and are not build checks.
 Read the [integration runtime reference](plugin-runtime.md) for execution timing, required and optional state, atomic writes, installation/update boundaries and background work.
 
 This server does not provide the HerikaServer ext drop-in plugin contract. Do not copy
-an ext directory or assume another product's plugin hooks exist here.
+an ext directory or assume another product's plugin hooks exist here. The versioned
+`lorkhan.plugin.*.v1` addon contract in [PROTOCOL.md](PROTOCOL.md) validates manifests,
+registrations, intents and events; its routes, installer and loader are not implemented yet.
 
 For a custom provider, inspect the maintained
 [connector implementations](https://github.com/Dwemer-Dynamics/LorkhanServer/tree/lorkhan/connector),

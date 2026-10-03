@@ -768,6 +768,89 @@ foreach ([
     $validator->validate($document['instance'], $schema);
     $check(true, $fixture . ' validates');
 }
+// Third-party plugin contract: shared fixtures plus registry ownership, negotiation, dependency and intent bounds.
+$pluginFixture=static fn(string $name):array=>json_decode((string)file_get_contents(dirname($fixtureRoot).'/'.$name.'.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+foreach(['valid/plugin-manifest'=>true,'valid/plugin-registration'=>true,'valid/plugin-registration-accepted'=>true,
+    'valid/plugin-action-intent'=>true,'valid/plugin-event'=>true,'invalid/plugin-manifest-reserved-namespace'=>false,
+    'invalid/plugin-manifest-tier2-unconfirmed'=>false,'invalid/plugin-registration-unregister-actions'=>false,
+    'hostile/plugin-action-intent-url-parameter'=>false,'hostile/plugin-action-intent-command-field'=>false]as$fixture=>$valid){
+    $document=$pluginFixture($fixture);
+    try{$validator->validate($document,$document['schema']);$check($valid,$fixture.' matches its plugin contract expectation');}
+    catch(ValidationException $error){$check(!$valid&&$error->getMessage()==='invalid_schema',$fixture.' matches its plugin contract expectation');}
+}
+$pluginManifest=$pluginFixture('valid/plugin-manifest');
+$coreManifest=array_replace($pluginManifest,['plugin_id'=>'ashlander.camp_core','version'=>'1.0.0','dependencies'=>[],'actions'=>[],'events'=>[],'prompt_contributions'=>[]]);
+$installedPlugins=[];
+foreach([$pluginManifest,$coreManifest]as$manifest)$installedPlugins[$manifest['plugin_id']]=['manifest'=>$manifest,'sha256'=>hash('sha256',json_encode($manifest,JSON_THROW_ON_ERROR))];
+$pluginSession=['session_id'=>'00000000-0000-4000-8000-000000000007','generation'=>7,'client_version'=>'0.5.0','capabilities'=>['dialogue.text']];
+try{\LorkhanServer\Application\PluginRegistry::forSession($pluginSession,'0.5.0');$check(false,'plugin contract requires negotiated capability');}
+catch(\DomainException $error){$check($error->getMessage()==='plugin_contract_unsupported','plugin contract requires negotiated capability');}
+$pluginSession['capabilities'][]=\LorkhanServer\Protocol\PluginContract::CAPABILITY;
+$pluginRegistry=\LorkhanServer\Application\PluginRegistry::forSession($pluginSession,'0.5.0');
+$pluginRegistration=$pluginFixture('valid/plugin-registration');
+$pluginRegistration['plugins'][0]['manifest_sha256']=$installedPlugins['ashlander.camp_tasks']['sha256'];
+[$pluginRegistry,$pluginResults]=$pluginRegistry->apply($pluginRegistration,$installedPlugins,[]);
+$check($pluginResults[0]['state']==='rejected'&&$pluginResults[0]['reason_code']==='dependency_unsatisfied'&&$pluginRegistry->actions()===[],
+    'plugin without its active dependency exposes no actions');
+$coreRegistration=$pluginRegistration;$coreRegistration['plugins']=[['plugin_id'=>'ashlander.camp_core','version'=>'1.0.0',
+    'manifest_sha256'=>$installedPlugins['ashlander.camp_core']['sha256'],'actions'=>[],'events'=>[],'prompt_slots'=>[]]];
+[$disabledRegistry,$pluginResults]=$pluginRegistry->apply($coreRegistration,$installedPlugins,['ashlander.camp_core'=>false]);
+$check($pluginResults[0]['state']==='disabled','server policy can disable a registered plugin');
+[$pluginRegistry]=$pluginRegistry->apply($coreRegistration,$installedPlugins,[]);
+[$pluginRegistry,$pluginResults]=$pluginRegistry->apply($pluginRegistration,$installedPlugins,[]);
+$validator->validate(['schema'=>\LorkhanServer\Protocol\PluginContract::REGISTRATION_ACCEPTED,'message_id'=>$pluginRegistration['message_id'],
+    'request_id'=>$pluginRegistration['request_id'],'session_id'=>$pluginRegistration['session_id'],'generation'=>7,'plugins'=>$pluginResults],
+    \LorkhanServer\Protocol\PluginContract::REGISTRATION_ACCEPTED);
+$check($pluginResults[0]['state']==='active'&&count($pluginRegistry->actions())===2&&count($pluginRegistry->promptSlots())===1,'dependency-satisfied plugin registers its declared actions');
+$pluginIntent=$pluginFixture('valid/plugin-action-intent');
+$pluginProposal=['plugin_id'=>'ashlander.camp_tasks','action'=>'fetch_water','actor'=>$pluginIntent['actor'],'target'=>null,'parameters'=>['trips'=>2,'vessel'=>'jug']];
+$builtIntent=$pluginRegistry->intent($pluginProposal,$pluginIntent['action_id'],$pluginIntent['turn_id'],new DateTimeImmutable('2026-10-02T12:00:00Z'));
+$check($builtIntent===$pluginIntent,'registry builds the exact shared plugin intent with bounded expiry');
+$otherActor=$pluginIntent['actor'];$otherActor['refnum']['index']=113;
+foreach(['undeclared parameter'=>[['parameters'=>['trips'=>2,'path'=>'x']],'action_parameters_invalid'],
+    'out-of-range parameter'=>[['parameters'=>['trips'=>9]],'action_parameters_invalid'],
+    'undeclared enum'=>[['parameters'=>['trips'=>1,'vessel'=>'barrel']],'action_parameters_invalid'],
+    'unscoped actor'=>[['actor'=>$otherActor],'provider_action_not_allowed'],
+    'unexpected target'=>[['target'=>$otherActor],'provider_action_not_allowed'],
+    'unregistered action'=>[['action'=>'burn_camp'],'action_disabled'],'built-in name'=>[['plugin_id'=>'ai.follow'],'action_disabled']]as$name=>[$change,$code]){
+    try{$pluginRegistry->intent(array_replace($pluginProposal,$change),$pluginIntent['action_id'],$pluginIntent['turn_id'],new DateTimeImmutable());$check(false,'plugin intent rejects '.$name);}
+    catch(\DomainException $error){$check($error->getMessage()===$code,'plugin intent rejects '.$name);}
+}
+$pluginEvent=$pluginFixture('valid/plugin-event');
+$check($pluginRegistry->event($pluginEvent)['max_per_minute']===6,'registered plugin event validates declared fields');
+foreach(['stale generation'=>['generation'=>6],'undeclared field'=>['fields'=>['host'=>$pluginEvent['fields']['host'],'dish'=>'Pie','gold'=>5]]]as$name=>$change){
+    try{$pluginRegistry->event(array_replace($pluginEvent,$change));$check(false,'plugin event rejects '.$name);}
+    catch(\UnexpectedValueException|ValidationException $error){$check(true,'plugin event rejects '.$name);}
+}
+$coreUnregister=$coreRegistration;$coreUnregister['operation']='unregister';$coreUnregister['plugins']=[['plugin_id'=>'ashlander.camp_core','version'=>'1.0.0']];
+[$pluginRegistry,$pluginResults]=$pluginRegistry->apply($coreUnregister,$installedPlugins,[]);
+$check(count($pluginResults)===2&&$pluginResults[1]['state']==='unregistered'&&$pluginRegistry->actions()===[],'unregistering a dependency withdraws dependent plugin actions');
+// Review regressions: narrowed executors, per-apply revalidation, total active cap and pinned Lua API revision.
+$pluginInstall=static function(array $manifest)use(&$installedPlugins):array{$installedPlugins[$manifest['plugin_id']]=['manifest'=>$manifest,
+    'sha256'=>hash('sha256',json_encode($manifest,JSON_THROW_ON_ERROR))];return['plugin_id'=>$manifest['plugin_id'],'version'=>$manifest['version'],
+    'manifest_sha256'=>$installedPlugins[$manifest['plugin_id']]['sha256'],'actions'=>[],'events'=>[],'prompt_slots'=>[]];};
+$wideManifest=array_replace($pluginManifest,['plugin_id'=>'ashlander.camp_wide','dependencies'=>[]]);$wideManifest['actions'][0]['executor_kinds']=['creature','npc'];
+$wideEntry=array_replace($pluginInstall($wideManifest),['actions'=>[array_replace($pluginRegistration['plugins'][0]['actions'][0],['executor_kinds'=>['npc']])]]);
+$wideRegistration=array_replace($pluginRegistration,['plugins'=>[$wideEntry]]);
+[$pluginRegistry,$pluginResults]=$pluginRegistry->apply($wideRegistration,$installedPlugins,[]);
+$check($pluginResults[0]['state']==='active'&&$pluginRegistry->actions()[0]['executor_kinds']===['npc'],'plugin actions expose registered narrowed executor kinds');
+[$pluginRegistry,$pluginResults]=$pluginRegistry->apply($wideRegistration,$installedPlugins,[]);
+$check(count($pluginResults)===1&&$pluginResults[0]['reason_code']==='registered','identical plugin re-registration stays idempotent');
+[$revalidated,$pluginResults]=$pluginRegistry->apply($coreRegistration,$installedPlugins,['ashlander.camp_wide'=>false]);
+$check(count($pluginResults)===2&&$pluginResults[0]['state']==='disabled'&&$revalidated->actions()===[],'policy disable revalidates already active plugins');
+$changedInstall=$installedPlugins;$changedInstall['ashlander.camp_wide']['sha256']=str_repeat('0',64);
+[$revalidated,$pluginResults]=$pluginRegistry->apply($coreRegistration,$changedInstall,[]);
+$check($pluginResults[0]['state']==='unregistered'&&$pluginResults[0]['reason_code']==='plugin_version_mismatch'&&$revalidated->actions()===[],
+    'changed installed manifest hash withdraws an active plugin');
+$capEntries=[];for($i=1;$i<=16;$i++)$capEntries[]=$pluginInstall(array_replace($coreManifest,['plugin_id'=>'ashlander.cap_'.$i]));
+[$pluginRegistry,$pluginResults]=$pluginRegistry->apply(array_replace($pluginRegistration,['plugins'=>$capEntries]),$installedPlugins,[]);
+$check(array_count_values(array_column($pluginResults,'reason_code'))===['registered'=>15,'plugin_limit_exceeded'=>1]&&$pluginResults[15]['plugin_id']==='ashlander.cap_16',
+    'plugin registry rejects registrations beyond the total active cap predictably');
+[,$pluginResults]=$pluginRegistry->apply(array_replace($pluginRegistration,['plugins'=>[$pluginInstall(array_replace($coreManifest,['plugin_id'=>'ashlander.cap_17']))]]),$installedPlugins,[]);
+$check(count($pluginResults)===1&&$pluginResults[0]['reason_code']==='plugin_limit_exceeded','repeated registrations cannot exceed the total active cap');
+$newerManifest=array_replace($coreManifest,['plugin_id'=>'ashlander.newer_api']);$newerManifest['compatibility']['lua_api_revision']=130;
+[,$pluginResults]=\LorkhanServer\Application\PluginRegistry::forSession($pluginSession,'0.5.0')->apply(array_replace($pluginRegistration,['plugins'=>[$pluginInstall($newerManifest)]]),$installedPlugins,[]);
+$check($pluginResults[0]['reason_code']==='plugin_incompatible','plugin requiring a newer Lua API revision is incompatible');
 foreach(['valid/gamedata-barter-trade'=>true,'invalid/gamedata-barter-trade-no-items'=>false,'valid/gamedata-item-pickup'=>true]as$fixture=>$valid){
     $document=json_decode((string)file_get_contents(dirname($fixtureRoot).'/'.$fixture.'.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
     try{$validator->validate($document,'lorkhan.gamedata.v1');$check($valid,$fixture.' matches its strict barter expectation');}
