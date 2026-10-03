@@ -174,7 +174,7 @@ final class PrivateThoughtPolicy
         return null;
     }
 
-    /** TES3 placed-reference key: kind, record ID, content source and RefNum. Names are never keys. */
+    /** TES3 placed-reference key: kind, record ID, content source and RefNum, plus dynamic UUID. Names are never keys. */
     public static function stableIdentity(mixed $identity): ?array
     {
         if (!is_array($identity) || array_is_list($identity)) return null;
@@ -186,8 +186,14 @@ final class PrivateThoughtPolicy
             || !is_string($file) || trim($file) === '' || !is_array($refnum)
             || !is_int($refnum['index'] ?? null) || !is_int($refnum['content_file'] ?? null)
             || $refnum['index'] < 0 || $refnum['content_file'] < 0) return null;
-        return ['kind' => $kind, 'record_id' => mb_strtolower(trim($record), 'UTF-8'),
+        $stable = ['kind' => $kind, 'record_id' => mb_strtolower(trim($record), 'UTF-8'),
             'content_file' => mb_strtolower(trim($file), 'UTF-8'),
             'refnum' => ['index' => $refnum['index'], 'content_file' => $refnum['content_file']]];
+        // Runtime-generated actors are keyed by saved UUID; malformed dynamic members never fall back to the sentinel.
+        if (array_key_exists('dynamic', $identity)) {
+            if (!ProfileId::validDynamic($identity)) return null;
+            $stable['dynamic'] = ['uuid' => $identity['dynamic']['uuid']];
+        }
+        return $stable;
     }
 }

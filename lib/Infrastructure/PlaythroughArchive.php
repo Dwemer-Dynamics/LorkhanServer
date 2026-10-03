@@ -138,8 +138,9 @@ final class PlaythroughArchive
             // Reference keys are stable within one world, but a copied world owns new scoped keys.
             foreach($document['tables']['lorkhan_internal.profiles']as$profile){
                 $id=$profile['profile_id'];
-                $uuid[$id]=str_starts_with($id,'ref:')
-                    ?'ref:'.$installation.':'.$uuid[$document['source']['playthrough_id']].':'.explode(':',$id,4)[3]
+                // Dynamic actor keys keep their saved UUID under the copied world's scope, exactly like placed references.
+                $uuid[$id]=str_starts_with($id,'ref:')||str_starts_with($id,'dyn:')
+                    ?substr($id,0,4).$installation.':'.$uuid[$document['source']['playthrough_id']].':'.explode(':',$id,4)[3]
                     :Uuid::v4();
             }
             // Local saves keep references to existing shared settings; they never copy those settings.
@@ -333,7 +334,7 @@ final class PlaythroughArchive
                 $key=$this->rowKey($row,$meta[$table]);if(isset($seen[$key]))throw new RuntimeException('archive_duplicate_row');$seen[$key]=true;
                 if($table==='lorkhan_internal.profiles'){
                     if(!\LorkhanServer\Domain\ProfileId::isValid($row['profile_id']))throw new RuntimeException('archive_profile_key');
-                    if(str_starts_with($row['profile_id'],'ref:')&&!str_starts_with($row['profile_id'],'ref:'.$document['source']['installation_id'].':'.$document['source']['playthrough_id'].':'))throw new RuntimeException('archive_scope_mismatch');
+                    if(in_array(substr($row['profile_id'],0,4),['ref:','dyn:'],true)&&!str_starts_with($row['profile_id'],substr($row['profile_id'],0,4).$document['source']['installation_id'].':'.$document['source']['playthrough_id'].':'))throw new RuntimeException('archive_scope_mismatch');
                     if($row['playthrough_id']!==$document['source']['playthrough_id']||in_array(((array)$row['actor_identity'])['kind']??'', ['narrator','template'],true))throw new RuntimeException('archive_shared_profile');
                     $profileIds[$row['profile_id']]=true;
                 }

@@ -220,7 +220,7 @@ final class PluginHooks
     {
         $payload = (array) ($turn['payload'] ?? []);
         $actor = static fn(mixed $identity): ?array => is_array($identity)
-            ? array_intersect_key($identity, array_flip(['kind', 'record_id', 'content_file', 'refnum', 'display_name', 'cell'])) : null;
+            ? array_intersect_key($identity, array_flip(['kind', 'record_id', 'content_file', 'refnum', 'display_name', 'cell', 'dynamic'])) : null;
         $input = self::text($payload['input']['text'] ?? null, 1024);
         return ['profile' => $profile, 'turn_id' => (string) $turn['turn_id'], 'session_id' => (string) $turn['session_id'],
             'generation' => (int) $turn['generation'], 'speaker' => $actor($payload['speaker'] ?? null),

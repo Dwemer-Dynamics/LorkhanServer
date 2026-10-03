@@ -128,6 +128,7 @@ if($field==='membership_fence'&&!array_key_exists($field,$payload)){if(!hash_equ
         $inputColumn=$withText?',t.input_text':'';
         $liveGuard=$historical?'':" AND s.state='active' AND NOT EXISTS(SELECT 1 FROM turns newer
             WHERE newer.session_id=t.session_id AND newer.runtime_generation>t.runtime_generation)";
+        // Same-turn witnesses compare the exact snapshot (017 relationship_identity_key_v2: dynamic uuid and runtime_ref).
         $query=$this->db->prepare("SELECT d.source_event_id,t.turn_id,t.session_id,t.generation,t.runtime_generation,
             s.installation_id,s.playthrough_id,trace.selected_profile_id AS profile_id,
             t.target AS owner_identity,t.speaker AS target_identity{$inputColumn}
@@ -142,11 +143,11 @@ if($field==='membership_fence'&&!array_key_exists($field,$payload)){if(!hash_equ
                 AND t.state='complete' AND t.target->>'kind' IN ('npc','creature')
                 AND NOT EXISTS(SELECT 1 FROM dialogue_utterances pending WHERE pending.turn_id=t.turn_id AND pending.delivery_state<>'played')
                 AND t.speaker->>'kind' IN ('player','npc','creature') AND trace.selected_profile_id IS NOT NULL
-                AND relationship_identity_key(delivered.speaker)=relationship_identity_key(t.target)
-                AND (relationship_identity_key(input_event.target)=relationship_identity_key(t.target)
-                    OR relationship_identity_key(input_event.speaker)=relationship_identity_key(t.target)
+                AND relationship_identity_key_v2(delivered.speaker)=relationship_identity_key_v2(t.target)
+                AND (relationship_identity_key_v2(input_event.target)=relationship_identity_key_v2(t.target)
+                    OR relationship_identity_key_v2(input_event.speaker)=relationship_identity_key_v2(t.target)
                     OR EXISTS(SELECT 1 FROM jsonb_array_elements(input_event.audience) witness(identity)
-                        WHERE relationship_identity_key(witness.identity)=relationship_identity_key(t.target)))
+                        WHERE relationship_identity_key_v2(witness.identity)=relationship_identity_key_v2(t.target)))
             ORDER BY trace.created_at DESC LIMIT 1 FOR SHARE OF d,delivered,t,s,trace,input_event");
         $query->execute(['source'=>$id]);$source=$query->fetch();if(!$source)return null;
         foreach(['owner_identity','target_identity']as$field)$source[$field]=json_decode($source[$field],true,32,JSON_THROW_ON_ERROR);
@@ -211,8 +212,8 @@ if($field==='membership_fence'&&!array_key_exists($field,$payload)){if(!hash_equ
     {
         $query=$this->db->prepare('SELECT relationship_id,revision,deleted_at,disposition,affinity,relationship_type,details FROM relationship_records '
             .'WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough '
-            .'AND md5(durable_actor_identity_key(actor_identity)::text)=md5(durable_actor_identity_key(CAST(:identity AS jsonb))::text) '
-            .'AND durable_actor_identity_key(actor_identity)=durable_actor_identity_key(CAST(:exact_identity AS jsonb)) '
+            .'AND md5(durable_actor_identity_key_v2(actor_identity)::text)=md5(durable_actor_identity_key_v2(CAST(:identity AS jsonb))::text) '
+            .'AND durable_actor_identity_key_v2(actor_identity)=durable_actor_identity_key_v2(CAST(:exact_identity AS jsonb)) '
             .'ORDER BY relationship_id LIMIT 101 FOR UPDATE');
         $identity=json_encode($source['target_identity'],JSON_THROW_ON_ERROR);
         $query->execute(['installation'=>$source['installation_id'],'profile'=>$source['profile_id'],'playthrough'=>$source['playthrough_id'],

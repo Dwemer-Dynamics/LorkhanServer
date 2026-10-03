@@ -6785,4 +6785,47 @@ if($evolutionSources!==[])$assert(!$timelineProbe->eventSourcesActive([...$evolu
 $assert(!$timelineProbe->eventSourcesActive(array_map(static fn()=>Uuid::v4(),range(1,401)),$installationId,$session['playthrough_id']), 'unbounded witnessed source list accepted');
 if($evolutionSources!==[])$assert(!$timelineProbe->eventSourcesActive($evolutionSources,$installationId,Uuid::v4()), 'witnessed evolution history crossed playthrough scope');
 
+// actor.identity.dynamic.v1 over the routed API: a legacy session rejects every dynamic form and never sees dyn: keys.
+$dynamicGuard=json_decode((string)file_get_contents(dirname(__DIR__).'/protocol/fixtures/v1/valid/action-intent-dynamic-actor.json'),true,64,JSON_THROW_ON_ERROR)['instance']['actor'];
+$dynamicProfile=$products->createRevisioned('profile',['installation_id'=>$characterSession['installation_id'],'playthrough_id'=>$linkedWire['playthrough_id'],
+    'name'=>'Spawned Guard','actor_identity'=>$dynamicGuard,'content'=>[]],$now)['profile_id'];
+$assert($dynamicProfile==='dyn:'.$characterSession['installation_id'].':'.$linkedWire['playthrough_id'].':'.$dynamicGuard['dynamic']['uuid'],'dynamic profile key is not UUID-scoped');
+$dynamicControls=static function(array $wire,array $target,array $extra=[])use($fixture):array{
+    $message=array_replace($fixture('controls-query'),['message_id'=>Uuid::v4(),'request_id'=>Uuid::v4(),'session_id'=>$wire['session_id'],
+        'generation'=>$wire['generation'],'target'=>$target],$extra);
+    return $message;
+};
+[$status,$legacyControls]=$linkedApi($base.'/controls/query',$dynamicControls($linkedWire,$fixture('controls-query')['target']));
+$assert($status===200&&!str_contains(json_encode($legacyControls,JSON_THROW_ON_ERROR),'dyn:'),'legacy controls exposed a dyn: profile key');
+[$status,$body]=$linkedApi($base.'/controls/query',$dynamicControls($linkedWire,$dynamicGuard));
+$assert($status===422&&($body['error']['code']??$body['code']??null)==='invalid_schema','legacy session accepted a dynamic target: '.json_encode($body));
+$legacySelect=array_replace($fixture('controls-select'),['message_id'=>Uuid::v4(),'request_id'=>Uuid::v4(),'session_id'=>$linkedWire['session_id'],
+    'generation'=>$linkedWire['generation'],'created_at'=>$now,'target'=>$fixture('controls-query')['target'],'kind'=>'actor_profile',
+    'selection_id'=>$dynamicProfile,'selection_key'=>null]);
+[$status]=$linkedApi($base.'/controls/select',$legacySelect);
+$assert($status===422,'legacy session selected a dyn: profile without an actor object');
+$sentinelTarget=$fixture('controls-query')['target'];$sentinelTarget['content_file']='lorkhan:dynamic';
+[$status]=$linkedApi($base.'/controls/query',$dynamicControls($linkedWire,$sentinelTarget));
+$assert($status===422,'placed identity used the reserved dynamic sentinel');
+$dynamicGeneration=$db->prepare('SELECT max(generation)+1 FROM sessions WHERE installation_id=:i');$dynamicGeneration->execute(['i'=>$characterSession['installation_id']]);
+$dynamicSession=$linkedSession;$dynamicSession['generation']=(int)$dynamicGeneration->fetchColumn();$dynamicSession['message_id']=Uuid::v4();
+$dynamicSession['runtime']['capabilities'][]='actor.identity.dynamic.v1';
+[$status,$dynamicWire]=$linkedApi($base.'/sessions',$dynamicSession);
+$assert($status===201&&in_array('actor.identity.dynamic.v1',$dynamicWire['capabilities']??[],true)
+    &&!in_array('actor.identity.dynamic.v1',$linkedWire['capabilities']??[],true),'dynamic capability was not negotiated by intersection: '.$status.' '.json_encode($dynamicWire));
+[$status,$dynamicControlsBody]=$linkedApi($base.'/controls/query',$dynamicControls($dynamicWire,$dynamicGuard));
+$assert($status===200&&$dynamicControlsBody['target']===$dynamicGuard&&$dynamicControlsBody['selected_profile_id']===$dynamicProfile
+    &&in_array($dynamicProfile,array_column($dynamicControlsBody['profiles'],'profile_id'),true),'negotiated session could not address its dynamic actor: '.json_encode($dynamicControlsBody));
+$mixedSelect=array_replace($legacySelect,['message_id'=>Uuid::v4(),'request_id'=>Uuid::v4(),'session_id'=>$dynamicWire['session_id'],'generation'=>$dynamicWire['generation']]);
+[$status,$body]=$linkedApi($base.'/controls/select',$mixedSelect);
+$assert($status===409,'placed actor bound a dyn: profile: '.json_encode($body));
+$duplicateSlot=$dynamicGuard;$duplicateSlot['dynamic']['uuid']='00000000-0000-4000-8000-0000000000d2';
+$snapshotTurn=$linkedTurn;foreach(['message_id','request_id','turn_id'] as $key)$snapshotTurn[$key]=Uuid::v4();
+$snapshotTurn['session_id']=$dynamicWire['session_id'];$snapshotTurn['generation']=$dynamicWire['generation'];
+$snapshotTurn['payload']['target']=$dynamicGuard;$snapshotTurn['payload']['context']['nearby_actors']=[$duplicateSlot];
+[$status]=$linkedApi($base.'/turns',$snapshotTurn);
+$assert($status===422,'frozen turn snapshot accepted one runtime slot for two UUIDs');
+[$status]=$linkedApi($base.'/controls/query',$dynamicControls($linkedWire,$dynamicGuard));
+$assert(in_array($status,[404,409,422],true),'replaced generation accepted a dynamic target: '.$status);
+
 fwrite(STDOUT, "integration vertical slice passed\n");

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace LorkhanServer\Protocol;
 
+use LorkhanServer\Domain\ProfileId;
+
 final class Validator
 {
     private const UUID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D';
@@ -793,7 +795,13 @@ final class Validator
         if (!is_array($identity) || ($identity !== [] && array_is_list($identity))) {
             throw new ValidationException('invalid_schema');
         }
-        $this->keys($identity, ['kind','record_id','refnum','content_file','cell','display_name']);
+        $dynamic = array_key_exists('dynamic', $identity);
+        $this->keys($identity, $dynamic ? ['kind','record_id','refnum','content_file','cell','display_name','dynamic']
+            : ['kind','record_id','refnum','content_file','cell','display_name']);
+        // actor.identity.dynamic.v1: the dynamic member requires its sentinels; placed identities never use the sentinel file.
+        if ($dynamic ? !ProfileId::validDynamic($identity) : $identity['content_file'] === ProfileId::DYNAMIC_CONTENT_FILE) {
+            throw new ValidationException('invalid_schema');
+        }
         foreach (['kind','record_id','content_file','display_name'] as $field) {
             if (!is_string($identity[$field]) || $identity[$field] === '' || strlen($identity[$field]) > 256
                 || !mb_check_encoding($identity[$field], 'UTF-8')) {
@@ -838,9 +846,48 @@ final class Validator
         }
     }
 
-    /** Accept scoped physical-reference profile keys without relaxing other protocol IDs. */
+    /**
+     * Every dynamic actor identity anywhere in an ingress message, including free-form context arrays, must be a full
+     * strict identity(); unrelated placed/item records in context are not reclassified as actors, but none may claim the
+     * dynamic sentinel file. One frozen snapshot may not bind a dynamic UUID or runtime slot to two actors.
+     * Returns whether the message carries any dynamic identity or dyn: profile key, which requires negotiation.
+     */
+    public static function dynamicSnapshot(array $message): bool
+    {
+        $uuids = []; $slots = []; $found = false;
+        $walk = static function (mixed $value, string|int|null $key) use (&$walk, &$uuids, &$slots, &$found): void {
+            if (is_string($value)) {
+                if (str_starts_with($value, 'dyn:') && in_array($key, ['profile_id', 'selection_id'], true)) $found = true;
+                return;
+            }
+            if (!is_array($value)) return;
+            $identityLike = array_key_exists('refnum', $value) || array_key_exists('record_id', $value) || array_key_exists('content_file', $value);
+            if ($identityLike && array_key_exists('dynamic', $value)) {
+                // A dynamic member makes this an actor: enforce the full strict identity (fields, cell, lengths) before authority.
+                (new self())->identity($value);
+                $found = true;
+                $uuid = $value['dynamic']['uuid']; $slot = $value['dynamic']['runtime_ref'];
+                $binding = [$slot, $value['kind'], $value['record_id']];
+                if ((isset($uuids[$uuid]) && $uuids[$uuid] !== $binding) || (isset($slots[$slot]) && $slots[$slot] !== $uuid)) {
+                    throw new ValidationException('invalid_schema');
+                }
+                $uuids[$uuid] = $binding; $slots[$slot] = $uuid;
+            } elseif ($identityLike && ($value['content_file'] ?? null) === ProfileId::DYNAMIC_CONTENT_FILE) {
+                throw new ValidationException('invalid_schema');
+            }
+            foreach ($value as $childKey => $child) $walk($child, $childKey);
+        };
+        $walk($message, null);
+        return $found;
+    }
+
+    /** Accept scoped physical-reference and dynamic-actor profile keys without relaxing other protocol IDs. */
     private function profileId(mixed $value): void
     {
+        if (is_string($value) && str_starts_with($value, 'dyn:')) {
+            if (!ProfileId::isValid($value) || strlen($value) !== 114) throw new ValidationException('invalid_schema');
+            return;
+        }
         if (!is_string($value) || strlen($value) > 300 || !preg_match('~^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|ref:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[^A-Z\\x00-\\x1f\\x7f/\\\\:|]+\\|(?:0|[1-9][0-9]{0,8}|[1-3][0-9]{9}|4[01][0-9]{8}|42[0-8][0-9]{7}|429[0-3][0-9]{6}|4294[0-8][0-9]{5}|42949[0-5][0-9]{4}|429496[0-6][0-9]{3}|4294967[01][0-9]{2}|42949672[0-8][0-9]|429496729[0-5]))$~D', $value)) {
             throw new ValidationException('invalid_schema');
         }
