@@ -1279,7 +1279,7 @@ final class ProductRepository
     /** Freeze a bounded chronological actor-targeted history for automatic profile generation. */
     private function profileBackfillHistory(string $installationId,string $playthroughId,array $identity,int $limit):array
     {
-        $stable=array_intersect_key($identity,array_fill_keys(['kind','record_id','content_file','refnum'],true));
+        $stable=ProfileId::durableIdentity($identity);
         $statement=$this->db->prepare("SELECT t.turn_id,CASE WHEN jsonb_exists(t.context,'director') THEN '' ELSE t.input_text END AS input_text,t.response_payload,
             (jsonb_exists(t.context,'director') OR EXISTS (SELECT 1 FROM source_events ie WHERE ie.turn_id=t.turn_id "
             ."AND ie.event_kind='turn.requested' AND ie.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat'))) AS injected FROM active_turns t "
@@ -1310,7 +1310,7 @@ final class ProductRepository
     {
         $parameters=['installation'=>$installation,'playthrough'=>$playthrough];
         $actor='';
-        if($identity!==null){$stable=array_intersect_key($identity,array_flip(['kind','record_id','content_file','refnum']));
+        if($identity!==null){$stable=ProfileId::durableIdentity($identity);
             // Like CHIM's NPC speech journal, an NPC does not evolve from the Narrator's generated voice.
             $actor=' AND (m.speaker @> CAST(:speaker AS jsonb) OR m.target @> CAST(:target AS jsonb) OR m.audience @> CAST(:audience AS jsonb))'
                 ." AND (m.source_event_id IS NOT NULL OR COALESCE(m.speaker->>'kind','')<>'narrator')";
@@ -1387,7 +1387,8 @@ final class ProductRepository
             $identity=$this->json($profile['actor_identity']);$actor=[];
             foreach(['kind','record_id','content_file','refnum']as$field)if(array_key_exists($field,$identity))$actor[$field]=$identity[$field];
             if(!isset($actor['kind']))$actor['kind']='actor';
-            $actorJson=$this->encode($actor);$audienceJson=$this->encode([$actor]);
+            $durable=ProfileId::durableIdentity($actor);
+            $actorJson=$this->encode($durable);$audienceJson=$this->encode([$durable]);
             $limit=(int)($diary['context_turn_limit']??20);
             if($limit===0)$limit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
             $candidateLimit=min(1600,max(20,$limit*4));
@@ -1887,7 +1888,7 @@ WHERE p.installation_id=:installation AND p.profile_id=:profile AND p.deleted_at
   AND t.target->>'kind'=CASE WHEN p.actor_identity->>'kind'='actor' THEN 'npc' ELSE p.actor_identity->>'kind' END
   AND t.target->>'record_id'=p.actor_identity->>'record_id'
   AND t.target->>'content_file'=p.actor_identity->>'content_file'
-  AND t.target->'refnum' IS NOT DISTINCT FROM p.actor_identity->'refnum'
+  AND durable_actor_identity_key(t.target)->'refnum' IS NOT DISTINCT FROM durable_actor_identity_key(p.actor_identity)->'refnum'
   AND jsonb_typeof(t.context->'targetState')='object' AND t.context->'targetState'<>'{}'::jsonb
 ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT 1
 SQL);
@@ -2591,6 +2592,7 @@ SQL);
         foreach(['kind','record_id','content_file']as$field)if(is_string($actor[$field]??null)&&$actor[$field]!=='')$key[$field]=$actor[$field];
         if(!isset($key['record_id'],$key['content_file']))return [];
         if(is_array($actor['refnum']??null))$key['refnum']=$actor['refnum'];
+        $key=ProfileId::durableIdentity($key);
         $scope=['installation_id'=>$installation,'playthrough_id'=>$playthrough,'profile_id'=>$profile];
         $rows=[];$offset=0;$deadline=hrtime(true)+10000000000;
         do{
@@ -2845,8 +2847,8 @@ SQL);
                 $lock->execute(['key'=>'relationship:'.implode(':',$scope).':'.$this->actorKey($input['actor_identity'])]);
                 $find=$this->db->prepare('SELECT relationship_id FROM relationship_records WHERE installation_id=:installation '
                     .'AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL '
-                    .'AND md5(relationship_identity_key(actor_identity)::text)=md5(relationship_identity_key(CAST(:identity AS jsonb))::text) '
-                    .'AND relationship_identity_key(actor_identity)=relationship_identity_key(CAST(:exact_identity AS jsonb)) LIMIT 1');
+                    .'AND md5(durable_actor_identity_key(actor_identity)::text)=md5(durable_actor_identity_key(CAST(:identity AS jsonb))::text) '
+                    .'AND durable_actor_identity_key(actor_identity)=durable_actor_identity_key(CAST(:exact_identity AS jsonb)) LIMIT 1');
                 $find->execute($scope+['identity'=>$identity,'exact_identity'=>$identity]);
                 if($find->fetchColumn())throw new RuntimeException('relationship_already_exists');
                 $id=Uuid::v4();
@@ -2994,8 +2996,8 @@ SQL);
             $lock=$this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))');$lock->execute(['key'=>$lockKey]);
             $query=$this->db->prepare('SELECT relationship_id,disposition,affinity,relationship_type,custom_info,details,deleted_at FROM relationship_records '
                 .'WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough '
-                .'AND md5(relationship_identity_key(actor_identity)::text)=md5(relationship_identity_key(CAST(:identity AS jsonb))::text) '
-                .'AND relationship_identity_key(actor_identity)=relationship_identity_key(CAST(:exact_identity AS jsonb)) '
+                .'AND md5(durable_actor_identity_key(actor_identity)::text)=md5(durable_actor_identity_key(CAST(:identity AS jsonb))::text) '
+                .'AND durable_actor_identity_key(actor_identity)=durable_actor_identity_key(CAST(:exact_identity AS jsonb)) '
                 .'ORDER BY relationship_id LIMIT 101 FOR UPDATE');
             $query->execute($this->scopeParams($scope)+['identity'=>$identityJson,'exact_identity'=>$identityJson]);
             $existing=$query->fetchAll();
@@ -3420,6 +3422,7 @@ SQL);
             foreach(['index','content_file']as$field)if(is_int($actor['refnum'][$field]??null))$refnum[$field]=$actor['refnum'][$field];
             if($refnum!==[])$actorKey['refnum']=$refnum;}
         if(!isset($actorKey['record_id'],$actorKey['content_file']))return'';
+        $actorKey=ProfileId::durableIdentity($actorKey);
         $actorJson=$this->encode($actorKey);$audienceJson=$this->encode([$actorKey]);
         $statement=$this->db->prepare("SELECT e.data FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid "
             ."WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL "
@@ -3558,6 +3561,8 @@ SQL);
             if($refnum!==[])$actorKey['refnum']=$refnum;
         }
         if(!isset($actorKey['record_id'],$actorKey['content_file']))throw new RuntimeException('invalid_actor_identity');
+        // History and memory witnesses follow the placed reference across load-order and cell changes.
+        $actorKey=ProfileId::durableIdentity($actorKey);
         $actorJson=$this->encode($actorKey);$audienceJson=$this->encode([$actorKey]);
         $ownsProfile=$selectedProfileId!==null;
         // Session-binding fallback profiles carry no typed TES3 reference, so they cannot own the targeted actor.
@@ -4042,7 +4047,7 @@ JOIN LATERAL (
  WHERE s.installation_id=:installation AND s.playthrough_id=:playthrough
    AND t.target->>'kind'=c.identity->>'kind' AND t.target->>'record_id'=c.identity->>'record_id'
    AND t.target->>'content_file'=c.identity->>'content_file'
-   AND t.target->'refnum' IS NOT DISTINCT FROM c.identity->'refnum'
+   AND durable_actor_identity_key(t.target)->'refnum' IS NOT DISTINCT FROM durable_actor_identity_key(c.identity)->'refnum'
    AND NOT jsonb_exists(t.context,'rechat')
    AND jsonb_typeof(t.context#>'{targetState,stats,level}')='number'
  ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT 1
