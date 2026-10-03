@@ -31,7 +31,7 @@ final class NpcMemoryDigestRepository
         if(!is_array($sources)||!array_is_list($sources)||count($sources)>64||$sources===[])return;
         foreach($sources as$id)if(!is_string($id)||!Uuid::isValid($id))return;
         $q=$this->db->prepare("SELECT DISTINCT b.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.installation_id=b.installation_id AND p.deleted_at IS NULL AND ".ProfileScopeSql::matches('p','b.playthrough_id')."
-            CROSS JOIN LATERAL (SELECT jsonb_strip_nulls(jsonb_build_object('kind',b.actor_identity->'kind','record_id',b.actor_identity->'record_id','content_file',b.actor_identity->'content_file','refnum',b.actor_identity->'refnum')) AS actor) k
+            CROSS JOIN LATERAL (SELECT jsonb_strip_nulls(durable_actor_identity_key(b.actor_identity)) AS actor) k
             JOIN eventlog_metadata m ON m.installation_id=b.installation_id AND m.playthrough_id=b.playthrough_id AND m.source_event_id=ANY(CAST(:sources AS uuid[])) AND m.suppressed_at IS NULL
                 AND (m.speaker @> k.actor OR m.target @> k.actor OR m.audience @> jsonb_build_array(k.actor))
             WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.profile_id>CAST(:after AS text)

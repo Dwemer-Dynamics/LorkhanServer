@@ -14,6 +14,13 @@ Ordinary NPC creation never generates a random profile UUID. Rediscovery of a de
 its existing reference-key profile. A changed base record/type at the same physical reference is
 rejected rather than silently adopting unrelated history.
 
+History, memory-witness, private-thought and relationship lookups match the same durable key:
+kind, base record, content filename and local RefNum index (`ProfileId::durableIdentity` in PHP,
+`durable_actor_identity_key` in SQL from migration 015). They omit `refnum.content_file`, the current
+numeric load-order slot. Stored events, action targets, session/generation fences and protocol
+messages keep the full runtime identity. Only an integer index 0..4294967295 drops the slot; untyped,
+fractional, negative or out-of-range legacy references are matched exactly, never inferred.
+
 In `public.core_npc_master`, `refid` stores the decimal placed reference index and `base` stores
 its in-game base record ID (`actor_identity.record_id`). Source mod names are stored separately
 in `metadata.mods`, an array matching CHIM's metadata format. NPC cards and editors use **Base**

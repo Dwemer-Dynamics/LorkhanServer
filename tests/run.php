@@ -2338,6 +2338,9 @@ $check(\LorkhanServer\Application\PrivateThoughtPolicy::forOwner($thoughtAttachm
     &&\LorkhanServer\Application\PrivateThoughtPolicy::forOwner($thoughtAttachment,'ref:fixture',$thoughtTarget,$thoughtTwin)===null
     &&\LorkhanServer\Application\PrivateThoughtPolicy::forOwner(['text'=>'Unscoped.'],'ref:fixture',$thoughtTarget)===null,
     'stored thoughts resolve only for the exact owning profile and RefNum, never a same-name actor');
+$thoughtReloaded=$thoughtTarget;$thoughtReloaded['refnum']['content_file']=5;$thoughtReloaded['display_name']='Renamed';
+$check(\LorkhanServer\Application\PrivateThoughtPolicy::forOwner($thoughtAttachment,'ref:fixture',$thoughtReloaded,$thoughtTarget)==='He suspects me.',
+    'stored thoughts follow their owner across a load-order slot change');
 $thoughtProvider=new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions',['api.openai.com'],'gpt-test','test-key',options:['json_schema'=>true]);
 $thoughtSchema=new ReflectionMethod($thoughtProvider,'responseSchema');
 $requestedTurn=$thoughtTurn+['_private_thought'=>$thoughtOwner];
@@ -4541,6 +4544,17 @@ $check($eventPeople->invoke($historyScopeProbe,$guardOne,$guardTwo,[$guardOne])=
 $check($eventPeople->invoke($historyScopeProbe,['display_name'=>'Legacy'],[],[])==='|Legacy [unknown ref]|',
     'event people never guesses a missing reference from the name');
 $check(\LorkhanServer\Domain\ProfileId::forActor($referenceInstallation,$referenceWorld,$referenceMoved)===$referenceProfile,'movement, name and load order do not change profile key');
+$referenceDurable=\LorkhanServer\Domain\ProfileId::durableIdentity($referenceMoved);
+$check($referenceDurable===['kind'=>'npc','record_id'=>'guard','content_file'=>'Morrowind.esm','refnum'=>['index'=>42]]
+    &&$referenceDurable===\LorkhanServer\Domain\ProfileId::durableIdentity($referenceActor)
+    &&$referenceDurable!==\LorkhanServer\Domain\ProfileId::durableIdentity($guardTwo)
+    &&\LorkhanServer\Domain\ProfileId::durableIdentity(['kind'=>'npc','refnum'=>'legacy-7'])===['kind'=>'npc','refnum'=>'legacy-7'],
+    'durable history key drops only the RefNum slot, cell and name; a same-base twin and legacy references stay distinct');
+foreach([42.0,42.5,-1,4294967296,'42']as$legacyIndex)
+    $check(\LorkhanServer\Domain\ProfileId::durableIdentity(['kind'=>'npc','refnum'=>['content_file'=>3,'index'=>$legacyIndex]])===['kind'=>'npc','refnum'=>['content_file'=>3,'index'=>$legacyIndex]],
+        'fractional, negative, overflow or untyped legacy RefNum index stays exact');
+$check(\LorkhanServer\Domain\ProfileId::durableIdentity(['refnum'=>['content_file'=>3,'index'=>4294967295]])===['refnum'=>['index'=>4294967295]],
+    'maximum RefNum index keeps its durable key');
 $check(\LorkhanServer\Domain\ProfileId::isValid($referenceInstallation),'existing persona UUID remains valid');
 foreach([strtoupper($referenceProfile),$referenceProfile."\n",str_replace('|42','|042',$referenceProfile),str_replace('|42','|4294967296',$referenceProfile),str_replace('morrowind.esm','../morrowind.esm',$referenceProfile)]as$invalidReference)
     $check(!\LorkhanServer\Domain\ProfileId::isValid($invalidReference),'malformed or ambiguous reference profile is rejected');
