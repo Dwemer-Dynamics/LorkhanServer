@@ -117,7 +117,8 @@ final class NpcMemoryDigestRepository
             if($input===null){if($owns)$this->db->commit();return null;}
             $payload=['installation_id'=>$installation,'playthrough_id'=>$playthrough,'profile_id'=>$profile,
                 'base_revision'=>$this->revision($scope),'previous_digest_id'=>$previous['digest_id']??null,'npc_name'=>$npc['name'],
-                'provider_configuration_id'=>$slot['configuration_id'],'provider_revision'=>(int)$slot['current_revision'],'input'=>$input];
+                'provider_configuration_id'=>$slot['configuration_id'],'provider_revision'=>(int)$slot['current_revision'],'input'=>$input,
+                'membership_fence'=>(new ReferenceGroupRepository($this->db))->fence($profile)];
             $json=json_encode($payload,JSON_THROW_ON_ERROR);if(strlen($json)>2097152)throw new RuntimeException('digest_input_limit');
             $job=(new JobRepository($this->db))->enqueue(Uuid::v4(),'memory.digest',1,'memory.digest:'.$profile.':'.hash('sha256',$json),$payload,3,null,20);
             if($owns)$this->db->commit();return ['job_id'=>$job['job_id'],'state'=>$job['state']];
@@ -137,6 +138,8 @@ final class NpcMemoryDigestRepository
         $products=new ProductRepository($this->db);$globals=$products->globalSettingsForInstallation($scope['installation'])['content']??[];
         if(($globals['task_availability']['background_memory']??true)!==true||empty($globals['system_routing']['background_memory_configuration_id']))return null;
         if($this->revision($scope)!==($payload['base_revision']??null))return null;
+        // A linked-character membership edit since enqueue changes which scenes this keeper may digest.
+        if(!(new ReferenceGroupRepository($this->db))->fenceHolds($payload,$scope['profile']))return null;
         $previous=$this->latest($scope['installation'],$scope['playthrough'],$scope['profile']);
         if(($previous['digest_id']??null)!==($payload['previous_digest_id']??null))return null;
         $history=$payload['input']['history']??[];
@@ -151,6 +154,9 @@ final class NpcMemoryDigestRepository
         $content=MemoryDigestPolicy::content($content);$scope=$this->scope($payload['installation_id'],$payload['playthrough_id'],$payload['profile_id']);
         $owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();
         try{
+            // Installation, then membership, then profile: the order shared with group edits and observations.
+            $this->db->prepare('SELECT installation_id FROM installations WHERE installation_id=:installation FOR SHARE')->execute(['installation'=>$scope['installation']]);
+            (new ReferenceGroupRepository($this->db))->lockMembership($scope['profile']);
             $this->lockProfile($scope);if($this->input($payload)===null){if($owns)$this->db->commit();return false;}
             $sources=array_map(static fn(array $row):array=>array_diff_key($row,['content'=>true]),$payload['input']['history']);
             $q=$this->db->prepare('INSERT INTO npc_memory_digests(digest_id,installation_id,playthrough_id,profile_id,revision,previous_digest_id,job_id,content,cursor_occurred_at,cursor_memory_id,source_revisions) VALUES(:id,:installation,:playthrough,:profile,:revision,:previous,:job,:content,:occurred,:memory,CAST(:sources AS jsonb))');

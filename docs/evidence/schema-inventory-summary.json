@@ -7,17 +7,17 @@
     },
     "server_encoding": "UTF8",
     "client_encoding": "UTF8",
-    "inventory_sha256": "9c8567902b0c49ffc9d57baac67702b64c2075f0fac28fc3b89b79082dc8aeab",
-    "relation_count": 202,
-    "column_count": 1876,
+    "inventory_sha256": "3194b33849a34885f439d499f684b3588f218b6e78c27f42a7fc29422a5b2afb",
+    "relation_count": 204,
+    "column_count": 1887,
     "relation_kinds": {
-        "table": 192,
+        "table": 194,
         "view": 10
     },
     "dispositions": {
         "exact_herika_compatibility_contract": 47,
         "morrowind_adapted_herika_contract": 17,
-        "typed_authority": 113,
+        "typed_authority": 115,
         "typed_companion_metadata": 25
     }
 }

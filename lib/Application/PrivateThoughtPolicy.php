@@ -87,15 +87,30 @@ final class PrivateThoughtPolicy
         return ['schema' => self::SCHEMA, 'profile_id' => $owner['profile_id'], 'actor' => $owner['actor'], 'text' => $text];
     }
 
-    /** Return stored text only for the exact owning profile and placed actor that spoke the line. */
-    public static function forOwner(mixed $attachment, string $profileId, mixed $actor, mixed $speaker = null): ?string
+    /**
+     * Return stored text only for the owning profile and the exact placed actor that spoke the line. A linked character
+     * passes its members' durable identities, so a thought written by one member reads back to its other members.
+     */
+    public static function forOwner(mixed $attachment, string $profileId, mixed $actor, mixed $speaker = null, array $members = []): ?string
     {
         if (!is_array($attachment) || ($attachment['schema'] ?? null) !== self::SCHEMA
             || ($attachment['profile_id'] ?? null) !== $profileId) return null;
         $owner = self::historyIdentity($attachment['actor'] ?? null);
-        if ($owner === null || $owner !== self::historyIdentity($actor)
-            || ($speaker !== null && $owner !== self::historyIdentity($speaker))) return null;
+        if ($owner === null || ($speaker !== null && $owner !== self::historyIdentity($speaker))) return null;
+        if ($owner !== self::historyIdentity($actor)) {
+            $linked = false;
+            foreach ($members as $member) $linked = $linked || self::durableKey($member) === $owner;
+            if (!$linked) return null;
+        }
         return self::text($attachment['text'] ?? null);
+    }
+
+    /** A durable member identity carries no RefNum slot; normalize it exactly like a stored thought owner. */
+    private static function durableKey(mixed $identity): ?array
+    {
+        if (!is_array($identity) || !is_array($identity['refnum'] ?? null)) return null;
+        $identity['refnum']['content_file'] = 0;
+        return self::historyIdentity($identity);
     }
 
     /** Stored thoughts follow their placed reference after a load-order change; the RefNum slot is not durable. */

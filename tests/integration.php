@@ -713,10 +713,12 @@ $groups=new \LorkhanServer\Infrastructure\ReferenceGroupRepository($db);
 $namedGroup=$groups->save($installationId,['name'=>'Named actors','match_name'=>$automaticTarget['display_name'],
     'canonical_ref'=>\LorkhanServer\Domain\ProfileId::reference($automaticTarget),'enabled'=>true]);
 $sameName=$automaticTarget;$sameName['refnum']['index']=4294000000;
-$assert(\LorkhanServer\Domain\ProfileId::reference($groups->resolve($installationId,$sameName))===$namedGroup['canonical_ref'],
-    'explicit name group did not map a new reference');
-$otherName=$sameName;$otherName['display_name']='Unrelated actor';
-$assert($groups->resolve($installationId,$otherName)===$otherName,'name group captured an unrelated actor');
+$assert($groups->resolve($installationId,$sameName)===$sameName,'name group captured an actor before it was observed');
+$assert(\LorkhanServer\Domain\ProfileId::reference($groups->resolve($installationId,$sameName,true))===$namedGroup['canonical_ref']
+    &&\LorkhanServer\Domain\ProfileId::reference($groups->resolve($installationId,$sameName))===$namedGroup['canonical_ref'],
+    'explicit name group did not map a newly observed reference');
+$otherName=$sameName;$otherName['display_name']='Unrelated actor';$otherName['refnum']['index']=4294000001;
+$assert($groups->resolve($installationId,$otherName,true)===$otherName,'name group captured an unrelated actor');
 $groups->save($installationId,array_replace($namedGroup,['enabled'=>false]));
 $assert($groups->resolve($installationId,$sameName)===$sameName,'disabled name group still matched');
 $groups->delete($installationId,$namedGroup['group_key']);

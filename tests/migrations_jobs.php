@@ -1277,6 +1277,7 @@ $generationProfile=$service->createRevisioned('profile',['installation_id'=>$ins
 $generationJob=$products->enqueueProfileGeneration($generationProfile['profile_id']);
 $generationPayload=json_decode((string)$db->query("SELECT payload FROM durable_jobs WHERE job_id='{$generationJob['job_id']}'")->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
 $check($generationPayload==['profile_id'=>$generationProfile['profile_id'],'base_revision'=>1,
+    'membership_fence'=>\LorkhanServer\Infrastructure\ReferenceGroupRepository::independentFence(),
     'provider_configuration_id'=>$generationConnector['configuration_id'],'provider_revision'=>1],
     'generation job did not freeze only the inherited connector identity and revision');
 $service->revise('provider',$generationConnector['configuration_id'],['driver'=>'mock','model'=>'generation-v2'],'new connector revision');

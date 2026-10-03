@@ -91,7 +91,11 @@ final class RelationshipConversionRepository
             ||!hash_equals($payload['source_text_sha256'],hash('sha256',$owner['relationship_text'])))return false;
         $policy=$this->evaluations->policy($payload['installation_id'],$payload['profile_id']);
         if($policy===null||$policy['locked']||$policy['provider_configuration_id']==='')return false;
-        foreach($policy as$field=>$value)if(($payload[$field]??null)!==$value)return false;
+        foreach($policy as$field=>$value){
+            // Jobs queued before linked-character fences apply only to a profile outside every group.
+            if($field==='membership_fence'&&!array_key_exists($field,$payload)){if(!hash_equals(ReferenceGroupRepository::independentFence(),$value))return false;continue;}
+            if(($payload[$field]??null)!==$value)return false;
+        }
         $types=$this->evaluations->typeCatalog($payload);
         if(($payload['relationship_types']??null)!==$types['relationship_types']
             ||!hash_equals((string)($payload['relationship_types_sha256']??''),$types['relationship_types_sha256']))return false;
@@ -263,6 +267,8 @@ final class RelationshipConversionRepository
 
     private function scopeState(array $scope):array
     {
+        // Installation first, as group edits do, so membership cannot change before the final write.
+        $this->db->prepare('SELECT installation_id FROM installations WHERE installation_id=:id FOR SHARE')->execute(['id'=>$scope['installation_id']]);
         $query=$this->db->prepare('SELECT current_revision FROM playthroughs WHERE installation_id=:installation_id
             AND playthrough_id=:playthrough_id AND deleted_at IS NULL FOR SHARE');
         $query->execute(['installation_id'=>$scope['installation_id'],'playthrough_id'=>$scope['playthrough_id']]);$revision=$query->fetchColumn();
@@ -270,6 +276,8 @@ final class RelationshipConversionRepository
         $query=$this->db->prepare('SELECT session_id,state,generation FROM sessions WHERE installation_id=:installation_id AND NOT archived
             ORDER BY generation DESC,session_id DESC LIMIT 1 FOR SHARE');
         $query->execute(['installation_id'=>$scope['installation_id']]);$session=$query->fetch()?:[];
+        // A queued owner's commit holds its membership; installation-wide enqueue freezes each owner's fence instead.
+        if(isset($scope['profile_id']))(new ReferenceGroupRepository($this->db))->lockMembership($scope['profile_id']);
         return ['playthrough_revision'=>(int)$revision,'lifecycle_fence'=>hash('sha256',json_encode($session,JSON_THROW_ON_ERROR))];
     }
 

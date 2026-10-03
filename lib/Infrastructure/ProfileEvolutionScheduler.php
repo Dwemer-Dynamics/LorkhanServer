@@ -3,7 +3,6 @@ declare(strict_types=1);
 namespace LorkhanServer\Infrastructure;
 
 use LorkhanServer\Application\MorrowindCalendar;
-use LorkhanServer\Domain\ProfileId;
 use PDO;
 
 /** Durable game-calendar scheduling; provider calls remain ordinary leased profile jobs. */
@@ -49,7 +48,8 @@ final class ProfileEvolutionScheduler
                 WHERE profile_id=:profile AND playthrough_id=:playthrough')->execute($scope+['epoch'=>$clock['epoch'],'minute'=>$clock['started_minute']]);
             $progress['consumed_events']=0;$progress['last_game_minute']=$clock['started_minute'];$progress['attempted_at']=null;$progress['manual_requested']=false;
         }
-        $stable=ProfileId::durableIdentity($identity);
+        // A linked character counts events of every placed member within its current membership.
+        $owners=(new ReferenceGroupRepository($this->db))->characterScope($profile,$identity)['identities'];
         $query=$this->db->prepare("INSERT INTO lorkhan_internal.profile_evolution_events(profile_id,playthrough_id,epoch,rowid)
             SELECT :profile,:playthrough,:epoch,e.rowid FROM eventlog e JOIN eventlog_metadata m USING(rowid)
             WHERE m.installation_id=:installation AND m.playthrough_id=:scope_playthrough AND m.suppressed_at IS NULL AND m.created_at>=:started
@@ -57,14 +57,12 @@ final class ProfileEvolutionScheduler
             AND e.type IN ('inputtext','chat','chat_background','location','weather','death','infoaction','narration','quest','book','spellcast','npcspellcast','itemfound')
             AND NOT EXISTS (SELECT 1 FROM source_events se WHERE se.turn_id=m.turn_id AND se.event_kind='turn.requested'
                 AND se.payload#>>'{payload,ui_source}'='lorkhan_auto_combat_bark')
-            AND (:narrator=1 OR m.speaker @> CAST(:identity AS jsonb) OR m.target @> CAST(:target AS jsonb)
-                OR EXISTS(SELECT 1 FROM jsonb_array_elements(m.audience) a WHERE a @> CAST(:audience AS jsonb)))
+            AND (:narrator=1 OR ".ReferenceGroupRepository::witnessSql('m','owners').")
             AND NOT EXISTS(SELECT 1 FROM lorkhan_internal.profile_evolution_events counted WHERE counted.profile_id=:count_profile
                 AND counted.playthrough_id=:count_playthrough AND counted.epoch=:count_epoch AND counted.rowid=e.rowid)
             ORDER BY e.rowid LIMIT 200 ON CONFLICT DO NOTHING");
-        $encoded=json_encode($stable,JSON_THROW_ON_ERROR);
         $query->execute($scope+['epoch'=>$clock['epoch'],'installation'=>$installation,'scope_playthrough'=>$playthrough,'started'=>$clock['started_at'],
-            'narrator'=>($identity['kind']??null)==='narrator'?1:0,'identity'=>$encoded,'target'=>$encoded,'audience'=>$encoded,
+            'narrator'=>($identity['kind']??null)==='narrator'?1:0,'owners'=>json_encode($owners,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES),
             'count_profile'=>$profile,'count_playthrough'=>$playthrough,'count_epoch'=>$clock['epoch']]);
         $query=$this->db->prepare('SELECT count(*) FROM lorkhan_internal.profile_evolution_events WHERE profile_id=:profile AND playthrough_id=:playthrough AND epoch=:epoch');
         $query->execute($scope+['epoch'=>$clock['epoch']]);$total=(int)$query->fetchColumn();$observed=max(0,$total-(int)$progress['consumed_events']);
@@ -100,6 +98,11 @@ final class ProfileEvolutionScheduler
     {
         $profile=(new ProductRepository($this->db))->getRevisioned('profile',$payload['profile_id']);
         (new Repository($this->db))->assertAiEnabled((string)$profile['installation_id']);
+        // A linked-character membership edit since enqueue makes the frozen history and owner stale.
+        // Inside the commit transaction the membership stays locked until the revision is written.
+        $groups=new ReferenceGroupRepository($this->db);
+        if($this->db->inTransaction())$groups->lockMembership((string)$payload['profile_id']);
+        if(!$groups->fenceHolds($payload,(string)$payload['profile_id']))return false;
         if(isset($payload['playthrough_id'])){
             $owner=$this->db->prepare('SELECT 1 FROM profiles p WHERE p.profile_id=:profile AND '
                 .ProfileScopeSql::matches('p',':playthrough',true)

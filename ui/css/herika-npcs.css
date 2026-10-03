@@ -1047,3 +1047,11 @@ body.view-characters .npc-setting-overrides .npc-ovr-option-category {color:#bc9
 .npc-reference-form input:not([type=checkbox]), .npc-reference-form textarea { box-sizing: border-box; width: 100%; min-width: 0; }
 .npc-reference-form input[type=checkbox] { width: auto; justify-self: start; }
 .npc-reference-form button { justify-self: start; }
+.npc-reference-members { max-width: 760px; margin: 0 0 14px; }
+.npc-reference-members h4 { margin: 10px 0 6px; font-size: .95rem; }
+.npc-reference-members ul { margin: 0; padding: 0; list-style: none; }
+.npc-reference-members li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 0; border-top: 1px solid var(--border-color, #454545); }
+.npc-reference-members code { overflow-wrap: anywhere; }
+.npc-reference-members span { color: var(--control-muted, #bbb); font-size: .85rem; }
+.npc-reference-members form { margin: 0 0 0 auto; }
+#reference-groups .page-error { max-width: none; margin: 0 0 12px; }

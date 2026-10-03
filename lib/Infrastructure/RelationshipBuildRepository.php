@@ -91,7 +91,10 @@ final class RelationshipBuildRepository
         foreach($state as $field=>$value)if(($payload[$field]??null)!==$value)return false;
         $policy=$this->evaluations->policy($payload['installation_id'],$payload['profile_id']);
         if($policy===null||$policy['locked']||$policy['provider_configuration_id']==='')return false;
-        foreach($policy as $field=>$value)if(($payload[$field]??null)!==$value)return false;
+        foreach($policy as $field=>$value){
+if($field==='membership_fence'&&!array_key_exists($field,$payload)){if(!hash_equals(ReferenceGroupRepository::independentFence(),$value))return false;continue;}
+            if(($payload[$field]??null)!==$value)return false;
+        }
         return true;
     }
 
@@ -188,7 +191,10 @@ final class RelationshipBuildRepository
             foreach($this->scopeState($scope) as $field=>$value)if(($payload[$field]??null)!==$value)return null;
             $policy=$this->evaluations->policy($scope['installation_id'],$scope['profile_id']);
             if($policy===null||$policy['locked']||$policy['provider_configuration_id']==='')return null;
-            foreach($policy as $field=>$value)if(($payload[$field]??null)!==$value)return null;
+            foreach($policy as $field=>$value){
+                if($field==='membership_fence'&&!array_key_exists($field,$payload)){if(!hash_equals(ReferenceGroupRepository::independentFence(),$value))return null;continue;}
+                if(($payload[$field]??null)!==$value)return null;
+            }
             $snapshot=$this->snapshot($scope,$payload['source_ids'],false,RelationshipBuildPolicy::direction($payload['direction']??''));
         }catch(\InvalidArgumentException|\RuntimeException){return null;}
         if($snapshot===null||$snapshot['source_ids']!==$payload['source_ids']
@@ -238,6 +244,7 @@ final class RelationshipBuildRepository
             (SELECT COALESCE(max(t.runtime_generation),0) FROM turns t WHERE t.session_id=s.session_id) AS runtime_generation
             FROM sessions s WHERE s.installation_id=:installation AND NOT s.archived ORDER BY s.generation DESC LIMIT 1 FOR SHARE OF s');
         $query->execute(['installation'=>$scope['installation_id']]);$session=$query->fetch()?:[];
+        (new ReferenceGroupRepository($this->db))->lockMembership($scope['profile_id']);
         $query=$this->db->prepare('SELECT t.current_revision FROM playthroughs t JOIN profiles p ON p.installation_id=t.installation_id
             WHERE t.playthrough_id=:playthrough_id AND p.profile_id=:profile_id AND t.installation_id=:installation_id
                 AND t.deleted_at IS NULL AND p.deleted_at IS NULL AND '.ProfileScopeSql::matches('p','t.playthrough_id').' FOR SHARE OF t,p');
@@ -250,14 +257,16 @@ final class RelationshipBuildRepository
     private function snapshot(array $scope,array $ids,bool $skipIneligible=false,string $direction=''):?array
     {
         if($ids===[]||count($ids)>100)return null;
-        $products=new ProductRepository($this->db);$hashes=[];$targets=[];$records=[];$exchanges=[];$owner=null;$ownerKey=null;
+        $products=new ProductRepository($this->db);$hashes=[];$targets=[];$records=[];$exchanges=[];$owner=null;$members=null;
         foreach($ids as $id){
             $source=$this->evaluations->source($id,true,true);
             if($source===null){if($skipIneligible)continue;return null;}
             foreach(['installation_id','profile_id','playthrough_id'] as $field)if($source[$field]!==$scope[$field])return null;
-            $nextOwner=$products->actorKey($source['owner_identity']);
-            if($ownerKey!==null&&$ownerKey!==$nextOwner)throw new \InvalidArgumentException('relationship_build_ambiguous_owner');
-            $ownerKey=$nextOwner;$owner=$source['owner_identity'];$key=$products->actorKey($source['target_identity']);
+            // A linked character may have spoken through several placed members; each must be inside the membership
+            // frozen by the job's fence. An unrelated physical speaker still makes the build ambiguous.
+            $members??=$this->members($products,$scope);
+            if(!isset($members[$products->actorKey($source['owner_identity'])]))throw new \InvalidArgumentException('relationship_build_ambiguous_owner');
+            $owner??=$source['owner_identity'];$key=$products->actorKey($source['target_identity']);
             $hashes[$id]=hash('sha256',json_encode($source,JSON_THROW_ON_ERROR));
             if(!isset($targets[$key])){
                 $state=$this->evaluations->records($source);
@@ -281,6 +290,18 @@ final class RelationshipBuildRepository
         if($direction!=='')$model['user_direction']=$direction;
         if(strlen(json_encode($model,JSON_THROW_ON_ERROR))>65536)throw new \InvalidArgumentException('relationship_build_too_large');
         return ['source_ids'=>array_keys($hashes),'source_hashes'=>$hashes,'targets'=>$targets,'records'=>$records,'model'=>$model]+$types;
+    }
+
+    /** Placed-reference keys of the profile's own actor and its current linked members. */
+    private function members(ProductRepository $products,array $scope):array
+    {
+        $query=$this->db->prepare('SELECT actor_identity FROM profiles WHERE profile_id=:profile AND installation_id=:installation');
+        $query->execute(['profile'=>$scope['profile_id'],'installation'=>$scope['installation_id']]);
+        $identity=json_decode((string)$query->fetchColumn(),true,32,JSON_THROW_ON_ERROR);$keys=[];
+        foreach($products->characterScope($scope['profile_id'],is_array($identity)?$identity:[])['identities'] as $member){
+            try{$keys[$products->actorKey($member)]=true;}catch(\InvalidArgumentException){}
+        }
+        return $keys;
     }
 
     private function transaction(callable $work):mixed
