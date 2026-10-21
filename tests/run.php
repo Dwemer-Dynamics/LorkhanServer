@@ -3933,6 +3933,27 @@ foreach (['deploy-local-wsl.sh', 'deploy-wsl.sh'] as $scriptName) {
     $check($deployScript !== false && str_contains($deployScript,
         'install -d -o lorkhan -g www-data -m 2770 /var/lib/lorkhanserver/media'),
         $scriptName . ' preserves shared media write access');
+    $preflight = strpos((string) $deployScript, 'bash "${source_root}/scripts/check-php-runtime-security.sh"');
+    $firstChange = min(array_filter([
+        strpos((string) $deployScript, "\ninstall "),
+        strpos((string) $deployScript, "\ngetent group lorkhan"),
+        strpos((string) $deployScript, 'runuser -u postgres'),
+    ], 'is_int'));
+    $check($preflight !== false && $preflight < $firstChange,
+        $scriptName . ' checks the PHP runtime before any system change');
+}
+$phpSecurityChecker = dirname(__DIR__) . '/scripts/check-php-runtime-security.sh';
+if (is_executable('/bin/bash')) {
+    $phpSecurityAccepts = static function (string $version) use ($phpSecurityChecker): bool {
+        $process = proc_open(['/bin/bash', '-c', 'source "$1" && php_security_version_patched "$2"', '_',
+            $phpSecurityChecker, $version], [], $pipes);
+        return is_resource($process) && proc_close($process) === 0;
+    };
+    $check(array_filter(['8.2.35', '8.3.36', '8.4.27', '8.5.12', '8.2.35-1~deb12u1', '1:8.4.30-1'], $phpSecurityAccepts)
+        === ['8.2.35', '8.3.36', '8.4.27', '8.5.12', '8.2.35-1~deb12u1', '1:8.4.30-1'],
+        'PHP security preflight accepts patched branch floors');
+    $check(array_filter(['8.2.34', '8.3.1', '8.3.35', '8.4.26', '8.5.11', '8.1.40', '8.6.0', '9.0.0', '8.5.12RC1', '8.4.27-dev'],
+        $phpSecurityAccepts) === [], 'PHP security preflight refuses unpatched and unsupported branches');
 }
 
 $presetCurrent = \LorkhanServer\Application\SettingsCatalog::globalDefaults();

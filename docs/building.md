@@ -55,5 +55,7 @@ Actual installation/update uses scripts/deploy-wsl.sh or scripts/deploy-local-ws
 the companion client's scripts/deploy/full-local.ps1 coordinates both products. These
 change runtime files/services and can migrate data, so inspect current state and backups
 before a separately requested deployment. Preserve credentials, profiles, playthroughs,
-voice samples and media. Follow [WSL-APACHE-SETUP.md](WSL-APACHE-SETUP.md),
+voice samples and media. Both first run the read-only scripts/check-php-runtime-security.sh
+and stop before any change unless the PHP CLI and Apache PHP runtime are patched
+([PHP security preflight](WSL-APACHE-SETUP.md#php-security-preflight)). Follow [WSL-APACHE-SETUP.md](WSL-APACHE-SETUP.md),
 [RUNTIME-LAYOUT.md](RUNTIME-LAYOUT.md) and data/migrations/README.md.
