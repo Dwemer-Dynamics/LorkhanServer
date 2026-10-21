@@ -17,6 +17,8 @@ fi
 for command in apache2ctl curl php psql rsync runuser sed ss; do
     command -v "${command}" >/dev/null || { echo "Missing required command: ${command}" >&2; exit 1; }
 done
+# Refuse an unpatched PHP CLI or Apache PHP runtime before any account, file or database change.
+bash "${source_root}/scripts/check-php-runtime-security.sh"
 
 if [[ ! ${http_port} =~ ^[0-9]+$ ]] || (( http_port < 1024 || http_port > 65535 )); then
     echo "LORKHAN_HTTP_PORT must be an integer from 1024 through 65535." >&2

@@ -5,7 +5,8 @@ them against an existing distribution/database without read-only state checks an
 
 ## Target
 
-Use WSL2 Ubuntu LTS x86-64 with systemd, PHP 8.3 where available (8.2 minimum), Apache 2, PostgreSQL
+Use WSL2 Ubuntu LTS x86-64 with systemd, PHP 8.3 where available (8.2 minimum, at or above the
+patched floors in [PHP security preflight](#php-security-preflight)), Apache 2, PostgreSQL
 16+ and pgvector. Record Windows build, `wsl --version/status/list --verbose`, `/etc/os-release`,
 architecture, PID 1, package versions, disk space and listening sockets in the evidence manifest.
 
@@ -38,6 +39,29 @@ Both `scripts/deploy-wsl.sh` (bootstrap) and `scripts/deploy-local-wsl.sh` (upda
 `deploy/runtime-files.txt` at the same stable path. The old `/var/www/LorkhanServer/releases`
 tree is left untouched as historical rollback evidence. The sibling
 `LORKHAN/scripts/deploy/full-local.ps1` remains the combined client/server entrypoint.
+
+### PHP security preflight
+
+Before either script changes an account, file, database or service, the source-only
+`scripts/check-php-runtime-security.sh` refuses the deployment unless the PHP CLI and every PHP
+runtime Apache has enabled (mod_php package `libapache2-mod-phpX.Y` or `phpX.Y-fpm`) are at or
+above the PHP2Shell (CVE-2026-109618/109619) patched floor of a supported branch: 8.2.35, 8.3.36,
+8.4.27 or 8.5.12. Each must be the distro's packaged binary (`/usr/bin/phpX.Y` behind
+`/usr/bin/php` and `php` on `PATH`, `/usr/lib/apache2/modules/libphpX.Y.so`, `/usr/sbin/php-fpmX.Y`),
+match dpkg's checksums and embed a patched PHP version. Older releases, pre-releases, other
+branches and custom or unknown PHP paths are refused, as are running Apache, PHP-FPM and PHP
+processes that use a replaced or unverifiable PHP binary or extension. On Debian PHP 8.2
+it also runs DwemerDistro Core's read-only `/usr/local/bin/ensure_php_security --check` when that
+helper is a plain root-owned executable in root-only folders (otherwise it is skipped); its
+absence never blocks a patched runtime. The check reads versions and paths only and installs or
+restarts nothing.
+
+If it fails, update only the distribution's PHP packages, keeping existing configuration files:
+DwemerDistro launcher **Update Distro**, or `sudo apt-get update` inside the distribution and then,
+for the branch the check names, `sudo apt-get install --only-upgrade -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold $(dpkg-query -W -f='${binary:Package} ' 'phpX.Y*' libapache2-mod-phpX.Y)`. Stop if apt proposes removing packages; a full
+distribution upgrade is not needed. Restart Apache, PHP-FPM and the PHP workers so they load the
+patched build, then deploy again. Configuration, secrets, the database and
+media are not touched by a refused deployment.
 
 ## PostgreSQL
 
