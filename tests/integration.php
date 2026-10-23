@@ -2962,6 +2962,7 @@ foreach(['edit','delete'] as $operation){
 $renamedRelationship=$relationshipInput+['profile_id'=>$actorProfile['profile_id']];
 $renamedRelationship['actor_identity']['display_name']='Renamed speaker';
 $renamedRelationship['actor_identity']['cell']=['kind'=>'interior','name'=>'A different cell'];
+$renamedRelationship['actor_identity']['refnum']['content_file']+=4;
 try{$memoryService->setRelationship($renamedRelationship);throw new RuntimeException('renaming a relationship created a duplicate');}
 catch(RuntimeException $error){$assert($error->getMessage()==='relationship_already_exists','wrong duplicate relationship failure');}
 $renamedRelationship['actor_identity']['refnum']['index']+=200;
@@ -3960,6 +3961,18 @@ $assert(str_contains(json_encode($products->promptContext($thoughtProbe,$now)['h
     &&!str_contains(json_encode($thoughtEvents->page($thoughtScope+['limit'=>500])),'Private sentinel')
     &&str_contains(json_encode($thoughtEvents->profileHistory($thoughtProfileId,$session['playthrough_id'])),'Private sentinel 1'),
     'private thought escaped its owner or was hidden from owner history');
+// A load-order slot change, move and rename keep the same placed reference's history; its same-base twin stays excluded.
+$thoughtReloadedProbe=$thoughtProbe;$thoughtReloadedProbe['payload']['target']['refnum']['content_file']+=3;
+$thoughtReloadedProbe['payload']['target']['display_name']='Renamed owner';
+$thoughtReloadedProbe['payload']['target']['cell']=['kind'=>'interior','name'=>'Moved owner cell'];
+$thoughtReloadedProbe['payload']['audience']=[$thoughtReloadedProbe['payload']['target']];
+$thoughtIdentity=$db->query('SELECT actor_identity FROM profiles WHERE profile_id='.$db->quote($thoughtProfileId))->fetchColumn();
+$db->exec("UPDATE profiles SET actor_identity=jsonb_set(actor_identity,'{refnum,content_file}',to_jsonb(COALESCE((actor_identity#>>'{refnum,content_file}')::int,0)+3)) WHERE profile_id=".$db->quote($thoughtProfileId));
+$thoughtReloadedHistory=json_encode($thoughtEvents->profileHistory($thoughtProfileId,$session['playthrough_id']));
+$db->prepare('UPDATE profiles SET actor_identity=CAST(:identity AS jsonb) WHERE profile_id=:id')->execute(['identity'=>$thoughtIdentity,'id'=>$thoughtProfileId]);
+$assert(str_contains(json_encode($products->promptContext($thoughtReloadedProbe,$now)['history']),'Private sentinel 1')
+    &&str_contains($thoughtReloadedHistory,'Private sentinel 1'),
+    'a load-order slot change, move or rename hid the same placed reference history');
 $products->revise('profile',$thoughtProfileId,$thoughtProfileOriginal,'private thought fixture off',$now);
 $assert(!str_contains(json_encode($products->promptContext($thoughtProbe,$now)['history']),'Private sentinel')
     &&str_contains(json_encode($thoughtEvents->profileHistory($thoughtProfileId,$session['playthrough_id'])),'Private sentinel 1'),
