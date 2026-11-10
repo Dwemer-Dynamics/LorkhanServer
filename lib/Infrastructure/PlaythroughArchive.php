@@ -58,6 +58,12 @@ final class PlaythroughArchive
                 $q->execute($parameters);$this->collect($tables[$table],$q,$definition);
             }
             if(count($tables['lorkhan_internal.playthroughs'])!==1)throw new RuntimeException('archive_playthrough_not_found');
+            // A sole unbound legacy world owns its unscoped private profiles, exactly as session adoption would assign them.
+            $q=$this->db->prepare("SELECT jsonb_set(to_jsonb(t),'{playthrough_id}',to_jsonb(CAST(:world AS uuid))) FROM lorkhan_internal.profiles t "
+                ."WHERE t.installation_id=:installation AND t.playthrough_id IS NULL AND COALESCE(t.actor_identity->>'kind','') NOT IN ('narrator','template') "
+                .'AND NOT EXISTS(SELECT 1 FROM character_playthrough_bindings b WHERE b.installation_id=t.installation_id) '
+                .'AND (SELECT count(*) FROM playthroughs w WHERE w.installation_id=t.installation_id)=1 LIMIT '.(self::MAX_ROWS+1));
+            $q->execute(['world'=>$playthrough,'installation'=>$installation]);$this->collect($tables['lorkhan_internal.profiles'],$q,$meta['lorkhan_internal.profiles']);
             // Follow fixed schema relationships in both directions, but never cross a declared world/installation boundary.
             for($pass=0;$pass<count($meta);++$pass){
                 $before=array_sum(array_map('count',$tables));

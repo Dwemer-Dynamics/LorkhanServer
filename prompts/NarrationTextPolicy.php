@@ -25,4 +25,24 @@ final class NarrationTextPolicy
     {
         return trim((string)preg_replace('/\s+/u',' ',preg_replace('/\*[^*]*\*/u',' ',$text)??$text));
     }
+
+    /** CHIM's disabled-narration TTS text: asterisked directions and stray asterisks are never spoken. */
+    public static function speech(string $text): string
+    {
+        $open=false;return self::speechText($text,$open,false);
+    }
+
+    /** Speech text for one streamed sentence; an unclosed direction continues into the next sentence. */
+    public static function streamedSpeech(string $text,bool &$open): string
+    {
+        return self::speechText($text,$open,true);
+    }
+
+    private static function speechText(string $text,bool &$open,bool $streamed): string
+    {
+        $text=(string)preg_replace('/\*[^*]+\*/u',' ',($open?'*':'').$text);
+        $open=$streamed&&preg_match('/(?<!\*)\*(?!\*)[^*]*$/u',$text)===1;
+        if($open)$text=(string)preg_replace('/(?<!\*)\*(?!\*)[^*]*$/u','',$text);
+        return trim((string)preg_replace('/\s+/u',' ',str_replace('*','',$text)));
+    }
 }

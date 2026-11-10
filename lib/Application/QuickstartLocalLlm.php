@@ -10,7 +10,7 @@ final class QuickstartLocalLlm
     // Keep Quickstart's optional local-server key separate from cloud and custom connector credentials.
     public const CREDENTIAL = 'LORKHAN_CUSTOM_QUICKSTART_LOCAL_LLM_API_KEY';
 
-    public const SERVERS=['lm_studio'=>['LM Studio',1234],'ollama'=>['Ollama',11434],
+    public const SERVERS=['dwemerdistro'=>['DwemerDistro LLM Studio',1234],'lm_studio'=>['LM Studio',1234],'ollama'=>['Ollama',11434],
         'llama_cpp'=>['llama.cpp',8080],'koboldcpp'=>['KoboldCPP',5001],'other'=>['Other OpenAI-compatible server',null]];
 
     /** Read local WSL routing only; never probe a model server or infer a Windows host from an unknown mode. */
@@ -76,9 +76,14 @@ final class QuickstartLocalLlm
             ||!is_int($timeout)||$timeout<5||$timeout>120||!is_bool($disabled))throw new InvalidArgumentException('invalid_local_llm_setup');
         if(isset($values['model'])&&is_string($values['model']))$values['model']=trim($values['model']);
         if(isset($values['endpoint'])&&is_string($values['endpoint']))$values['endpoint']=trim($values['endpoint']);
-        $content=LlmConnector::validate(['driver'=>'openai-compatible','service'=>'local','endpoint'=>$values['endpoint']??'',
+        if ($server === 'dwemerdistro') {
+            require_once dirname(__DIR__) . '/dwemerdistro_llm.php';
+            $values['endpoint'] = \DwemerDistroLlm::ENDPOINT;
+            $values['credential'] = 'none';
+        }
+        $content=LlmConnector::validate(['driver'=>'openai-compatible','service'=>$server==='dwemerdistro'?'dwemerdistro':'local','endpoint'=>$values['endpoint']??'',
             'model'=>$values['model']??'','timeout_ms'=>$timeout*1000,'credential'=>$values['credential']??'none',
-            'options'=>['max_tokens'=>512,'temperature'=>0.7,'json_mode'=>true,'prefill_json'=>false,'stream'=>!$disabled]]);
+            'options'=>['max_tokens'=>512,'temperature'=>0.7,'json_mode'=>true,'prefill_json'=>false,'stream'=>!$disabled]+($server==='dwemerdistro'?['json_schema'=>true]:[])]);
         return ['server_type'=>$server,'scope'=>$scope,'name'=>'Local LLM - '.self::SERVERS[$server][0],'content'=>$content];
     }
 }

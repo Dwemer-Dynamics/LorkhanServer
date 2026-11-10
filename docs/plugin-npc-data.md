@@ -34,3 +34,5 @@ $plugins->deletePluginData($npcId, 'custom_plugin');
 
 Behavioral parity: HerikaServer PR #96, StobeServer PR #165, DialecticServer PR #151.
 LORKHAN uses its own typed repositories, migrations, profile ownership and projection triggers.
+
+See [atomic writes](plugin-runtime.md#atomic-writes) before combining namespace updates with relationship changes, duplicate prevention or history.

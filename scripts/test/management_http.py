@@ -942,13 +942,20 @@ assert request('/LorkhanServer/manage/forms/oghma-dynamic-delete','POST',dict(dy
 assert 'No dynamic entries found.' in request(oghma_url+'&tab=dynamic&dynamic_cat=ui_parity').read().decode()
 assert request('/LorkhanServer/ui/server_plugins.php').status==404
 assert request('/LorkhanServer/manage/server-plugins').status==404
+plugins_text=request('/LorkhanServer/ui/core/server_plugins.php?embed=1&installation_id='+biography_installation).read().decode()
+assert 'data-server-plugins' in plugins_text and 'value="'+biography_installation+'"' in plugins_text and 'plugin-packages/' not in plugins_text
+r=json_request('/LorkhanServer/manage/api/v1/plugin-manager?installation_id='+biography_installation); assert r.status==200 and json.loads(r.read())=={'packages':[],'operations':[]}
+r=json_request('/LorkhanServer/manage/api/v1/plugin-catalog?installation_id='+biography_installation); assert r.status==200 and json.loads(r.read())=={'entries':[]}
+r=json_request('/LorkhanServer/manage/api/v1/plugin-manager?installation_id='+str(uuid.uuid4())); assert r.status==422 and json.loads(r.read())=={'error':'package_invalid_request'}
+r=json_request('/LorkhanServer/manage/api/v1/plugin-catalog/install?installation_id='+biography_installation,'POST',{'request_id':str(uuid.uuid4()),'entry_id':'missing-entry'}); assert r.status==401
+r=json_request('/LorkhanServer/manage/api/v1/plugin-catalog/install?installation_id='+biography_installation,'POST',{'request_id':str(uuid.uuid4()),'entry_id':'missing-entry'},csrf); assert r.status==404 and json.loads(r.read())=={'error':'catalog_entry_not_found'}
 assert request('/LorkhanServer/ui/itt_connectors.php').status==404
 assert request('/LorkhanServer/ui/soulgaze_gallery.php').status==404
 llm,text=parse(request('/LorkhanServer/ui/core/llm_connectors.php')); assert llm.current==1 and 'LLM Connectors</h1>' in text and 'Server runtime' in text and all('api_key' not in f['fields'] for f in llm.forms)
 llm_runtime,runtime_text=parse(request('/LorkhanServer/ui/core/llm_connectors.php?selected=runtime')); assert llm_runtime.current==1 and 'LORKHAN_LLM_API_KEY' in runtime_text and all('api_key' not in f['fields'] for f in llm_runtime.forms)
 for import_path in ['/LorkhanServer/ui/core/npc_master.php','/LorkhanServer/ui/core/llm_connectors.php?import=1','/LorkhanServer/ui/core/tts_connectors.php?import=1','/LorkhanServer/ui/prompts_manager.php']:
     _,import_text=parse(request(import_path)); assert 'type="file" accept="application/json,.json" data-json-import-target=' in import_text and 'Choose a JSON file or paste its contents here.' in import_text,import_path
-hub_text=request('/LorkhanServer/ui/core/config_hub.php').read().decode(); assert all('data-tab="'+tab+'"' in hub_text for tab in ['npc','profiles','player','narrator','npcbio','llm','ttscfg','xtts','sttcfg','keys','globals','oghma','items','actions','prompts']) and 'data-tab="serverplugins"' not in hub_text and 'Server Plugins' not in hub_text and 'data-tab="ittcfg"' not in hub_text and 'ITT</span>' not in hub_text and 'Narration' in hub_text and 'autonomy-page' not in hub_text and '/ui/css/herika-navbar-layout.css' in hub_text
+hub_text=request('/LorkhanServer/ui/core/config_hub.php').read().decode(); assert all('data-tab="'+tab+'"' in hub_text for tab in ['npc','profiles','player','narrator','plugins','npcbio','llm','ttscfg','xtts','sttcfg','keys','globals','oghma','items','actions','prompts']) and 'data-tab="serverplugins"' not in hub_text and '/ui/core/server_plugins.php?embed=1' in hub_text and 'data-tab="ittcfg"' not in hub_text and 'ITT</span>' not in hub_text and 'Narration' in hub_text and 'autonomy-page' not in hub_text and '/ui/css/herika-navbar-layout.css' in hub_text
 pages_css=request('/LorkhanServer/ui/css/lorkhan-pages.css').read().decode()
 navbar_css=request('/LorkhanServer/ui/css/navbar.css').read().decode()
 navbar_layout_css=request('/LorkhanServer/ui/css/herika-navbar-layout.css').read().decode()

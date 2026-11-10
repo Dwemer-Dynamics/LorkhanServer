@@ -14,7 +14,9 @@ to Dwemer Dashboard. Voice review is optional tooling; see VOICE-DESIGN-REVIEW.m
 ## Persistent state
 
 Deploys preserve `/etc/lorkhanserver`, the PostgreSQL database, `/var/lib/lorkhanserver`,
-`/var/log/lorkhanserver`, and existing web-root `storage` and `vendor`. Voice samples and
+`/var/log/lorkhanserver`, and existing web-root `storage` and `vendor`. Installed plugin
+package trees, uploads and per-installation plugin data live in `/var/lib/lorkhanserver/plugin-packages`
+(`lorkhan:www-data`, setgid 2770) and are never placed in the web root. Voice samples and
 review approvals are outside the web root. Previous code is backed up under
 `/var/backups/lorkhanserver-code.*`. Do not copy runtime data or credentials into source.
 

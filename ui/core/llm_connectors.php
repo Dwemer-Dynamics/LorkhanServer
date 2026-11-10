@@ -25,6 +25,15 @@ $rows = array_values(array_filter(
     static fn(array $row): bool => ($row['installation_id'] ?? '') === $installationId
 ));
 
+// Recognize the earlier Quickstart connector by its owned ID, without changing stored revisions.
+$managedLocal = $installationId !== '' ? $productRepository->quickstartLocalLlmForInstallation($installationId) : null;
+foreach ($rows as &$row) {
+    if (($managedLocal['server_type'] ?? '') === 'dwemerdistro'
+        && ($row['configuration_id'] ?? '') === $managedLocal['configuration_id']
+        && ($row['content']['service'] ?? '') === 'local') $row['content']['service'] = 'dwemerdistro';
+}
+unset($row);
+
 $selectedId = trim((string) ($_GET['edit'] ?? $_GET['selected'] ?? ''));
 $selected = null;
 foreach ($rows as $row) {
@@ -220,6 +229,7 @@ function lorkhan_llm_service_picker(string $webRoot): void
     <div class="llm-legacy-row llm-service-block">
         <p class="llm-legacy-name"><span id="llm-service-label">Service</span></p>
         <div class="llm-service-icons" role="group" aria-label="Service presets">
+            <button type="button" data-llm-service="dwemerdistro" aria-pressed="false" title="DwemerDistro LLM Studio"><img class="llm-service-icon" src="<?= lorkhan_ui_h($webRoot) ?>/ui/images/core/icons/dwemerdistro.webp" alt="DwemerDistro LLM Studio"></button>
             <?php foreach ($services as $file => $label): ?>
             <button type="button" data-llm-service="<?php echo lorkhan_ui_h($file); ?>" aria-pressed="false" title="<?php echo lorkhan_ui_h($label); ?>"><img class="llm-service-icon" src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/core/icons/<?php echo lorkhan_ui_h($file); ?>.jpg" alt="<?php echo lorkhan_ui_h($label); ?>"></button>
             <?php endforeach; ?>
@@ -275,7 +285,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         || (int) ($row['queued_job_usage'] ?? 0) > 0 || (int) ($row['memory_policy_usage'] ?? 0) > 0;
                     $rowDriver = (string) ($content['driver'] ?? 'configured');
                     $rowService = $rowDriver === 'openai-compatible' && isset($content['service']) ? (string)$content['service'] : ($rowDriver === 'mock' ? '' : lorkhan_llm_endpoint_service((string)($rowDriver === 'configured' ? ($config['provider']['endpoint'] ?? '') : ($content['endpoint'] ?? ''))));
-                    $rowBadge = ['openrouter'=>'OpenRouter','openai'=>'OpenAI','google'=>'Google','groq'=>'Groq','nanogpt'=>'NanoGPT','player2'=>'Player2','custom'=>'Custom','local'=>'Custom'][$rowService] ?? (LORKHAN_LLM_DRIVERS[$rowDriver][1] ?? $rowDriver);
+                    $rowBadge = ['openrouter'=>'OpenRouter','openai'=>'OpenAI','google'=>'Google','groq'=>'Groq','nanogpt'=>'NanoGPT','player2'=>'Player2','custom'=>'Custom','local'=>'Custom','dwemerdistro'=>'LLM Studio'][$rowService] ?? (LORKHAN_LLM_DRIVERS[$rowDriver][1] ?? $rowDriver);
                 ?>
                 <div class="conn-li<?php echo $active ? ' active' : ''; ?>" data-configuration-id="<?php echo lorkhan_ui_h($row['configuration_id']); ?>">
                     <a class="conn-li-select" href="<?php echo lorkhan_ui_h($queryFor(['edit' => $row['configuration_id']])); ?>" aria-label="Edit <?php echo lorkhan_ui_h($row['name']); ?>">
@@ -522,3 +532,5 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/ace/theme-ambiance.js" defer></script>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/llm-connectors.js?v=<?php echo lorkhan_ui_h((string) filemtime(dirname(__DIR__) . '/js/llm-connectors.js')); ?>" defer></script>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>
+
+<script defer data-distro-connector data-status-url="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/dwemerdistro-llm" src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/dwemerdistro_connector.js"></script>

@@ -6,6 +6,7 @@ namespace LorkhanServer\Infrastructure;
 
 use LorkhanServer\Application\PlayerMoodPolicy;
 use LorkhanServer\Application\MorrowindCalendar;
+use LorkhanServer\Application\PrivateThoughtPolicy;
 use LorkhanServer\Domain\ProfileId;
 use InvalidArgumentException;
 use PDO;
@@ -180,14 +181,24 @@ final class EventLogRepository
         }
         $base = ' FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid LEFT JOIN turns t ON t.turn_id=m.turn_id WHERE ' . implode(' AND ', $where);
         $statement = $this->db->prepare('SELECT e.type,e.data,e.people,e.gamets,e.localts,e.ts,e.rowid,e.location,e.delivery_state,'
-            . "COALESCE(m.payload#>'{context,world,calendar}',m.payload->'calendar',t.context#>'{world,calendar}') AS calendar_data,(m.projection_kind='management_injection') AS deletable" . $base
+            . "COALESCE(m.payload#>'{context,world,calendar}',m.payload->'calendar',t.context#>'{world,calendar}') AS calendar_data,(m.projection_kind='management_injection') AS deletable,"
+            // Stored thoughts follow only lines that were not interrupted, expired or failed.
+            . "CASE WHEN e.type='chat' AND m.payload->'private_thought' IS NOT NULL AND e.delivery_state IN ('emitted','pending','spoken','played') "
+            . "AND NOT EXISTS(SELECT 1 FROM dialogue_utterances unheard WHERE unheard.dialogue_message_id=m.dialogue_message_id "
+            . "AND unheard.delivery_state IN ('interrupted','expired','failed')) THEN m.payload->'private_thought' END AS private_thought,m.speaker AS thought_speaker" . $base
             . ' ORDER BY e.gamets DESC,e.ts DESC,e.localts DESC,e.rowid DESC LIMIT :limit');
         foreach ($parameters as $key => $value) $statement->bindValue(':' . $key, $value);
         $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
         $statement->execute();
-        $events = array_map(function(array $row): array {
+        $events = array_map(function(array $row) use ($profileId, $scope): array {
             $presented = $this->present($row);
             $presented['deletable'] = in_array($row['deletable'] ?? false, [true,1,'1','t','true'], true);
+            // Owner history shows stored thoughts independently of the current generation switch.
+            if ($row['private_thought'] !== null) {
+                $thought = PrivateThoughtPolicy::forOwner($this->decodeObject($row['private_thought']), $profileId,
+                    $scope['identity'], $this->decodeObject($row['thought_speaker']));
+                if ($thought !== null) $presented['private_thought'] = $thought;
+            }
             return $presented;
         }, $statement->fetchAll());
 
@@ -232,7 +243,7 @@ final class EventLogRepository
         }
         $profileIds = [$profileId];
         foreach ($requested as $recipientId) {
-            if (!is_string($recipientId) || !Uuid::isValid($recipientId)) {
+            if (!is_string($recipientId) || !ProfileId::isValid($recipientId)) {
                 throw new InvalidArgumentException('invalid_event_recipients');
             }
             if (!in_array($recipientId, $profileIds, true)) $profileIds[] = $recipientId;
@@ -392,12 +403,9 @@ final class EventLogRepository
         if ($sessionId === null) return;
         $scope = $this->scopeForSession($sessionId);
         $body = is_array($payload['payload'] ?? null) ? $payload['payload'] : $payload;
-        $moodCue = $projectionContext['player_mood_cue'] ?? null;
-        if (($kind === 'turn.requested' || $kind === 'rechat') && is_string($moodCue)
-            && mb_check_encoding($moodCue, 'UTF-8') && mb_strlen($moodCue, 'UTF-8') <= 1024
-            && !str_contains($moodCue, "\n") && !str_contains($moodCue, "\r") && !str_contains($moodCue, "\0")
-            && trim($moodCue) !== '') {
-            $body['input']['resolved_mood_cue'] = trim($moodCue);
+        $moodCue = $this->moodCue($projectionContext['player_mood_cue'] ?? null);
+        if (($kind === 'turn.requested' || $kind === 'rechat') && $moodCue !== null) {
+            $body['input']['resolved_mood_cue'] = $moodCue;
         }
         $speaker = $this->object($body['speaker'] ?? []);
         $target = $this->object($body[$kind === 'gamedata.captured_dialogue' ? 'listener' : 'target'] ?? []);
@@ -422,6 +430,26 @@ final class EventLogRepository
                 'delivery_state'=>null,'utterance_id'=>null]));
             return;
         }
+        if ($kind === 'gamedata.barter_trade') {
+            // Match CHIM's single merchant-routed barter summary; item pickups are never derived from trade lines.
+            $player=$this->object($body['player']??[]);$merchant=$this->object($body['merchant']??[]);
+            $playerName=$this->displayName($player,'Player');$merchantName=$this->displayName($merchant,'Merchant');
+            $describe=static function(array $lines):string{
+                return implode(', ',array_map(static fn(array $line):string=>(string)($line['count']??1).' '.(string)($line['item_name']??''),$lines));
+            };
+            $text=$playerName.' traded with '.$merchantName.'.';
+            if(($body['player_gave']??[])!==[])$text.=' '.$playerName.' sold: '.$describe($this->list($body['player_gave'])).'.';
+            if(($body['player_received']??[])!==[])$text.=' '.$playerName.' bought: '.$describe($this->list($body['player_received'])).'.';
+            $gold=(int)($body['gold_to_player']??0);
+            if($gold>0)$text.=' '.$merchantName.' paid '.$playerName.' '.$gold.' gold.';
+            elseif($gold<0)$text.=' '.$playerName.' paid '.$merchantName.' '.(-$gold).' gold.';
+            $this->insert(array_merge($common,['speaker'=>$player,'target'=>$merchant,'type'=>'infoaction','data'=>$text,
+                'payload'=>$body+['text'=>$text,'observation_type'=>'barter_trade'],'people'=>$this->people($player,$merchant,$audience),
+                'gamets'=>max(0,(int)floor((float)($body['game_time']??0))),
+                'location'=>$this->identityLocation($player),'projection_kind'=>'world','projection_key'=>'barter:'.$sourceId,
+                'delivery_state'=>null,'utterance_id'=>null]));
+            return;
+        }
         if ($kind === 'gamedata.spell_cast') {
             $caster=$this->object($body['caster']??[]);
             $text=$this->displayName($caster,'Actor').' casts '.(string)($body['spell_name']??'');
@@ -440,6 +468,17 @@ final class EventLogRepository
                 'payload'=>$body+['text'=>$text,'observation_type'=>'actor_resurrected'],'people'=>$this->people($actor,[],$audience),
                 'gamets'=>max(0,(int)floor((float)($body['game_time']??0))),
                 'location'=>$this->identityLocation($actor),'projection_kind'=>'world','projection_key'=>'resurrection:'.$sourceId,
+                'delivery_state'=>null,'utterance_id'=>null]));
+            return;
+        }
+        if ($kind === 'gamedata.actor_died') {
+            // CHIM's killer-less "X died" form; LORKHAN observes no killer or weapon to report.
+            $victim=$this->object($body['victim']??[]);
+            $text=$this->displayName($victim,'Actor').' died.';
+            $this->insert(array_merge($common,['speaker'=>$victim,'target'=>[],'type'=>'death','data'=>$text,
+                'payload'=>$body+['text'=>$text,'observation_type'=>'actor_died'],'people'=>$this->people($victim,[],$audience),
+                'gamets'=>max(0,(int)floor((float)($body['game_time']??0))),
+                'location'=>$this->identityLocation($victim),'projection_kind'=>'world','projection_key'=>'actor-death:'.$sourceId,
                 'delivery_state'=>null,'utterance_id'=>null]));
             return;
         }
@@ -478,7 +517,7 @@ final class EventLogRepository
             $this->projectContext($sourceId, $common, $context);
             // The observed event already has its own immutable projection; a comment is not player speech.
             if(in_array($body['ui_source']??'',['lorkhan_rpg_event','lorkhan_quest_event','lorkhan_director_child'],true)
-                ||isset($body['director_instruction_id'])||($body['execution_mode']??'standard')==='director')return;
+                ||isset($body['director_instruction_id'])||in_array($body['execution_mode']??'standard',['director','hypnosis'],true))return;
             $input = $this->object($body['input'] ?? []);
             $text = is_string($input['text'] ?? null) ? trim($input['text']) : '';
             if ($text === '') return;
@@ -513,6 +552,31 @@ final class EventLogRepository
         }
     }
 
+    /**
+     * Freeze the worker-resolved player mood cue on this turn's derived input projection.
+     * The immutable source event is untouched; the first frozen cue wins across retries.
+     */
+    public function freezeTurnMoodCue(string $turnId, mixed $cue): void
+    {
+        $cue = $this->moodCue($cue);
+        if ($cue === null) return;
+        $statement = $this->db->prepare("SELECT m.rowid,m.speaker,m.payload FROM eventlog_metadata m JOIN eventlog e ON e.rowid=m.rowid "
+            . "WHERE m.projection_kind='turn' AND m.projection_key=:key AND e.type IN ('inputtext','rechat') FOR UPDATE OF m,e");
+        $statement->execute(['key'=>'turn:'.$turnId]);
+        $row = $statement->fetch();
+        if ($row === false) return;
+        $payload = $this->object(json_decode((string) $row['payload'], true, 64, JSON_THROW_ON_ERROR));
+        $input = $this->object($payload['input'] ?? []);
+        $text = is_string($input['text'] ?? null) ? trim($input['text']) : '';
+        if ($text === '' || isset($input['resolved_mood_cue'])) return;
+        $payload['input']['resolved_mood_cue'] = $cue;
+        $speaker = $this->object(json_decode((string) $row['speaker'], true, 64, JSON_THROW_ON_ERROR));
+        $this->db->prepare('UPDATE eventlog SET data=:data WHERE rowid=:rowid')->execute(['rowid'=>$row['rowid'],
+            'data'=>$this->displayName($speaker,'Player').': '.PlayerMoodPolicy::decorateWithCue($text,$cue)]);
+        $this->db->prepare('UPDATE eventlog_metadata SET payload=CAST(:payload AS jsonb) WHERE rowid=:rowid')
+            ->execute(['rowid'=>$row['rowid'],'payload'=>$this->encodeObject($payload)]);
+    }
+
     /** Add one generated NPC utterance using its UUID as the exact delivery correlation key. */
     public function projectDialogue(array $turn, array $utterance, string $dialogueMessageId, string $createdAt): void
     {
@@ -530,6 +594,14 @@ final class EventLogRepository
             'data'=>$this->displayName($speaker,'NPC').': '.$text,'projection_kind'=>'dialogue',
             'projection_key'=>'dialogue:'.$dialogueMessageId,'delivery_state'=>'emitted','utterance_id'=>$dialogueMessageId,
             'dialogue_message_id'=>$dialogueMessageId]);
+    }
+
+    /** Attach one owner thought to its dialogue projection; replays keep the first stored thought. */
+    public function attachPrivateThought(string $dialogueMessageId, array $thought): void
+    {
+        $this->db->prepare("UPDATE eventlog_metadata SET payload=jsonb_set(payload,'{private_thought}',CAST(:thought AS jsonb)) "
+            . "WHERE dialogue_message_id=:dialogue AND projection_kind='dialogue' AND payload->'private_thought' IS NULL")
+            ->execute(['thought'=>$this->encodeObject($thought),'dialogue'=>$dialogueMessageId]);
     }
 
     public function updateDialogueDelivery(string $dialogueMessageId, string $state): void
@@ -782,6 +854,15 @@ final class EventLogRepository
             }
         }
         return $names === [] ? '' : '|' . implode('|', array_values($names)) . '|';
+    }
+
+    /** Accept only a bounded single-line cue resolved by the server's mood templates. */
+    private function moodCue(mixed $cue): ?string
+    {
+        if (!is_string($cue) || !mb_check_encoding($cue, 'UTF-8') || mb_strlen($cue, 'UTF-8') > 1024
+            || str_contains($cue, "\n") || str_contains($cue, "\r") || str_contains($cue, "\0")) return null;
+        $cue = trim($cue);
+        return $cue === '' ? null : $cue;
     }
 
     private function displayName(array $identity, string $fallback): string

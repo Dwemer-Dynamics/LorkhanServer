@@ -28,6 +28,7 @@ final class TurnProcessJobHandler implements JobHandler
         private readonly ?TranslationProvider $translationProvider = null,
         private readonly ?SpeechProvider $speechProvider = null,
         private readonly ?ProductRepository $products = null,
+        private readonly ?PluginHooks $plugins = null,
     ) {}
 
     public function supports(string $jobType, int $schemaVersion): bool
@@ -63,17 +64,35 @@ final class TurnProcessJobHandler implements JobHandler
             return $cancelled=!$heartbeat()||$this->repository->isTurnCancellationRequested($sessionId,$turnId,$generation);
         });
         try {
+            if (($message['_deferred_context']??false)===true) {
+                if ($this->products===null) throw new \RuntimeException('prompt_context_unavailable');
+                $prepared=(new TurnContextPreparation($this->products,$this->attempts,$this->providerConfig,$token,$this->plugins))->prepare($message);
+                $message=$prepared['message'];
+                $this->repository->storePreparedTurn($message,$prepared['trace'],$fence);
+            }
+            // Addon actions come from the live registry on every attempt and are never frozen into the prepared prompt.
+            if(($message['_plugin_actions_allowed']??false)===true&&PluginHooks::negotiated($message)){
+                try{$message['_plugin_action_definitions']=$this->repository->pluginPromptActions($message);}
+                catch(Throwable $error){error_log('[LORKHAN] plugin actions unavailable: '.$error::class);}
+            }
             $policy=$this->translationPolicy($message);
-            $streamedDialogues=[];$pendingInlineSpeech=null;
+            $streamedDialogues=[];$pendingInlineSpeech=null;$streamCommitted=false;$heldNarration='';$narrationOpen=false;$privateThought=null;
             $streamSpeech=$this->canStreamSpeech($message,$policy);
             $progress = function (string $delta, ?string $language=null, ?string $mood=null, ?array $tones=null) use ($message, $fence, $policy, $job, $heartbeat, $streamSpeech,
-                &$streamedDialogues,&$pendingInlineSpeech): void {
+                &$streamedDialogues,&$pendingInlineSpeech,&$streamCommitted,&$heldNarration,&$narrationOpen): void {
                 if($policy['content']['translate_text'])return;
                 if($delta==='')return;
                 $this->repository->appendDialogueDelta($message,$delta,$fence);
                 if(!$streamSpeech||count($streamedDialogues)>=DialoguePlanner::MAX_UTTERANCES)return;
+                // Disabled directions stay visible but unspoken; a sentence with nothing to speak joins the next spoken one.
+                $speech=NarrationTextPolicy::streamedSpeech($delta,$narrationOpen);
+                if($speech===''){$heldNarration=trim($heldNarration.' '.$delta);return;}
+                $text=trim($heldNarration.' '.$delta);$heldNarration='';
                 $index=count($streamedDialogues)+1;
-                $dialogue=$this->repository->appendStreamedDialogue($message,$delta,$fence,$index)+SpeechLanguage::payload($language)+($mood===null?[]:['mood'=>$mood])+($tones===null?[]:['tones'=>ZonosGradioSpeechProvider::validateTones($tones)]);
+                $dialogue=$this->repository->appendStreamedDialogue($message,$text,$fence,$index)+SpeechLanguage::payload($language)+($mood===null?[]:['mood'=>$mood])+($tones===null?[]:['tones'=>ZonosGradioSpeechProvider::validateTones($tones)])
+                    +($speech===$text?[]:['_tts_text'=>$speech]);
+                // Only a durable dialogue line commits the turn; display-only deltas still permit the fallback model.
+                $streamCommitted=true;
                 $streamedDialogues[]=$dialogue;
                 if($index===1){
                     if(!$this->synthesizeStreamedDialogue($message,$dialogue,$fence,$job,$heartbeat,1))$pendingInlineSpeech=$dialogue;
@@ -87,16 +106,36 @@ final class TurnProcessJobHandler implements JobHandler
                 $this->repository->queueStreamedDialogueSpeech($message,$dialogue,$fence);
             };
             // Director authored lines use normal speech/action validation, without another dialogue model call.
-            $result = isset($message['_director_response']) ? DirectorPolicy::splitSpeech($message,$message['_director_response'])
-                : (new InlineNarrationRouter())->route($message,$this->completeWithFallback($message,$job,$token,$progress));
+            if(isset($message['_director_response']))$result=DirectorPolicy::splitSpeech($message,$message['_director_response']);
+            else{
+                try{
+                    $completed=$this->completeWithFallback($message,$job,$token,$progress,
+                        static function()use(&$streamCommitted):bool{return $streamCommitted;});
+                    // Only a complete accepted response keeps its thought; it never reaches routing, speech or actions.
+                    $privateThought=PrivateThoughtPolicy::take($completed,$message);
+                }catch(OperationCancelled$error){throw$error;}
+                catch(Throwable$error){
+                    // Committed sentences may already be heard; finish with exactly those instead of a failed turn.
+                    if($streamedDialogues===[])throw$error;
+                    Logger::warn('Turn stream interrupted after committed dialogue: turn_id='.$turnId.' code='.$this->providerFailureCode($error));
+                    $completed=['utterances'=>array_merge(array_map(static fn(array$dialogue):array=>['text'=>$dialogue['text']]
+                        +array_intersect_key($dialogue,['mood'=>true,'tones'=>true])+SpeechLanguage::payload($dialogue['tts_language']??null),
+                        $streamedDialogues),$heldNarration===''?[]:[['text'=>$heldNarration]]),'action'=>null];
+                }
+                $result=(new InlineNarrationRouter())->route($message,$completed);
+            }
             if($pendingInlineSpeech!==null)$this->repository->queueStreamedDialogueSpeech($message,$pendingInlineSpeech,$fence);
             $token->throwIfCancellationRequested();
             $result=$this->translateResult($message,$result,$policy,$job,$token);
-            if($streamedDialogues!==[])$result=$this->reconcileStreamedResult($message,$result,$streamedDialogues);
+            if($streamedDialogues!==[])$result=$this->reconcileStreamedResult($message,$result,$streamedDialogues,$heldNarration);
             $queueSpeech = $this->mediaStore !== null
                 && in_array('speech.say', $message['_negotiated_capabilities'], true);
-            $this->repository->completeTurn($message,$result,null,$fence,$queueSpeech,$streamedDialogues);
+            $this->repository->completeTurn($message,$result,null,$fence,$queueSpeech,$streamedDialogues,$privateThought);
             Logger::info('Turn completed: turn_id='.$turnId);
+            if($this->plugins!==null&&PluginHooks::negotiated($message)){
+                try{$this->plugins->notifyResponse($message,$result);}
+                catch(Throwable $error){error_log('[LORKHAN] plugin response notification failed: '.$error::class);}
+            }
             if($this->products!==null){
                 try{$this->products->maybeEnqueueSceneClassification($message);}
                 catch(Throwable $error){error_log('[LORKHAN] scene classification scheduling failed: '.$error::class);}
@@ -159,7 +198,8 @@ final class TurnProcessJobHandler implements JobHandler
             $context=SpeechLanguage::context($context,$preset,$dialogue['tts_language']??null);
             $pronunciationContext=$this->products?->ttsPronunciationContext((string)$message['installation_id'],
                 (string)$message['playthrough_id'],(array)$dialogue['speaker'])??[];
-            $ttsText=$this->products?->applyTtsPronunciation((string)$dialogue['text'],$pronunciationContext)??(string)$dialogue['text'];
+            $spoken=(string)($dialogue['_tts_text']??$dialogue['text']);
+            $ttsText=$this->products?->applyTtsPronunciation($spoken,$pronunciationContext)??$spoken;
             $providerIdentity=$provider instanceof \LorkhanServer\Application\FilteredSpeechProvider?$provider->inner:$provider;
         $providerName=match(true){$providerIdentity instanceof PocketTtsSpeechProvider=>'pockettts',
                 $providerIdentity instanceof XttsCompatibleSpeechProvider=>'xtts-compatible',
@@ -196,14 +236,17 @@ final class TurnProcessJobHandler implements JobHandler
     }
 
     /** Reuse streamed sentence identities only when they exactly reconstruct the validated provider text. */
-    private function reconcileStreamedResult(array $message,array $result,array $streamedDialogues):array
+    private function reconcileStreamedResult(array $message,array $result,array $streamedDialogues,string $heldNarration=''):array
     {
         $planned=(new DialoguePlanner())->plan($message,$result);
         $finalText=preg_replace('/\s+/u',' ',trim(implode("\n",array_column($planned,'_history_text'))));
-        $streamedText=preg_replace('/\s+/u',' ',trim(implode("\n",array_column($streamedDialogues,'text'))));
+        $streamedText=preg_replace('/\s+/u',' ',trim(implode("\n",array_column($streamedDialogues,'text'))."\n".$heldNarration));
         if($finalText!==$streamedText)throw new DomainException('provider_invalid_output');
         $utterances=[];
-        foreach($streamedDialogues as$dialogue)$utterances[]=['text'=>$dialogue['text']]+array_intersect_key($dialogue,['mood'=>true,'tones'=>true])+SpeechLanguage::payload($dialogue['tts_language']??null);
+        foreach($streamedDialogues as$dialogue)$utterances[]=['speaker'=>$dialogue['speaker'],'text'=>$dialogue['text']]
+            +array_intersect_key($dialogue,['mood'=>true,'tones'=>true,'_tts_text'=>true])+SpeechLanguage::payload($dialogue['tts_language']??null);
+        // Trailing directions were never streamed as speech, so they finish as one subtitle-only line.
+        if($heldNarration!=='')$utterances[]=['speaker'=>$message['payload']['target'],'text'=>$heldNarration,'speech_enabled'=>false];
         return['utterances'=>$utterances,'action'=>$result['action']??null];
     }
 
@@ -252,8 +295,11 @@ final class TurnProcessJobHandler implements JobHandler
             foreach($clean as$index=>&$utterance){$translation=$translated[$index];
                 $utterance['_history_text']=$content['save_translated_text']?$translation:$utterance['_history_text'];
                 $utterance['_subtitle']=$content['translate_text']?$translation:$utterance['_subtitle'];
-                $utterance['_tts_text']=$content['translate_audio']?$translation:$utterance['_tts_text'];
-                if($content['translate_audio']&&isset($utterance['tts_language'])){
+                // Translated audio keeps the disabled-narration speech filter applied to the untranslated line.
+                $spoken=$utterance['_tts_text']!==$utterance['text']?NarrationTextPolicy::speech($translation):$translation;
+                $translateAudio=$content['translate_audio']&&$spoken!=='';
+                $utterance['_tts_text']=$translateAudio?$spoken:$utterance['_tts_text'];
+                if($translateAudio&&isset($utterance['tts_language'])){
                     unset($utterance['tts_language']);
                     $utterance+=SpeechLanguage::payload($content['target_language']);
                 }
@@ -268,23 +314,47 @@ final class TurnProcessJobHandler implements JobHandler
         return['utterances'=>$clean,'action'=>$result['action']??null];
     }
 
-    /** Run the selected LLM once, retrying only with the profile's explicit CHIM-style fallback slot. */
-    private function completeWithFallback(array $message,array $job,CancellationToken $token,callable $onDialogueDelta):array
+    /** Run the selected LLM once, retrying only with the profile's explicit CHIM-style fallback slot before any output commits. */
+    private function completeWithFallback(array $message,array $job,CancellationToken $token,callable $onDialogueDelta,
+        callable $streamCommitted):array
     {
         $primary=$message['_provider_configuration']??null;$fallback=$message['_fallback_provider_configuration']??null;
         $routes=[['snapshot'=>is_array($primary)?$primary:null,'fallback'=>false]];
         if(is_array($fallback)&&($fallback['configuration_id']??null)!==($primary['configuration_id']??null))
             $routes[]=['snapshot'=>$fallback,'fallback'=>true];
-        $lastError=null;
+        $lastError=null;$skipped=null;
         foreach($routes as$index=>$route){
             $snapshot=$route['snapshot'];$provider=$snapshot===null?$this->provider:ProviderFactory::dialogueForSlot($this->providerConfig,$snapshot);
             $providerName=$provider instanceof OpenAiCompatibleProvider?'openai-compatible':'mock';$attemptId=Uuid::v4();
-            $this->attempts?->start($attemptId,'llm',$providerName,'complete_turn',(($job['attempt']-1)*2)+$index+1,
-                $message['request_id'],$message['turn_id'],$job['job_id'],inputBytes:strlen($message['payload']['input']['text']),
-                metadata:['mode'=>$providerName,'job'=>true,'fallback'=>$route['fallback'],
-                    'configuration_id'=>$snapshot['configuration_id']??null,'configuration_revision'=>$snapshot['revision']??null,
-                    'configuration_name'=>$snapshot['name']??null,
-                    'model'=>$snapshot['content']['model']??null]);
+            $metadata=['mode'=>$providerName,'job'=>true,'fallback'=>$route['fallback'],
+                'configuration_id'=>$snapshot['configuration_id']??null,'configuration_revision'=>$snapshot['revision']??null,
+                'configuration_name'=>$snapshot['name']??null,
+                'model'=>$snapshot['content']['model']??null]
+                +($skipped===null?[]:['primary_skipped'=>$skipped['state'],'primary_retry_in_s'=>$skipped['retry_in_s']]);
+            $recovery=[];
+            $start=function(bool$probe)use($attemptId,$providerName,$job,$index,$message,$metadata,&$recovery):void{
+                if($probe)$recovery=['probe'=>true];
+                $this->attempts?->start($attemptId,'llm',$providerName,'complete_turn',(($job['attempt']-1)*2)+$index+1,
+                    $message['request_id'],$message['turn_id'],$job['job_id'],inputBytes:strlen($message['payload']['input']['text']),
+                    metadata:$metadata+($recovery===[]?[]:['recovery'=>$recovery]));
+            };
+            // Like CHIM, only an explicit distinct fallback lets a repeatedly failing OpenAI-compatible primary be skipped.
+            if(!$route['fallback']&&count($routes)>1&&$provider instanceof OpenAiCompatibleProvider&&$this->attempts!==null
+                &&is_string($snapshot['configuration_id']??null)&&is_int($snapshot['revision']??null)){
+                try{
+                    $gate=$this->attempts->beginRecoverableTurnAttempt($snapshot['configuration_id'],$snapshot['revision'],
+                        intdiv(max(1,$this->timeoutMs)+999,1000)+10,$start);
+                }catch(Throwable$error){
+                    // Unavailable recovery state must not prevent the ordinary primary attempt.
+                    Logger::warn('LLM connector recovery unavailable: turn_id='.$message['turn_id'].' error='.$error::class);
+                    $gate=null;$recovery=[];$start(false);
+                }
+                if($gate!==null&&!in_array($gate['state'],['ready','probe'],true)){
+                    $skipped=$gate;
+                    Logger::info('LLM primary skipped: turn_id='.$message['turn_id'].' state='.$gate['state'].' retry_in_s='.$gate['retry_in_s']);
+                    continue;
+                }
+            }else $start(false);
             try{
                 $result=$provider instanceof StreamingProvider
                     ?$provider->completeStreaming($message,$token,$onDialogueDelta)
@@ -297,8 +367,14 @@ final class TurnProcessJobHandler implements JobHandler
                 $this->attempts?->finish($attemptId,'cancelled',errorCode:'operation_cancelled');throw$error;
             }catch(Throwable$error){
                 if($provider instanceof OpenAiCompatibleProvider)$this->attempts?->recordUsage($attemptId,$provider->reportedUsage());
-                try{$this->attempts?->finish($attemptId,'failed',errorCode:$this->providerFailureCode($error));}catch(Throwable){}
+                // Only transport/timeout/408/429/5xx failures before committed output count toward connector cooldown.
+                $transient=$provider instanceof OpenAiCompatibleProvider&&$provider->transientFailure()&&!$streamCommitted();
+                $retryAfter=$transient?$provider->retryAfterSeconds():0;
+                try{$this->attempts?->finish($attemptId,'failed',errorCode:$this->providerFailureCode($error),
+                    metadata:$transient?['recovery'=>$recovery+['transient'=>true]+($retryAfter>0?['retry_after_s'=>$retryAfter]:[])]:[]);}catch(Throwable){}
                 $lastError=$error;
+                // Durable streamed output cannot be replaced by another model's different text.
+                if($streamCommitted())break;
             }
         }
         throw $lastError??new \RuntimeException('provider_unavailable');

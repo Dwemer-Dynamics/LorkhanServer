@@ -1,0 +1,13 @@
+[Unit]
+Description=Run LorkhanServer interactive dialogue job worker
+
+[Timer]
+OnBootSec=15s
+OnUnitInactiveSec=1s
+AccuracySec=100ms
+RandomizedDelaySec=0
+Persistent=true
+Unit=lorkhanserver-worker-interactive.service
+
+[Install]
+WantedBy=timers.target

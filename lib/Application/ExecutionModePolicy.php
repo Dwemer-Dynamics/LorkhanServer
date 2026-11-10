@@ -10,7 +10,12 @@ final class ExecutionModePolicy
     public static function mode(array $payload): string
     {
         $mode=$payload['execution_mode']??'standard';
-        if(!in_array($mode,['standard','narrator','director','cheat','injection_log','injection_chat'],true))throw new DomainException('execution_mode_invalid');
+        if(!in_array($mode,['standard','narrator','director','cheat','injection_log','injection_chat','hypnosis'],true))throw new DomainException('execution_mode_invalid');
+        if($mode==='hypnosis' && (($payload['ui_source']??null)!=='lorkhan_text'
+            || ($payload['input']['kind']??null)!=='text' || ($payload['target']['kind']??null)!=='npc'
+            || !is_string($payload['input']['text']??null) || trim($payload['input']['text'])===''
+            || strlen($payload['input']['text'])>8192 || isset($payload['action_request']) || isset($payload['input']['mood'])))
+            throw new DomainException('execution_mode_not_allowed');
         if($mode==='standard')return $mode;
         if(in_array($mode,['injection_log','injection_chat'],true)
             && (($payload['ui_source']??null)!=='lorkhan_text'||($payload['input']['kind']??null)!=='text'

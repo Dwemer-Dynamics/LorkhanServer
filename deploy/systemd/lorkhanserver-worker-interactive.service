@@ -1,0 +1,39 @@
+[Unit]
+Description=LorkhanServer bounded interactive dialogue job worker
+After=postgresql.service
+Wants=postgresql.service
+ConditionPathExists=/var/www/html/LorkhanServer/service/worker-runner.php
+
+[Service]
+Type=oneshot
+User=lorkhan
+Group=www-data
+WorkingDirectory=/var/www/html/LorkhanServer
+EnvironmentFile=/etc/lorkhanserver/worker.env
+ExecStart=/usr/bin/php /var/www/html/LorkhanServer/service/worker-runner.php --lane=interactive
+TimeoutStartSec=7min
+Nice=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/lorkhanserver /var/log/lorkhanserver
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

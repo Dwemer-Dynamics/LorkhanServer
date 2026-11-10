@@ -123,7 +123,7 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
     const status=section.querySelector('#qs_local_llm_status'),test=section.querySelector('#qs_test_local_llm');
     const models=[...form.querySelectorAll('[data-model-select]')];
     const save=form.querySelector('.qs-save-btn'),initialDisabled=save.disabled;
-    let testing=false;
+    let testing=false, testedModel='';
     function update(){
         const local=form.elements.settings_preset.value==='builtin:local_llm';
         const player2=form.elements.player2_force_all_llm?.checked===true;
@@ -151,9 +151,10 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
         form.querySelectorAll('[data-local-model]').forEach(e=>{e.textContent=form.elements.local_model.value.trim()?'Local: '+form.elements.local_model.value.trim():'Local model (name not set)';});
         form.querySelectorAll('[data-local-endpoint]').forEach(e=>{e.textContent=url.value.trim()||'Server URL not set';});
         form.querySelector('[data-default-required]')?.toggleAttribute('hidden',(local||player2)&&!!form.elements.core_profile_id.value);
+        if (local && !player2 && server.value === 'dwemerdistro') save.disabled = save.disabled || testedModel !== form.elements.local_model.value.trim() || !testedModel;
         test.disabled=testing;
         try{const warning=section.querySelector('#qs-local-loopback'),host=new URL(url.value).hostname;
-            warning.hidden=warning.dataset.mirrored==='1'||!['localhost','127.0.0.1','[::1]',warning.dataset.wslIp].includes(host);}
+            warning.hidden=server.value==='dwemerdistro'||warning.dataset.mirrored==='1'||!['localhost','127.0.0.1','[::1]',warning.dataset.wslIp].includes(host);}
         catch{section.querySelector('#qs-local-loopback').hidden=true;}
     }
     form.querySelectorAll('[name="settings_preset"]').forEach(radio=>radio.addEventListener('change',update));
@@ -178,21 +179,23 @@ document.querySelectorAll('[data-model-select]').forEach(function(select){
     test.addEventListener('click',async()=>{
         if(testing)return;
         for(const input of panel.querySelectorAll('input,select'))if(!input.reportValidity())return;
-        testing=true;test.disabled=true;status.hidden=false;status.className='qs-status qs-local-llm-status pending';status.textContent='Testing connection...';
+        testedModel='';testing=true;test.disabled=true;status.hidden=false;status.className='qs-status qs-local-llm-status pending';status.textContent='Testing connection...';
         const setup={server_type:server.value,scope:form.elements.local_scope.value,endpoint:url.value.trim(),
             model:form.elements.local_model.value.trim(),timeout_seconds:Number(form.elements.local_timeout.value),
             disable_streaming:form.elements.local_disable_streaming.checked};
-        if(form.elements.local_key_configured.value==='1')setup.credential='badge:LORKHAN_CUSTOM_QUICKSTART_LOCAL_LLM_API_KEY';
+        if(server.value!=='dwemerdistro'&&form.elements.local_key_configured.value==='1')setup.credential='badge:LORKHAN_CUSTOM_QUICKSTART_LOCAL_LLM_API_KEY';
         const payload={installation_id:form.elements.installation_id.value,setup};
         const draft=panel.querySelector('[data-key-input]').value.trim();
-        if(draft)payload.api_key=draft;
+        if(draft&&server.value!=='dwemerdistro')payload.api_key=draft;
         try{
             const response=await fetch(section.dataset.localTest,{method:'POST',credentials:'same-origin',
                 headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-Token':form.elements._csrf.value},
                 body:JSON.stringify(payload),signal:AbortSignal.timeout((setup.timeout_seconds+5)*1000)});
             const result=await response.json();
             if(!response.ok||result.ok!==true)throw new Error(response.status===429?'Please wait before testing again.':'Connection failed. Check the endpoint, model and server logs.');
+            testedModel=form.elements.local_model.value.trim();
             status.className='qs-status qs-local-llm-status ok';status.textContent=result.message||'Connection successful.';
+            update();
         }catch(error){status.className='qs-status qs-local-llm-status err';status.textContent=error.name==='TimeoutError'?'Connection test timed out.':error.message||'Connection test failed.';}
         finally{testing=false;test.disabled=false;}
     });

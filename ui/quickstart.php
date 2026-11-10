@@ -154,4 +154,7 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
 </div></main>
 <script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo (string)filemtime(__DIR__.'/js/resource-page.js'); ?>"></script>
 <script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/quickstart.js?v=<?php echo (string)filemtime(__DIR__.'/js/quickstart.js'); ?>"></script>
+
+<script defer data-distro-llm data-status-url="<?= lorkhan_ui_h($managementBasePath) ?>/api/v1/dwemerdistro-llm" src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/dwemerdistro_llm.js"></script>
+
 <?php include __DIR__.'/tmpl/footer.html'; ?>

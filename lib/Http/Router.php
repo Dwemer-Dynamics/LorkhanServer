@@ -4,10 +4,11 @@ declare(strict_types=1);
 namespace LorkhanServer\Http;
 
 use LorkhanServer\Application\MorrowindVoiceCatalog;
+use LorkhanServer\Application\CallbackCancellationToken;
 use LorkhanServer\Application\EffectiveSettingsResolver;
 use LorkhanServer\Application\MemoryEmbeddingPolicy;
 use LorkhanServer\Application\MiniMeEmbeddingProvider;
-use LorkhanServer\Application\NeverCancelledToken;
+use LorkhanServer\Application\OperationCancelled;
 use LorkhanServer\Application\PromptAssembler;
 use LorkhanServer\Application\Provider;
 use LorkhanServer\Application\ProviderFactory;
@@ -19,10 +20,12 @@ use LorkhanServer\Application\TranslationPolicy;
 use LorkhanServer\Infrastructure\ManagementRepository;
 use LorkhanServer\Infrastructure\MediaStore;
 use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\PluginRuntimeRepository;
 use LorkhanServer\Infrastructure\ProviderAttemptRepository;
 use LorkhanServer\Infrastructure\Repository;
 use LorkhanServer\Infrastructure\Uuid;
 use LorkhanServer\Infrastructure\Logger;
+use LorkhanServer\Protocol\PluginContract;
 use LorkhanServer\Protocol\ValidationException;
 use LorkhanServer\Protocol\Validator;
 use LorkhanServer\Security\RequestMac;
@@ -55,6 +58,8 @@ final class Router
         private readonly ?RechatCoordinator $rechatCoordinator = null,
         private readonly ?SpeechToTextProvider $sttProviderOverride = null,
         private readonly array $providerConfig = [],
+        private readonly ?PluginPackageRoutes $pluginPackages = null,
+        private readonly ?PluginRuntimeRepository $pluginRuntime = null,
     ) {
         if (($products === null) !== ($promptAssembler === null)) throw new \InvalidArgumentException('Incomplete prompt composition.');
     }
@@ -93,13 +98,20 @@ final class Router
             if ($request->method === 'POST' && $path === '/dialogue-delivery-results') return $this->deliveryResult($request);
             if ($request->method === 'POST' && $path === '/menu-dialogue-tts') return $this->menuDialogueTts($request);
             if ($request->method === 'POST' && $path === '/book/read-aloud') return $this->menuDialogueTts($request,true);
+            if ($request->method === 'POST' && $path === '/menu-dialogue-tts/cancel') return $this->menuDialogueTtsCancel($request);
             if ($request->method === 'POST' && $path === '/player-autochat') return $this->playerAutochat($request);
+            if ($this->pluginPackages !== null && PluginPackageRoutes::matches($path)) return $this->pluginPackage($request, $path);
+            if ($this->pluginRuntime !== null && $request->method === 'POST' && $path === '/plugins/registrations') return $this->pluginRegistration($request);
+            if ($this->pluginRuntime !== null && $request->method === 'POST' && $path === '/plugins/events') return $this->pluginEvent($request);
             throw new ApiException(404, 'not_found', 'Route not found.');
         } catch (ApiException $error) {
             return $this->error($error, $correlation);
         } catch (ValidationException $error) {
             return Response::error($error->getMessage() === 'payload_too_large' ? 413 : 422, $error->getMessage(), $correlation);
         } catch (DomainException $error) {
+            $code=$this->publicCode($error->getMessage());
+            if(str_starts_with($code,'rechat_')||$code==='invalid_rechat_context')
+                error_log('[LORKHAN] rechat decision code='.$code.' request='.$correlation);
             return Response::error(409, $this->publicCode($error->getMessage()), $correlation);
         } catch (UnexpectedValueException $error) {
             return Response::error(409, $this->publicCode($error->getMessage()), $correlation);
@@ -173,10 +185,16 @@ final class Router
                 $m['payload']['input']['text']=$trusted['instruction'];
                 $m['payload']['context']['director']=['plan_id'=>$trusted['plan_id'],'scene_note'=>$trusted['scene_note']];
             }
-            if(($m['payload']['execution_mode']??'standard')==='injection_log'){
+            if(in_array($m['payload']['execution_mode']??'standard',['injection_log','hypnosis'],true)){
                 $body=['schema'=>'lorkhan.turn.accepted.v1','message_id'=>$m['message_id'],'turn_id'=>$m['turn_id'],
                     'request_id'=>$m['request_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation']];
-                $accepted=$this->repository->acceptTurn($m,null,null,$hash,$body,null,[]);
+                try {
+                    $accepted=$this->repository->acceptTurn($m,null,null,$hash,$body,null,[]);
+                } catch (\InvalidArgumentException $error) {
+                    if (($m['payload']['execution_mode']??'')!=='hypnosis'
+                        || !in_array($error->getMessage(),['hypnosis_profile_unavailable','profile_locked','profile_tasks_disabled','profile_generation_connector_unavailable'],true)) throw $error;
+                    throw new ApiException(422,'invalid_schema','Hypnosis needs an unlocked NPC profile and an enabled Profile Tasks connector.');
+                }
                 $body['event_cursor']=$accepted['sequence'];
                 return Response::json(202,$body);
             }
@@ -231,12 +249,18 @@ final class Router
                 $source=$m['payload']['ui_source']??null;
                 $rechatActions=$source==='lorkhan_rechat'
                     &&($m['payload']['context']['rechat']['allow_actions']??false)===true;
-                $providerInput['_allowed_action_definitions'] = in_array($m['payload']['execution_mode']??'standard',['injection_log','injection_chat'],true)
+                $actionsGated = in_array($m['payload']['execution_mode']??'standard',['injection_log','injection_chat'],true)
                     ||($source==='lorkhan_rechat'&&!$rechatActions)
                     ||in_array($source,['lorkhan_auto_greeting','lorkhan_auto_boredom','lorkhan_auto_combat_bark','lorkhan_rpg_event','lorkhan_quest_event'],true)
                     ||str_starts_with((string)$source,'lorkhan_narrator_')
-                    ||($source==='lorkhan_action_followup'&&!($m['_action_continuation']['allow_action']??false))
+                    ||($source==='lorkhan_action_followup'&&!($m['_action_continuation']['allow_action']??false));
+                $providerInput['_allowed_action_definitions'] = $actionsGated
                     ?[]:$this->repository->allowedPromptActions($m['session_id'],$m['generation'],$m['payload']);
+                // Addon actions are resolved on the worker per attempt; only ordinary NPC/creature turns may offer them.
+                if(!$actionsGated&&in_array(\LorkhanServer\Protocol\PluginContract::CAPABILITY,(array)($m['runtime']['capabilities']??[]),true)
+                    &&($m['payload']['execution_mode']??'standard')==='standard'&&!isset($providerInput['_director_response'])
+                    &&!isset($m['payload']['director_instruction_id'])&&in_array($m['payload']['target']['kind']??null,['npc','creature'],true))
+                    $providerInput['_plugin_actions_allowed']=true;
                 if (($m['payload']['execution_mode'] ?? 'standard') === 'narrator') {
                     $providerInput['_narrator_action_executors']=$this->repository->narratorExecutors($m['session_id'],$m['generation'],$m['payload']);
                     $providerInput['_allowed_action_definitions']=[];
@@ -253,18 +277,8 @@ final class Router
                 if(in_array($target['kind']??null,['creature','npc'],true)){
                     $this->repository->session((string)$m['session_id'],(int)$m['generation']);
                     $this->products->ensureMorrowindActorProfile($m,$resolvedVoice,gmdate('Y-m-d\TH:i:s\Z'));}
-                $oghmaExtraction=isset($trusted['authored_response'])?[]:$this->oghmaExtraction($knowledgeTurn);$semanticMemory=isset($trusted['authored_response'])?[]:$this->semanticMemory($m);
-                $selection = $this->products->promptContext($knowledgeTurn,gmdate('Y-m-d\TH:i:s\Z'),$oghmaExtraction,$semanticMemory);
-                $providerInput['_selected_profile_id']=$selection['selected_profile_id'];
-                if(is_array($selection['player_profile']??null))$providerInput['_player_profile']=$selection['player_profile'];
-                if(is_array($selection['narrator_profile']??null))$providerInput['_narrator_profile']=$selection['narrator_profile'];
-                if(is_array($selection['narrator_event_prompts']??null))$providerInput['_narrator_event_prompts']=$selection['narrator_event_prompts'];
-                if(is_array($selection['nearby_actor_profiles']??null)&&$selection['nearby_actor_profiles']!==[])$providerInput['_nearby_actor_profiles']=$selection['nearby_actor_profiles'];
-                if(is_array($selection['power_observations']??null)&&$selection['power_observations']!==[])$providerInput['_power_observations']=$selection['power_observations'];
-                if(is_array($selection['item_descriptions']??null)&&$selection['item_descriptions']!==[])$providerInput['_item_descriptions']=$selection['item_descriptions'];
-                if(is_array($selection['scene_classification']??null))$providerInput['_scene_classification']=$selection['scene_classification'];
-                $assembled = $this->promptAssembler->assemble($providerInput, $selection);
-                $providerInput['_prompt'] = $assembled['provider_input'];
+                $providerInput['_deferred_context']=true;
+                $providerInput['_dynamic_oghma_plan']=$dynamicPlan;
                 $providerConfiguration=$this->products->providerContext($m);
                 if($providerConfiguration!==null)$providerInput['_provider_configuration']=$providerConfiguration;
                 $fallbackConfiguration=$this->products->fallbackProviderContext($m,$providerConfiguration['configuration_id']??null);
@@ -348,74 +362,6 @@ final class Router
         ],$resolved,(string)$message['observed_at']);
     }
 
-    /** Ground topics locally first, then make one guarded connector fallback for unresolved explicit requests. */
-    private function oghmaExtraction(array $turn):array
-    {
-        if($this->products===null)return['status'=>'unavailable','topics'=>[]];
-        $grounded=$this->products->groundedOghmaExtraction($turn);
-        if(($grounded['topics']??[])!==[])return[
-            'status'=>'grounded','topics'=>$grounded['topics'],'matches'=>$grounded['matches']??[],
-             'rejected'=>$grounded['rejected']??[],'tag_decisions'=>$grounded['tag_decisions']??[],
-            'context_fallback'=>$grounded['context_fallback']??['eligible'=>false,'attempted'=>false,'used'=>false],
-             'request_eligible'=>($grounded['request_eligible']??false)===true,'fallback_eligible'=>false,
-        ];
-        $runtime=$grounded['runtime']??$this->products->oghmaRuntime($turn);$connector=$runtime['connector']??null;
-        $groundedStatus=(string)($grounded['status']??'no_match');
-        $base=['status'=>$groundedStatus,'topics'=>[],'matches'=>[],'rejected'=>$grounded['rejected']??[],
-             'tag_decisions'=>$grounded['tag_decisions']??[],'request_eligible'=>($grounded['request_eligible']??false)===true,
-            'context_fallback'=>$grounded['context_fallback']??['eligible'=>false,'attempted'=>false,'used'=>false],
-            'fallback_eligible'=>($grounded['fallback_eligible']??false)===true];
-        if(in_array($groundedStatus,['disabled','ineligible','unavailable'],true))return$base;
-        if(!$base['fallback_eligible'])return$base;
-        if(($runtime['status']??null)!=='ready'||!is_array($connector))return array_merge($base,
-            ['status'=>'fallback_'.(string)($runtime['status']??'unavailable')]);
-        $content=is_array($connector['content']??null)?$connector['content']:[];$attemptId=Uuid::v4();$context=(string)($runtime['context']??'');
-        $result=array_merge($base,['status'=>'fallback_failed','configuration_id'=>$connector['configuration_id']??null,
-            'revision'=>$connector['revision']??null]);
-        try{
-            $this->providerAttempts?->start($attemptId,'llm','oghma-extractor','extract_oghma_topics',1,
-                $turn['request_id']??null,$turn['turn_id']??null,model:is_string($content['model']??null)?$content['model']:null,
-                configRevision:'r'.(int)($connector['revision']??0),inputBytes:strlen($context),
-                metadata:['configuration_id'=>$connector['configuration_id'],'topic_limit'=>(int)($runtime['settings']['topic_count']??1)]);
-            $suggestions=ProviderFactory::oghmaTopicExtractorForSlot($this->providerConfig,$connector,
-                (int)($runtime['settings']['extractor_timeout_ms']??1500))->extract(
-                $context,(int)($runtime['settings']['topic_count']??1),new NeverCancelledToken());
-            $topics=$this->products->resolveOghmaSuggestions($turn,$suggestions,(int)($runtime['settings']['topic_count']??1));
-            $encoded=json_encode($topics,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);$this->providerAttempts?->finish($attemptId,'succeeded',strlen($encoded));
-            return array_merge($result,['status'=>$topics===[]?'fallback_unresolved':'fallback_succeeded',
-                'topics'=>$topics,'suggested_topics'=>$suggestions]);
-        }catch(Throwable){
-            try{$this->providerAttempts?->finish($attemptId,'failed',errorCode:'provider_unavailable');}catch(Throwable){}
-            return$result;
-        }
-    }
-
-    /** Add one explicit MiniMe query signal; unavailable service falls back to local deterministic ranking. */
-    private function semanticMemory(array $turn):array
-    {
-        if($this->products===null)return[];
-        $runtime=$this->products->memoryEmbeddingRuntime((string)$turn['installation_id']);
-        if(($runtime['status']??null)!=='ready'||!is_array($runtime['policy']??null))return[];
-        $policy=$runtime['policy'];$content=$policy['content'];$base=[
-            'status'=>'failed','policy_configuration_id'=>$policy['configuration_id'],
-            'policy_revision'=>(int)$policy['current_revision'],'model'=>MemoryEmbeddingPolicy::MODEL,
-        ];
-        $query=MemoryEmbeddingPolicy::queryText($turn);$attempt=Uuid::v4();
-        try{
-            $this->providerAttempts?->start($attempt,'embedding','minime','query_memory',1,
-                $turn['request_id']??null,$turn['turn_id']??null,model:MemoryEmbeddingPolicy::MODEL,
-                configRevision:'r'.(int)$policy['current_revision'],inputBytes:strlen($query),
-                metadata:['policy_configuration_id'=>$policy['configuration_id']]);
-            $provider=new MiniMeEmbeddingProvider($content['endpoint'],$content['timeout_ms']);
-            $embedding=$provider->embed($query,new NeverCancelledToken());
-            $encoded=json_encode($embedding,JSON_THROW_ON_ERROR);$this->providerAttempts?->finish($attempt,'succeeded',strlen($encoded));
-            return array_replace($base,['status'=>'succeeded','embedding'=>$embedding]);
-        }catch(Throwable){
-            try{$this->providerAttempts?->finish($attempt,'failed',errorCode:'provider_unavailable');}catch(Throwable){}
-            return$base;
-        }
-    }
-
     private function events(Request $request): Response
     {
         $session = $request->query['session_id'] ?? '';
@@ -436,6 +382,9 @@ final class Router
         $next = $events === [] ? $after : $events[array_key_last($events)]['sequence'];
         $body = ['schema' => 'lorkhan.events.v1', 'session_id' => $session,
             'generation' => $generation, 'next_after' => $next, 'events' => $events,'autonomy'=>[]];
+        $owner=$this->repository->session($session,$generation,false,true);
+        if(in_array(\LorkhanServer\Protocol\PluginContract::CAPABILITY,(array)$owner['capabilities'],true))
+            $body['plugin_policy_revision']=$this->repository->pluginPolicyRevision((string)$owner['installation_id']);
         // Log the actual native wire response, never empty polls or a claimed playback acknowledgement.
         if ($events !== []) Logger::write('output_to_plugin.log', json_encode(\LorkhanServer\Security\Redactor::value($body),
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\r\n");
@@ -594,6 +543,9 @@ final class Router
             function()use($installation,$message,$session,$book,$route):Response{
                 return $this->idempotent($installation,$message['message_id'],$route,$message,
                     function()use($installation,$message,$session,$book):array{
+                        // A cancel can be processed by another worker before this request reaches synthesis.
+                        $cancellation=$this->menuDialogueCancellation($installation,$message);
+                        if($cancellation->isCancellationRequested())$this->menuDialogueCancelled($message);
                         $actor=$book?($this->products?->narratorProfileForInstallation($installation)['actor_identity']??null):$message['actor'];
                         if(!is_array($actor))throw new ApiException(409,'not_found','Configure the Narrator profile before reading aloud.',false);
                         $message['actor']=$actor;
@@ -625,18 +577,21 @@ final class Router
                             $providerIdentity instanceof \LorkhanServer\Application\XttsCompatibleSpeechProvider=>'xtts-compatible',
                             $providerIdentity instanceof \LorkhanServer\Application\CloudSpeechConnectorProvider=>'cloud-speech',
                             $providerIdentity instanceof \LorkhanServer\Application\OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
+                        $cacheKey=hash('sha256',json_encode([$installation,$actor,$ttsText,$preset,$context,$this->providerConfig],JSON_THROW_ON_ERROR));
+                        $cached=$this->mediaStore->cachedSpeech($cacheKey);
                         $attemptId=Uuid::v4();$mediaId=null;
-                        $this->providerAttempts?->start($attemptId,'tts',$providerName,'synthesize',1,
+                        $this->providerAttempts?->start($attemptId,'tts',$providerName,$cached===null?'synthesize':'speech_cache',1,
                             (string)$message['request_id'],null,inputBytes:strlen($ttsText),
                             metadata:['mode'=>$book?'book_read_aloud':'menu_dialogue','configuration_id'=>$preset['configuration_id']??null,
                                 'configuration_revision'=>$preset['revision']??null,'profile_voice'=>isset($context['voice'])]);
                         try{
-                            $generated=$provider->synthesize($ttsText,new NeverCancelledToken(),$context);
+                            $generated=$cached??$provider->synthesize($ttsText,$cancellation,$context);
                             $mediaId=Uuid::v4();$sha=$this->mediaStore->put($mediaId,$generated['bytes'],$generated['codec'],$generated['mime_type']);
                             $speech=['media_id'=>$mediaId,'sha256'=>$sha,'bytes'=>strlen($generated['bytes']),
                                 'codec'=>$generated['codec'],'mime_type'=>$generated['mime_type'],'duration_ms'=>$generated['duration_ms'],
                                 'expires_at'=>(new \DateTimeImmutable('now',new \DateTimeZone('UTC')))->modify('+5 minutes')->format('Y-m-d\TH:i:s\Z')];
                             $this->repository->recordMenuDialogueSpeech($message,$session,$speech);
+                            $this->mediaStore->rememberSpeech($cacheKey,$speech);
                             $this->providerAttempts?->finish($attemptId,'succeeded',strlen($generated['bytes']));
                             $media=$speech;unset($media['mime_type']);$media['dialogue_message_id']=$message['message_id'];
                             return[201,['schema'=>'lorkhan.menu-dialogue-tts.ready.v1','message_id'=>$message['message_id'],
@@ -644,11 +599,56 @@ final class Router
                                 'generation'=>$message['generation'],'actor'=>$actor,'media'=>$media]];
                         }catch(Throwable $error){
                             if($mediaId!==null)$this->mediaStore->delete($mediaId);
-                            try{$this->providerAttempts?->finish($attemptId,'failed',errorCode:'provider_unavailable');}catch(Throwable){}
+                            $cancelled=$error instanceof OperationCancelled;
+                            try{$this->providerAttempts?->finish($attemptId,$cancelled?'cancelled':'failed',
+                                errorCode:$cancelled?'operation_cancelled':'provider_unavailable');}catch(Throwable){}
+                            if($cancelled)$this->menuDialogueCancelled($message);
                             throw $error;
                         }
                     });
             });
+    }
+
+    /** Record one client cancellation without waiting for the target speech request's idempotency lock. */
+    private function menuDialogueTtsCancel(Request $request): Response
+    {
+        $message=$this->json($request,'lorkhan.menu-dialogue-tts.cancel.v1');
+        $session=$this->repository->session((string)$message['session_id'],(int)$message['generation']);
+        $installation=(string)$session['installation_id'];$this->assertPrincipal($installation);
+        $this->requireIdempotency($request,$message['message_id']);
+        $route='/menu-dialogue-tts/cancel';
+        return $this->repository->serializedIdempotency($installation,$message['message_id'],$route,
+            fn():Response=>$this->idempotent($installation,$message['message_id'],$route,$message,
+                function()use($message,$session):array{
+                    $status=$this->repository->cancelMenuDialogueTts($message,$session);
+                    return[200,['schema'=>'lorkhan.menu-dialogue-tts.cancel.accepted.v1','message_id'=>$message['message_id'],
+                        'request_id'=>$message['request_id'],'session_id'=>$message['session_id'],
+                        'generation'=>$message['generation'],'target_message_id'=>$message['target_message_id'],'status'=>$status]];
+                }));
+    }
+
+    /** Stop menu/book speech after an explicit cancel or once its session generation is no longer current. */
+    private function menuDialogueCancellation(string $installation,array $message):CallbackCancellationToken
+    {
+        $checkedAt=0.0;$cancelled=false;
+        return new CallbackCancellationToken(function()use($installation,$message,&$checkedAt,&$cancelled):bool{
+            if($cancelled)return true;
+            // cURL progress callbacks run many times per second; bound the lookup rate.
+            $now=microtime(true);
+            if($now-$checkedAt<0.25)return false;
+            $checkedAt=$now;
+            try{
+                return $cancelled=$this->repository->menuDialogueTtsCancelled($installation,(string)$message['message_id'],
+                    (string)$message['session_id'],(int)$message['generation']);
+            }catch(Throwable){return false;}
+        });
+    }
+
+    /** A cancelled speech request is an expected outcome, never an internal error. */
+    private function menuDialogueCancelled(array $message):never
+    {
+        $this->repository->session((string)$message['session_id'],(int)$message['generation']);
+        throw new ApiException(409,'operation_cancelled','The speech request was cancelled.',false);
     }
 
     /** Rewrite one player intent through the dedicated profile route before the real turn is created. */
@@ -791,6 +791,71 @@ final class Router
         $m=$this->json($request,'lorkhan.dialogue-delivery-result.v1');$this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));$this->requireIdempotency($request,$m['message_id']);$result=$this->repository->dialogueDeliveryResult($m);return Response::json(200,['schema'=>'lorkhan.dialogue-delivery-result.accepted.v1','message_id'=>$m['message_id'],'request_id'=>$m['request_id'],'dialogue_message_id'=>$m['dialogue_message_id'],'turn_id'=>$m['turn_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation'],'status'=>$m['status'],'duplicate'=>$result['duplicate']]);
     }
 
+    /** Package writes use the paired installation as owner; install/update also need a coherent Idempotency-Key. */
+    private function pluginPackage(Request $request, string $path): Response
+    {
+        if ($this->authenticatedInstallation === null) throw new ApiException(401, 'unauthorized', 'Authentication failed.');
+        $key = preg_match('#^/plugin-packages/(?:install|update)$#D', $path) === 1 ? $this->requireIdempotency($request) : null;
+        try {
+            [$status, $body] = $this->pluginPackages->dispatch($request, $path, $this->authenticatedInstallation, $key);
+        } catch (\LorkhanServer\Application\PluginPackageException $error) {
+            throw new ApiException($error->status(), $error->getMessage(), 'Package request rejected.', $error->status() >= 500);
+        }
+        return Response::json($status, $body);
+    }
+
+    /** Register or unregister client addons for the caller's live session generation. */
+    private function pluginRegistration(Request $request): Response
+    {
+        $m = $this->json($request, PluginContract::REGISTRATION, PluginContract::MAX_MANIFEST_BYTES);
+        $installation = $this->pluginPrincipal($request, $m);
+        return $this->repository->serializedIdempotency($installation, $m['message_id'], '/plugins/registrations', function () use ($installation, $m): Response {
+            $hash = $this->semanticHash($m);
+            $cached = $this->repository->idempotent($installation, $m['message_id'], '/plugins/registrations', $hash);
+            if ($cached !== null) return Response::json($cached['status'], $cached['body']);
+            // The receipt commits with the registration rows, so a replay can never observe a different accepted state.
+            return Response::json(201, $this->pluginRuntime->register($installation, $m, fn(array $body) =>
+                $this->repository->remember($installation, $m['message_id'], '/plugins/registrations', $hash, 201, $body)));
+        });
+    }
+
+    /** Persist one registered addon event; replays are answered before the declared per-minute cap is consumed. */
+    private function pluginEvent(Request $request): Response
+    {
+        $m = $this->json($request, PluginContract::EVENT, PluginContract::MAX_EVENT_BYTES);
+        $installation = $this->pluginPrincipal($request, $m);
+        return $this->repository->serializedIdempotency($installation, $m['message_id'], '/plugins/events', function () use ($installation, $m): Response {
+            $hash = $this->semanticHash($m);
+            $cached = $this->repository->idempotent($installation, $m['message_id'], '/plugins/events', $hash);
+            if ($cached !== null) return Response::json($cached['status'], ['duplicate' => true] + $cached['body']);
+            $body = ['schema' => PluginContract::EVENT_ACCEPTED, 'message_id' => $m['message_id'], 'request_id' => $m['request_id'],
+                'session_id' => $m['session_id'], 'generation' => $m['generation'], 'duplicate' => false];
+            // An expired receipt still has its immutable source event: replay it without consuming the rate cap.
+            $stored = $this->pluginRuntime->storedEvent($installation, $m['message_id']);
+            if ($stored !== null) {
+                if (!hash_equals($this->semanticHash($stored), $hash)) throw new DomainException('duplicate_conflict');
+                return Response::json(202, ['duplicate' => true] + $body);
+            }
+            $spec = $this->pluginRuntime->validateEvent($installation, $m);
+            if (!$this->repository->consumeRateLimit('plugin-event|' . $installation . '|' . $m['session_id'] . '|' . $spec['plugin_id']
+                . '|' . $spec['event'], $spec['max_per_minute'], 60)) {
+                throw new ApiException(429, 'rate_limited', 'Plugin event rate exceeded.', true, intdiv(60_000, $spec['max_per_minute']));
+            }
+            $this->pluginRuntime->persistEvent($installation, $m,
+                fn() => $this->repository->remember($installation, $m['message_id'], '/plugins/events', $hash, 202, $body));
+            return Response::json(202, $body);
+        });
+    }
+
+    /** Plugin messages carry no installation ID: the session owner must be the authenticated installation. */
+    private function pluginPrincipal(Request $request, array $message): string
+    {
+        if ($this->authenticatedInstallation === null) throw new ApiException(401, 'unauthorized', 'Authentication failed.');
+        $this->requireIdempotency($request, $message['message_id']);
+        $this->assertPrincipal($this->repository->sessionInstallation($message['session_id']));
+        return $this->authenticatedInstallation;
+    }
+
     private function authenticate(Request $request): void
     {
         foreach ($request->query as $key => $_) {
@@ -811,13 +876,13 @@ final class Router
             throw new ApiException(403,'forbidden','Installation does not match authenticated token.');
     }
 
-    private function json(Request $request, string $schema): array
+    private function json(Request $request, string $schema, ?int $maxBytes = null): array
     {
         $type = $request->header('Content-Type');
         if ($type === null || preg_match('#^application/json(?:\s*;\s*charset=utf-8)?$#iD', trim($type)) !== 1) {
             throw new ApiException(415, 'invalid_schema', 'JSON UTF-8 content type required.');
         }
-        $message = $this->validator->decode($request->body, $this->maxJsonBytes);
+        $message = $this->validator->decode($request->body, min($maxBytes ?? $this->maxJsonBytes, $this->maxJsonBytes));
         $this->validator->validate($message, $schema);
         return $message;
     }
@@ -866,7 +931,7 @@ final class Router
     {
         if (preg_match('#^/media/[0-9a-f-]{36}$#D', $path)) return '/media/{id}';
         if (preg_match('#^/sessions/[0-9a-f-]{36}$#D', $path)) return '/sessions/{id}';
-        return $path;
+        return PluginPackageRoutes::matches($path) ? PluginPackageRoutes::rateLimitRoute($path) : $path;
     }
 
     private function uuid(string $value): bool
@@ -889,7 +954,8 @@ final class Router
             'invalid_schema','media_unavailable','not_found','provider_action_not_allowed','provider_invalid_action',
             'provider_invalid_output','provider_timeout','provider_unavailable','rate_limited','request_mismatch',
             'rechat_chain_conflict','rechat_complete','rechat_cooldown','conversation_cooldown','rechat_no_responder','rechat_unavailable',
-            'invalid_rechat_context','stale_generation','turn_terminal','unauthorized','unknown_action','unknown_session','unknown_turn'];
+            'invalid_rechat_context','stale_generation','turn_terminal','unauthorized','unknown_action','unknown_session','unknown_turn',
+            'plugin_contract_unsupported','plugin_event_unregistered'];
         return in_array($code,$allowed,true)?$code:'internal_error';
     }
 

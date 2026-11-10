@@ -1,5 +1,5 @@
 [Unit]
-Description=Run LorkhanServer durable job worker
+Description=Run LorkhanServer background durable job worker
 
 [Timer]
 OnBootSec=15s

@@ -54,18 +54,38 @@ final class PocketTtsSpeechProvider implements SpeechProvider
             throw $error;
         } catch (RuntimeException $error) {
             if ($error->getMessage() !== 'provider_unavailable') throw $error;
-            $fallbacks = $this->fallbackEndpoints();
-            if ($fallbacks === []) throw $error;
-            $cancellation->throwIfCancellationRequested();
-            if (($this->modeDetector)($this->endpoint, $cancellation) !== '') throw $error;
-            foreach ($fallbacks as $fallback) {
-                $cancellation->throwIfCancellationRequested();
-                $mode = ($this->modeDetector)($fallback, $cancellation);
-                if (!in_array($mode, ['audio_cpp', 'standard'], true)) continue;
-                return $this->provider($fallback, $mode)->synthesize($text, $cancellation, $context);
-            }
-            throw $error;
+            $runtime = $this->unavailableRuntime($cancellation);
+            if ($runtime['state'] !== 'fallback') throw $error;
+            return $this->provider($runtime['endpoint'], $runtime['mode'])->synthesize($text, $cancellation, $context);
         }
+    }
+
+    /**
+     * Name the runtime synthesis uses once the configured endpoint has failed: a compatible same-host
+     * fallback, the configured service when it still identifies as PocketTTS, or none. `checked` stays
+     * empty for custom ports, which never trigger known-port discovery.
+     *
+     * @return array{state:'fallback'|'configured'|'none',endpoint:string,mode:string,checked:list<string>}
+     */
+    public function unavailableRuntime(CancellationToken $cancellation): array
+    {
+        $fallbacks = $this->fallbackEndpoints();
+        if ($fallbacks === []) return ['state' => 'none', 'endpoint' => '', 'mode' => '', 'checked' => []];
+        $cancellation->throwIfCancellationRequested();
+        $checked = [$this->endpoint];
+        $configuredMode = ($this->modeDetector)($this->endpoint, $cancellation);
+        if ($configuredMode !== '') {
+            return ['state' => 'configured', 'endpoint' => $this->endpoint, 'mode' => $configuredMode, 'checked' => $checked];
+        }
+        foreach ($fallbacks as $fallback) {
+            $cancellation->throwIfCancellationRequested();
+            $checked[] = $fallback;
+            $mode = ($this->modeDetector)($fallback, $cancellation);
+            if (in_array($mode, ['audio_cpp', 'standard'], true)) {
+                return ['state' => 'fallback', 'endpoint' => $fallback, 'mode' => $mode, 'checked' => $checked];
+            }
+        }
+        return ['state' => 'none', 'endpoint' => '', 'mode' => '', 'checked' => $checked];
     }
 
     /** Build one existing bounded adapter for the detected PocketTTS API shape. */

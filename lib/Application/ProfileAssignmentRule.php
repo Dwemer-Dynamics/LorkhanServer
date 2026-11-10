@@ -33,6 +33,7 @@ final class ProfileAssignmentRule
         'LATEST_DIARY_CONTEXT_ENABLED'=>['diary','latest_entry_in_context','boolean'],
         'CORE_LANG'=>['response','core_lang','string'],
         'LANG_LLM_XTTS'=>['response','lang_llm_xtts','boolean'],
+        'PRIVATE_NPC_THOUGHTS_ENABLED'=>['response','private_thoughts_enabled','boolean'],
         'MAX_WORDS_LIMIT'=>['response','max_words','integer'],
         'BORED_EVENT'=>['bored_event','chance_percent','integer'],
         'QUEST_COMMENT'=>['quest_comments','enabled','boolean'],

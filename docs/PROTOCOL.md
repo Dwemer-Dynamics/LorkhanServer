@@ -79,6 +79,7 @@ actions carry both canonical fields and fail closed if the current inventory win
 | `POST /controls/select` | Idempotently select an installation model preference, bind an NPC profile, or queue revision-safe bound-NPC/narrator generation. |
 | `POST /stt` | Authenticate and persist a bounded WAV request, enqueue durable transcription, and return `lorkhan.stt.accepted.v1`. |
 | `POST /menu-dialogue-tts` | Synthesize one authenticated regular Morrowind dialogue response with the actor's normal TTS route and return short-lived media. |
+| `POST /menu-dialogue-tts/cancel` | Abandon one menu dialogue or book speech message; synthesis stops and returns `operation_cancelled` without media unless it already completed. |
 | `GET /events` | Return current session events after cursor, optionally wait at most 15 seconds. |
 | `POST /action-results` | Persist exactly one terminal result for an emitted current action. |
 | `POST /interruptions` | Cancel current turn/media/action continuation and emit terminal states. |
@@ -88,10 +89,18 @@ Menu dialogue TTS is isolated from AI turns, response events, delivery receipts,
 Its request and media provenance remain session/generation scoped and expire through the existing
 private media lifecycle.
 
-Contracted event types are `turn.accepted`, `dialogue.delta`, `dialogue.complete`, `speech.ready`, `stt.transcript`, `stt.failed`, `action.intent`,
+Contracted event types are `turn.accepted`, `dialogue.delta`, `dialogue.complete`, `speech.ready`, `speech.failed`, `stt.transcript`, `stt.failed`, `action.intent`,
 `turn.complete`, `turn.failed`, and `turn.cancelled`. The required `autonomy` array is always empty. Future variants such as status/notices require
-an atomic shared-schema revision before use. Bounded `dialogue.delta` text is display-only progress; `dialogue.complete` remains the validated durable utterance. TTS runs as a separate durable job, and `speech.ready` includes the matching `dialogue_message_id` so delayed group speech cannot bind to the wrong speaker. Each event has a monotonically increasing session sequence
+an atomic shared-schema revision before use. Bounded `dialogue.delta` text is display-only progress; `dialogue.complete` remains the validated durable utterance. TTS runs as a separate durable job, and `speech.ready` includes the matching `dialogue_message_id` so delayed group speech cannot bind to the wrong speaker. A pending line whose speech ends without audio receives one terminal `speech.failed` instead: no TTS connector (`provider_unconfigured`), or the final job attempt failing (`provider_unavailable`/`provider_timeout`) after one retry with the global race/gender fallback voice. Its payload is only `dialogue_message_id` and `code`; it never carries media. `speech.ready` cannot express this, because its descriptor requires an existing non-empty media object. Non-final failures keep normal retries, failed provider attempts stay recorded, and cancellation, generation fences and lost leases publish nothing. Exactly one of `speech.ready` or `speech.failed` ends a line's speech. Each event has a monotonically increasing session sequence
 and unique message ID. Cursor gaps use bounded replay or `cursor_expired`; the client never guesses.
+
+`speech.failed` is a shared-schema revision: sibling LORKHAN must import the matching `events.schema.json`,
+`valid/events.json` and `invalid/speech-failed-media.json` by manifest hash, and accept it in its native
+event parser and Lua `protocol.lua` validator before this server is promoted. Current clients reject unknown
+event types. On receipt the client resolves the waiting line by `dialogue_message_id` within the same
+request/turn/session, marks it subtitle-only (`speech_unavailable`), displays it for its normal subtitle
+duration without any audio or speech-lane playback, and reports its one terminal delivery result. A late or
+duplicate `speech.ready`/`speech.failed` for a line already resolved is ignored as stale.
 
 `ui_source=lorkhan_rechat` denotes a playback-driven continuation, not timer autonomy. Its bounded
 context carries chain/origin IDs, monotonic depth and previous speaker/listener identities. The server
@@ -162,6 +171,62 @@ STT is an installation-global connector and never participates in the layered pr
 Client returns exactly one terminal status: `succeeded`, `failed`, `rejected`, `timed_out` or
 `cancelled`, plus stable reason code, bounded observed fields and completion timestamp. Server states
 distinguish created, emitted, delivered and terminal; no UI/prompt calls an action successful earlier.
+A result completed after the intent's `expires_at` is accepted for five minutes only as `timed_out`,
+`cancelled` or `rejected`; `succeeded` and `failed` must complete before expiry.
+
+## Third-party plugin contract v1
+
+`plugin.schema.json` defines the versioned addon contract shared byte-for-byte with the sibling
+repository. The server negotiates `plugin.contract.v1` for registrations, events and trusted server
+hooks only. It does not emit `plugin.action.intent` yet (custom model actions arrive with provider,
+policy and terminal-result integration). Clients that do not advertise and receive that capability
+can never receive plugin actions; built-in `lorkhan.action-intent.v1` names, catalogs and negotiation
+are unchanged.
+
+| Route under `/LorkhanServer/api/v1` | Body | Success | Response |
+| --- | --- | --- | --- |
+| `POST /plugins/registrations` | `lorkhan.plugin.registration.v1`, at most 64 KiB | 201 | `lorkhan.plugin.registration.accepted.v1` |
+| `POST /plugins/events` | `lorkhan.plugin.event.v1`, at most 16 KiB | 202 | `lorkhan.plugin.event.accepted.v1` (`duplicate` boolean) |
+
+Both use the paired request MAC, `Content-Type: application/json` and `Idempotency-Key` equal to the
+message's `message_id`. The session must be active, owned by the authenticated installation and at the
+same generation (`unknown_session` 404, `forbidden` 403, `stale_generation` 409; an unnegotiated session
+is 409 `plugin_contract_unsupported`). Responses echo `message_id`, `request_id`, `session_id` and
+`generation`. An identical event replay returns the stored acceptance with `duplicate: true` before the
+event's declared `max_per_minute` is consumed; over the cap is 429 `rate_limited` with `retry_after_ms`.
+An event for an inactive plugin or undeclared event is 409 `plugin_event_unregistered`.
+
+| Schema | Direction | Purpose |
+| --- | --- | --- |
+| `lorkhan.plugin.manifest.v1` | package | Plugin ID, semantic version, `api_version` 1, product/game/client/server/Lua API compatibility, dependencies, default enabled state, actions, events and prompt slots. |
+| `lorkhan.plugin.registration.v1` | client to server | `register`/`unregister` of installed, locally active addons for one session generation. |
+| `lorkhan.plugin.registration.accepted.v1` | server to client | Per-plugin `active`, `disabled`, `rejected` or `unregistered` state with a reason code. |
+| `lorkhan.plugin.action-intent.v1` | server to client | One registered plugin action with exact actor/target identity, declared parameters and expiry. Reserved event type: `plugin.action.intent`. |
+| `lorkhan.plugin.event.v1` | client to server | One registered plugin event with declared typed fields. |
+
+- Plugin IDs are `author.name` (`[a-z][a-z0-9_]`, 2-32 and 2-48 characters). `builtin`, `core`,
+  `lorkhan`, `morrowind`, `openmw` and `tes3` authors are reserved. Versions are `MAJOR.MINOR.PATCH`
+  without prerelease labels. Dependencies use an inclusive minimum and optional exclusive maximum.
+- At most 16 plugins, 16 actions, 16 events, 8 parameters/fields and 4 prompt slots. Slots are
+  `actor_state`, `player_state`, `scene_notes` and `world_state`, each at most 1024 characters.
+- Action parameters are `integer`, `number`, `boolean`, `enum` (declared lowercase tokens) or `actor`
+  (exact TES3 identity of declared kinds). Free text is allowed only in client-observed event fields
+  (at most 512 characters, no control characters). No code, command, path or URL type exists.
+- Plugin actions use tiers 0-2 and `none`/`optional`/`required` confirmation; tier 2 requires
+  confirmation. Executors are NPCs or creatures. A registration may scope an action to up to 12
+  exact actor identities (kind, record, content file and RefNum; never display name or cell).
+- Registrations are client-owned and bound to session ID and generation. A plugin becomes active only
+  when the server-installed manifest matches its version and SHA-256, server policy enables it
+  (manifest default otherwise), the client/server versions are compatible and every dependency is
+  active in range. Dependants of a rejected or unregistered plugin are withdrawn. A new generation
+  starts empty; identical re-registration is idempotent and a different one is `duplicate_conflict`.
+  Every apply revalidates the active set against current installed manifests/policy (changed or
+  removed: `unregistered`; disabled: `disabled`), with one result per plugin. More than 16 active
+  plugins is `plugin_limit_exceeded`; a manifest `lua_api_revision` above the pinned 129 is
+  `plugin_incompatible` on both server and client activation.
+- Intents expire `timeout_seconds` (1-300) after creation and declare whether they may be cancelled
+  before commit. Each intent still needs exactly one `lorkhan.action-result.v1` terminal result
+  under the existing late-result rules. HTTP acceptance is not addon success.
 
 ## Errors and idempotency
 
@@ -336,8 +401,8 @@ target. A target is not proof of a hit. Failed or scripted casts are not capture
 Pickup observations contain the player, item ID/name, transferred count, unit gold
 value, game time, and source kind (`world`, `container`, or `actor`). Optional source
 ID/name is descriptive text only, never an actor routing identity. Successful normal
-world pickups, container/actor transfers, and harvesting are supported; barter,
-crafting, console/script additions, and cancelled transfers are not pickup observations.
+world pickups, container/actor transfers, and harvesting are supported; barter (see
+below), crafting, console/script additions, and cancelled transfers are not pickup observations.
 Gold is normalized once to its acquired inventory quantity and canonical unit value.
 
 The server retains original observations and projects `spellcast`, `npcspellcast`,
@@ -346,11 +411,71 @@ Infoaction category, location/item/magic blacklists, Detect Magic Events (defaul
 and Item Pickup Detection Value (default 500 total gold, count times unit value).
 Global, Core, and NPC overrides affect prompt inclusion; they do not erase event logs.
 
+### Committed barter observations
+
+`gamedata` type `barter_trade` records one completed player barter after OpenMW commits
+the item transfer and gold change. Offers, cancels, unaffordable offers, failed haggles,
+stolen-item confiscation and AI item/gold actions emit nothing. The engine copies each
+traded stack's record ID, name, count and base unit value before transfer; Lua never
+receives item references. Lines merge by record ID, name and value, at most 32 per side,
+and at least one line is required. `player_received` lists what the player bought,
+`player_gave` what the player sold, and signed `gold_to_player` is the committed net gold
+(negative when the player paid). Unit values are base values, not prices. The merchant is
+an NPC or creature identity; witnesses, calendar and session/generation fencing follow
+pickup observations, with at most eight trades per frame and 32 queued Lua retries.
+
+Barter is never an `itemfound` pickup. The server projects exactly one CHIM-style
+`infoaction` row from the player to the merchant ("X traded with Y. X sold: ... X bought:
+... Y paid X N gold."). Prompt context applies the Infoaction category and the item
+blacklist to every traded line; Item Pickup Detection Value does not apply.
+
+### Counted actor death observations
+
+`gamedata` type `actor_died` records one non-player NPC or creature death when OpenMW
+counts it: when the death animation finishes, or when the player disposes of the corpse
+first. The saved death-animation flag prevents a repeat after loading. The player's own
+death, non-persistent corpses whose base record has zero health (placed corpses replay a
+death animation when their cell first loads) and rejected or failed `actor.kill` attempts emit
+nothing; a successful kill action is a real death. OpenMW creates persistent zero-health corpses
+with the animation already finished, so their death counts only after a real resurrection. A
+resurrected non-persistent one is not reported when killed: no saved engine state tells it apart. The payload names only the `victim`. The pinned
+engine has no reliable killer, weapon or spell at that point, so none is sent and
+validators reject such fields. The victim must be within 2048 units in the
+player's cell space. Witnesses, calendar and session/generation fencing follow resurrection
+observations, with at most 64 deaths per frame and 32 queued Lua retries.
+
+The server projects exactly one `death` row, "X died.", which is CHIM's killer-less death
+form. Prompt context shows it as a world event to the victim and witnesses, respects the
+Death event category and follows the same session and loaded-save rules as other
+observations. Hide Ambient Combat still matches only CHIM's "has killed" form. Death
+observations are not memory sources.
+
 New observations also carry the capture-time calendar using the existing loaded-save
-shape (zero-based month). Loading an earlier save retires observations at or beyond
-its cutoff while preserving earlier dated observations. Legacy undated spell/pickup
-records are retained as evidence but cannot cross session boundaries into context;
-the DaysPassed clock is never guessed to be an absolute calendar timestamp.
+shape (zero-based month). Native captures (spell, pickup, barter, resurrection, death
+and successful lockpick) copy the engine calendar together with their game time.
+Level-up, combat-end, sleep/wait and quest observations are detected by player Lua;
+it reads the engine calendar through `observationCalendar()` at the same instant as
+game time. The field is omitted when the engine has no valid date; it is never derived
+from delivery time or the server clock. Loading a save retires observations at or
+after its cutoff, CHIM's rule, and keeps earlier dated observations together with
+their memories, narratives and evolved profiles. When the loaded-save date is unknown,
+no observation from an older session is kept.
+
+Undated RPG and quest rows from older clients are kept only with evidence. That
+evidence is a dated observation from the same continuous session (typed game data, or
+a turn with world calendar and game time) whose game time is equal or later and whose
+calendar precedes the cutoff. DaysPassed game time only orders captures inside one
+session; it is never turned into a date or compared across sessions. Other undated
+rows leave active context, and their immutable sources remain. Known ambiguity: a
+legacy row recorded after its session's last pre-save capture is retired even if it
+preceded the save. A script that moves GameHour or the calendar backward inside a
+session can misorder it.
+
+Level-ups are noticed within 0.5 seconds and journal updates within 5 seconds of real
+time, and are dated when noticed. An update made in that window just before saving is
+dated after the save and is retired when that save is loaded. Legacy undated
+spell/pickup records are retained as evidence but cannot cross session boundaries into
+context.
 
 
 ## Physical NPC diary books (2026-09-13)
@@ -439,3 +564,17 @@ The game applies the delta to its current value and returns an applied/rejected 
 never treats sending the proposal as success and never overwrites game disposition with an AI score.
 Bribes/flattery and other vanilla changes remain authoritative. Affinity and NPC-to-NPC relationships
 retain their separate semantics. Snapshot/receipt tables are not portable playthrough history.
+
+
+## Hypnosis mode
+
+Typed player turns may select `execution_mode: hypnosis` with one current NPC target.
+The server queues one Profile Tasks job to rewrite personality, goals, speech style and occupation.
+It requires an existing unlocked NPC profile and an enabled Profile Tasks connector. All four
+fields must be generated before a revision is saved. Other fields and game state remain unchanged.
+The job keeps its connector revision, NPC identity, playthrough and session/generation; later
+profile edits or a replaced session prevent a stale save. Request retries do not enqueue duplicates.
+The turn completes after enqueueing, without dialogue, player speech or rechat. Job status and
+application outcome remain available in server job history; acceptance does not mean a profile
+has already changed. The client resets the selector to Standard after submitting the typed turn.
+Microphone input stays ordinary dialogue while Hypnosis is selected.

@@ -141,7 +141,7 @@ final class ProductRepository
             $lock->execute(['installation'=>$installation]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
             $state=$this->quickstartLocalLlmForInstallation($installation);$existing=$state['connector']??null;
             if($expectedRevision<0||$expectedRevision!==(int)($existing['current_revision']??0))throw new RuntimeException('revision_conflict');
-            if($existing!==null&&($existing['content']['service']??'')!=='local')throw new RuntimeException('local_llm_connector_repurposed');
+            if($existing!==null&&!in_array($existing['content']['service']??'', ['local','dwemerdistro'], true))throw new RuntimeException('local_llm_connector_repurposed');
             // Omitting the reference keeps the current private badge selection; an explicit 'none' clears only the reference.
             $values['credential']??=$existing['content']['credential']??'none';
             $setup=\LorkhanServer\Application\QuickstartLocalLlm::normalize($values);
@@ -253,6 +253,10 @@ final class ProductRepository
     /** Apply managed connector and default dialogue/background routes atomically; leave NPC overrides and live slots alone. */
     public function applyQuickstartLocalLlm(string $installation,array $values,string $fingerprint,string $now):array
     {
+        if (($values['server_type'] ?? '') === 'dwemerdistro') {
+            require_once dirname(__DIR__) . '/dwemerdistro_llm.php';
+            \DwemerDistroLlm::requireModel((string)($values['model'] ?? ''));
+        }
         return $this->transaction(function()use($installation,$values,$fingerprint,$now):array{
             $lock=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:installation FOR UPDATE');
             $lock->execute(['installation'=>$installation]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
@@ -609,7 +613,7 @@ final class ProductRepository
         $id = $input['core_profile_id'] ?? null;
         $setting = $input['setting'] ?? null;
         $revision = $input['revision'] ?? null;
-        $allowed = ['quest_comments.enabled', 'quest_comments.chance_percent', 'bored_event.chance_percent', 'response.max_words', 'response.core_lang', 'response.lang_llm_xtts', 'behavior.rechat_max_depth', 'behavior.rechat_probability_percent',
+        $allowed = ['quest_comments.enabled', 'quest_comments.chance_percent', 'bored_event.chance_percent', 'response.max_words', 'response.core_lang', 'response.lang_llm_xtts', 'response.private_thoughts_enabled', 'behavior.rechat_max_depth', 'behavior.rechat_probability_percent',
             'profile_evolution.history_limit','profile_evolution.interval_days','profile_evolution.min_events','profile_evolution.cooldown_minutes', 'behavior.rechat_allow_actions', 'behavior.combat_bark_period_seconds', 'memory.recent_turn_limit', 'diary.context_turn_limit',
             'diary.automatic_interval_seconds', 'diary.prompt'];
         if (!is_string($id) || !Uuid::isValid($id) || !is_string($setting) || !in_array($setting, $allowed, true)
@@ -944,6 +948,36 @@ final class ProductRepository
         $delete->execute(['id'=>$ruleId,'installation'=>$installationId]);if($delete->rowCount()!==1)throw new RuntimeException('not_found');
     }
 
+    /** Queue an explicit rewrite inside turn acceptance, retaining the existing profile and connector fences. */
+    public function enqueueHypnosis(array $turn): void
+    {
+        $profileId=$this->selectedActorProfileId($turn['installation_id'],$turn['playthrough_id'],$turn['payload']['target']);
+        if($profileId===null)throw new InvalidArgumentException('hypnosis_profile_unavailable');
+        $profile=$this->getRevisioned('profile',$profileId);
+        if(($profile['content']['management']['locked']??false)===true)throw new InvalidArgumentException('profile_locked');
+        $payload=$this->profileGenerationPayload($turn['installation_id'],$profileId,(int)$profile['current_revision'],'hypnosis')+[
+            'instruction'=>$turn['payload']['input']['text'], 'session_id'=>$turn['session_id'],
+            'generation'=>$turn['generation'], 'turn_id'=>$turn['turn_id'],
+            'installation_id'=>$turn['installation_id'], 'playthrough_id'=>$turn['playthrough_id'],
+            'target'=>$turn['payload']['target'],
+        ];
+        $query=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority)
+            VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),1,60) ON CONFLICT(job_type,idempotency_key) DO NOTHING");
+        $query->execute(['job'=>Uuid::v4(),'key'=>'hypnosis:'.$turn['turn_id'],'payload'=>$this->encode($payload)]);
+    }
+
+    /** A loaded save, ended session or changed actor binding invalidates a pending explicit rewrite. */
+    public function hypnosisRequestActive(array $payload): bool
+    {
+        $query=$this->db->prepare("SELECT 1 FROM sessions s JOIN active_turns t ON t.session_id=s.session_id
+            WHERE s.session_id=:session AND s.installation_id=:installation AND s.playthrough_id=:playthrough
+            AND s.generation=:generation AND s.state='active' AND t.turn_id=:turn AND t.state='complete' FOR SHARE OF s");
+        $query->execute(['session'=>$payload['session_id']??null,'installation'=>$payload['installation_id']??null,
+            'playthrough'=>$payload['playthrough_id']??null,'generation'=>$payload['generation']??null,'turn'=>$payload['turn_id']??null]);
+        return $query->fetchColumn()!==false && is_array($payload['target']??null)
+            && $this->selectedActorProfileId($payload['installation_id'],$payload['playthrough_id'],$payload['target'])===($payload['profile_id']??null);
+    }
+
     /** Queue one idempotent generation job for the profile's current revision. */
     public function enqueueProfileGeneration(string $profileId):array
     {
@@ -1268,20 +1302,28 @@ final class ProductRepository
         return['source_turn_ids'=>$turnIds,'recent_events'=>$events];
     }
 
-    /** Freeze actor-relevant vanilla and world events, excluding diagnostics and retired save branches. */
+    /**
+     * Freeze actor-relevant vanilla, world and delivered generated speech, excluding diagnostics and retired save branches.
+     * Generated dialogue has no ingress source; its immutable played delivery receipt is its frozen provenance.
+     */
     private function evolutionWitnessedEvents(string $installation,string $playthrough,?array $identity,int $limit):array
     {
         $parameters=['installation'=>$installation,'playthrough'=>$playthrough];
         $actor='';
         if($identity!==null){$stable=array_intersect_key($identity,array_flip(['kind','record_id','content_file','refnum']));
-            $actor=' AND (m.speaker @> CAST(:speaker AS jsonb) OR m.target @> CAST(:target AS jsonb) OR m.audience @> CAST(:audience AS jsonb))';
+            // Like CHIM's NPC speech journal, an NPC does not evolve from the Narrator's generated voice.
+            $actor=' AND (m.speaker @> CAST(:speaker AS jsonb) OR m.target @> CAST(:target AS jsonb) OR m.audience @> CAST(:audience AS jsonb))'
+                ." AND (m.source_event_id IS NOT NULL OR COALESCE(m.speaker->>'kind','')<>'narrator')";
             $parameters+=['speaker'=>$this->encode($stable),'target'=>$this->encode($stable),'audience'=>$this->encode([$stable])];}
-        $query=$this->db->prepare("SELECT m.source_event_id,e.type,e.data,e.location,e.gamets FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid
-            JOIN source_events se ON se.source_event_id=m.source_event_id
+        $query=$this->db->prepare("SELECT se.source_event_id,e.type,e.data,e.location,e.gamets FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid
+            LEFT JOIN dialogue_delivery_results d ON m.source_event_id IS NULL AND m.projection_kind='dialogue'
+                AND d.dialogue_message_id=m.dialogue_message_id AND d.turn_id=m.turn_id AND d.status='played'
+            JOIN source_events se ON se.source_event_id=COALESCE(m.source_event_id,d.source_event_id) AND se.installation_id=m.installation_id
             WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL
             AND e.type IN ('inputtext','chat','chat_background','location','weather','death','infoaction','narration','quest','book','spellcast','npcspellcast','itemfound')
             AND (e.delivery_state IS NULL OR e.delivery_state IN ('spoken','played'))
-            AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=m.source_event_id)
+            AND (m.source_event_id IS NOT NULL OR (se.event_kind='dialogue.delivery' AND se.turn_id=m.turn_id AND e.delivery_state='played'))
+            AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=se.source_event_id)
             AND NOT EXISTS(SELECT 1 FROM timeline_invalidated_turns i WHERE i.turn_id=m.turn_id)".$actor.
             ' ORDER BY e.gamets DESC,e.rowid DESC LIMIT :limit');
         foreach($parameters as$key=>$value)$query->bindValue(':'.$key,$value);
@@ -1475,6 +1517,7 @@ final class ProductRepository
                 $payload=$this->json($stored);
                 if(($payload['profile_id']??null)!==$profileId||($payload['base_revision']??null)!==$baseRevision)return false;
                 if(!(new ProfileEvolutionScheduler($this->db))->active($payload))return false;
+                if(($payload['mode']??null)==='hypnosis' && !$this->hypnosisRequestActive($payload))return false;
                 if(in_array($payload['mode']??null,['npc_profile_backfill','profile_evolution','narrator_profile_evolution'],true)){
                     $sources=$payload['source_turn_ids']??[];$playthrough=$payload['playthrough_id']??null;
                     if(!is_string($playthrough)||!Uuid::isValid($playthrough)||$sources!==$sourceTurnIds
@@ -1987,7 +2030,7 @@ SQL);
     public function recentPlayerInputs(string $installationId,int $limit=200,?string $playthroughId=null):array
     {
         $playthroughId??=(new ProfileOwnershipRepository($this->db))->activePlaythrough($installationId);
-        $limit=max(1,min(200,$limit));$statement=$this->db->prepare("SELECT t.input_text FROM active_turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation AND (CAST(:playthrough AS uuid) IS NULL OR s.playthrough_id=CAST(:playthrough AS uuid)) AND t.speaker->>'kind'='player' AND btrim(t.input_text)<>'' AND NOT jsonb_exists(t.context,'director') AND NOT EXISTS (SELECT 1 FROM source_events e WHERE e.turn_id=t.turn_id AND (e.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat','director') OR e.payload#>>'{payload,ui_source}' IN ('lorkhan_rpg_event','lorkhan_quest_event','lorkhan_rechat','lorkhan_action_followup','lorkhan_director_child') OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_auto_%' OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_narrator_%')) ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT :limit");
+        $limit=max(1,min(200,$limit));$statement=$this->db->prepare("SELECT t.input_text FROM active_turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation AND (CAST(:playthrough AS uuid) IS NULL OR s.playthrough_id=CAST(:playthrough AS uuid)) AND t.speaker->>'kind'='player' AND btrim(t.input_text)<>'' AND NOT jsonb_exists(t.context,'director') AND NOT EXISTS (SELECT 1 FROM source_events e WHERE e.turn_id=t.turn_id AND (e.payload#>>'{payload,execution_mode}' IN ('injection_log','injection_chat','director','hypnosis') OR e.payload#>>'{payload,ui_source}' IN ('lorkhan_rpg_event','lorkhan_quest_event','lorkhan_rechat','lorkhan_action_followup','lorkhan_director_child') OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_auto_%' OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_narrator_%')) ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT :limit");
         $statement->bindValue(':installation',$installationId);$statement->bindValue(':playthrough',$playthroughId);$statement->bindValue(':limit',$limit,\PDO::PARAM_INT);$statement->execute();
         return array_map(static fn(array$row):string=>(string)$row['input_text'],$statement->fetchAll());
     }
@@ -1995,13 +2038,25 @@ SQL);
     /** Resolve an actor profile's voice without exposing the rest of its roleplay document to a connector. */
     public function speechContext(string $installationId,string $playthroughId,array $identity,?array $connector=null):array
     {
+        return $this->speechContextFromProfile($this->speechProfile($installationId,$playthroughId,$identity),$identity,$connector);
+    }
+
+    /** Resolve the global race/gender fallback voice, ignoring the profile voice that could not be synthesized. */
+    public function fallbackSpeechContext(string $installationId,string $playthroughId,array $identity,?array $connector=null):array
+    {
+        $profile=$this->speechProfile($installationId,$playthroughId,$identity);
+        if(is_array($profile['content']??null))unset($profile['content']['voice']);
+        return $this->speechContextFromProfile($profile,$identity,$connector);
+    }
+
+    private function speechProfile(string $installationId,string $playthroughId,array $identity):?array
+    {
         $profileId=match($identity['kind']??null){
             'player'=>$this->playerProfileForInstallation($installationId,$playthroughId)['profile_id']??null,
             'narrator'=>$this->narratorProfileForInstallation($installationId)['profile_id']??null,
             default=>$this->selectedActorProfileId($installationId,$playthroughId,$identity),
         };
-        $profile=is_string($profileId)&&$profileId!==''?$this->getRevisioned('profile',$profileId):null;
-        return $this->speechContextFromProfile($profile,$identity,$connector);
+        return is_string($profileId)&&$profileId!==''?$this->getRevisioned('profile',$profileId):null;
     }
 
     /** Share voice resolution with saved narrative authors without consulting current actor bindings. */
@@ -2773,8 +2828,12 @@ SQL);
                 $find->execute($scope+['id'=>$input['relationship_id']]);$before=$find->fetch();
                 if(!$before)throw new RuntimeException('not_found');
                 if((int)$before['revision']!==($input['expected_revision']??null))throw new RuntimeException('relationship_revision_conflict');
-                if(isset($input['actor_identity'])&&$this->actorKey($input['actor_identity'])!==$this->actorKey($this->json($before['actor_identity'])))
-                    throw new \InvalidArgumentException('relationship_identity_immutable');
+                if(isset($input['actor_identity'])){
+                    $storedKey=$this->actorKey($this->json($before['actor_identity']));
+                    // An identity without a typed reference cannot match the stored one, so it is an attempted replacement.
+                    try{$attemptedKey=$this->actorKey($input['actor_identity']);}catch(\InvalidArgumentException){$attemptedKey=null;}
+                    if($attemptedKey!==$storedKey)throw new \InvalidArgumentException('relationship_identity_immutable');
+                }
                 $id=(string)$before['relationship_id'];
                 $save=$this->db->prepare('UPDATE relationship_records SET disposition=:disposition,affinity=:affinity,relationship_type=:type,source_mode=:mode,'
                     .'source_event_id=:source,custom_info=:custom,details=CAST(:details AS jsonb),updated_at=:now WHERE relationship_id=:id AND revision=:revision RETURNING revision');
@@ -3428,14 +3487,20 @@ SQL);
         }
         if(!$prompt){$promptStmt = $this->db->prepare("SELECT c.configuration_id,c.current_revision AS revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.installation_id=:installation AND c.kind='prompt' AND c.deleted_at IS NULL AND COALESCE(r.content->>'purpose','')<>'narrator_event' AND (c.profile_id=:actor_profile OR c.profile_id=:session_profile OR c.profile_id IS NULL) ORDER BY CASE WHEN c.profile_id=:actor_profile THEN 0 WHEN c.profile_id=:session_profile THEN 1 ELSE 2 END,c.name,c.configuration_id LIMIT 1");
             $promptStmt->execute(['installation'=>$turn['installation_id'],'actor_profile'=>$activeProfileId,'session_profile'=>$turn['profile_id']]);$prompt = $promptStmt->fetch();}
+        // Prompt overrides reference stored configuration sets; the profile-scoped fallback has none.
+        $storedPrompt=$prompt!==false;
         if (!$prompt) {
             $prompt = ['configuration_id'=>$activeProfileId,'revision'=>(int)$profile['current_revision'],'content'=>['instruction'=>'Respond in character using only scoped context.']];
         } else {
             $prompt['revision']=(int)$prompt['revision'];$prompt['content']=$this->json($prompt['content']);
         }
-        $promptOverride=$this->db->prepare('SELECT default_prompt,custom_prompt,description FROM prompts WHERE installation_id=:installation AND source_configuration_id=:configuration');
-        $promptOverride->execute(['installation'=>$turn['installation_id'],'configuration'=>$prompt['configuration_id']]);
-        if($override=$promptOverride->fetch()){
+        $override=false;
+        if($storedPrompt){
+            $promptOverride=$this->db->prepare('SELECT default_prompt,custom_prompt,description FROM prompts WHERE installation_id=:installation AND source_configuration_id=:configuration');
+            $promptOverride->execute(['installation'=>$turn['installation_id'],'configuration'=>$prompt['configuration_id']]);
+            $override=$promptOverride->fetch();
+        }
+        if($override){
             $effectivePrompt=trim((string)($override['custom_prompt']??''));
             if($effectivePrompt==='')$effectivePrompt=(string)$override['default_prompt'];
             if($effectivePrompt!=='')$prompt['content']['instruction']=$effectivePrompt;
@@ -3451,7 +3516,8 @@ SQL);
         $knowledgeSelection=$contextSections['oghma']?$this->selectPromptKnowledge($turn,$profile,$knowledgeScope,
             DynamicOghmaRepository::overlay($this->knowledgeCandidates($knowledgeScope,array_keys($this->contentFilesForTurn($turn))),$turn['_dynamic_oghma_plan']??[]),
             (string)($effective['settings']['memory']['oghma_knowledge_tags']??''),
-            (int)($effective['settings']['oghma']['result_limit']??3),(array)($effective['settings']['oghma']??[]),$oghmaExtraction,$now)
+            (int)($effective['settings']['oghma']['result_limit']??3),(array)($effective['settings']['oghma']??[]),$oghmaExtraction,$now,
+            $selectedProfileId!==null?(string)$profile['name']:'')
             :['rows'=>[],'trace'=>['status'=>'disabled','reason'=>'disabled_by_global_context','result_ids'=>[]]];
         $knowledgeSelection['trace']['settings']=$effective['settings']['oghma']??[];
         $knowledgeSelection['trace']['settings_sources']=array_filter($effective['sources'],static fn(string$key):bool=>
@@ -3493,7 +3559,10 @@ SQL);
         }
         if(!isset($actorKey['record_id'],$actorKey['content_file']))throw new RuntimeException('invalid_actor_identity');
         $actorJson=$this->encode($actorKey);$audienceJson=$this->encode([$actorKey]);
-        $ownsProfile=$selectedProfileId!==null || $this->actorKey($this->json($profile['actor_identity']))===$this->actorKey($actor);
+        $ownsProfile=$selectedProfileId!==null;
+        // Session-binding fallback profiles carry no typed TES3 reference, so they cannot own the targeted actor.
+        if(!$ownsProfile){try{$ownsProfile=$this->actorKey($this->json($profile['actor_identity']))===$this->actorKey($actor);}
+            catch(InvalidArgumentException){$ownsProfile=false;}}
         // Relationship records describe their owning NPC, never a shared session or witness pool.
         $latestDiary=[];
         if($ownsProfile&&($effective['settings']['diary']['latest_entry_in_context']??false)===true){
@@ -3534,6 +3603,9 @@ SQL);
         }
 
         $recentTurnLimit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
+        // Only the exact profile-owning placed actor reads, and later generates, its own private thoughts.
+        $thoughtOwner=\LorkhanServer\Application\PrivateThoughtPolicy::owner($turn,$selectedProfileId,
+            $ownsProfile&&($effective['settings']['response']['private_thoughts_enabled']??false)===true);
         $history=[];
         if($contextSections['conversation_history']&&$recentTurnLimit>0){$typeParameters=[];$historyParameters=[];
         $excludedEventTypes=$contextPolicy['event_types_excluded'];
@@ -3557,7 +3629,8 @@ SELECT 'event:'||e.rowid::text AS id,
                'listener_identity',CASE WHEN m.target='{}'::jsonb THEN NULL ELSE m.target END,
                'audience',CASE WHEN jsonb_array_length(m.audience)=0 THEN NULL ELSE m.audience END,
                'location',e.location,'game_time',NULLIF(e.gamets,0),'event_time',e.ts,
-               'delivery_state',e.delivery_state))
+               'delivery_state',e.delivery_state,
+               'private_thought',CASE WHEN CAST(:private_thoughts AS boolean) THEN m.payload->'private_thought' END))
        ELSE
            jsonb_strip_nulls(jsonb_build_object(
                'kind','event','type',e.type,'turn_id',m.turn_id,
@@ -3584,13 +3657,17 @@ WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.su
        AND lower(btrim(COALESCE(m.payload->>'spell_name','')))<>ALL(CAST(:magic_blacklist AS text[]))))
   AND (e.type<>'itemfound' OR CASE WHEN jsonb_typeof(m.payload->'count')='number' AND jsonb_typeof(m.payload->'unit_value')='number'
        THEN (m.payload->>'count')::numeric*(m.payload->>'unit_value')::numeric>=CAST(:pickup_min_value AS numeric) ELSE false END)
-  AND ((e.type NOT IN ('spellcast','npcspellcast','itemfound') AND COALESCE(m.projection_key,'') NOT LIKE 'resurrection:%') OR (
+  AND ((e.type NOT IN ('spellcast','npcspellcast','itemfound') AND COALESCE(m.projection_key,'') NOT LIKE 'resurrection:%'
+       AND COALESCE(m.projection_key,'') NOT LIKE 'barter:%' AND COALESCE(m.projection_key,'') NOT LIKE 'actor-death:%') OR (
       NOT EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=m.source_event_id)
       AND (EXISTS(SELECT 1 FROM source_events observation WHERE observation.source_event_id=m.source_event_id AND observation.session_id=:context_session AND observation.generation=COALESCE(CAST(:context_generation AS bigint),(SELECT generation FROM sessions WHERE session_id=:context_session)))
           OR (jsonb_typeof(m.payload->'calendar')='object' AND EXISTS(SELECT 1 FROM source_events load WHERE load.session_id=:context_session AND load.event_kind='session.init' AND jsonb_typeof(load.payload->'loaded_save')='object')))))
   AND (CAST(:is_narrator_target AS boolean) OR e.type<>'inputtext' OR COALESCE(m.target->>'kind','')<>'narrator')
   AND (NOT CAST(:hide_narrator_dialogue AS boolean) OR e.type<>'chat' OR COALESCE(m.speaker->>'kind','')<>'narrator')
   AND (e.type<>'chat' OR e.delivery_state IN ('emitted','pending','spoken','played'))
+  -- Server-side interruption/expiry ends utterances without a receipt, so the eventlog row can still read emitted.
+  AND (e.type<>'chat' OR m.dialogue_message_id IS NULL OR NOT EXISTS(SELECT 1 FROM dialogue_utterances unheard
+       WHERE unheard.dialogue_message_id=m.dialogue_message_id AND unheard.delivery_state IN ('interrupted','expired','failed')))
   AND (m.speaker @> CAST(:event_speaker AS jsonb)
        OR m.target @> CAST(:event_target AS jsonb)
        OR m.audience @> CAST(:event_audience AS jsonb))
@@ -3607,6 +3684,7 @@ SQL);
             'event_speaker'=>$actorJson,'event_target'=>$actorJson,'event_audience'=>$audienceJson,
             'hide_narrator_dialogue'=>$hideNarratorDialogue?'true':'false',
             'is_narrator_target'=>$isNarratorTarget?'true':'false',
+            'private_thoughts'=>$thoughtOwner===null?'false':'true',
             'candidate_limit'=>min(500,max(40,$recentTurnLimit*5)),
         ]);
         // Match CHIM: every visible event consumes one history slot, including input and response rows.
@@ -3614,7 +3692,13 @@ SQL);
         $magicBlacklist=[];foreach($contextPolicy['magic_effects_blacklist']as$spell)$magicBlacklist[mb_strtolower(trim((string)$spell),'UTF-8')]=true;
         $itemBlacklist=[];foreach($contextPolicy['item_blacklist']as$item)$itemBlacklist[mb_strtolower(trim((string)$item),'UTF-8')]=true;
         foreach($historyStatement->fetchAll()as$row){
-            $content=$this->json($row['content']);$location=mb_strtolower(trim((string)($content['location']??$content['details']['location']??'')),'UTF-8');
+            $content=$this->json($row['content']);
+            if(array_key_exists('private_thought',$content)){
+                $thought=$thoughtOwner===null?null:\LorkhanServer\Application\PrivateThoughtPolicy::forOwner($content['private_thought'],
+                    $thoughtOwner['profile_id'],$thoughtOwner['actor'],$content['speaker_identity']??null);
+                if($thought===null)unset($content['private_thought']);else $content['private_thought']=$thought;
+            }
+            $location=mb_strtolower(trim((string)($content['location']??$content['details']['location']??'')),'UTF-8');
             if($location!==''&&isset($locationBlacklist[$location]))continue;
             if(in_array($content['type']??null,['spellcast','npcspellcast'],true)
                 &&(isset($magicBlacklist[mb_strtolower(trim((string)($content['details']['spell_id']??'')),'UTF-8')])
@@ -3625,6 +3709,13 @@ SQL);
                     ||$pickup['count']*$pickup['unit_value']<($contextPolicy['item_pickup_min_value']??500)
                     ||isset($itemBlacklist[mb_strtolower(trim((string)($pickup['item_record_id']??'')),'UTF-8')])
                     ||isset($itemBlacklist[mb_strtolower(trim((string)($pickup['item_name']??'')),'UTF-8')]))continue;
+            }
+            if(($content['type']??null)==='infoaction'&&($content['details']['observation_type']??null)==='barter_trade'){
+                $blocked=false;
+                foreach(['player_received','player_gave']as$list)foreach((array)($content['details'][$list]??[])as$line)
+                    foreach(['item_record_id','item_name']as$field)
+                        if(isset($itemBlacklist[mb_strtolower(trim((string)($line[$field]??'')),'UTF-8')]))$blocked=true;
+                if($blocked)continue;
             }
             if(count($history)>=$recentTurnLimit)break;
             $history[]=['id'=>(string)$row['id'],'installation_id'=>$turn['installation_id'],
@@ -3651,6 +3742,7 @@ SQL);
             $promptKeys[]='dialogue_line_inline_response_'.$suffix;$promptKeys[]='inline_narration_prompt_'.$suffix;
         }
         return ['profile'=>$profile,'core_profile'=>$coreProfile,'selected_profile_id'=>$activeProfileId,'speech_style'=>$speechStyle,
+            'private_thought'=>$thoughtOwner,
             'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources'],'context'=>$contextPolicy,'prompt'=>$effective['prompt'],
                 'settings'=>array_intersect_key($effective['settings'], ['memory'=>true,'response'=>true])],
             'scene_classification'=>$contextSections['world']?(new SceneClassificationRepository($this->db))->context($turn['installation_id'],$turn['playthrough_id'],$activeProfileId):null,
@@ -3668,7 +3760,7 @@ SQL);
     }
 
     /** Rank extracted and forced Oghma topics, enforce access classes, and retain every bounded decision. */
-    private function selectPromptKnowledge(array $turn,array $profile,array $scope,array $rows,string $tagList,int $limit,array $settings,array $extraction,string $now):array
+    private function selectPromptKnowledge(array $turn,array $profile,array $scope,array $rows,string $tagList,int $limit,array $settings,array $extraction,string $now,string $speakerName=''):array
     {
         $topicCount=max(1,min(3,(int)($settings['topic_count']??1)));
         $status=(string)($extraction['status']??'not_run');
@@ -3677,6 +3769,10 @@ SQL);
         $topics=array_slice(array_values(array_unique($topics)),0,$topicCount);$conversation=$topics;
         $signals=$active?$this->forcedKnowledgeSignals($turn,$profile,$settings):['race'=>[],'location'=>[]];
         $knowledgeTags=$this->knowledgeValues($tagList);$limit=max(0,min(5,$limit));
+        // CHIM also authorizes the speaker's own name; only the resolved speaker profile supplies it, never a reserved tag.
+        $speakerTag=mb_strtolower(trim($speakerName),'UTF-8');$speakerClass=trim((string)preg_replace('/[^a-z0-9]+/u','_',$speakerTag),'_');
+        if($speakerClass!==''&&!in_array($speakerClass,['knowall','common','esoteric'],true)&&!str_starts_with($speakerTag,'!')
+            &&!in_array($speakerTag,$knowledgeTags,true))$knowledgeTags[]=$speakerTag;
         $selected=[];$selectedIds=[];$scores=[];$reasons=[];$rank=0;
         foreach([['conversation',$conversation,0.01],['location',$signals['location'],0.95],['race',$signals['race'],0.95]]as[$source,$sourceSignals,$minimum]){
             if(count($selected)>=$limit)break;

@@ -316,6 +316,7 @@ $session['runtime']['capabilities'][]='debug.commands.v1';
 $session['runtime']['capabilities'][]='debug.npc_manager.v1';
 $session['runtime']['capabilities'][]='speech.browser.v1';
 $session['runtime']['capabilities'][]='action.conversation.end';
+$session['runtime']['capabilities'][]='action.service.barter';
 [$status] = $call($router, 'POST', $base . '/sessions', $jsonAuth, [], $session);
 $assert($status === 422, 'missing session idempotency key accepted');
 [$status] = $call($router, 'POST', $base . '/sessions', $headers($newUuid(3)), [], $session);
@@ -325,11 +326,32 @@ $assert($status === 201 && $accepted['generation'] === 7
     && $accepted['capabilities'] === ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'debug.npc_manager.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
         'action.ai.stop', 'action.conversation.end', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
-        'action.inventory.inspect']
+        'action.inventory.inspect','action.service.barter']
     &&$accepted['config_revision']==='global-settings-r1'
     &&($accepted['client_settings']['schema']??null)==='lorkhan.client-settings.v1'
-    &&($accepted['client_settings']['behavior']['rechat']??null)===false, 'session create failed');
+    &&($accepted['client_settings']['behavior']['rechat']??null)===true, 'session create failed');
 $sessionId = $accepted['session_id'];
+
+// Session negotiation enables every advertised NPC action and never the advanced world actions.
+$db->beginTransaction();
+try{
+    $negotiated=$session;$negotiated['installation_id']=Uuid::v4();$negotiated['profile_id']=Uuid::v4();
+    $negotiated['playthrough_id']=Uuid::v4();$negotiated['message_id']=Uuid::v4();$negotiated['generation']=1;
+    $negotiated['character_id']=Uuid::v4();$negotiated['character_binding']='new';unset($negotiated['loaded_save']);
+    $negotiatedNpcActions=['weapon.sheathe','item.give','item.take','item.pickup','gold.give','gold.take','spell.cast',
+        'service.training','service.spells','service.travel','service.spellmaking','service.enchanting','service.repair'];
+    foreach(array_merge($negotiatedNpcActions,\LorkhanServer\Application\AdvancedActionPolicy::NAMES) as $name)
+        $negotiated['runtime']['capabilities'][]='action.'.$name;
+    $negotiatedId=Uuid::v4();$repo->createSession($negotiated,$negotiatedId,$tokenHash);
+    $negotiatedActions=$repo->session($negotiatedId,1)['enabled_actions'];
+    $assert(array_diff($negotiatedNpcActions,$negotiatedActions)===[]
+        &&array_intersect(\LorkhanServer\Application\AdvancedActionPolicy::NAMES,$negotiatedActions)===[],
+        'session negotiation omitted NPC actions or enabled advanced world actions');
+}finally{$db->rollBack();}
+
+
+$assert(in_array('service.barter',$repo->session($sessionId,7)['enabled_actions'],true),
+    'session negotiation did not enable advertised barter action');
 $browserCapableSessions=array_values(array_filter($products->debugCommandSessions(),static fn(array $row):bool=>$row['session_id']===$sessionId));
 $assert(count($browserCapableSessions)===1&&$browserCapableSessions[0]['browser_speech_supported']===true,
     'session negotiation stripped browser speech support before management discovery');
@@ -374,8 +396,10 @@ $actorCoreProfile=$products->createRevisioned('core_profile',['installation_id'=
         'routing'=>['llm_configuration_id'=>$profileModelSlot['configuration_id'],
             'llm_fast_configuration_id'=>$modelSlot['configuration_id'],'llm_powerful_configuration_id'=>''],
         'settings_overrides'=>[]]],$now);
+// The legacy session has no bound character, so NPC profiles name their playthrough and typed reference explicitly.
 $actorProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Fargoth scholar',
-    'actor_identity'=>['record_id'=>'fargoth'],'core_profile_id'=>$actorCoreProfile['core_profile_id'],
+    'playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$fixture('controls-query')['target'],
+    'core_profile_id'=>$actorCoreProfile['core_profile_id'],
     'content'=>['persona'=>'A cautious Dwemer scholar.']],$now);
 $profileTtsPreset=$products->createRevisioned('tts_provider',['installation_id'=>$installationId,'name'=>'Profile-routed speech',
     'content'=>['driver'=>'pockettts','endpoint'=>'http://127.0.0.1:8086','model'=>'tts-1','voice'=>'default',
@@ -560,6 +584,8 @@ foreach(['inworld','cartesia','pockettts','omnivoice','chatterbox','xtts-fastapi
     $assert(($fallbackContext['voice']??'')==='global_bosmer_voice',$driver.' did not use the shared global fallback');
     $explicitContext=$products->speechContext($installationId,$session['playthrough_id'],$automaticTarget,$fallbackConnector);
     $assert(($explicitContext['voice']??'')==='mw_wood_elf_male','global fallback overrode an assigned NPC voice');
+    $assert(($products->fallbackSpeechContext($installationId,$session['playthrough_id'],$automaticTarget,$fallbackConnector)['voice']??'')==='global_bosmer_voice',
+        $driver.' speech failure fallback did not resolve the global race/gender voice for an assigned NPC voice');
 }
 $customFallbacks['wood_elf']['male']='';$globalFallbacks->save($customFallbacks);
 $assert(($products->speechContext($installationId,$session['playthrough_id'],$unprofiledActor,$fallbackConnector)['voice']??'')==='last_resort',
@@ -664,6 +690,7 @@ $assert($movedProfileId===$automaticProfileId
     &&str_contains((string)($movedProfile['content']['oghma_knowledge_tags']??''),'bitter_coast')
     &&!str_contains((string)($movedProfile['content']['oghma_knowledge_tags']??''),'west_gash'),
     'walking into another region rewrote an NPC immutable home locality');
+$referenceGroupOwnsTransaction=!$db->inTransaction();if($referenceGroupOwnsTransaction)$db->beginTransaction();
 $db->exec('SAVEPOINT reference_group_parity');
 $referenceGroup=['group_key'=>'test-ref-alias','name'=>'Test alternate reference','enabled'=>true,
     'canonical_ref'=>\LorkhanServer\Domain\ProfileId::reference($automaticTarget),
@@ -695,15 +722,16 @@ $assert($groups->resolve($installationId,$sameName)===$sameName,'disabled name g
 $groups->delete($installationId,$namedGroup['group_key']);
 $assert($groups->resolve($installationId,$sameName)===$sameName,'deleted name group still matched');
 $db->exec('ROLLBACK TO SAVEPOINT reference_group_parity');
+if($referenceGroupOwnsTransaction)$db->rollBack();
 $legacyLocalityTarget=$automaticTarget;$legacyLocalityTarget['record_id']='legacy_locality_bosmer';
 $legacyLocalityTarget['refnum']['index']=104;$legacyLocalityTarget['cell']=['kind'=>'interior','name'=>'Balmora, Guild of Mages'];
 $legacyLocality=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Legacy Locality Bosmer',
-    'actor_identity'=>$legacyLocalityTarget,'content'=>['oghma_knowledge_tags'=>'common','management'=>['locked'=>false]],
+    'playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$legacyLocalityTarget,'content'=>['oghma_knowledge_tags'=>'common','management'=>['locked'=>false]],
     'change_reason'=>'automatic Morrowind actor discovery'],$now);
 $lockedLocalityTarget=$automaticTarget;$lockedLocalityTarget['record_id']='locked_locality_bosmer';
 $lockedLocalityTarget['refnum']['index']=105;$lockedLocalityTarget['cell']=['kind'=>'interior','name'=>'Balmora, Guild of Mages'];
 $lockedLocality=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Locked Locality Bosmer',
-    'actor_identity'=>$lockedLocalityTarget,'content'=>['oghma_knowledge_tags'=>'custom','management'=>['locked'=>true]],
+    'playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$lockedLocalityTarget,'content'=>['oghma_knowledge_tags'=>'custom','management'=>['locked'=>true]],
     'change_reason'=>'automatic Morrowind actor discovery'],$now);
 $localityBackfill=$products->backfillMorrowindCatalogLocalities($now);
 $legacyLocality=$products->getRevisioned('profile',$legacyLocality['profile_id']);
@@ -716,7 +744,7 @@ $assert($localityBackfill['updated']>=1
 $rediscoveredTarget=$automaticTarget;$rediscoveredTarget['record_id']='rediscovered_bosmer';
 $rediscoveredTarget['refnum']['index']=102;$rediscoveredTarget['display_name']='Rediscovered Bosmer';
 $deletedProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Rediscovered Bosmer',
-    'actor_identity'=>$rediscoveredTarget,'content'=>[]],$now);
+    'playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$rediscoveredTarget,'content'=>[]],$now);
 $products->deleteRevisioned('profile',$deletedProfile['profile_id'],$now);
 $rediscoveredProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
     'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
@@ -744,8 +772,9 @@ $db->prepare("DELETE FROM installation_provider_selections WHERE installation_id
 $speechCore=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Integration Speech',
     'default_npc'=>false,'slot'=>null,'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'',
         'routing'=>['tts_configuration_id'=>$profileTtsPreset['configuration_id']],'settings_overrides'=>[]]],$now);
+$speechTarget=$fixture('controls-query')['target'];$speechTarget['record_id']='jiub';$speechTarget['display_name']='Jiub';$speechTarget['refnum']['index']=99;
 $speechProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Jiub speech route',
-    'actor_identity'=>['record_id'=>'jiub'],'core_profile_id'=>$speechCore['core_profile_id'],
+    'playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$speechTarget,'core_profile_id'=>$speechCore['core_profile_id'],
     'content'=>['gender'=>'Female','race'=>'Dunmer']],$now);
 $narratorProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'The Test Narrator',
     'actor_identity'=>['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN'],
@@ -762,15 +791,17 @@ $assert($status===200&&$controls['schema']==='lorkhan.controls.v1'
     &&in_array($actorProfile['profile_id'],array_column($controls['profiles'],'profile_id'),true)
     &&!in_array($narratorProfile['profile_id'],array_column($controls['profiles'],'profile_id'),true)
     &&$controls['narrator_profile_id']===$narratorProfile['profile_id']
-    &&$controls['selected_model_slot_key']==='standard'&&$controls['selected_profile_id']===null
+    &&$controls['selected_model_slot_key']==='standard'&&$controls['selected_profile_id']===$actorProfile['profile_id']
     &&($controls['effective_settings']['schema']??null)==='lorkhan.effective-settings.v1'
     &&preg_match('/^[0-9a-f]{64}$/D',(string)($controls['effective_settings']['change_token']??''))===1
-    &&($controls['effective_settings']['profile_id']??null)===null
+    &&($controls['effective_settings']['profile_id']??null)===$actorProfile['profile_id']
+    &&($controls['effective_settings']['profile_revision']??null)===(int)$actorProfile['current_revision']
+    &&($controls['effective_settings']['core_profile_id']??null)===$actorCoreProfile['core_profile_id']
     &&isset($controls['effective_settings']['settings']['memory'],$controls['effective_settings']['settings']['narrator'],$controls['effective_settings']['settings']['safety'])
     &&isset($controls['effective_settings']['settings']['behavior'])
     &&$controls['effective_settings']['settings']['presentation']===\LorkhanServer\Application\EffectiveSettingsResolver::defaults()['presentation']
     &&!isset($controls['effective_settings']['settings']['memory']['oghma_knowledge_tags']),
-    'in-game controls query did not return safe model/profile choices');
+    'in-game controls query did not return safe model choices and the reference-scoped actor profile');
 $assert(!str_contains(json_encode($controls,JSON_THROW_ON_ERROR),'127.0.0.1:1234'),
     'unrouted connectors or endpoint secrets reached the semantic model slots');
 
@@ -789,11 +820,18 @@ $assert($status===200&&$modelReplay==$modelSelected,'in-game model slot selectio
 $selectProfile=$selectModel;$selectProfile['message_id']=$newUuid(10);$selectProfile['request_id']=$newUuid(11);
 $selectProfile['kind']='actor_profile';$selectProfile['selection_id']=$actorProfile['profile_id'];$selectProfile['selection_key']=null;
 [$status,$profileSelected]=$call($router,'POST',$base.'/controls/select',$headers($selectProfile['message_id']),[],$selectProfile);
+// Re-selecting the exact reference-scoped profile persists the binding without changing effective settings.
+$profileBinding=$db->prepare('SELECT profile_id FROM actor_profile_bindings WHERE installation_id=:installation AND playthrough_id=:playthrough AND actor_key=:key');
+$profileBinding->execute(['installation'=>$installationId,'playthrough'=>$session['playthrough_id'],'key'=>$products->actorKey($selectProfile['target'])]);
     $assert($status===200&&$profileSelected['selected_profile_id']===$actorProfile['profile_id']
         &&$profileSelected['selected_model_slot_key']==='fast'&&$profileSelected['resolved_model_slot_key']==='fast'
         &&($profileSelected['effective_settings']['profile_id']??null)===$actorProfile['profile_id']
-        &&($profileSelected['effective_settings']['change_token']??null)!==($controls['effective_settings']['change_token']??null),
+        &&($profileSelected['effective_settings']['change_token']??null)===($modelSelected['effective_settings']['change_token']??null)
+        &&$profileBinding->fetchColumn()===$actorProfile['profile_id']
+        &&!str_contains(json_encode($profileSelected,JSON_THROW_ON_ERROR),'127.0.0.1:1234'),
         'in-game actor profile selection failed');
+[$status,$profileReplay]=$call($router,'POST',$base.'/controls/select',$headers($selectProfile['message_id']),[],$selectProfile);
+$assert($status===200&&$profileReplay==$profileSelected,'in-game actor profile selection was not idempotent');
 // Core quick slots use the existing typed Interact editor, independently of LLM mode selection.
 $slotOwnsTransaction=!$db->inTransaction();if($slotOwnsTransaction)$db->beginTransaction();
 $db->exec('SAVEPOINT core_slot_menu_probe');
@@ -866,7 +904,7 @@ $effectiveControlsQuery=$controlsQuery;$effectiveControlsQuery['message_id']=$ne
 $assert(($inheritedContext['configuration_id']??null)===$coreModelSlot['configuration_id']
     &&$effectiveSettings['settings']['behavior']['rechat']===true
     &&$effectiveSettings['settings']['memory']['knowledge_limit']===5
-    &&($effectiveSettings['sources']['settings.behavior.rechat']??null)==='core_profile'
+    &&($effectiveSettings['sources']['settings.behavior.rechat']??null)==='default'
     &&$effectiveControlsStatus===200
     &&($effectiveControls['effective_settings']['profile_id']??null)===$actorProfile['profile_id']
     &&($effectiveControls['effective_settings']['core_profile_id']??null)===$coreProfile['core_profile_id']
@@ -982,7 +1020,7 @@ $assert($status===200&&$generationQueued['selected_profile_id']===$actorProfile[
     'disabled dynamic profile incorrectly queued full regeneration');
 
 $unboundGenerate=$generateProfile;$unboundGenerate['message_id']=$newUuid(14);$unboundGenerate['request_id']=$newUuid(15);
-$unboundGenerate['target']['record_id']='not_bound';
+$unboundGenerate['target']['record_id']='not_bound';$unboundGenerate['target']['refnum']['index']=7021;
 [$status]=$call($router,'POST',$base.'/controls/select',$headers($unboundGenerate['message_id']),[],$unboundGenerate);
 $assert($status===404,'in-game profile generation accepted a profile not bound to the target');
 
@@ -1118,7 +1156,7 @@ try {
 $backfillTarget=$autoTarget;$backfillTarget['record_id']='profile_backfill_sentinel';
 $backfillTarget['display_name']='Profile Backfill Sentinel';$backfillTarget['refnum']['index']=6100;
 $backfillProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,
-    'name'=>'Profile Backfill Sentinel','actor_identity'=>$backfillTarget,
+    'name'=>'Profile Backfill Sentinel','playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$backfillTarget,
     'content'=>['management'=>['locked'=>false,'favorite'=>false]]],$now);
 $products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
     $backfillTarget,$backfillProfile['profile_id'],$now);
@@ -1194,11 +1232,15 @@ $assert((int)$generatedBackfill['current_revision']===(int)$backfillPayload['bas
 $evolutionCore=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Evolution discovery defaults',
     'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],
         'settings_overrides'=>['profile_evolution'=>['enabled'=>true,'fields'=>['occupation','skills']]]]],$now);
+$inheritedNpcTarget=$fixture('controls-query')['target'];$inheritedNpcTarget['record_id']='evolution_inherited';
+$inheritedNpcTarget['display_name']='Evolution inherited NPC';$inheritedNpcTarget['refnum']['index']=6101;
+$explicitNpcTarget=$inheritedNpcTarget;$explicitNpcTarget['record_id']='evolution_explicit';
+$explicitNpcTarget['display_name']='Evolution explicit NPC';$explicitNpcTarget['refnum']['index']=6102;
 $inheritedNpc=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Evolution inherited NPC',
-    'actor_identity'=>['kind'=>'actor','record_id'=>'evolution_inherited'],
+    'playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$inheritedNpcTarget,
     'core_profile_id'=>$evolutionCore['core_profile_id'],'content'=>[]],$now);
 $explicitNpc=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Evolution explicit NPC',
-    'actor_identity'=>['kind'=>'actor','record_id'=>'evolution_explicit'],
+    'playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$explicitNpcTarget,
     'core_profile_id'=>$evolutionCore['core_profile_id'],
     'content'=>['dynamic_profile'=>false,'dynamic_profile_fields'=>['goals']]],$now);
 $evolutionCoreContent=$evolutionCore['content'];$evolutionCoreContent['settings_overrides']['profile_evolution']['enabled']=false;
@@ -1231,6 +1273,20 @@ $db->prepare('INSERT INTO lorkhan_internal.profile_evolution_clocks(installation
 $unassignedEvolution=$products->maybeEnqueueDynamicProfileEvolution($dynamicProfile['profile_id'],$session['playthrough_id'],$sessionId,true);
 $assert($unassignedEvolution['queued']===false&&$unassignedEvolution['reason']==='profile_generation_connector_unavailable','unassigned evolution did not skip');
 $products->revise('global_settings',$backfillGlobal['configuration_id'],$backfillSettings,'restore evolution route',$now);
+// Evolution reads one witnessed event stream; another NPC's event and older NPC events fall outside the NPC limit.
+$evolutionSources=[];
+foreach([[$backfillTarget,'First witnessed exchange'],[$inheritedNpcTarget,'Unrelated NPC exchange'],
+    [$backfillTarget,'Second witnessed exchange'],[$backfillTarget,'Third witnessed exchange']] as $index=>[$evolutionTarget,$evolutionText]){
+    $evolutionSource=$newUuid(6170+$index*2);$evolutionTurn=$newUuid(6171+$index*2);
+    $evolutionPayload=['speaker'=>$playerProfile['actor_identity'],'target'=>$evolutionTarget,'input'=>['text'=>$evolutionText],'context'=>[]];
+    $db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,turn_id,payload) "
+        ."VALUES(:id,:installation,:session,7,'turn.requested',:now,'lorkhan.turn.v1',:turn,CAST(:payload AS jsonb))")
+        ->execute(['id'=>$evolutionSource,'installation'=>$installationId,'session'=>$sessionId,'now'=>$now,
+            'turn'=>$evolutionTurn,'payload'=>json_encode($evolutionPayload,JSON_THROW_ON_ERROR)]);
+    (new EventLogRepository($db))->projectSource($evolutionSource,$installationId,$sessionId,'turn.requested',$now,
+        null,$evolutionTurn,null,$evolutionPayload);
+    $evolutionSources[]=$evolutionSource;
+}
 $dynamicQueued=$products->maybeEnqueueDynamicProfileEvolution($dynamicProfile['profile_id'],$session['playthrough_id'],$sessionId,true);
 $dynamicJob=$db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='profile.generate' "
     ."AND payload->>'profile_id'=:profile AND payload->>'mode'='profile_evolution'");
@@ -1238,7 +1294,9 @@ $dynamicJob->execute(['profile'=>$dynamicProfile['profile_id']]);$dynamicJobRow=
 $dynamicPayload=$dynamicJobRow?json_decode((string)$dynamicJobRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
 $assert(($dynamicQueued['queued']??false)===true&&$dynamicJobRow&&$dynamicJobRow['state']==='queued'
     &&($dynamicPayload['dynamic_fields']??null)===['personality','occupation','skills']
-    &&count($dynamicPayload['source_turn_ids']??[])===2&&count($dynamicPayload['recent_events']??[])===2,
+    &&($dynamicPayload['source_turn_ids']??null)===[]&&($dynamicPayload['recent_events']??null)===[]
+    &&($dynamicPayload['source_event_ids']??null)===[$evolutionSources[2],$evolutionSources[3]]
+    &&array_column($dynamicPayload['witnessed_events']??[],'source_event_id')===[$evolutionSources[2],$evolutionSources[3]],
     'dynamic NPC profile evolution did not freeze its selected fields and NPC-limited witnessed history');
 // Exercise the UI's full 400-turn evolution range and byte-truncated provenance together.
 $scheduleOwns=!$db->inTransaction();if($scheduleOwns)$db->beginTransaction();$db->exec('SAVEPOINT evolution_schedule_probe');
@@ -1288,35 +1346,192 @@ try{
 }finally{$db->exec('ROLLBACK TO SAVEPOINT evolution_schedule_probe');if($scheduleOwns)$db->rollBack();}
 $historyOwns=!$db->inTransaction();if($historyOwns)$db->beginTransaction();$db->exec('SAVEPOINT profile_history_limits_probe');
 try{
-    for($index=0;$index<400;$index++)$insertBackfillTurn->execute([
-        'turn'=>\LorkhanServer\Infrastructure\Uuid::v4(),'request'=>\LorkhanServer\Infrastructure\Uuid::v4(),
-        'message'=>\LorkhanServer\Infrastructure\Uuid::v4(),'response'=>\LorkhanServer\Infrastructure\Uuid::v4(),
-        'session'=>$sessionId,'input'=>'Hello','speaker'=>json_encode($playerProfile['actor_identity']),
-        'target'=>json_encode($backfillTarget),'response_payload'=>json_encode(['lines'=>[['action'=>'say','speaker_identity'=>$backfillTarget,'text'=>'Hello']]]),'now'=>$now]);
+    // Project fixtures normally so evolution reads the same single witnessed event stream as gameplay.
+    $historyGameTime=900000000;
+    $historyEvent=function(array $target,string $text)use($db,$installationId,$sessionId,$now,$playerProfile,&$historyGameTime):string{
+        $sourceId=Uuid::v4();$turnId=Uuid::v4();$historyGameTime++;
+        $payload=['speaker'=>$playerProfile['actor_identity'],'target'=>$target,'input'=>['text'=>$text],
+            'context'=>['world'=>['game_time'=>$historyGameTime]]];
+        $db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,turn_id,payload) "
+            ."VALUES(:id,:installation,:session,7,'turn.requested',:now,'lorkhan.turn.v1',:turn,CAST(:payload AS jsonb))")
+            ->execute(['id'=>$sourceId,'installation'=>$installationId,'session'=>$sessionId,'now'=>$now,
+                'turn'=>$turnId,'payload'=>json_encode($payload,JSON_THROW_ON_ERROR)]);
+        (new EventLogRepository($db))->projectSource($sourceId,$installationId,$sessionId,'turn.requested',$now,null,$turnId,null,$payload);
+        return$sourceId;
+    };
+    $historyTarget=function(string $record,int $refnum)use($backfillTarget):array{
+        $target=$backfillTarget;$target['record_id']=$record;$target['display_name']='History '.$record;$target['refnum']['index']=$refnum;
+        return$target;};
+    $historyNpcTarget=$historyTarget('history_limit_npc',8601);$historyOtherTarget=$historyTarget('history_limit_other',8602);
+    $historyTruncatedTarget=$historyTarget('history_limit_truncated',8603);
+    // 401 NPC events interleaved with another NPC's: one past the 400-event range for either witness scope.
+    $historyNpcSources=[];$historyOtherSources=[];$historyStream=[];
+    for($index=0;$index<=400;$index++){
+        $historyNpcSources[]=$historyStream[]=$historyEvent($historyNpcTarget,'History NPC '.$index);
+        $historyOtherSources[]=$historyStream[]=$historyEvent($historyOtherTarget,'History other '.$index);
+    }
+    $historyTruncatedText=str_repeat('history ✓ / ',800);$historyTruncatedSources=[];
     foreach(['npc','narrator','truncated']as$case){
-        if($case==='truncated')$db->prepare("UPDATE turns SET input_text=repeat('history / ',800) WHERE session_id=:session AND target @> CAST(:target AS jsonb)")->execute(['session'=>$sessionId,'target'=>json_encode($backfillTarget)]);
+        if($case==='truncated')for($index=0;$index<20;$index++)$historyTruncatedSources[]=$historyEvent($historyTruncatedTarget,$historyTruncatedText);
         $largeContent=$dynamicContent;$largeContent['settings_overrides']['profile_evolution']['history_limit']=400;
-        $largeIdentity=$case==='narrator'?['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN']:$backfillTarget;
-        $largeProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'History limit '.$case,
-            'actor_identity'=>$largeIdentity,'core_profile_id'=>$evolutionCore['core_profile_id'],'content'=>$largeContent],$now);
+        $largeIdentity=$historyNpcTarget;
+        if($case==='narrator')$largeIdentity=['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN'];
+        if($case==='truncated')$largeIdentity=$historyTruncatedTarget;
+        $largeInput=['installation_id'=>$installationId,'name'=>'History limit '.$case,
+            'actor_identity'=>$largeIdentity,'core_profile_id'=>$evolutionCore['core_profile_id'],'content'=>$largeContent];
+        if($case!=='narrator')$largeInput['playthrough_id']=$session['playthrough_id'];
+        $largeProfile=$products->createRevisioned('profile',$largeInput,$now);
         $queued=$products->maybeEnqueueDynamicProfileEvolution($largeProfile['profile_id'],$session['playthrough_id'],$sessionId,true);
         $assert(($queued['queued']??false)===true,'history range fixture did not queue');
         $q=$db->prepare('SELECT payload FROM durable_jobs WHERE job_id=:id');$q->execute(['id'=>$queued['job_id']]);$largePayload=json_decode($q->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
-        $events=$largePayload['recent_events'];$sources=$largePayload['source_turn_ids'];
-        $assert($sources===array_column($events,'turn_id')&&strlen(json_encode($events,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))<=65536,'truncated history retained discarded source IDs or exceeded the worker byte cap');
-        $assert($case==='truncated'?(count($events)>0&&count($events)<400):count($events)===400,'configured 400-turn limit was not honored within its byte budget');
-        $largePayload['_job']=['job_id'=>$queued['job_id'],'attempt'=>1];
-        $leaseProfileFixture->execute(['job'=>$queued['job_id'],'token'=>\LorkhanServer\Infrastructure\Uuid::v4()]);
-        $handler=new \LorkhanServer\Application\ProfileGenerateJobHandler($products,new \LorkhanServer\Application\MockProfileGenerationProvider());
-        if($case!=='truncated'){
-            $tooLarge=$largePayload;$id=\LorkhanServer\Infrastructure\Uuid::v4();$tooLarge['source_turn_ids'][]=$id;$tooLarge['recent_events'][]=['turn_id'=>$id,'player_input'=>'Hello','npc_responses'=>['Hello']];
-            try{$handler->handle($tooLarge,'oversized-history',static fn():bool=>true);$assert(false,'401 evolution turns were accepted');}
-            catch(\InvalidArgumentException $error){$assert($error->getMessage()==='invalid_profile_backfill_context','unexpected evolution limit error');}
+        $witnessed=$largePayload['witnessed_events']??[];$witnessedIds=array_column($witnessed,'source_event_id');
+        $assert(($largePayload['source_turn_ids']??null)===[]&&($largePayload['recent_events']??null)===[]
+            &&$witnessed!==[]&&($largePayload['source_event_ids']??null)===$witnessedIds
+            &&strlen(json_encode($witnessed,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))<=16384,
+            'evolution history duplicated turns, retained discarded source IDs or exceeded the witnessed byte cap');
+        // Byte packing keeps the oldest events of the window, so the first retained event pins the 400-event range.
+        if($case==='npc')$assert(count($witnessed)<400&&$witnessedIds===array_slice($historyNpcSources,1,count($witnessed))
+            &&array_intersect($witnessedIds,$historyOtherSources)===[],
+            'NPC evolution did not use exactly its own latest 400 witnessed events');
+        if($case==='narrator')$assert(count($witnessed)<400&&$witnessedIds===array_slice($historyStream,402,count($witnessed))
+            &&array_intersect($witnessedIds,$historyOtherSources)!==[],
+            'Narrator evolution did not use exactly the latest 400 shared events');
+        if($case==='truncated'){
+            $truncatedValid=count($witnessed)<count($historyTruncatedSources)
+                &&$witnessedIds===array_slice($historyTruncatedSources,0,count($witnessed));
+            foreach($witnessed as$event){$eventBody=substr($event['text'],(int)strpos($event['text'],': ')+2);
+                $truncatedValid=$truncatedValid&&strlen($event['text'])<=2048&&strlen($event['text'])>2040
+                    &&mb_check_encoding($event['text'],'UTF-8')&&str_starts_with($historyTruncatedText,$eventBody);}
+            $assert($truncatedValid,'byte-truncated witnessed history broke UTF-8 boundaries, order or provenance');
         }
+        $largePayload['_job']=['job_id'=>$queued['job_id'],'attempt'=>1];
+        $leaseProfileFixture->execute(['job'=>$queued['job_id'],'token'=>Uuid::v4()]);
+        $handler=new \LorkhanServer\Application\ProfileGenerateJobHandler($products,new \LorkhanServer\Application\MockProfileGenerationProvider());
+        $rejected=$largePayload;
+        if($case==='truncated'){
+            // Provenance may not claim an event that byte truncation discarded.
+            $rejected['source_event_ids'][]=$historyTruncatedSources[count($witnessed)];
+        }else{
+            $extra=end($witnessed);$extra['source_event_id']=Uuid::v4();$extra['text']=str_repeat('x',2048);
+            $rejected['witnessed_events'][]=$extra;$rejected['source_event_ids'][]=$extra['source_event_id'];
+        }
+        try{$handler->handle($rejected,'oversized-history',static fn():bool=>true);$assert(false,'oversized or mismatched witnessed history was accepted');}
+        catch(\InvalidArgumentException $error){$assert($error->getMessage()==='invalid_profile_witnessed_context','unexpected evolution limit error');}
         $handler->handle($largePayload,'history-limit-probe',static fn():bool=>true);
-        $assert($products->getRevisioned('profile',$largeProfile['profile_id'])['current_revision']===$largePayload['base_revision']+1,'valid large or truncated history failed mock evolution');
+        $provenance=$db->prepare('SELECT provenance FROM profile_revisions WHERE profile_id=:profile AND revision=:revision');
+        $provenance->execute(['profile'=>$largeProfile['profile_id'],'revision'=>$largePayload['base_revision']+1]);
+        $provenanceRow=json_decode((string)($provenance->fetchColumn()?:'{}'),true,64,JSON_THROW_ON_ERROR);
+        $assert($products->getRevisioned('profile',$largeProfile['profile_id'])['current_revision']===$largePayload['base_revision']+1
+            &&($provenanceRow['source_event_ids']??null)===$witnessedIds&&($provenanceRow['source_turn_ids']??null)===[],
+            'valid '.$case.' history of '.count($witnessed).' witnessed events failed mock evolution or lost witnessed provenance');
     }
 }finally{$db->exec('ROLLBACK TO SAVEPOINT profile_history_limits_probe');if($historyOwns)$db->rollBack();}
+$speechOwns=!$db->inTransaction();if($speechOwns)$db->beginTransaction();$db->exec('SAVEPOINT evolution_speech_probe');
+try{
+    // Generated speech joins evolution only after a played receipt; that receipt is its frozen, rollback-checked source.
+    $speechNpc=$backfillTarget;$speechNpc['record_id']='evolution_speech_npc';$speechNpc['display_name']='Speech NPC';$speechNpc['refnum']['index']=8701;
+    $speechOther=$backfillTarget;$speechOther['record_id']='evolution_speech_other';$speechOther['display_name']='Other speaker';$speechOther['refnum']['index']=8702;
+    $speechNarrator=['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN'];
+    $speechTurn=$db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at)
+        VALUES(:turn,:request,:message,:session,7,'text','en',:input,CAST(:speaker AS jsonb),CAST(:target AS jsonb),'[]'::jsonb,CAST(:context AS jsonb),'complete',:now)");
+    $speechUtterance=$db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,
+        response_line_id,utterance_id,speaker,addressee,audience,text,emitted_at,delivery_deadline_at)
+        VALUES(:dialogue,:session,:turn,:request,7,1,1,:line,:utterance,CAST(:speaker AS jsonb),CAST(:addressee AS jsonb),CAST(:audience AS jsonb),:text,:emitted,:deadline)");
+    $speechSource=$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload)
+        VALUES(:id,:installation,:session,7,:kind,:now,:schema,:request,:turn,CAST(:payload AS jsonb))");
+    $speechReceipt=$db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at)
+        VALUES(:dialogue,:source,:message,:request,:turn,:session,7,CAST(:speaker AS jsonb),:status,'fixture',:now)");
+    $speechGameTime=950000000;$speechEvents=new EventLogRepository($db);
+    $speech=function(array $speaker,string $text,?string $status,int $day,?string $playerText=null)use($installationId,$session,$sessionId,$now,$playerProfile,$speechNpc,
+        $speechTurn,$speechUtterance,$speechSource,$speechReceipt,$speechEvents,&$speechGameTime):array{
+        $turnId=Uuid::v4();$requestId=Uuid::v4();$dialogueId=Uuid::v4();$inputSource=null;$receiptId=null;$speechGameTime+=10;
+        $context=['world'=>['game_time'=>$speechGameTime,'calendar'=>['year'=>427,'month'=>7,'day'=>$day,'hour'=>12]]];
+        $player=$playerProfile['actor_identity'];$audience=[$speaker,$player];
+        $speechTurn->execute(['turn'=>$turnId,'request'=>$requestId,'message'=>Uuid::v4(),'session'=>$sessionId,'input'=>$playerText??'',
+            'speaker'=>json_encode($player),'target'=>json_encode($speaker),'context'=>json_encode($context),'now'=>$now]);
+        if($playerText!==null){$inputSource=Uuid::v4();
+            $inputPayload=['speaker'=>$player,'target'=>$speechNpc,'input'=>['text'=>$playerText],
+                'context'=>['world'=>['game_time'=>$speechGameTime-5]+$context['world']]];
+            $speechSource->execute(['id'=>$inputSource,'installation'=>$installationId,'session'=>$sessionId,'now'=>$now,'kind'=>'turn.requested',
+                'schema'=>'lorkhan.turn.v1','request'=>$requestId,'turn'=>$turnId,'payload'=>json_encode($inputPayload)]);
+            $speechEvents->projectSource($inputSource,$installationId,$sessionId,'turn.requested',$now,$requestId,$turnId,null,$inputPayload);}
+        $speechUtterance->execute(['dialogue'=>$dialogueId,'session'=>$sessionId,'turn'=>$turnId,'request'=>$requestId,'line'=>Uuid::v4(),
+            'utterance'=>Uuid::v4(),'speaker'=>json_encode($speaker),'addressee'=>json_encode($player),'audience'=>json_encode($audience),
+            'text'=>$text,'emitted'=>$now,'deadline'=>gmdate('c',strtotime($now)+300)]);
+        $speechEvents->projectDialogue(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id'],'session_id'=>$sessionId,
+            'request_id'=>$requestId,'turn_id'=>$turnId,'payload'=>['context'=>$context]],
+            ['speaker'=>$speaker,'addressee'=>$player,'audience'=>$audience,'text'=>$text],$dialogueId,$now);
+        if($status!==null){$receiptId=Uuid::v4();
+            $speechSource->execute(['id'=>$receiptId,'installation'=>$installationId,'session'=>$sessionId,'now'=>$now,'kind'=>'dialogue.delivery',
+                'schema'=>'lorkhan.dialogue-delivery-result.v1','request'=>$requestId,'turn'=>$turnId,
+                'payload'=>json_encode(['dialogue_message_id'=>$dialogueId,'status'=>$status])]);
+            $speechReceipt->execute(['dialogue'=>$dialogueId,'source'=>$receiptId,'message'=>$receiptId,'request'=>$requestId,'turn'=>$turnId,
+                'session'=>$sessionId,'speaker'=>json_encode($speaker),'status'=>$status,'now'=>$now]);
+            $speechEvents->updateDialogueDelivery($dialogueId,$status);}
+        return['dialogue_message_id'=>$dialogueId,'receipt'=>$receiptId,'input'=>$inputSource];
+    };
+    $kept=$speech($speechNpc,'Kept delivered reply.','played',10,'Player question before the kept reply.');
+    $unrelated=$speech($speechOther,'Unrelated delivered reply.','played',10);
+    $speech($speechNpc,'Unplayed pending reply.',null,10);
+    $speech($speechNpc,'Failed playback reply.','failed',10);
+    $narratorAside=$speech($speechNarrator,'Narrator aside elsewhere.','played',10);
+    $narratorHeard=$speech($speechNarrator,'Narrator voice heard by the Speech NPC.','played',10);
+    $db->prepare('UPDATE eventlog_metadata SET audience=audience||CAST(:npc AS jsonb) WHERE dialogue_message_id=:dialogue')
+        ->execute(['npc'=>json_encode([$speechNpc]),'dialogue'=>$narratorHeard['dialogue_message_id']]);
+    $later=$speech($speechNpc,'Later reply from the retired branch.','played',20);
+    $speechContent=$dynamicContent;$speechContent['settings_overrides']['profile_evolution']['history_limit']=400;
+    $speechProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Speech NPC','playthrough_id'=>$session['playthrough_id'],
+        'actor_identity'=>$speechNpc,'core_profile_id'=>$evolutionCore['core_profile_id'],'content'=>$speechContent],$now);
+    $speechPayload=function(string $profileId)use($products,$db,$session,$sessionId):array{
+        $queued=$products->maybeEnqueueDynamicProfileEvolution($profileId,$session['playthrough_id'],$sessionId,true);
+        $q=$db->prepare('SELECT payload FROM durable_jobs WHERE job_id=:id');$q->execute(['id'=>$queued['job_id']??Uuid::v4()]);
+        return['queued'=>$queued]+json_decode((string)($q->fetchColumn()?:'{}'),true,64,JSON_THROW_ON_ERROR);};
+    $npcSpeech=$speechPayload($speechProfile['profile_id']);$npcWitnessed=$npcSpeech['witnessed_events']??[];
+    $npcSpeechText=json_encode($npcWitnessed,JSON_UNESCAPED_UNICODE);
+    $assert(($npcSpeech['queued']['queued']??false)===true
+        &&($npcSpeech['source_event_ids']??null)===[$kept['input'],$kept['receipt'],$later['receipt']]
+        &&array_column($npcWitnessed,'type')===['inputtext','chat','chat']
+        &&(array_column($npcWitnessed,'text')[1]??null)==='Speech NPC: Kept delivered reply.'
+        &&substr_count($npcSpeechText,'Player question before the kept reply.')===1
+        &&!str_contains($npcSpeechText,'Unrelated')&&!str_contains($npcSpeechText,'Unplayed')
+        &&!str_contains($npcSpeechText,'Failed playback')&&!str_contains($npcSpeechText,'Narrator'),
+        'NPC evolution did not freeze exactly its delivered generated speech: '.$npcSpeechText);
+    // The Narrator observes all delivered speech in the playthrough, still bounded by its own history limit.
+    $narratorSpeechContent=$speechContent;$narratorSpeechContent['settings_overrides']['profile_evolution']['history_limit']=5;
+    $narratorSpeechProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Speech narrator',
+        'actor_identity'=>$speechNarrator,'core_profile_id'=>$evolutionCore['core_profile_id'],'content'=>$narratorSpeechContent],$now);
+    $narratorSpeech=$speechPayload($narratorSpeechProfile['profile_id']);
+    $assert(($narratorSpeech['source_event_ids']??null)===[$kept['receipt'],$unrelated['receipt'],$narratorAside['receipt'],
+        $narratorHeard['receipt'],$later['receipt']],
+        'Narrator evolution did not freeze the latest shared delivered speech: '.json_encode($narratorSpeech['witnessed_events']??null));
+    // A loaded earlier save retires the day-20 reply; the queued source and its late commit must both be refused.
+    $speechLoad=$db->prepare("SELECT e.source_event_id FROM source_events e JOIN sessions s ON s.session_id=e.session_id
+        WHERE e.installation_id=:installation AND s.playthrough_id=:playthrough AND e.event_kind='session.init' LIMIT 1");
+    $speechLoad->execute(['installation'=>$installationId,'playthrough'=>$session['playthrough_id']]);$speechLoadId=$speechLoad->fetchColumn();
+    $assert(is_string($speechLoadId),'speech rollback fixture lacks a session.init source');
+    $speechTimeline=new \LorkhanServer\Infrastructure\LoadedSaveTimeline($db);
+    $assert($speechTimeline->eventSourcesActive($npcSpeech['source_event_ids'],$installationId,$session['playthrough_id']),
+        'delivered speech sources were inactive before rollback');
+    $speechTimeline->invalidate(['message_id'=>$speechLoadId,'installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id'],
+        'loaded_save'=>['year'=>427,'month'=>7,'day'=>15,'hour'=>12]]);
+    $assert(!$speechTimeline->eventSourcesActive($npcSpeech['source_event_ids'],$installationId,$session['playthrough_id'])
+        &&$speechTimeline->eventSourcesActive([$kept['input'],$kept['receipt']],$installationId,$session['playthrough_id']),
+        'loaded save did not retire exactly the queued later speech source');
+    $speechHandlerPayload=$npcSpeech;unset($speechHandlerPayload['queued']);
+    $speechHandlerPayload['_job']=['job_id'=>$npcSpeech['queued']['job_id'],'attempt'=>1];
+    $leaseProfileFixture->execute(['job'=>$npcSpeech['queued']['job_id'],'token'=>Uuid::v4()]);
+    (new \LorkhanServer\Application\ProfileGenerateJobHandler($products,new \LorkhanServer\Application\MockProfileGenerationProvider()))
+        ->handle($speechHandlerPayload,'evolution-speech-rollback',static fn():bool=>true);
+    $speechOutcome=$db->prepare("SELECT payload->>'generation_outcome' FROM durable_jobs WHERE job_id=:id");
+    $speechOutcome->execute(['id'=>$npcSpeech['queued']['job_id']]);
+    $assert($products->getRevisioned('profile',$speechProfile['profile_id'])['current_revision']===$npcSpeech['base_revision']
+        &&$speechOutcome->fetchColumn()==='commit_fence_changed','evolution committed speech from a retired save branch');
+    $db->prepare("UPDATE durable_jobs SET state='dead',lease_owner=NULL,lease_token=NULL,leased_at=NULL,lease_expires_at=NULL,heartbeat_at=NULL WHERE job_id=:id")
+        ->execute(['id'=>$npcSpeech['queued']['job_id']]);
+    $retrySpeech=$speechPayload($speechProfile['profile_id']);
+    $assert(($retrySpeech['source_event_ids']??null)===[$kept['input'],$kept['receipt']],
+        're-queued evolution kept retired-branch speech: '.json_encode($retrySpeech['witnessed_events']??null));
+}finally{$db->exec('ROLLBACK TO SAVEPOINT evolution_speech_probe');if($speechOwns)$db->rollBack();}
 
 // Routine metadata revisions must not discard an update or be overwritten by it.
 $baselineProbe=$products->getRevisioned('profile',$dynamicProfile['profile_id']);
@@ -1356,10 +1571,13 @@ $narratorEvolutionJob=$db->prepare("SELECT job_id,state,payload FROM durable_job
     ."AND payload->>'profile_id'=:profile AND payload->>'mode'='narrator_profile_evolution'");
 $narratorEvolutionJob->execute(['profile'=>$narratorDynamic['profile_id']]);$narratorEvolutionRow=$narratorEvolutionJob->fetch();
 $narratorEvolutionPayload=$narratorEvolutionRow?json_decode((string)$narratorEvolutionRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
-$assert(count($narratorEvolutionPayload['source_turn_ids']??[])===3,'Narrator evolution did not inherit regular history for zero');
+// Zero inherits recent_turn_limit=3: the latest three shared events, including another NPC's exchange.
+$narratorWitnessedIds=array_column($narratorEvolutionPayload['witnessed_events']??[],'source_event_id');
+$assert($narratorWitnessedIds===array_slice($evolutionSources,1,3),'Narrator evolution did not inherit regular history for zero');
 $assert(($narratorEvolution['queued']??false)===true&&$narratorEvolutionRow
     &&($narratorEvolutionPayload['dynamic_fields']??null)===['goals']
-    &&count($narratorEvolutionPayload['recent_events']??[])===3,
+    &&($narratorEvolutionPayload['source_turn_ids']??null)===[]&&($narratorEvolutionPayload['recent_events']??null)===[]
+    &&($narratorEvolutionPayload['source_event_ids']??null)===$narratorWitnessedIds,
     'dynamic narrator evolution did not freeze the shared witnessed history');
 $narratorEvolutionHandler=$narratorEvolutionPayload;
 $narratorEvolutionHandler['_job']=['job_id'=>$narratorEvolutionRow['job_id'],'attempt'=>1];
@@ -1367,9 +1585,15 @@ $leaseProfileFixture->execute(['job'=>$narratorEvolutionRow['job_id'],'token'=>\
 (new \LorkhanServer\Application\ProfileGenerateJobHandler($products,
     new \LorkhanServer\Application\MockProfileGenerationProvider()))->handle($narratorEvolutionHandler,'narrator-evolution-test',static fn():bool=>true);
 $evolvedNarrator=$products->getRevisioned('profile',$narratorDynamic['profile_id']);
+$narratorProvenance=$db->prepare('SELECT provenance FROM profile_revisions WHERE profile_id=:profile AND revision=:revision');
+$narratorProvenance->execute(['profile'=>$narratorDynamic['profile_id'],'revision'=>$narratorEvolutionPayload['base_revision']+1]);
+$narratorProvenanceRow=json_decode((string)($narratorProvenance->fetchColumn()?:'{}'),true,64,JSON_THROW_ON_ERROR);
 $assert(($evolvedNarrator['content']['personality']??null)==='Narrator personality must remain unchanged.'
     &&($evolvedNarrator['content']['goals']??'')!==($narratorDynamicContent['goals']??''),
     'dynamic narrator evolution changed an unselected field or failed to evolve its selected field');
+$assert((int)$evolvedNarrator['current_revision']===(int)$narratorEvolutionPayload['base_revision']+1
+    &&($narratorProvenanceRow['source_event_ids']??null)===$narratorWitnessedIds&&($narratorProvenanceRow['source_turn_ids']??null)===[],
+    'dynamic narrator evolution lost its witnessed source provenance');
 
 // Scene classification is queued after a completed player turn and never changes NPC content.
 $sceneRepo=new \LorkhanServer\Infrastructure\SceneClassificationRepository($db);
@@ -1410,14 +1634,18 @@ $sceneAutomatic=$sceneTurn;$sceneAutomatic['payload']['ui_source']='lorkhan_rech
 $assert($products->maybeEnqueueSceneClassification($sceneAutomatic)['reason']==='ineligible','Rechat incorrectly queued scene classification');
 $sceneFallback=$sceneSettings;$sceneFallback['system_routing']['scene_classifier_configuration_id']='';$sceneFallback['system_routing']['background_memory_configuration_id']=$sceneProvider['configuration_id'];
 $products->revise('global_settings',$backfillGlobal['configuration_id'],$sceneFallback,'scene fallback fixture',$now);
+// The provisioned Gemma 3 4B default is a known classifier label; hide it so fallback and label order are observable.
+$sceneSeededLabels=$db->prepare("UPDATE configuration_sets SET deleted_at=clock_timestamp() WHERE installation_id=:installation AND kind='provider' AND deleted_at IS NULL AND lower(name)='gemma 3 4b' RETURNING configuration_id");
+$sceneSeededLabels->execute(['installation'=>$installationId]);$sceneSeededLabelIds=$sceneSeededLabels->fetchAll(PDO::FETCH_COLUMN);
 $assert($sceneRepo->route($installationId)['configuration_id']===$sceneProvider['configuration_id'],'scene background fallback missing');
 $sceneFallback['task_availability']['background_memory']=false;
 $products->revise('global_settings',$backfillGlobal['configuration_id'],$sceneFallback,'disable scene fallback fixture',$now);
 $assert($sceneRepo->route($installationId)===null,'scene used disabled background fallback');
 $namedScene=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Scene Classifier (Gemma 3N E4B)','content'=>['driver'=>'mock','model'=>'named-scene']],$now);
 $assert($sceneRepo->route($installationId)['configuration_id']===$namedScene['configuration_id'],'known classifier label fallback missing');
-$currentScene=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Gemma 3 4B','content'=>['driver'=>'mock','model'=>'current-scene']],$now);
-$assert($sceneRepo->route($installationId)['configuration_id']===$currentScene['configuration_id'],'current classifier label did not precede legacy labels');
+$sceneRestoreLabel=$db->prepare('UPDATE configuration_sets SET deleted_at=NULL WHERE configuration_id=:id');
+foreach($sceneSeededLabelIds as$sceneSeededLabelId)$sceneRestoreLabel->execute(['id'=>$sceneSeededLabelId]);
+$assert(count($sceneSeededLabelIds)===1&&$sceneRepo->route($installationId)['configuration_id']===$sceneSeededLabelIds[0],'current classifier label did not precede legacy labels');
 $sceneExplicit=$sceneFallback;$sceneExplicit['system_routing']['scene_classifier_configuration_id']=$namedScene['configuration_id'];
 $products->revise('global_settings',$backfillGlobal['configuration_id'],$sceneExplicit,'explicit classifier fixture',$now);
 $assert($sceneRepo->route($installationId)['configuration_id']===$namedScene['configuration_id'],'current classifier label overrode explicit selection');
@@ -1425,7 +1653,6 @@ $sceneFallback['task_availability']['scene_classifier']=false;
 $products->revise('global_settings',$backfillGlobal['configuration_id'],$sceneFallback,'disable named classifier',$now);
 $assert($sceneRepo->route($installationId)===null,'known label bypassed classifier availability');
 $products->deleteRevisioned('provider',$namedScene['configuration_id'],$now);
-$products->deleteRevisioned('provider',$currentScene['configuration_id'],$now);
 $products->revise('global_settings',$backfillGlobal['configuration_id'],$backfillSettings,'restore pre-scene settings',$now);
 
 $creatureTemplate=$products->createRevisioned('profile',['installation_id'=>$installationId,
@@ -1550,6 +1777,28 @@ foreach([['count'=>0],['count'=>2147483648],['unit_value'=>-1],['unit_value'=>0.
     $badPickup=$pickup;$badPickup['payload']=array_replace($pickup['payload'],$invalid);
     try{(new Validator())->validate($badPickup,'lorkhan.gamedata.v1');$assert(false,'malformed pickup telemetry accepted');}catch(\LorkhanServer\Protocol\ValidationException){}
 }
+$barter=$captured;$barter['type']='barter_trade';$barter['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+$barterLine=['item_record_id'=>'barter_bought_sentinel','item_name'=>'Barter Bought Sentinel','count'=>2,'unit_value'=>5];
+$barter['payload']=['player'=>$spell['payload']['caster'],'merchant'=>$spell['payload']['target'],'player_received'=>[$barterLine],
+    'player_gave'=>[['item_record_id'=>'barter_sold_sentinel','item_name'=>'Barter Sold Sentinel','count'=>1,'unit_value'=>250]],
+    'gold_to_player'=>150,'game_time'=>12347.5];
+$barterTurns=(int)$db->query('SELECT count(*) FROM turns')->fetchColumn();
+[$status]=$call($router,'POST',$base.'/gamedata',$headers($barter['request_id']),[],$barter);
+$assert($status===202&&(int)$db->query('SELECT count(*) FROM turns')->fetchColumn()===$barterTurns,'barter observation rejected or created a model turn');
+$barterProjection=$db->prepare("SELECT e.type,e.data,m.target FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.source_event_id=:id");
+$barterProjection->execute(['id'=>$barter['request_id']]);$barterRows=$barterProjection->fetchAll();
+$assert(count($barterRows)===1&&$barterRows[0]['type']==='infoaction'
+    &&(json_decode($barterRows[0]['target'],true)['record_id']??null)===$spell['payload']['target']['record_id']
+    &&str_contains($barterRows[0]['data'],' traded with ')&&str_contains($barterRows[0]['data'],' sold: 1 Barter Sold Sentinel.')
+    &&str_contains($barterRows[0]['data'],' bought: 2 Barter Bought Sentinel.')&&str_contains($barterRows[0]['data'],' 150 gold.'),
+    'barter did not project exactly one merchant-targeted infoaction: '.json_encode($barterRows));
+foreach([['player_received'=>[]],['gold_to_player'=>1.5],['gold_to_player'=>-2147483648],['merchant'=>$spell['payload']['caster']],
+    ['player_received'=>[array_replace($barterLine,['count'=>0])]],['player_received'=>array_fill(0,33,$barterLine)],
+    ['player_received'=>[$barterLine+['price'=>1]]],['source_kind'=>'barter'],['audience'=>array_fill(0,2,$spell['payload']['target'])]]as$invalid){
+    $badBarter=$barter;$badBarter['payload']=array_replace($barter['payload'],$invalid);
+    if(isset($invalid['player_received'])&&$invalid['player_received']===[])$badBarter['payload']['player_gave']=[];
+    try{(new Validator())->validate($badBarter,'lorkhan.gamedata.v1');$assert(false,'malformed barter telemetry accepted');}catch(\LorkhanServer\Protocol\ValidationException){}
+}
 $turn = $fixture('turn');
 $turn['session_id'] = $sessionId;
 $resurrected=$spell;$resurrected['type']='actor_resurrected';$resurrected['request_id']=Uuid::v4();
@@ -1561,15 +1810,39 @@ $resurrectionProjection=$db->prepare("SELECT e.type,e.data FROM eventlog e JOIN 
 $resurrectionProjection->execute(['source'=>$resurrected['request_id']]);$resurrectionRow=$resurrectionProjection->fetch();
 $assert($resurrectionRow&&$resurrectionRow['type']==='info'&&$resurrectionRow['data']===$resurrectionText,
     'resurrection did not project witnessed background info');
+$died=$spell;$died['type']='actor_died';$died['request_id']=Uuid::v4();
+$deathVictim=array_replace($controlsQuery['target'],['kind'=>'creature','record_id'=>'mudcrab','display_name'=>'Death Sentinel Mudcrab']);
+$deathVictim['refnum']['index']+=200000;
+$died['payload']=['victim'=>$deathVictim,'audience'=>[$controlsQuery['target']],'game_time'=>1];
+$deathText='Death Sentinel Mudcrab died.';
+[$diedStatus,$diedBody]=$call($router,'POST',$base.'/gamedata',$headers($died['request_id']),[],$died);
+$assert($diedStatus===202&&($diedBody['type']??null)==='actor_died','death telemetry rejected: '.json_encode($diedBody));
+[$diedReplayStatus]=$call($router,'POST',$base.'/gamedata',$headers($died['request_id']),[],$died);
+$assert($diedReplayStatus===202,'death replay was not idempotent');
+$deathProjection=$db->prepare("SELECT e.type,e.data,m.projection_key FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.source_event_id=:source");
+$deathProjection->execute(['source'=>$died['request_id']]);$deathRows=$deathProjection->fetchAll();
+$assert(count($deathRows)===1&&$deathRows[0]['type']==='death'&&$deathRows[0]['data']===$deathText
+    &&$deathRows[0]['projection_key']==='actor-death:'.$died['request_id'],'death did not project exactly one CHIM death row: '.json_encode($deathRows));
+$killerDeath=$died;$killerDeath['request_id']=Uuid::v4();$killerDeath['payload']['killer']=$controlsQuery['target'];
+[$killerStatus]=$call($router,'POST',$base.'/gamedata',$headers($killerDeath['request_id']),[],$killerDeath);
+$deathProjection->execute(['source'=>$killerDeath['request_id']]);
+$assert($killerStatus===422&&$deathProjection->fetchAll()===[],'death with an invented killer was accepted');
 $turn['payload']['target']=$controlsQuery['target'];
 $turn['payload']['input']['text'] = 'Please follow me.';
 $turn['payload']['input']['mood']=['kind'=>'playful'];
+// Region-only world context renders the World section without projecting a location change.
+$turn['payload']['context']['world']=['region'=>'Ascadian Isles Region'];
 // Turn-advertised capabilities cannot add a capability that was not negotiated; stored session policy is authoritative.
 $turn['runtime']['capabilities'] = ['dialogue.text'];
 [$status] = $call($router, 'POST', $base . '/turns', $jsonAuth, [], $turn);
 $assert($status === 422, 'missing turn idempotency accepted');
 [$status, $turnAccepted] = $call($router, 'POST', $base . '/turns', $headers($turn['message_id']), [], $turn);
 $assert($status === 202 && $turnAccepted['event_cursor'] === 1, 'turn acceptance failed');
+// Provider context is assembled on the durable worker, so inspect the snapshot after it prepares this turn.
+$successfulWorkerStats=$runTurnWorker(new MockProvider());
+$successfulJob=$db->query("SELECT state,last_error_code,last_error_detail FROM durable_jobs WHERE job_type='turn.process' ORDER BY created_at DESC LIMIT 1")->fetch();
+$assert($successfulWorkerStats === ['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],
+    'successful turn job was not acknowledged: '.json_encode(['stats'=>$successfulWorkerStats,'job'=>$successfulJob]));
 $snapshotStatement=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
 $snapshotStatement->execute(['turn'=>$turn['turn_id']]);
 $snapshot=json_decode((string)$snapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
@@ -1590,6 +1863,7 @@ $promptMessages=$snapshot['message']['_prompt']['_messages']??[];
 $promptHistoryJson=json_encode($promptMessages,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
 $assert(str_contains($promptHistoryJson,'Spell Capture Sentinel'),'captured spell did not reach the scoped NPC prompt');
 $assert(str_contains($promptHistoryJson,$resurrectionText),'resurrection did not reach formatted NPC prompt');
+$assert(substr_count($promptHistoryJson,'[World event] '.$deathText)===1,'witnessed death did not reach the NPC prompt exactly once');
 $assert(str_contains($promptHistoryJson,'Valuable Pickup Sentinel')&&!str_contains($promptHistoryJson,'Low Value Pickup Sentinel')
     &&!str_contains($promptHistoryJson,'Unwitnessed Source Pickup Sentinel'),'pickup total-value threshold or witness scoping failed');
 
@@ -1606,11 +1880,12 @@ $assert(!str_contains(json_encode($products->promptContext($unrelatedSpellProbe,
 $db->beginTransaction();
 try{
     $dated=[];
-    foreach(['spell'=>$spell,'pickup'=>$pickup,'resurrection'=>$resurrected]as$family=>$template){
+    foreach(['spell'=>$spell,'pickup'=>$pickup,'resurrection'=>$resurrected,'death'=>$died]as$family=>$template){
         foreach(['past'=>11.5,'cutoff'=>12.0,'future'=>12.5,'undated'=>null]as$when=>$hour){
             $observation=$template;$observation['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
             $observation['payload']['game_time']=1; // Deliberately contradicts calendar ordering.
             if($family==='resurrection')$observation['payload']['actor']['display_name']='Timeline '.$family.' '.$when;
+            elseif($family==='death')$observation['payload']['victim']['display_name']='Timeline '.$family.' '.$when;
             else{$nameField=$family==='spell'?'spell_name':'item_name';$observation['payload'][$nameField]='Timeline '.$family.' '.$when;}
             if($hour!==null)$observation['payload']['calendar']=['year'=>427,'month'=>7,'day'=>15,'hour'=>$hour];
             (new Validator())->validate($observation,'lorkhan.gamedata.v1');$repo->acceptGameData($observation);
@@ -1648,6 +1923,144 @@ try{
     $assert($q->fetchColumn()===true,'unanchored load retained an older pickup as known-past');
 }finally{$db->rollBack();}
 
+// Legacy level-up and journal observations carry only game_time; without same-session dated evidence a load cannot keep an earlier session's copy.
+$db->beginTransaction();
+try{
+    $undated=[];$undatedWriter=new \LorkhanServer\Infrastructure\FirstPartyJobRepository($db);$undatedMemories=[];
+    $observeUndated=function(string $type,string $branch,string $session,int $generation)use($captured,$fixture,$repo,&$undated,$undatedWriter,&$undatedMemories,$installationId,$turn,$actorProfile,$now):void{
+        $observation=$captured;$observation['type']=$type;$observation['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+        $observation['session_id']=$session;$observation['generation']=$generation;
+        $observation['payload']=$fixture($type==='rpg_event'?'gamedata-rpg-responder':'gamedata-quest-responder')['payload'];
+        $observation['payload']['text']='Undated '.$type.' '.$branch;
+        (new Validator())->validate($observation,'lorkhan.gamedata.v1');$repo->acceptGameData($observation);
+        $undated[$type][$branch]=$observation['request_id'];$memoryId=\LorkhanServer\Infrastructure\Uuid::v4();
+        $undatedWriter->upsertMemory($memoryId,['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],
+            'profile_id'=>$actorProfile['profile_id'],'tier'=>'recent','content'=>'Undated memory '.$type.' '.$branch,
+            'source_event_id'=>$observation['request_id'],'provenance'=>['source'=>'undated-event-regression']],$now);
+        $undatedMemories[$type][$branch]=$memoryId;
+    };
+    foreach(['rpg_event','quest_event']as$type)$observeUndated($type,'prior',$sessionId,7);
+    $undatedLoad=$session;$undatedLoad['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();$undatedLoad['generation']=8;
+    $undatedLoad['loaded_save']=['year'=>427,'month'=>7,'day'=>15,'hour'=>12.0];$undatedSession=\LorkhanServer\Infrastructure\Uuid::v4();
+    $repo->createSession($undatedLoad,$undatedSession,$tokenHash);
+    foreach(['rpg_event','quest_event']as$type)$observeUndated($type,'current',$undatedSession,8);
+    // A replayed load for the same session must retain observations already made on the restored branch.
+    (new \LorkhanServer\Infrastructure\LoadedSaveTimeline($db))->invalidate($undatedLoad);
+    // The Narrator evolution prompt reads every unscoped witnessed event, including player-only level-ups.
+    $undatedWitness=new ReflectionMethod($products,'evolutionWitnessedEvents');
+    $undatedPrompt=json_encode($undatedWitness->invoke($products,$installationId,$turn['playthrough_id'],null,20),JSON_THROW_ON_ERROR);
+    $undatedState=$db->prepare('SELECT EXISTS(SELECT 1 FROM timeline_invalidated_sources WHERE source_event_id=:source) AS invalid,
+        (SELECT bool_and(suppressed_at IS NOT NULL) FROM eventlog_metadata WHERE source_event_id=:source) AS suppressed,
+        (SELECT deleted_at IS NOT NULL FROM memory_records WHERE memory_id=:memory) AS retired');
+    foreach($undated as$type=>$branches)foreach($branches as$branch=>$source){
+        $undatedState->execute(['source'=>$source,'memory'=>$undatedMemories[$type][$branch]]);$state=$undatedState->fetch();
+        $abandoned=$branch==='prior';
+        $assert($state['invalid']===$abandoned&&$state['suppressed']===$abandoned&&$state['retired']===$abandoned
+            &&str_contains($undatedPrompt,'Undated '.$type.' '.$branch)!==$abandoned,
+            'loaded save misclassified '.$branch.' undated '.$type.': '.json_encode($state+['prompt'=>$undatedPrompt]));
+    }
+}finally{$db->rollBack();}
+
+// CHIM keeps history before the loaded save: capture-time RPG/quest calendars retire only at-or-after copies,
+// with their memories, narratives and evolved profiles, while earlier sessions and legacy rows follow evidence.
+$db->beginTransaction();
+try{
+    $timelineWriter=new \LorkhanServer\Infrastructure\FirstPartyJobRepository($db);$timelineSources=[];$timelineMemories=[];$timelineNarratives=[];
+    $date=fn(int $day,float $hour):array=>['year'=>427,'month'=>7,'day'=>$day,'hour'=>$hour];
+    $observeTimeline=function(string $type,string $label,string $session,int $generation,float $gameTime,?array $calendar)
+        use($captured,$fixture,$repo,$timelineWriter,&$timelineSources,&$timelineMemories,&$timelineNarratives,$installationId,$turn,$actorProfile,$now):void{
+        $observation=$captured;$observation['type']=$type;$observation['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+        $observation['session_id']=$session;$observation['generation']=$generation;
+        $observation['payload']=$fixture($type==='rpg_event'?'gamedata-rpg-calendar':'gamedata-quest-calendar')['payload'];
+        $observation['payload']['text']='Timeline '.$type.' '.$label;$observation['payload']['game_time']=100000000+$gameTime; // Newest in the bounded witness prompt.
+        if($calendar===null)unset($observation['payload']['calendar']);else $observation['payload']['calendar']=$calendar;
+        (new Validator())->validate($observation,'lorkhan.gamedata.v1');$repo->acceptGameData($observation);
+        $source=$observation['request_id'];$timelineSources[$type][$label]=$source;
+        $memoryId=\LorkhanServer\Infrastructure\Uuid::v4();$narrativeId=\LorkhanServer\Infrastructure\Uuid::v4();
+        $timelineWriter->upsertMemory($memoryId,['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],
+            'profile_id'=>$actorProfile['profile_id'],'tier'=>'recent','content'=>'Timeline memory '.$type.' '.$label,
+            'source_event_id'=>$source,'provenance'=>['source'=>'calendar-event-regression']],$now);
+        $timelineWriter->upsertNarrative($narrativeId,['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],
+            'profile_id'=>$actorProfile['profile_id'],'kind'=>'diary','title'=>'Timeline diary','content'=>'Timeline diary '.$type.' '.$label,
+            'provenance'=>['source_event_ids'=>[$source]]],$now);
+        $timelineMemories[$type][$label]=$memoryId;$timelineNarratives[$type][$label]=$narrativeId;
+    };
+    // The session in which an earlier day was played. Its legacy rows can be placed only by this session's own dated captures.
+    $earlySession=$sessionId;
+    $anchor=$spell;$anchor['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();$anchor['session_id']=$earlySession;$anchor['generation']=7;
+    $anchor['payload']['spell_name']='Timeline anchor spell';$anchor['payload']['game_time']=100000200;$anchor['payload']['calendar']=$date(14,11.0);
+    (new Validator())->validate($anchor,'lorkhan.gamedata.v1');$repo->acceptGameData($anchor);
+    foreach(['rpg_event','quest_event']as$type){
+        $observeTimeline($type,'early dated',$earlySession,7,150,$date(14,10.0));
+        $observeTimeline($type,'early legacy anchored',$earlySession,7,100,null);
+        // Later in game time than every pre-save capture of its own session; another session's later capture is not evidence.
+        $observeTimeline($type,'early legacy unplaced',$earlySession,7,300,null);
+    }
+    // A later continuous session (reconnect, no load) in which the player saved at 15 Last Seed 12:00.
+    $saveMessage=$session;unset($saveMessage['loaded_save']);$saveMessage['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();
+    $saveMessage['generation']=8;$saveSession=\LorkhanServer\Infrastructure\Uuid::v4();$repo->createSession($saveMessage,$saveSession,$tokenHash);
+    foreach(['rpg_event','quest_event']as$type){
+        $observeTimeline($type,'save pre',$saveSession,8,1000,$date(15,11.5));
+        $observeTimeline($type,'save at',$saveSession,8,1100,$date(15,12.0));
+        $observeTimeline($type,'save post',$saveSession,8,1200,$date(15,12.5));
+        $observeTimeline($type,'save legacy anchored',$saveSession,8,950,null);
+        $observeTimeline($type,'save legacy unplaced',$saveSession,8,1050,null);
+    }
+    // Automatic profile evolution: one revision from pre-save history, then one from the abandoned branch.
+    $timelineBaseline=$products->getRevisioned('profile',$actorProfile['profile_id']);$timelineBaselineContent=$timelineBaseline['content'];
+    $timelineBaselineContent['management']['locked']=false;$timelineBaselineContent['personality']='TIMELINE BASELINE';
+    $products->revise('profile',$actorProfile['profile_id'],$timelineBaselineContent,'timeline baseline',$now);
+    $evolve=$db->prepare("INSERT INTO profile_revisions(profile_id,revision,content,change_reason,provenance)
+        VALUES(:profile,:revision,CAST(:content AS jsonb),'timeline evolution',CAST(:provenance AS jsonb))");
+    foreach(['save pre'=>'rpg_event','save post'=>'quest_event']as$label=>$type){
+        $current=$products->getRevisioned('profile',$actorProfile['profile_id']);$content=$current['content'];$content['personality']='EVOLVED FROM '.$label;
+        $evolve->execute(['profile'=>$actorProfile['profile_id'],'revision'=>$current['current_revision']+1,'content'=>json_encode($content,JSON_THROW_ON_ERROR),
+            'provenance'=>json_encode(['kind'=>'automatic_profile','mode'=>'profile_evolution','playthrough_id'=>$turn['playthrough_id'],
+                'base_revision'=>$current['current_revision'],'source_turn_ids'=>[],'source_event_ids'=>[$timelineSources[$type][$label]]],JSON_THROW_ON_ERROR)]);
+        $db->prepare('UPDATE profiles SET current_revision=:revision WHERE profile_id=:profile')
+            ->execute(['revision'=>$current['current_revision']+1,'profile'=>$actorProfile['profile_id']]);
+    }
+    $evolvedHead=$products->getRevisioned('profile',$actorProfile['profile_id']);
+    $loadMessage=$session;$loadMessage['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();$loadMessage['generation']=9;
+    $loadMessage['loaded_save']=$date(15,12.0);$loadSession=\LorkhanServer\Infrastructure\Uuid::v4();
+    $repo->createSession($loadMessage,$loadSession,$tokenHash);
+    $timelineState=$db->prepare('SELECT EXISTS(SELECT 1 FROM timeline_invalidated_sources WHERE source_event_id=:source) AS invalid,
+        (SELECT bool_and(suppressed_at IS NOT NULL) FROM eventlog_metadata WHERE source_event_id=:source) AS suppressed,
+        (SELECT deleted_at IS NOT NULL FROM memory_records WHERE memory_id=:memory) AS memory_retired,
+        (SELECT deleted_at IS NOT NULL FROM narrative_records WHERE narrative_id=:narrative) AS narrative_retired');
+    $timelineWitness=new ReflectionMethod($products,'evolutionWitnessedEvents');
+    $checkTimeline=function(array $retired,string $phase)use($timelineState,$timelineWitness,$products,$installationId,$turn,&$timelineSources,&$timelineMemories,&$timelineNarratives,$assert):void{
+        $prompt=json_encode($timelineWitness->invoke($products,$installationId,$turn['playthrough_id'],null,200),JSON_THROW_ON_ERROR);
+        foreach($timelineSources as$type=>$labels)foreach($labels as$label=>$source){
+            $timelineState->execute(['source'=>$source,'memory'=>$timelineMemories[$type][$label],'narrative'=>$timelineNarratives[$type][$label]]);
+            $state=$timelineState->fetch();$gone=in_array($label,$retired,true);
+            $assert($state['invalid']===$gone&&$state['suppressed']===$gone&&$state['memory_retired']===$gone&&$state['narrative_retired']===$gone
+                &&str_contains($prompt,'Timeline '.$type.' '.$label)!==$gone,
+                $phase.' misclassified '.$type.' '.$label.': '.json_encode($state));
+        }
+    };
+    $checkTimeline(['save at','save post','save legacy unplaced','early legacy unplaced'],'calendar load');
+    $restoredProfile=$products->getRevisioned('profile',$actorProfile['profile_id']);
+    $assert($restoredProfile['current_revision']===$evolvedHead['current_revision']+1
+        &&$restoredProfile['content']['personality']==='EVOLVED FROM save pre','save rollback did not keep only the pre-save profile evolution');
+    // The restored branch continues; a later save made on it keeps both its own and earlier pre-save history.
+    foreach(['rpg_event','quest_event']as$type){
+        $observeTimeline($type,'branch dated',$loadSession,9,1115,$date(15,12.25));
+        $observeTimeline($type,'branch legacy anchored',$loadSession,9,1110,null);
+        $observeTimeline($type,'branch post',$loadSession,9,1300,$date(15,14.0));
+    }
+    $laterLoad=$session;$laterLoad['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();$laterLoad['generation']=10;
+    $laterLoad['loaded_save']=$date(15,13.0);$repo->createSession($laterLoad,\LorkhanServer\Infrastructure\Uuid::v4(),$tokenHash);
+    $checkTimeline(['save at','save post','save legacy unplaced','early legacy unplaced','branch post'],'later calendar load');
+    $assert($products->getRevisioned('profile',$actorProfile['profile_id'])['current_revision']===$restoredProfile['current_revision'],
+        'later load changed a profile whose remaining sources precede its save');
+    // An unknown loaded-save date cannot place any older observation, dated or not.
+    $unknownLoad=$session;$unknownLoad['message_id']=\LorkhanServer\Infrastructure\Uuid::v4();$unknownLoad['generation']=11;
+    $unknownLoad['loaded_save']=null;$repo->createSession($unknownLoad,\LorkhanServer\Infrastructure\Uuid::v4(),$tokenHash);
+    $everything=[];foreach($timelineSources as$labels)$everything=array_merge($everything,array_keys($labels));
+    $checkTimeline(array_values(array_unique($everything)),'unknown-date load');
+}finally{$db->rollBack();}
+
 $db->beginTransaction();
 try{
     $spellCore=$products->getRevisioned('core_profile',$actorCoreProfile['core_profile_id']);$spellContent=$spellCore['content'];
@@ -1675,6 +2088,12 @@ try{
         $products->revise('core_profile',$actorCoreProfile['core_profile_id'],$changed,'spell context filter regression',$now);
         $history=json_encode($products->promptContext($turn,$now)['history'],JSON_THROW_ON_ERROR);
         $assert(!str_contains($history,'Spell Capture Sentinel'),'spell event bypassed disabled action category or magic blacklist');
+    }
+    $assert(str_contains(json_encode($products->promptContext($turn,$now)['history'],JSON_THROW_ON_ERROR),'Barter Sold Sentinel'),'committed barter missing from merchant context');
+    foreach([['event_types'=>['chat']],['item_blacklist'=>['BARTER_SOLD_SENTINEL']],['item_blacklist'=>['barter bought sentinel']]]as$filter){
+        $changed=$spellContent;$changed['settings_overrides']['context']=array_replace($changed['settings_overrides']['context']??[],$filter);
+        $products->revise('core_profile',$actorCoreProfile['core_profile_id'],$changed,'barter context filter regression',$now);
+        $assert(!str_contains(json_encode($products->promptContext($turn,$now)['history'],JSON_THROW_ON_ERROR),'Barter Sold Sentinel'),'barter bypassed infoaction category or item blacklist');
     }
     foreach([['item_pickup_min_value'=>501],['event_types'=>['chat']],['item_blacklist'=>['VALUABLE_PICKUP_SENTINEL']],['item_blacklist'=>['valuable pickup sentinel']]]as$filter){
         $changed=$spellContent;$changed['settings_overrides']['context']=array_replace($changed['settings_overrides']['context']??[],$filter);
@@ -1714,6 +2133,7 @@ $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&($promptMessages[0]['role']??null)==='system'
     &&str_contains((string)($promptMessages[0]['content']??''),'# Roleplay Instructions')
     &&str_contains((string)($promptMessages[0]['content']??''),'# World')
+    &&str_contains((string)($promptMessages[0]['content']??''),'Ascadian Isles Region')
     &&str_contains((string)($promptMessages[0]['content']??''),'# Character')
     &&str_contains((string)($promptMessages[0]['content']??''),'# General Instructions')
     &&($snapshot['trace']['algorithm']??null)==='lorkhan-markdown'
@@ -1735,7 +2155,7 @@ $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&($layerTrace['core_profile_id']??null)===$coreProfile['core_profile_id']
     &&(int)($layerTrace['core_profile_revision']??0)===(int)$coreProfile['current_revision']
     &&preg_match('/^[0-9a-f]{64}$/D',(string)($layerTrace['effective_settings_sha256']??''))===1
-    &&($traceSources['settings.behavior.rechat']??null)==='core_profile'
+    &&($traceSources['settings.behavior.rechat']??null)==='default'
     &&array_column($promptSections,'section_order')===range(1,11)
     &&array_column($promptSections,'section_key')===['output_contract','npc_context','player_narrator_context',
         'morrowind_context','oghma_context','relationships_factions','memory_context','conversation_context','audience_speaker_rules',
@@ -1744,10 +2164,6 @@ $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&($memoryRetrieval['prompt_section']??null)==='memory_context'
     &&($snapshot['message']['_provider_configuration']['configuration_id']??null)===$fastModelSlot['configuration_id'],
     'accepted turn did not freeze the layered Core Profile prompt, settings trace, and provider input for the worker');
-$successfulWorkerStats=$runTurnWorker(new MockProvider());
-$successfulJob=$db->query("SELECT state,last_error_code,last_error_detail FROM durable_jobs WHERE job_type='turn.process' ORDER BY created_at DESC LIMIT 1")->fetch();
-$assert($successfulWorkerStats === ['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],
-    'successful turn job was not acknowledged: '.json_encode(['stats'=>$successfulWorkerStats,'job'=>$successfulJob]));
 [$status, $turnDuplicate] = $call($router, 'POST', $base . '/turns', $headers($turn['message_id']), [], $turn);
 $assert($status === 202 && $turnDuplicate == $turnAccepted, 'turn duplicate failed');
 [$status] = $call($router, 'GET', $base . '/events', [], [
@@ -2371,9 +2787,9 @@ $conversionNpcIdentity=['kind'=>'npc','record_id'=>'conversion_friend','display_
 $conversionOmittedIdentity=['kind'=>'creature','record_id'=>'conversion_omitted','display_name'=>'Conversion Omitted',
     'content_file'=>'Morrowind.esm','refnum'=>['index'=>61002,'content_file'=>0]];
 $conversionTarget=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Conversion Friend',
-    'actor_identity'=>$conversionNpcIdentity,'content'=>['biography'=>'Known conversion target.']],$now);
+    'playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$conversionNpcIdentity,'content'=>['biography'=>'Known conversion target.']],$now);
 $conversionOmitted=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Conversion Omitted',
-    'actor_identity'=>$conversionOmittedIdentity,'content'=>['biography'=>'Known omitted target.']],$now);
+    'playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$conversionOmittedIdentity,'content'=>['biography'=>'Known omitted target.']],$now);
 $conversionPlayer=$products->getRevisioned('profile',(string)$playerProfile['profile_id']);
 $conversionText='Conversion Friend is a trusted ally. Conversion Omitted is still distrusted. '
     .(string)$conversionPlayer['name'].' remains a complicated acquaintance. Unknown Conversion Stranger is irrelevant.';
@@ -2384,7 +2800,7 @@ $conversionContent=['relationships'=>$conversionText,
     'settings_overrides'=>['relationship'=>['update_chance_percent'=>0,'locked'=>false]],
     'management'=>['locked'=>true]];
 $conversionOwner=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Conversion Owner',
-    'actor_identity'=>$conversionOwnerIdentity,'content'=>$conversionContent],$now);
+    'playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$conversionOwnerIdentity,'content'=>$conversionContent],$now);
 $otherConversionOwners=$db->prepare('SELECT p.profile_id,r.content FROM profiles p JOIN profile_revisions r '
     .'ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation '
     .'AND p.profile_id<>:owner AND p.deleted_at IS NULL');
@@ -2611,9 +3027,17 @@ $assert(!str_contains(json_encode([$relationshipSelection,$relationshipPrompt],J
 $assert(str_contains(json_encode($relationshipPrompt['provider_input'],JSON_THROW_ON_ERROR),'trusted_companion'),
     'saved relationship type was omitted from the bounded prompt');
 $privateExport=$memoryService->exportPlaythrough($privateScope);
+// Playthroughs belong to the unscoped player; NPC relationships restore under that NPC's profile in the target playthrough.
 $restorePlaythrough=$products->createRevisioned('playthrough',['installation_id'=>$installationId,
-    'profile_id'=>$actorProfile['profile_id'],'name'=>'Private note restore','content'=>[]],$memoryNow);
-$privateExport['scope']['playthrough_id']=$restorePlaythrough['playthrough_id'];
+    'profile_id'=>$turn['profile_id'],'name'=>'Private note restore','content'=>[]],$memoryNow);
+$restoreActorIdentity=$actorProfile['actor_identity'];
+if(is_string($restoreActorIdentity))$restoreActorIdentity=json_decode($restoreActorIdentity,true,16,JSON_THROW_ON_ERROR);
+$restoreActorProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>$actorProfile['name'],
+    'playthrough_id'=>$restorePlaythrough['playthrough_id'],'actor_identity'=>$restoreActorIdentity,
+    'core_profile_id'=>$actorProfile['core_profile_id'],'content'=>['persona'=>'A cautious Dwemer scholar.']],$memoryNow);
+$assert($restoreActorProfile['profile_id']!==$actorProfile['profile_id'],'distinct playthroughs shared one NPC profile');
+$privateExport['scope']=['installation_id'=>$installationId,'profile_id'=>$restoreActorProfile['profile_id'],
+    'playthrough_id'=>$restorePlaythrough['playthrough_id']];
 $db->exec('SAVEPOINT custom_info_restore');
 $memoryService->restorePlaythrough($privateExport);$memoryService->restorePlaythrough($privateExport);
 $restoredPrivate=$products->exportScope($privateExport['scope'])['relationships'];
@@ -2673,22 +3097,19 @@ catch(InvalidArgumentException$error){$assert($error->getMessage()==='prompt_sou
 $db->exec('SAVEPOINT relationship_fallback');
 $db->prepare('DELETE FROM actor_profile_bindings WHERE installation_id=:installation AND playthrough_id=:playthrough AND profile_id=:profile')
     ->execute(['installation'=>$installationId,'playthrough'=>$turn['playthrough_id'],'profile'=>$actorProfile['profile_id']]);
-$fallbackIdentity=$memoryProbe['payload']['target'];unset($fallbackIdentity['refnum']);
-$db->prepare('UPDATE profiles SET actor_identity=CAST(:identity AS jsonb) WHERE profile_id=:profile')
-    ->execute(['identity'=>json_encode($fallbackIdentity,JSON_THROW_ON_ERROR),'profile'=>$actorProfile['profile_id']]);
-$fallbackProbe=$memoryProbe;$fallbackProbe['profile_id']=$actorProfile['profile_id'];
+// NPC ownership follows the typed TES3 reference; a same-record actor with another RefNum is a different NPC.
+$fallbackProbe=$memoryProbe;$fallbackProbe['profile_id']=$actorProfile['profile_id'];$fallbackProbe['payload']['target']=$bystander;
 $fallbackMemory=$memoryService->createMemory($relationshipInput+['profile_id'=>$actorProfile['profile_id'],
     'tier'=>'recent','content'=>'EXACT OWNER MEMORY SENTINEL','provenance'=>['source'=>'manual']]);
 $mismatchedContext=$products->promptContext($fallbackProbe,$memoryNow);
 $assert($mismatchedContext['relationship']===[]
     &&!in_array($fallbackMemory['memory_id'],array_column($mismatchedContext['memory'],'id'),true),
     'an unbound actor with a different RefNum must not inherit the session profile relationships or manual memories');
-$fallbackProbe['payload']['target']=$fallbackIdentity;
-$fallbackProbe['payload']['target']['display_name']='Renamed NPC';
+$fallbackProbe=$memoryProbe;$fallbackProbe['payload']['target']['display_name']='Renamed NPC';
 $fallbackContext=$products->promptContext($fallbackProbe,$memoryNow);
 $assert(array_column($fallbackContext['relationship'],'relationship_id')===[$ownedRelationship['relationship_id']]
     &&in_array($fallbackMemory['memory_id'],array_column($fallbackContext['memory'],'id'),true),
-    'an exact-identity session profile must retain its own relationships and memories without a binding or matching display name');
+    'an exact-reference NPC profile must retain its own relationships and memories without a binding or matching display name');
 $db->exec('ROLLBACK TO SAVEPOINT relationship_fallback');
 $visible=$products->promptContext($memoryProbe,$memoryNow)['memory'];
 $db->exec('SAVEPOINT narrator_prompt_editor');
@@ -2813,7 +3234,7 @@ $db->prepare('UPDATE profiles SET actor_identity=CAST(:identity AS jsonb) WHERE 
 $db->prepare("UPDATE memory_records SET derivation_key='digest-witness-fixture',provenance=provenance||'{\"provider\":\"first-party\",\"model\":\"deterministic-extractive-v1\"}'::jsonb WHERE memory_id=:id")
     ->execute(['id'=>$mixedMemory['memory_id']]);
 $digestBystander=$memoryService->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Digest bystander',
-    'actor_identity'=>$bystanderProbe['payload']['target'],'content'=>['biography'=>'Unwitnessing NPC.']]);
+    'playthrough_id'=>$turn['playthrough_id'],'actor_identity'=>$bystanderProbe['payload']['target'],'content'=>['biography'=>'Unwitnessing NPC.']]);
 $digestSeen=$products->memoryDigestCandidates($installationId,$turn['playthrough_id'],$actorProfile['profile_id'],$memoryNow);
 $digestUnseen=$products->memoryDigestCandidates($installationId,$turn['playthrough_id'],$digestBystander['profile_id'],$memoryNow);
 $assert(in_array($mixedMemory['memory_id'],array_column($digestSeen,'id'),true)
@@ -2849,7 +3270,12 @@ $secondDigestJob=$digests->enqueue($installationId,$turn['playthrough_id'],$acto
 $secondDigestStats=(new Worker($digestJobs,$digestRegistry,'digest-fixture-next',30,1,1,0,60,['memory.digest']))->run();
 $secondDigest=$digests->latest($installationId,$turn['playthrough_id'],$actorProfile['profile_id']);
 $assert($secondDigestStats['succeeded']===1&&$secondDigest['revision']===2&&str_contains($secondDigest['content'],'First digest scene')&&str_contains($secondDigest['content'],'Second digest scene'),'second digest lost previous canon or newer scenes');
+// Middle Term Memory is off for new profiles, so the owning Core opts in before prompt inclusion is proven.
+$digestCoreId=$products->getRevisioned('profile',$actorProfile['profile_id'])['core_profile_id'];
+$digestCoreContent=$products->getRevisioned('core_profile',$digestCoreId)['content'];$digestCoreContent['settings_overrides']['memory']['mid_term_enabled']=true;
+$products->revise('core_profile',$digestCoreId,$digestCoreContent,'enable digest Middle Term Memory',$memoryNow);
 $digestSelection=$products->promptContext($memoryProbe,$memoryNow);
+$assert($digestSelection['effective_settings']['settings']['memory']['mid_term_enabled']===true,'Core Middle Term Memory opt-in did not reach the selected NPC');
 $digestPromptTurn=$memoryProbe;$digestPromptTurn['_selected_profile_id']=$actorProfile['profile_id'];
 $digestPrompt=(new PromptAssembler())->assemble($digestPromptTurn,$digestSelection);
 $digestTraceRows=array_values(array_filter($digestPrompt['trace']['sources'],static fn(array $row):bool=>$row['source_kind']==='memory_digest'));
@@ -3028,16 +3454,23 @@ $assert($products->memoryDigestCandidates($installationId,\LorkhanServer\Infrast
 $db->exec('ROLLBACK TO SAVEPOINT digest_witness_probe');
 $semanticPolicyContent=['schema'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
     'endpoint'=>'http://127.0.0.1:8085','timeout_ms'=>1500];
-$semanticPolicy=$memoryService->createRevisioned('memory_embedding_policy',['installation_id'=>$installationId,
-    'name'=>'Semantic memory integration','content'=>$semanticPolicyContent]);
+// Provisioning owns the installation's single embedding policy; revise it rather than creating a rival.
+$provisionedSemanticPolicy=$products->memoryEmbeddingPolicyForInstallation($installationId);
+$assert($provisionedSemanticPolicy!==null,'provisioned installation lacks its memory embedding policy');
+$semanticPolicy=$memoryService->revise('memory_embedding_policy',$provisionedSemanticPolicy['configuration_id'],
+    $semanticPolicyContent,'Semantic memory integration',$provisionedSemanticPolicy['current_revision']);
+$semanticPolicyRevision=(int)$semanticPolicy['current_revision'];
+$assert($semanticPolicyRevision===$provisionedSemanticPolicy['current_revision']+1
+    &&$products->memoryEmbeddingPolicyForInstallation($installationId)['configuration_id']===$provisionedSemanticPolicy['configuration_id'],
+    'semantic fixture did not revise the single installation embedding policy');
 $semanticVector=[1,0,0,0,0,0,0,0];
 $db->prepare('INSERT INTO memory_embeddings(memory_id,memory_revision,policy_configuration_id,policy_revision,dimensions,embedding,input_sha256,model,created_at)
-    VALUES(:memory,1,:policy,1,8,CAST(:embedding AS jsonb),:sha,:model,:now)')->execute([
-        'memory'=>$manualMemory['memory_id'],'policy'=>$semanticPolicy['configuration_id'],
+    VALUES(:memory,1,:policy,:policy_revision,8,CAST(:embedding AS jsonb),:sha,:model,:now)')->execute([
+        'memory'=>$manualMemory['memory_id'],'policy'=>$semanticPolicy['configuration_id'],'policy_revision'=>$semanticPolicyRevision,
         'embedding'=>json_encode($semanticVector,JSON_THROW_ON_ERROR),'sha'=>hash('sha256',$manualMemory['content']),
         'model'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::MODEL,'now'=>$memoryNow]);
 $semanticSignal=['status'=>'succeeded','policy_configuration_id'=>$semanticPolicy['configuration_id'],
-    'policy_revision'=>1,'model'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::MODEL,'embedding'=>$semanticVector];
+    'policy_revision'=>$semanticPolicyRevision,'model'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::MODEL,'embedding'=>$semanticVector];
 $semanticSelection=$products->promptContext($memoryProbe,$memoryNow,[],$semanticSignal);
 $semanticReasons=$semanticSelection['memory_retrieval']['reasons'];
 $fallbackSelection=$products->promptContext($memoryProbe,$memoryNow,[],
@@ -3051,19 +3484,32 @@ $assert($semanticSelection['memory_retrieval']['algorithm']==='prompt-memory-lex
     &&!str_contains(json_encode([$semanticSelection['memory'],$fallbackSelection['memory']],JSON_THROW_ON_ERROR),'_semantic_embedding'),
     'semantic prompt ranking did not blend valid vectors, fall back per memory, or scrub internal projections');
 $memoryProbe['_selected_profile_id']=$actorProfile['profile_id'];
-$memoryPrompt=(new PromptAssembler())->assemble($memoryProbe,$visible)['provider_input']['_assembled_prompt'];
+// Short Term Memory is off for new profiles, so opt in before proving the scoped recent memory renders.
+$visibleShortTerm=$visible;$visibleShortTerm['effective_settings']['settings']['memory']['short_term_enabled']=true;
+$memoryPrompt=(new PromptAssembler())->assemble($memoryProbe,$visibleShortTerm)['provider_input']['_assembled_prompt'];
 $assert(str_contains($memoryPrompt,'NPC PRIVATE MEMORY SENTINEL'),
     'selected NPC-profile memory failed prompt scope validation');
 $bystanderProbe['payload']['ui_source']='lorkhan_rechat';
 $modelProvider=$memoryService->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Model privacy fixture',
     'content'=>['driver'=>'mock','model'=>'privacy-v1']]);
-$modelPolicyContent=['schema'=>'lorkhan.memory-policy.v1','enabled'=>true,'provider_configuration_id'=>$modelProvider['configuration_id']];
-$modelPolicy=$memoryService->createRevisioned('memory_policy',['installation_id'=>$installationId,'name'=>'Model privacy policy','content'=>$modelPolicyContent]);
+// Provisioning owns the installation's single memory summary policy; revise it rather than creating a rival.
+$provisionedModelPolicy=$products->memorySummaryPolicyForInstallation($installationId);
+$assert($provisionedModelPolicy!==null,'provisioned installation lacks its memory summary policy');
+$modelPolicyContent=array_replace($provisionedModelPolicy['content'],['enabled'=>true,'provider_configuration_id'=>$modelProvider['configuration_id']]);
+$modelPolicy=$memoryService->revise('memory_policy',$provisionedModelPolicy['configuration_id'],
+    $modelPolicyContent,'Model privacy policy',(int)$provisionedModelPolicy['current_revision']);
+$modelPolicyRevision=(int)$modelPolicy['current_revision'];
+$assert($modelPolicyRevision===(int)$provisionedModelPolicy['current_revision']+1
+    &&$products->memorySummaryPolicyForInstallation($installationId)['configuration_id']===$provisionedModelPolicy['configuration_id'],
+    'model privacy fixture did not revise the single installation memory policy');
 $db->prepare('INSERT INTO memory_model_summaries(memory_id,memory_revision,policy_configuration_id,policy_revision,provider_configuration_id,provider_revision,content,input_sha256,created_at)
-    VALUES(:memory,1,:policy,1,:provider,1,:content,:sha,:now)')->execute(['memory'=>$mixedMemory['memory_id'],
-        'policy'=>$modelPolicy['configuration_id'],'provider'=>$modelProvider['configuration_id'],'content'=>'MODEL MIXED MEMORY SENTINEL',
+    VALUES(:memory,1,:policy,:policy_revision,:provider,:provider_revision,:content,:sha,:now)')->execute(['memory'=>$mixedMemory['memory_id'],
+        'policy'=>$modelPolicy['configuration_id'],'policy_revision'=>$modelPolicyRevision,
+        'provider'=>$modelProvider['configuration_id'],'provider_revision'=>(int)$modelProvider['current_revision'],'content'=>'MODEL MIXED MEMORY SENTINEL',
         'sha'=>hash('sha256',$mixedMemory['content']),'now'=>$memoryNow]);
 $modelSelection=$products->promptContext($memoryProbe,$memoryNow);
+// Middle Term Memory is off for new profiles, so opt in before proving the mid-tier model summary renders.
+$modelSelection['effective_settings']['settings']['memory']['mid_term_enabled']=true;
 $modelPrompt=(new PromptAssembler())->assemble($memoryProbe,$modelSelection);
 $modelSources=array_column(array_filter($modelPrompt['trace']['sources'],static fn(array $row):bool=>$row['source_kind']==='memory'),null,'source_id');
 $assert(str_contains($modelPrompt['provider_input']['_assembled_prompt'],'MODEL MIXED MEMORY SENTINEL')
@@ -3118,8 +3564,9 @@ $assert(!in_array('event:'.$customEventRow,array_column($products->promptContext
 $assert((int)$db->query('SELECT count(*) FROM eventlog')->fetchColumn()===$eventCountBefore,'custom exclusion deleted event history');
 $db->exec('ROLLBACK TO SAVEPOINT custom_event_filter_probe');
 $limitedTurns=array_values(array_unique(array_column(array_column($limitedHistory,'content'),'turn_id')));
-$assert($limitedTurns===[$sharedTurn]&&count($limitedHistory)===2,
-    'profile recent-turn limit must count one conversation turn with both input and world context');
+// Match CHIM: the limit counts visible events, so a limit of one keeps only the newest witnessed row.
+$assert($limitedTurns===[$sharedTurn]&&array_column($limitedHistory,'id')===['event:'.$customEventRow],
+    'profile recent-turn limit must keep exactly one newest visible event');
 $db->prepare("UPDATE eventlog_metadata SET suppressed_at=clock_timestamp() WHERE source_event_id=:source AND projection_kind='turn'")
     ->execute(['source'=>$sharedSource]);
 $hiddenIds=array_column($products->promptContext($bystanderProbe,$memoryNow)['memory'],'id');
@@ -3168,6 +3615,18 @@ $db->prepare('UPDATE eventlog_metadata SET target=CAST(:target AS jsonb) WHERE r
 $assert(in_array($visibilityId,array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
     'an input addressed to an ordinary NPC named The Narrator was hidden');
 $db->exec('ROLLBACK TO SAVEPOINT narrator_visibility_probe');
+// Server-side interruption ends the utterance without a client receipt, leaving the eventlog row emitted.
+$db->exec('SAVEPOINT unheard_dialogue_history_probe');
+$unheardRow=$db->query("SELECT e.rowid,m.dialogue_message_id FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE e.type='chat' AND m.dialogue_message_id IS NOT NULL AND m.turn_id=".$db->quote($turn['turn_id'])." LIMIT 1")->fetch();
+$db->prepare("UPDATE eventlog SET ts=(extract(epoch FROM clock_timestamp())*1000)::bigint+3600000,delivery_state='emitted' WHERE rowid=:id")->execute(['id'=>$unheardRow['rowid']]);
+$db->prepare('UPDATE eventlog_metadata SET suppressed_at=NULL WHERE rowid=:id')->execute(['id'=>$unheardRow['rowid']]);
+$db->prepare("UPDATE dialogue_utterances SET delivery_state='pending' WHERE dialogue_message_id=:id")->execute(['id'=>$unheardRow['dialogue_message_id']]);
+$assert(in_array('event:'.$unheardRow['rowid'],array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
+    'in-flight emitted dialogue lost conversational continuity');
+$db->prepare("UPDATE dialogue_utterances SET delivery_state='interrupted' WHERE dialogue_message_id=:id")->execute(['id'=>$unheardRow['dialogue_message_id']]);
+$assert(!in_array('event:'.$unheardRow['rowid'],array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
+    'interrupted unheard dialogue shaped a future prompt');
+$db->exec('ROLLBACK TO SAVEPOINT unheard_dialogue_history_probe');
 $narrativeInsert=$db->prepare('INSERT INTO narrative_records(narrative_id,installation_id,profile_id,playthrough_id,kind,title,content,provenance,created_at,updated_at) '
     ."VALUES(:id,:installation,:profile,:playthrough,'diary','Recency probe',:content,'{\"source\":\"manual\"}',:now,:now)");
 for($i=0;$i<12;$i++)$narrativeInsert->execute(['id'=>$newUuid(3940+$i),'installation'=>$installationId,
@@ -3251,10 +3710,15 @@ $assert($status===409,'dialogue request mismatch accepted');
 $wrongDelivery=$delivery;$wrongDelivery['speaker']=$turn['payload']['speaker'];
 [$status]=$call($router,'POST',$base.'/dialogue-delivery-results',$headers($wrongDelivery['message_id']),[],$wrongDelivery);
 $assert($status===409,'dialogue speaker mismatch accepted');
-$providerAttemptRows = $db->query("SELECT provider_kind, state FROM provider_attempts WHERE turn_id = " . $db->quote($turn['turn_id'])
-    . " ORDER BY provider_kind")->fetchAll();
-$assert($providerAttemptRows === [['provider_kind' => 'llm', 'state' => 'succeeded'], ['provider_kind' => 'tts', 'state' => 'succeeded']],
-    'provider attempts were not reconciled');
+$providerAttemptRows = $db->query("SELECT provider_kind, operation, state, job_id IS NOT NULL AS job_backed FROM provider_attempts WHERE turn_id = "
+    . $db->quote($turn['turn_id']) . " ORDER BY provider_kind")->fetchAll();
+// Provisioning enables semantic memory by default; the optional MiniMe query is accounted once and may be absent locally.
+$assert(count($providerAttemptRows) === 3 && in_array($providerAttemptRows[0]['state'], ['succeeded', 'failed'], true)
+    && array_slice($providerAttemptRows[0], 0, 2) === ['provider_kind' => 'embedding', 'operation' => 'query_memory'] && !$providerAttemptRows[0]['job_backed']
+    && array_slice($providerAttemptRows, 1) === [
+        ['provider_kind' => 'llm', 'operation' => 'complete_turn', 'state' => 'succeeded', 'job_backed' => true],
+        ['provider_kind' => 'tts', 'operation' => 'synthesize', 'state' => 'succeeded', 'job_backed' => true]],
+    'provider attempts were not reconciled: ' . json_encode($providerAttemptRows));
 $mediaPath=$base.'/media/'.$speech['media_id'];$timestamp=gmdate('Y-m-d\TH:i:s\Z');$nonce=bin2hex(random_bytes(16));$mediaUnsigned=new Request('GET',$mediaPath,[],[],'');$mediaHeaders=['X-LORKHAN-Auth'=>RequestMac::ALGORITHM,'X-LORKHAN-Installation-Id'=>$installationId,'X-LORKHAN-Timestamp'=>$timestamp,'X-LORKHAN-Nonce'=>$nonce,'X-LORKHAN-Content-SHA256'=>RequestMac::EMPTY_SHA256,'X-LORKHAN-Signature'=>RequestMac::sign($macKey,$mediaUnsigned,$installationId,$timestamp,$nonce,'',RequestMac::EMPTY_SHA256)];
 $mediaResponse = $router->dispatch(new Request('GET',$mediaPath,$mediaHeaders));
 $assert($mediaResponse->status === 200 && strlen($mediaResponse->body) === 204 && substr($mediaResponse->body, 0, 4) === 'RIFF'
@@ -3342,7 +3806,7 @@ $fallbackCore=$products->createRevisioned('core_profile',['installation_id'=>$in
         'llm_configuration_id'=>'','llm_fallback_configuration_id'=>$fallbackModelSlot['configuration_id'],
         'llm_fallback_enabled'=>true],'settings_overrides'=>[]]],$now);
 $fallbackProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Fallback-only actor',
-    'actor_identity'=>['record_id'=>'fallback_actor'],'core_profile_id'=>$fallbackCore['core_profile_id'],'content'=>[]],$now);
+    'playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$fallbackTarget,'core_profile_id'=>$fallbackCore['core_profile_id'],'content'=>[]],$now);
 $products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
     $fallbackTarget,$fallbackProfile['profile_id'],$now);
 $products->selectModelSlot(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],'standard',$now);
@@ -3374,17 +3838,264 @@ $assert($fallbackAttempts===[['state'=>'failed','fallback'=>'false'],['state'=>'
     'profile fallback attempts were not recorded as one primary failure and one fallback success');
 $recordedLabel=$db->query("SELECT metadata->>'configuration_name' FROM provider_attempts WHERE state='succeeded' AND turn_id=".$db->quote($fallbackTurn['turn_id']))->fetchColumn();
 $assert($recordedLabel==='Profile fallback mock','successful fallback attempt lost its frozen connector label');
+
+// A stream that fails after committing a sentence keeps that heard sentence instead of invoking the fallback model.
+$interruptedProvider=new class implements \LorkhanServer\Application\StreamingProvider {
+    public int$calls=0;
+    public function complete(array $turn, CancellationToken $cancellation): array { throw new RuntimeException('provider secret'); }
+    public function completeStreaming(array $turn, CancellationToken $cancellation, callable $onDialogueDelta): array {
+        ++$this->calls;$onDialogueDelta('Heard before the outage.');throw new RuntimeException('provider secret');
+    }
+};
+// The installation Narrator fixture uses inline narration, which disables streamed speech; disable it so this turn truly streams.
+$streamNarratorContent=$products->getRevisioned('profile',$narratorProfile['profile_id'])['content'];
+$products->revise('profile',$narratorProfile['profile_id'],['inline_narration_mode'=>'Disabled']+$streamNarratorContent,
+    'streamed speech fixture',$now);
+$interruptedTurn=$fallbackTurn;$interruptedTurn['message_id']=$newUuid(743);$interruptedTurn['request_id']=$newUuid(744);
+$interruptedTurn['turn_id']=$newUuid(745);$interruptedTurn['payload']['input']['text']='[fallback] Stream then fail.';
+// Streamed speech requires one speaker, so the audience is the target alone rather than the fixture's other actor.
+$interruptedTurn['payload']['audience']=[$fallbackTarget];
+[$status]=$call($fallbackRouter,'POST',$base.'/turns',$headers($interruptedTurn['message_id']),[],$interruptedTurn);
+$interruptedStats=$runTurnWorker($interruptedProvider);
+[,$interruptedEvents]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$fallbackEvents['next_after']]);
+$interruptedTypes=array_column($interruptedEvents['events'],'type');
+$interruptedDialogues=array_values(array_filter($interruptedEvents['events'],static fn(array $e):bool=>$e['type']==='dialogue.complete'));
+$interruptedAttempts=$db->query("SELECT state,metadata->>'fallback' AS fallback FROM provider_attempts WHERE provider_kind='llm' AND turn_id="
+    .$db->quote($interruptedTurn['turn_id']))->fetchAll();
+$interruptedSpeech=$db->query('SELECT count(*) FROM speech WHERE turn_id='.$db->quote($interruptedTurn['turn_id']))->fetchColumn();
+$interruptedResponse=json_decode((string)$db->query('SELECT response_payload FROM turns WHERE turn_id='
+    .$db->quote($interruptedTurn['turn_id']))->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$assert($status===202&&$interruptedStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]&&$interruptedProvider->calls===1
+    &&$interruptedAttempts===[['state'=>'failed','fallback'=>'false']]
+    &&count($interruptedDialogues)===1&&$interruptedDialogues[0]['payload']['text']==='Heard before the outage.'
+    &&in_array('turn.complete',$interruptedTypes,true)&&!in_array('turn.failed',$interruptedTypes,true)
+    &&count(array_keys($interruptedTypes,'speech.ready',true))===1&&(int)$interruptedSpeech===1
+    &&$interruptedResponse['ok']===true&&array_column($interruptedResponse['lines'],'text')===['Heard before the outage.'],
+    'mid-stream provider failure replaced or failed committed dialogue: '.json_encode(['types'=>$interruptedTypes,'attempts'=>$interruptedAttempts]));
+// Disabled narration streams subtitles with their directions, speaks only dialogue, and never waits on narration-only audio.
+$directionProvider=new class implements \LorkhanServer\Application\StreamingProvider {
+    public function complete(array $turn, CancellationToken $cancellation): array { throw new RuntimeException('streaming expected'); }
+    public function completeStreaming(array $turn, CancellationToken $cancellation, callable $onDialogueDelta): array {
+        foreach(['*Fargoth waves.','He grins.*','Welcome, outlander.','*He bows.*']as$sentence)$onDialogueDelta($sentence);
+        return['utterances'=>[['text'=>'*Fargoth waves. He grins.* Welcome, outlander. *He bows.*']],'action'=>null];
+    }
+};
+$directionTurn=$interruptedTurn;$directionTurn['message_id']=$newUuid(750);$directionTurn['request_id']=$newUuid(751);
+$directionTurn['turn_id']=$newUuid(752);$directionTurn['payload']['input']['text']='Greet me in character.';
+[$status]=$call($fallbackRouter,'POST',$base.'/turns',$headers($directionTurn['message_id']),[],$directionTurn);
+$directionStats=$runTurnWorker($directionProvider);
+[,$directionPage]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$interruptedEvents['next_after']]);
+$directionEvents=array_values(array_filter($directionPage['events'],static fn(array $e):bool=>$e['turn_id']===$directionTurn['turn_id']));
+$directionTypes=array_column($directionEvents,'type');
+$directionSubtitles=array_map(static fn(array $e):string=>$e['payload']['text'],array_values(array_filter($directionEvents,
+    static fn(array $e):bool=>$e['type']==='dialogue.complete')));
+$directionResponse=json_decode((string)$db->query('SELECT response_payload FROM turns WHERE turn_id='
+    .$db->quote($directionTurn['turn_id']))->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$directionTts=$db->query("SELECT input_bytes FROM provider_attempts WHERE provider_kind='tts' AND turn_id="
+    .$db->quote($directionTurn['turn_id']))->fetchAll(PDO::FETCH_COLUMN);
+$directionJobs=$db->query("SELECT payload->>'tts_text' FROM durable_jobs WHERE job_type='speech.synthesize' AND idempotency_key IN "
+    ."(SELECT 'speech:'||dialogue_message_id FROM dialogue_utterances WHERE turn_id=".$db->quote($directionTurn['turn_id']).')')->fetchAll(PDO::FETCH_COLUMN);
+$directionHistory=$db->query('SELECT text FROM dialogue_utterances WHERE turn_id='.$db->quote($directionTurn['turn_id'])
+    .' ORDER BY utterance_index')->fetchAll(PDO::FETCH_COLUMN);
+$assert($status===202&&$directionStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
+    &&$directionSubtitles===['*Fargoth waves. He grins.* Welcome, outlander.','*He bows.*']
+    &&$directionHistory===$directionSubtitles&&count(array_keys($directionTypes,'speech.ready',true))===1
+    &&!in_array('speech.failed',$directionTypes,true)&&in_array('turn.complete',$directionTypes,true)
+    &&array_column($directionResponse['lines'],'tts_text')===['Welcome, outlander.','*He bows.*']
+    &&array_map(static fn(array $line):bool=>$line['metadata']['speech_enabled'],$directionResponse['lines'])===[true,false]
+    &&array_map(static fn(array $line):string=>$line['speaker_identity']['record_id'],$directionResponse['lines'])===['fallback_actor','fallback_actor']
+    // Inline speech may fall back to its durable job; every attempt still receives only the spoken words.
+    &&$directionTts!==[]&&array_unique(array_map('intval',$directionTts))===[strlen('Welcome, outlander.')]
+    &&array_diff($directionJobs,['Welcome, outlander.'])===[],
+    'disabled narration streamed or queued stage directions as NPC speech: '.json_encode(['types'=>$directionTypes,
+        'subtitles'=>$directionSubtitles,'history'=>$directionHistory,'lines'=>$directionResponse['lines']??null,'tts'=>$directionTts,'jobs'=>$directionJobs]));
+$interruptedEvents['next_after']=$directionPage['next_after'];
+// Private NPC thoughts persist only on the owner's dialogue event and return only to that owner's later context/history.
+$thoughtProfileId=$fallbackProfile['profile_id'];$thoughtProfileOriginal=$products->getRevisioned('profile',$thoughtProfileId)['content'];
+$thoughtProfileEnabled=$thoughtProfileOriginal;$thoughtProfileEnabled['settings_overrides']['response']['private_thoughts_enabled']=true;
+$products->revise('profile',$thoughtProfileId,$thoughtProfileEnabled,'private thought fixture',$now);
+$thoughtProvider=new class implements \LorkhanServer\Application\StreamingProvider {
+    public array$turns=[];
+    public function complete(array $turn, CancellationToken $cancellation): array { throw new RuntimeException('streaming expected'); }
+    public function completeStreaming(array $turn, CancellationToken $cancellation, callable $onDialogueDelta): array {
+        $this->turns[]=$turn;$onDialogueDelta('I never saw your ring.');
+        return['utterances'=>[['text'=>'I never saw your ring.']],'action'=>null,'_private_thought'=>'Private sentinel '.count($this->turns).': it is under my bed.'];
+    }
+};
+$thoughtTurns=[];
+foreach([760,764]as$thoughtSeed){
+    $thoughtTurn=$directionTurn;$thoughtTurn['message_id']=$newUuid($thoughtSeed);$thoughtTurn['request_id']=$newUuid($thoughtSeed+1);
+    $thoughtTurn['turn_id']=$newUuid($thoughtSeed+2);$thoughtTurn['payload']['input']['text']='Have you seen my ring?';
+    [$status]=$call($fallbackRouter,'POST',$base.'/turns',$headers($thoughtTurn['message_id']),[],$thoughtTurn);
+    $assert($status===202&&$runTurnWorker($thoughtProvider)===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],'private thought turn did not complete');
+    $thoughtTurns[]=$thoughtTurn;
+}
+$thoughtMessage=$repo->turnMessage($thoughtTurns[0]['turn_id']);
+$thoughtStored=$db->query("SELECT m.payload->'private_thought' FROM eventlog_metadata m WHERE m.projection_kind='dialogue' AND m.turn_id="
+    .$db->quote($thoughtTurns[0]['turn_id']))->fetchAll(PDO::FETCH_COLUMN);
+$thoughtLike=$db->quote('%Private sentinel%');
+$thoughtLeaks=$db->query("SELECT (SELECT count(*) FROM response_events WHERE payload::text LIKE $thoughtLike)
+    +(SELECT count(*) FROM turns WHERE response_payload::text LIKE $thoughtLike)+(SELECT count(*) FROM responselog WHERE payload::text LIKE $thoughtLike)
+    +(SELECT count(*) FROM speech WHERE speech LIKE $thoughtLike)+(SELECT count(*) FROM dialogue_utterances WHERE text LIKE $thoughtLike)
+    +(SELECT count(*) FROM durable_jobs WHERE payload::text LIKE $thoughtLike)+(SELECT count(*) FROM action_intents WHERE parameters::text LIKE $thoughtLike)
+    +(SELECT count(*) FROM prompt_trace_sources WHERE redacted_preview LIKE $thoughtLike)+(SELECT count(*) FROM prompt_trace_sections WHERE redacted_preview LIKE $thoughtLike)
+    +(SELECT count(*) FROM eventlog WHERE data LIKE $thoughtLike)")->fetchColumn();
+$storedThought=json_decode((string)($thoughtStored[0]??'null'),true);
+$assert(($thoughtMessage['_private_thought']['profile_id']??null)===$thoughtMessage['_selected_profile_id']
+    &&count($thoughtStored)===1&&($storedThought['text']??null)==='Private sentinel 1: it is under my bed.'
+    &&($storedThought['actor']['refnum']['index']??null)===733&&(int)$thoughtLeaks===0,
+    'private thought was not stored once on the owner line or leaked into speech, client, action or trace data: '.json_encode([$thoughtStored,$thoughtLeaks]));
+$assert(str_contains((string)($thoughtProvider->turns[1]['_prompt']['_messages'][0]['content']??''),'unknown to others: Private sentinel 1')
+    &&!str_contains((string)($thoughtProvider->turns[0]['_prompt']['_messages'][0]['content']??''),'Private sentinel'),
+    'owner did not receive its earlier private thought in later prompt context');
+$thoughtProbe=$thoughtMessage;$thoughtProbe['turn_id']=$newUuid(768);
+$thoughtTwinProbe=$thoughtProbe;$thoughtTwinProbe['payload']['target']['refnum']['index']=734;
+$thoughtTwinProbe['payload']['audience']=[$thoughtTwinProbe['payload']['target']];
+$thoughtScope=['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']];
+$thoughtEvents=new EventLogRepository($db);
+$assert(str_contains(json_encode($products->promptContext($thoughtProbe,$now)['history']),'Private sentinel 1')
+    &&!str_contains(json_encode($products->promptContext($thoughtTwinProbe,$now)),'Private sentinel')
+    &&!str_contains(json_encode($thoughtEvents->page($thoughtScope+['limit'=>500])),'Private sentinel')
+    &&str_contains(json_encode($thoughtEvents->profileHistory($thoughtProfileId,$session['playthrough_id'])),'Private sentinel 1'),
+    'private thought escaped its owner or was hidden from owner history');
+$products->revise('profile',$thoughtProfileId,$thoughtProfileOriginal,'private thought fixture off',$now);
+$assert(!str_contains(json_encode($products->promptContext($thoughtProbe,$now)['history']),'Private sentinel')
+    &&str_contains(json_encode($thoughtEvents->profileHistory($thoughtProfileId,$session['playthrough_id'])),'Private sentinel 1'),
+    'disabled private thoughts still reached context or stored history was discarded');
+$db->exec("UPDATE dialogue_utterances SET delivery_state='interrupted' WHERE turn_id=".$db->quote($thoughtTurns[0]['turn_id']));
+$assert(!str_contains(json_encode($thoughtEvents->profileHistory($thoughtProfileId,$session['playthrough_id'])),'Private sentinel 1')
+    &&str_contains(json_encode($thoughtEvents->profileHistory($thoughtProfileId,$session['playthrough_id'])),'Private sentinel 2'),
+    'interrupted dialogue kept its private thought in owner history');
+// Display-only progress (group audience disables streamed speech) is not durable dialogue, so the fallback still runs.
+$displayOnlyTurn=$fallbackTurn;$displayOnlyTurn['message_id']=$newUuid(746);$displayOnlyTurn['request_id']=$newUuid(747);
+$displayOnlyTurn['turn_id']=$newUuid(748);$displayOnlyTurn['payload']['input']['text']='[fallback] Progress then fail.';
+$displayOnlyAudience=$fallbackTarget;$displayOnlyAudience['record_id']='fallback_audience';$displayOnlyAudience['display_name']='Fallback Audience';
+$displayOnlyAudience['refnum']['index']=749;$displayOnlyTurn['payload']['audience']=[$displayOnlyAudience];
+$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Fallback audience','playthrough_id'=>$session['playthrough_id'],
+    'actor_identity'=>$displayOnlyAudience,'core_profile_id'=>$fallbackCore['core_profile_id'],'content'=>[]],$now);
+$interruptedProvider->calls=0;
+[$status]=$call($fallbackRouter,'POST',$base.'/turns',$headers($displayOnlyTurn['message_id']),[],$displayOnlyTurn);
+$displayOnlyStats=$runTurnWorker($interruptedProvider);
+[,$displayOnlyEvents]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$interruptedEvents['next_after']]);
+$displayOnlyTypes=array_column($displayOnlyEvents['events'],'type');
+$displayOnlyTexts=array_map(static fn(array $e):string=>$e['payload']['text'],array_values(array_filter($displayOnlyEvents['events'],
+    static fn(array $e):bool=>$e['type']==='dialogue.complete')));
+$displayOnlyAttempts=$db->query("SELECT state,metadata->>'fallback' AS fallback FROM provider_attempts WHERE provider_kind='llm' AND turn_id="
+    .$db->quote($displayOnlyTurn['turn_id'])." ORDER BY started_at,provider_attempt_id")->fetchAll();
+$assert($status===202&&$displayOnlyStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]&&$interruptedProvider->calls===1
+    &&$displayOnlyAttempts===[['state'=>'failed','fallback'=>'false'],['state'=>'succeeded','fallback'=>'true']]
+    &&$displayOnlyTexts!==[]&&!in_array('Heard before the outage.',$displayOnlyTexts,true)
+    &&in_array('turn.complete',$displayOnlyTypes,true)&&!in_array('turn.failed',$displayOnlyTypes,true),
+    'display-only stream progress suppressed the configured fallback: '.json_encode(['types'=>$displayOnlyTypes,'attempts'=>$displayOnlyAttempts]));
+
+// CHIM connector recovery: repeated transient primary failures skip to the explicit fallback, then one probe restores it.
+$recoveryDir=sys_get_temp_dir().'/lorkhan-recovery-'.bin2hex(random_bytes(6));mkdir($recoveryDir,0700);
+file_put_contents($recoveryDir.'/router.php','<?php $m=trim((string)file_get_contents(__DIR__."/mode"));'
+    .'if($m==="timeout"){sleep(3);exit;}if($m==="429"){http_response_code(429);header("Retry-After: 45");exit;}'
+    .'if($m==="503"){http_response_code(503);exit;}if($m==="401"){http_response_code(401);exit;}'
+    .'header("Content-Type: application/json");echo json_encode(["choices"=>[["message"=>["content"=>$m==="invalid"?"not json"'
+    .':"{\"utterances\":[{\"text\":\"Primary restored.\"}],\"action\":null}"]]]]);');
+file_put_contents($recoveryDir.'/mode','ok');
+$recoverySocket=stream_socket_server('tcp://127.0.0.1:0');$recoveryPort=(int)substr(strrchr(stream_socket_get_name($recoverySocket,false),':'),1);fclose($recoverySocket);
+$recoveryServer=proc_open([PHP_BINARY,'-S','127.0.0.1:'.$recoveryPort,$recoveryDir.'/router.php'],[1=>['file','/dev/null','w'],2=>['file','/dev/null','w']],$recoveryPipes,
+    null,['PHP_CLI_SERVER_WORKERS'=>'4']+getenv());
+for($i=0;$i<100&&@fsockopen('127.0.0.1',$recoveryPort)===false;++$i)usleep(20_000);
+$recoveryHandler=new \LorkhanServer\Application\TurnProcessJobHandler($repo,new MockProvider(),null,$attempts,20_000);
+$recoveryComplete=new ReflectionMethod($recoveryHandler,'completeWithFallback');
+$recoverySlot=static fn(string $id,int $revision=1):array=>['configuration_id'=>$id,'revision'=>$revision,'name'=>'Recovery primary','content'=>[
+    'driver'=>'openai-compatible','model'=>'recovery','endpoint'=>'http://127.0.0.1:'.$recoveryPort.'/v1/chat/completions',
+    'timeout_ms'=>1000,'options'=>['stream'=>false]]];
+$recoveryFallback=['configuration_id'=>\LorkhanServer\Infrastructure\Uuid::v4(),'revision'=>1,'name'=>'Recovery fallback',
+    'content'=>['driver'=>'mock','model'=>'recovery-fallback','mock_prefix'=>'[fallback] ']];
+$recoveryTurn=function(array $recoveryPrimary,string $mode,?array $fallback=null,bool $committed=false,bool $cancelled=false)
+    use($db,$recoveryComplete,$recoveryHandler,$recoveryDir,$recoveryFallback,$fallbackTarget):array{
+    // A terminal fixture job only satisfies the attempt foreign key; later workers must never claim it.
+    file_put_contents($recoveryDir.'/mode',$mode);$jobId=\LorkhanServer\Infrastructure\Uuid::v4();
+    $db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,state,completed_at) VALUES(:job,'turn.process',1,:key,'{}','succeeded',clock_timestamp())")
+        ->execute(['job'=>$jobId,'key'=>'recovery-'.$jobId]);
+    $message=['request_id'=>\LorkhanServer\Infrastructure\Uuid::v4(),'turn_id'=>\LorkhanServer\Infrastructure\Uuid::v4(),'_negotiated_capabilities'=>[],
+        'payload'=>['input'=>['text'=>'Recovery check.'],'target'=>$fallbackTarget,'speaker'=>$fallbackTarget,'audience'=>[]],
+        '_provider_configuration'=>$recoveryPrimary,'_fallback_provider_configuration'=>$fallback??$recoveryFallback];
+    $text=null;$error=null;
+    try{$text=$recoveryComplete->invoke($recoveryHandler,$message,['job_id'=>$jobId,'attempt'=>1],
+        new \LorkhanServer\Application\CallbackCancellationToken(static fn():bool=>$cancelled),static function():void{},
+        static fn():bool=>$committed)['utterances'][0]['text']??null;}
+    catch(Throwable $caught){$error=$caught->getMessage();}
+    $rows=$db->query("SELECT state,metadata->>'fallback' AS fallback,metadata->'recovery' AS recovery,metadata->>'primary_skipped' AS skipped,"
+        ."metadata->>'primary_retry_in_s' AS retry FROM provider_attempts WHERE turn_id=".$db->quote($message['turn_id'])
+        ." ORDER BY started_at,provider_attempt_id")->fetchAll();
+    return['text'=>$text,'error'=>$error,'attempts'=>array_map(static fn(array $row):array=>['state'=>$row['state'],'fallback'=>$row['fallback'],
+        'recovery'=>json_decode((string)($row['recovery']??'null'),true),'skipped'=>$row['skipped'],'retry'=>$row['retry']===null?null:(int)$row['retry']],$rows)];
+};
+$ageRecovery=static function(string $id)use($db):void{$db->prepare("UPDATE provider_attempts SET started_at=started_at-interval '31 seconds',"
+    ."finished_at=finished_at-interval '31 seconds' WHERE metadata->>'configuration_id'=:id")->execute(['id'=>$id]);};
+$skippedFallback=static fn(array $recoveryResult,string $state):bool=>count($recoveryResult['attempts'])===1&&$recoveryResult['attempts'][0]['fallback']==='true'
+    &&$recoveryResult['attempts'][0]['state']==='succeeded'&&$recoveryResult['attempts'][0]['skipped']===$state&&str_starts_with((string)$recoveryResult['text'],'[fallback]');
+$attemptedPrimary=static fn(array $recoveryResult):bool=>($recoveryResult['attempts'][0]['fallback']??null)==='false';
+try{
+    // Rejections, invalid output, cancellation and committed streams never cool a connector down.
+    foreach(['401'=>[],'invalid'=>[],'cancelled'=>['cancelled'=>true],'committed'=>['committed'=>true]] as $recoveryCase=>$recoveryOptions){
+        $recoveryConnector=$recoverySlot(\LorkhanServer\Infrastructure\Uuid::v4());
+        for($i=0;$i<3;++$i){
+            $recoveryResult=$recoveryTurn($recoveryConnector,in_array((string)$recoveryCase,['401','invalid'],true)?(string)$recoveryCase:'503',...$recoveryOptions);
+            $assert($attemptedPrimary($recoveryResult)&&($recoveryResult['attempts'][0]['recovery']??null)===null
+                &&$recoveryResult['attempts'][0]['state']===($recoveryCase==='cancelled'?'cancelled':'failed'),
+                'non-transient '.$recoveryCase.' primary failure affected connector recovery: '.json_encode($recoveryResult));
+        }
+    }
+    $recoveryPrimaryId=\LorkhanServer\Infrastructure\Uuid::v4();$recoveryPrimary=$recoverySlot($recoveryPrimaryId);
+    $recoveryFirst=$recoveryTurn($recoveryPrimary,'timeout');$recoverySecond=$recoveryTurn($recoveryPrimary,'503');$skippedStarted=hrtime(true);
+    $recoveryThird=$recoveryTurn($recoveryPrimary,'timeout');$skippedMs=intdiv(hrtime(true)-$skippedStarted,1_000_000);
+    $assert(($recoveryFirst['attempts'][0]['recovery']??null)===['transient'=>true]&&($recoverySecond['attempts'][0]['recovery']??null)===['transient'=>true]
+        &&str_starts_with((string)$recoveryFirst['text'],'[fallback]')&&$skippedFallback($recoveryThird,'cooldown')
+        &&$recoveryThird['attempts'][0]['retry']>=1&&$recoveryThird['attempts'][0]['retry']<=30&&$skippedMs<900,
+        'two transient primary failures did not skip the primary for the bounded cooldown: '.json_encode([$recoveryFirst,$recoverySecond,$recoveryThird,$skippedMs]));
+    $assert($attemptedPrimary($recoveryTurn($recoverySlot($recoveryPrimaryId,2),'ok')),'a revised connector inherited the previous revision cooldown');
+    $noFallback=$recoveryTurn($recoveryPrimary,'503',$recoveryPrimary);
+    $assert($attemptedPrimary($noFallback)&&count($noFallback['attempts'])===1&&$noFallback['error']==='provider_unavailable',
+        'cooldown skipped a primary without a distinct fallback or hid its connector error: '.json_encode($noFallback));
+    // After cooldown, an in-flight probe makes concurrent turns use the fallback instead of stampeding the primary.
+    $ageRecovery($recoveryPrimaryId);$heldProbe=\LorkhanServer\Infrastructure\Uuid::v4();$heldJob=\LorkhanServer\Infrastructure\Uuid::v4();
+    $db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,state,completed_at) VALUES(:job,'turn.process',1,:key,'{}','succeeded',clock_timestamp())")
+        ->execute(['job'=>$heldJob,'key'=>'recovery-'.$heldJob]);
+    $heldGate=$attempts->beginRecoverableTurnAttempt($recoveryPrimaryId,1,21,static function(bool $recoveryProbe)use($attempts,$heldProbe,$heldJob,$recoveryPrimaryId):void{
+        $attempts->start($heldProbe,'llm','openai-compatible','complete_turn',1,\LorkhanServer\Infrastructure\Uuid::v4(),
+            \LorkhanServer\Infrastructure\Uuid::v4(),$heldJob,metadata:['configuration_id'=>$recoveryPrimaryId,'configuration_revision'=>1,
+                'fallback'=>false]+($recoveryProbe?['recovery'=>['probe'=>true]]:[]));});
+    $concurrent=$recoveryTurn($recoveryPrimary,'ok');
+    $assert($heldGate['state']==='probe'&&$skippedFallback($concurrent,'probing'),'concurrent turn stampeded a recovering primary: '.json_encode([$heldGate,$concurrent]));
+    $attempts->finish($heldProbe,'cancelled',errorCode:'operation_cancelled');
+    $failedProbe=$recoveryTurn($recoveryPrimary,'503');$afterFailedProbe=$recoveryTurn($recoveryPrimary,'ok');
+    $assert(($failedProbe['attempts'][0]['recovery']??null)===['probe'=>true,'transient'=>true]&&$skippedFallback($afterFailedProbe,'cooldown'),
+        'a failed recovery probe did not restart the cooldown: '.json_encode([$failedProbe,$afterFailedProbe]));
+    $ageRecovery($recoveryPrimaryId);$recoveryProbe=$recoveryTurn($recoveryPrimary,'ok');$recoveryRestored=$recoveryTurn($recoveryPrimary,'ok');
+    $assert($recoveryProbe['text']==='Primary restored.'&&count($recoveryProbe['attempts'])===1&&($recoveryProbe['attempts'][0]['recovery']??null)===['probe'=>true]
+        &&$recoveryRestored['text']==='Primary restored.'&&$attemptedPrimary($recoveryRestored)&&($recoveryRestored['attempts'][0]['recovery']??null)===null,
+        'a successful probe did not restore ordinary primary routing: '.json_encode([$recoveryProbe,$recoveryRestored]));
+    // Retry-After cools down after one transient response, still clamped to the 30-300 s bound.
+    $rateLimited=$recoverySlot(\LorkhanServer\Infrastructure\Uuid::v4());$recoveryLimited=$recoveryTurn($rateLimited,'429');$limitedNext=$recoveryTurn($rateLimited,'ok');
+    $assert(($recoveryLimited['attempts'][0]['recovery']??null)===['transient'=>true,'retry_after_s'=>45]&&$skippedFallback($limitedNext,'cooldown')
+        &&$limitedNext['attempts'][0]['retry']>30&&$limitedNext['attempts'][0]['retry']<=45,
+        'Retry-After did not start one bounded connector cooldown: '.json_encode([$recoveryLimited,$limitedNext]));
+}finally{
+    $recoveryPid=(int)proc_get_status($recoveryServer)['pid'];exec('pkill -TERM -P '.$recoveryPid.' 2>/dev/null');
+    proc_terminate($recoveryServer);proc_close($recoveryServer);array_map('unlink',glob($recoveryDir.'/*')?:[]);rmdir($recoveryDir);}
+$products->revise('profile',$narratorProfile['profile_id'],$streamNarratorContent,'restore inline narration fixture',$now);
 $products->selectModelSlot(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],'fast',$now);
 
 // Exercise the lower group bounds through the same durable provider/TTS pipeline.
 // Keep every offline group speaker on the same route-free Core Profile so the injected mock TTS remains deterministic.
-$groupAfter=(int)$fallbackEvents['next_after'];
+// NPC routing resolves each speaker's reference-scoped profile, so every audience actor needs its own profile.
+$groupAfter=(int)$displayOnlyEvents['next_after'];
 foreach([2,3] as $groupCount){$bounded=$turn;$bounded['message_id']=$newUuid(50+$groupCount*3);$bounded['request_id']=$newUuid(51+$groupCount*3);
     $bounded['turn_id']=$newUuid(52+$groupCount*3);$bounded['payload']['input']['text']='[group] Bounded report.';$bounded['payload']['audience']=[];
     for($i=1;$i<$groupCount;++$i){$actor=$bounded['payload']['target'];$actor['record_id']='bounded_'.$groupCount.'_'.$i;
         $actor['display_name']='Bounded Actor '.$groupCount.'-'.$i;$actor['refnum']['index']=150+$groupCount*10+$i;
-        $products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
-            $actor,$actorProfile['profile_id'],$now);
+        $products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>$actor['display_name'],
+            'playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$actor,'core_profile_id'=>$actorCoreProfile['core_profile_id'],'content'=>[]],$now);
         $bounded['payload']['audience'][]=$actor;}
     [$status]=$call($router,'POST',$base.'/turns',$headers($bounded['message_id']),[],$bounded);$assert($status===202,'bounded group acceptance failed');
     $boundedStats=$runTurnWorker(new MockProvider());$assert($boundedStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],'bounded group worker failed');
@@ -3406,8 +4117,8 @@ $groupTurn['payload']['input']['text']='[group] Report in.';
 $groupTurn['payload']['audience']=[];
 for($i=0;$i<3;++$i){$actor=$groupTurn['payload']['target'];$actor['record_id']='group_actor_'.($i+1);
     $actor['display_name']='Group Actor '.($i+1);$actor['refnum']['index']=200+$i;
-    $products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
-        $actor,$actorProfile['profile_id'],$now);
+    $products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>$actor['display_name'],
+        'playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$actor,'core_profile_id'=>$actorCoreProfile['core_profile_id'],'content'=>[]],$now);
     $groupTurn['payload']['audience'][]=$actor;}
 [$status,$groupAccepted]=$call($router,'POST',$base.'/turns',$headers($groupTurn['message_id']),[],$groupTurn);
 $assert($status===202,'group turn acceptance failed');
@@ -3768,6 +4479,60 @@ try{
     $assert($status===202,'expired effective combat bark cooldown did not reopen');
 }finally{$db->rollBack();}
 
+// Explicit profile rewrites enqueue once, preserve unrelated fields and reject stale revisions.
+$db->beginTransaction();
+try{
+    $request=$transferTurn();$request['payload']['execution_mode']='hypnosis';$request['payload']['ui_source']='lorkhan_text';
+    $request['payload']['input']=['kind'=>'text','language'=>'en','text'=>'Become a patient historian.'];
+    $selected=(new ReflectionMethod($products,'selectedActorProfileId'))->invoke($products,$installationId,$request['playthrough_id'],$request['payload']['target']);
+    $before=$products->getRevisioned('profile',$selected);
+    [$status,$body]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+    $assert($status===202,'hypnosis rejected: '.json_encode($body));
+    $jobQuery=$db->prepare("SELECT job_id,payload FROM durable_jobs WHERE idempotency_key=:key");
+    $jobQuery->execute(['key'=>'hypnosis:'.$request['turn_id']]);$job=$jobQuery->fetch();
+    $assert($job!==false,'hypnosis job missing');
+    [$again]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+    $jobQuery->execute(['key'=>'hypnosis:'.$request['turn_id']]);
+    $assert($again===202&&count($jobQuery->fetchAll())===1,'hypnosis retry duplicated work');
+    $projection=$db->prepare('SELECT count(*) FROM eventlog_metadata WHERE projection_key=:key');
+    $projection->execute(['key'=>'turn:'.$request['turn_id']]);
+    $assert((int)$projection->fetchColumn()===0,'hypnosis leaked into player speech');
+    $assert(!in_array($request['payload']['input']['text'],$products->recentPlayerInputs($installationId,200),true),'hypnosis leaked into speech-style samples');
+    $payload=json_decode($job['payload'],true,64,JSON_THROW_ON_ERROR);
+    $leaseProfileFixture->execute(['job'=>$job['job_id'],'token'=>Uuid::v4()]);
+    $payload['_job']=['job_id'=>$job['job_id'],'attempt'=>1];
+    $generator=new class implements \LorkhanServer\Application\ProfileGenerationProvider{
+        public function generate(array $input,CancellationToken $cancellation):array{
+            if(($input['generation_mode']??'')!=='hypnosis'||($input['instruction']??'')!=='Become a patient historian.')throw new RuntimeException('wrong hypnosis input');
+            return ['personality'=>'Patient','goals'=>'Record history','speech_style'=>'Measured','occupation'=>'Historian'];
+        }
+    };
+    $handler=new \LorkhanServer\Application\ProfileGenerateJobHandler($products,$generator);
+    $handler->handle($payload,'hypnosis-test',static fn():bool=>true);
+    $after=$products->getRevisioned('profile',$selected);
+    $assert((int)$after['current_revision']===(int)$before['current_revision']+1,'hypnosis revision not saved');
+    $expected=$before['content'];foreach(['personality'=>'Patient','goals'=>'Record history','speech_style'=>'Measured','occupation'=>'Historian']as$key=>$value)$expected[$key]=$value;
+    $assert($after['content']==$expected,'hypnosis changed unrelated profile fields');
+    $handler->handle($payload,'hypnosis-test',static fn():bool=>true);
+    $assert($products->getRevisioned('profile',$selected)['current_revision']===$after['current_revision'],'stale hypnosis rewrote later revision');
+    $payload['generation']++;
+    $assert(!$products->hypnosisRequestActive($payload),'stale generation kept hypnosis active');
+    $request=$transferTurn();$request['payload']['execution_mode']='hypnosis';$request['payload']['ui_source']='lorkhan_text';
+    $request['payload']['input']=['kind'=>'text','language'=>'en','text'=>'A second rewrite.'];
+    [$status]=$call($transferRouter,'POST',$base.'/turns',$headers($request['message_id']),[],$request);
+    $assert($status===202,'second hypnosis request rejected');
+    $jobQuery->execute(['key'=>'hypnosis:'.$request['turn_id']]);$job=$jobQuery->fetch();
+    $leaseProfileFixture->execute(['job'=>$job['job_id'],'token'=>Uuid::v4()]);
+    $payload=json_decode($job['payload'],true,64,JSON_THROW_ON_ERROR);$payload['_job']=['job_id'=>$job['job_id'],'attempt'=>1];
+    $incomplete=new class implements \LorkhanServer\Application\ProfileGenerationProvider{
+        public function generate(array $input,CancellationToken $cancellation):array{return ['personality'=>'Partial'];}
+    };
+    try{(new \LorkhanServer\Application\ProfileGenerateJobHandler($products,$incomplete))->handle($payload,'hypnosis-partial',static fn():bool=>true);$assert(false,'partial hypnosis saved');}
+    catch(RuntimeException $error){$assert($error->getMessage()==='provider_invalid_output','partial hypnosis failed unexpectedly');}
+    $assert($products->getRevisioned('profile',$selected)['current_revision']===$after['current_revision'],'partial hypnosis changed profile');
+
+}finally{$db->rollBack();}
+
 // Inject Event logs context without inference; Inject & Chat responds without treating it as speech.
 $db->beginTransaction();
 try{
@@ -4046,12 +4811,19 @@ try{
         &&\LorkhanServer\Application\TransferActionPolicy::sameIdentity($authoredActionPayload['target']??null,$transferRecipient),'Director action lost its parameters or spoken recipient target');
     $falseInput=$db->prepare("SELECT count(*) FROM eventlog e JOIN eventlog_metadata m USING(rowid) WHERE m.turn_id=:turn AND e.type='inputtext'");
     $falseInput->execute(['turn'=>$directorChild['turn_id']]);$assert((int)$falseInput->fetchColumn()===0,'Director authored words were projected as listener input');
-    foreach(['profileBackfillHistory','narratorEvolutionHistory'] as $historyMethod){
-        $historyArgs=[$installationId,$session['playthrough_id']];if($historyMethod==='profileBackfillHistory')$historyArgs[]=$directorChild['payload']['target'];$historyArgs[]=400;
-        $history=(new ReflectionMethod($products,$historyMethod))->invokeArgs($products,$historyArgs);
-        $directorHistory=array_values(array_filter($history['recent_events'],static fn(array $event):bool=>$event['turn_id']===$directorChild['turn_id']));
-        $assert(count($directorHistory)===1&&!isset($directorHistory[0]['player_input'])&&$directorHistory[0]['scene_event']===''
-            &&str_contains(implode(' ',$directorHistory[0]['npc_responses']),'Balmora has a long history.'),'Director history invented player speech or removed genuine NPC dialogue');
+    $history=(new ReflectionMethod($products,'profileBackfillHistory'))->invoke($products,$installationId,$session['playthrough_id'],$directorChild['payload']['target'],400);
+    $directorHistory=array_values(array_filter($history['recent_events'],static fn(array $event):bool=>$event['turn_id']===$directorChild['turn_id']));
+    $assert(count($directorHistory)===1&&!isset($directorHistory[0]['player_input'])&&$directorHistory[0]['scene_event']===''
+        &&str_contains(implode(' ',$directorHistory[0]['npc_responses']),'Balmora has a long history.'),'Director backfill history invented player speech or removed genuine NPC dialogue');
+    // Witnessed evolution reads immutable-source eventlog rows; Director turns project no listener or player input.
+    $directorSources=$db->prepare('SELECT source_event_id FROM source_events WHERE turn_id IN (:request,:child)');
+    $directorSources->execute(['request'=>$directorRequest['turn_id'],'child'=>$directorChild['turn_id']]);$directorSources=$directorSources->fetchAll(PDO::FETCH_COLUMN);
+    foreach([null,$directorChild['payload']['target']] as $witnessIdentity){
+        $witnessed=(new ReflectionMethod($products,'evolutionWitnessedEvents'))->invoke($products,$installationId,$session['playthrough_id'],$witnessIdentity,400);
+        $assert($directorSources!==[]&&array_filter($witnessed,static fn(array $event):bool=>in_array($event['type'],['inputtext','rechat'],true)
+            &&in_array($event['source_event_id'],$directorSources,true))===[]
+            &&array_filter($witnessed,static fn(array $event):bool=>str_contains($event['text'],$directorRequest['payload']['input']['text'])
+                ||str_contains($event['text'],'Client-substituted planner instructions'))===[],'Director witnessed evolution history invented player speech from off-stage direction');
     }
     $assert(!in_array($directorRequest['payload']['input']['text'],$products->recentPlayerInputs($installationId,200),true),'Director off-stage direction contaminated player speech-style samples');
     $nextChild=$transferTurn();$nextChild['payload']['execution_mode']='standard';
@@ -4194,6 +4966,11 @@ $resolveRechatError=static function(array $message)use($rechatCoordinator):strin
     try{$rechatCoordinator->resolve($message);return '';}
     catch(DomainException $error){return $error->getMessage();}
 };
+// Random mode hashes the two-minute window, so responder claims below pin the initiating Core to Conversational.
+$rechatModeOwner=$products->effectiveSettingsForActor($installationId,$session['playthrough_id'],$speakerIdentity)['core_profile'];
+$rechatModeOriginal=$products->getRevisioned('core_profile',$rechatModeOwner['core_profile_id'])['content'];
+$rechatModePinned=$rechatModeOriginal;$rechatModePinned['settings_overrides']['behavior']['rechat_mode']='conversational';
+$products->revise('core_profile',$rechatModeOwner['core_profile_id'],$rechatModePinned,'pin Rechat fixture mode',$now);
 
 $eligibleProbe=$rechatTurn;
 $eligibleProbe['payload']['audience']=[$speakerIdentity,$secondaryTarget,$thirdTarget];
@@ -4214,14 +4991,29 @@ $assert($sameActorResolved['payload']['target']===$thirdTarget
     'Rechat discarded fresh context for the same exact responder');
 $db->beginTransaction();
 $modeOwner=$products->effectiveSettingsForActor($installationId,$session['playthrough_id'],$speakerIdentity)['core_profile'];
-$modeContent=$modeOwner['content'];$modeContent['settings_overrides']['behavior']['rechat_mode']='group';
+$modeContent=$modeOwner['content'];$modeContent['settings_overrides']['behavior']['rechat_mode']='random';
+$products->revise('core_profile',$modeOwner['core_profile_id'],$modeContent,'Core random mode fixture',$now);
+// An eligible listener is the responder in every mode Random can resolve, so no window can change this claim.
+$randomProbe=$eligibleProbe;$randomProbe['payload']['context']['rechat']['listener_hint']=$thirdTarget;
+$randomWindow=intdiv(time(),120);$randomResolved=$rechatCoordinator->resolve($randomProbe);
+$randomRepeat=$rechatCoordinator->resolve($randomProbe);$randomStable=intdiv(time(),120)!==$randomWindow
+    ||$randomRepeat['payload']['context']['rechat']['mode']===$randomResolved['payload']['context']['rechat']['mode'];
+$assert($randomResolved['payload']['context']['rechat']['configured_mode']==='random'
+    &&in_array($randomResolved['payload']['context']['rechat']['mode'],['tight','conversational','group'],true)
+    &&$randomResolved['payload']['target']===$thirdTarget&&$randomStable,
+    'Rechat Random mode did not resolve one stable concrete mode for its window');
+$modeContent['settings_overrides']['behavior']['rechat_mode']='group';
 $products->revise('core_profile',$modeOwner['core_profile_id'],$modeContent,'Core mode fixture',$now);
 $modeProbe=$rechatCoordinator->resolve($eligibleProbe);
 $assert($modeProbe['payload']['context']['rechat']['configured_mode']==='group'
     &&$modeProbe['payload']['context']['rechat']['mode']==='group','Rechat coordinator ignored initiating Core mode');
 $modeContent['settings_overrides']['behavior']['open_rechat']=false;
-$modeContent['settings_overrides']['behavior']['rechat_strict_targeting']=true;
 $products->revise('core_profile',$modeOwner['core_profile_id'],$modeContent,'Core Rechat participation fixture',$now);
+// Strict targeting is the responder's reply rule; reference-scoped lookup resolves its own Core, not observed bindings.
+$strictOwner=$products->effectiveSettingsForActor($installationId,$session['playthrough_id'],$thirdTarget)['core_profile'];
+$strictContent=$products->getRevisioned('core_profile',$strictOwner['core_profile_id'])['content'];
+$strictContent['settings_overrides']['behavior']['rechat_strict_targeting']=true;
+$products->revise('core_profile',$strictOwner['core_profile_id'],$strictContent,'Core Rechat responder fixture',$now);
 $tightProbe=$eligibleProbe;$tightProbe['payload']['context']['rechat']['listener_hint']=$thirdTarget;
 $tightResolved=$rechatCoordinator->resolve($tightProbe);
 $assert($tightResolved['payload']['context']['rechat']['mode']==='tight'
@@ -4280,9 +5072,9 @@ $disabledTarget['display_name']='Disabled Rechat Actor';$disabledTarget['refnum'
 $disabledCore=$products->createRevisioned('core_profile',['installation_id'=>$installationId,
     'name'=>'Disabled rechat Core Profile','default_npc'=>false,'slot'=>null,
     'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],
-        'settings_overrides'=>['behavior'=>['rechat'=>false]]]],$now);
+        'settings_overrides'=>['behavior'=>['rechat'=>false,'rechat_probability_percent'=>0]]]],$now);
 $disabledProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,
-    'name'=>'Disabled rechat actor','actor_identity'=>['record_id'=>'disabled_rechat_actor'],
+    'name'=>'Disabled rechat actor','playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$disabledTarget,
     'core_profile_id'=>$disabledCore['core_profile_id'],'content'=>[]],$now);
 $products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
     $disabledTarget,$disabledProfile['profile_id'],$now);
@@ -4290,26 +5082,55 @@ $disabledProbe=$rechatTurn;$disabledProbe['payload']['audience']=[$speakerIdenti
 $disabledProbe['payload']['context']['rechat']['rechat_target_hint']=$disabledTarget;
 $disabledProbe['payload']['context']['rechat']['participant_states']=[
     $participantRow($speakerIdentity,'active'),$participantRow($disabledTarget,'active')];
-$assert($resolveRechatError($disabledProbe)==='rechat_no_responder',
+// Rechat is always on; the legacy flag cannot hide it, so the exact responder's zero probability disables its turn.
+$disabledEffective=$products->effectiveSettingsForActor($installationId,$session['playthrough_id'],$disabledTarget);
+$siblingEffective=$products->effectiveSettingsForActor($installationId,$session['playthrough_id'],$thirdTarget);
+$assert(($disabledEffective['core_profile']['core_profile_id']??null)===$disabledCore['core_profile_id']
+    &&$disabledEffective['settings']['behavior']['rechat']===true
+    &&$disabledEffective['settings']['behavior']['rechat_probability_percent']===0
+    &&($disabledEffective['sources']['settings.behavior.rechat_probability_percent']??null)==='core_profile'
+    &&($siblingEffective['core_profile']['core_profile_id']??null)!==$disabledCore['core_profile_id'],
+    'disabled Rechat Core did not resolve for exactly its own reference');
+$assert($resolveRechatError($disabledProbe)==='rechat_complete',
     'selected responder with effective rechat disabled was accepted');
 
 $rechatTurn['payload']['context']['rechat']['participant_states']=[
     $participantRow($speakerIdentity,'active'),$participantRow($secondaryTarget,'active')];
-$disabledActionProbe=$rechatTurn;
-$disabledActionProbe['payload']['context']['rechat']['allow_actions']=true;
-$disabledActionProbe=$rechatCoordinator->resolve($disabledActionProbe);
-$assert(($disabledActionProbe['payload']['context']['rechat']['allow_actions']??null)===false,
-    'Rechat actions did not retain the disabled default or reject the client-supplied policy flag');
+// Rechat action permission is server-owned: the selected responder's effective setting replaces any client flag.
+$resolveRechatActions=static function(bool $clientFlag)use($rechatTurn,$rechatCoordinator):mixed{
+    $probe=$rechatTurn;$probe['payload']['context']['rechat']['allow_actions']=$clientFlag;
+    return $rechatCoordinator->resolve($probe)['payload']['context']['rechat']['allow_actions']??null;
+};
+$defaultActionEffective=$products->effectiveSettingsForActor($installationId,$session['playthrough_id'],$secondaryTarget);
+$defaultActionSource=$defaultActionEffective['sources']['settings.behavior.rechat_allow_actions']??null;
+$actionCoreId=(string)($defaultActionEffective['core_profile']['core_profile_id']??'');
+$assert($defaultActionEffective['settings']['behavior']['rechat_allow_actions']===true
+    &&$defaultActionSource==='core_profile'&&$actionCoreId!==''&&$resolveRechatActions(false)===true,
+    'Rechat actions did not resolve the enabled responder Core over a client-supplied false flag: '
+    .json_encode($defaultActionSource));
+// The responder's own Core owns the value, so toggle exactly that layer and restore its prior content.
+$actionCore=$products->getRevisioned('core_profile',$actionCoreId);
+$actionCoreOff=$actionCore['content'];$actionCoreOff['settings_overrides']['behavior']['rechat_allow_actions']=false;
+$products->revise('core_profile',$actionCoreId,$actionCoreOff,'disable Rechat actions',$now);
+$disabledActionEffective=$products->effectiveSettingsForActor($installationId,$session['playthrough_id'],$secondaryTarget);
+$assert($disabledActionEffective['settings']['behavior']['rechat_allow_actions']===false
+    &&($disabledActionEffective['sources']['settings.behavior.rechat_allow_actions']??null)==='core_profile'
+    &&$resolveRechatActions(true)===false,
+    'Rechat actions did not retain the disabled Core setting or reject the client-supplied policy flag');
+$products->revise('core_profile',$actionCoreId,$actionCore['content'],'restore Rechat actions',$now);
+$assert($resolveRechatActions(false)===true,
+    'Rechat actions did not follow the restored Core setting over a client-supplied false flag');
 $rechatGlobal=$products->globalSettingsForInstallation($installationId);
 $rechatGlobalContent=$rechatGlobal['content'];
 $rechatGlobalContent['client']['behavior']['rechat_allow_actions']=true;
 $products->revise('global_settings',$rechatGlobal['configuration_id'],$rechatGlobalContent,'enable Rechat actions',$now);
 [$status,$rechatAccepted]=$call($router,'POST',$base.'/turns',$headers($rechatTurn['message_id']),[],$rechatTurn);
 $assert($status===202,'first typed rechat continuation was rejected: '.$status.' '.json_encode($rechatAccepted));
+// The durable worker prepares the Rechat prompt, so inspect the snapshot only after it has run.
+$rechatWorker=$runTurnWorker(new MockProvider());
 $rechatPrompt=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
 $rechatPrompt->execute(['turn'=>$rechatTurn['turn_id']]);
 $rechatManifest=json_decode((string)$rechatPrompt->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
-$rechatWorker=$runTurnWorker(new MockProvider());
 $rechatState=$db->prepare('SELECT state,configured_mode,mode,current_depth,max_depth,round_budget,origin_turn_id,latest_turn_id FROM rechat_chains WHERE chain_id=:chain');
 $rechatState->execute(['chain'=>$rechatChainId]);$firstRechatState=$rechatState->fetch();
 $rechatActions=$db->prepare("SELECT count(*) FROM response_events WHERE turn_id=:turn AND event_type='action.intent'");
@@ -4330,7 +5151,7 @@ $rechatDefinitions=$rechatManifest['message']['_allowed_action_definitions']??[]
     &&!str_contains($assembledRechatPrompt,'"type":"turn.requested"')
     &&!str_contains($assembledRechatPrompt,'[fallback] Continue after the primary provider fails.')
     &&$firstRechatState&&$firstRechatState['state']==='awaiting_playback'
-    &&$firstRechatState['configured_mode']==='random'&&$firstRechatState['mode']==='conversational'
+    &&$firstRechatState['configured_mode']==='conversational'&&$firstRechatState['mode']==='conversational'
     &&(int)$firstRechatState['current_depth']===1&&(int)$firstRechatState['max_depth']===2
     &&(int)$firstRechatState['round_budget']===2
     &&$firstRechatState['origin_turn_id']===$turn['turn_id']&&$firstRechatState['latest_turn_id']===$rechatTurn['turn_id']
@@ -4362,6 +5183,7 @@ $cooldownRechat['message_id']=$newUuid(827);$cooldownRechat['request_id']=$newUu
 $cooldownRechat['payload']['context']['rechat']['chain_id']=$newUuid(839);
 $assert($resolveRechatError($cooldownRechat)==='',
     'normal chain exhaustion incorrectly applied End Conversation cooldown');
+$products->revise('core_profile',$rechatModeOwner['core_profile_id'],$rechatModeOriginal,'restore Rechat fixture mode',$now);
 $endTurn=$turn;
 foreach(['message_id','request_id','turn_id']as$key)$endTurn[$key]=\LorkhanServer\Infrastructure\Uuid::v4();
 $endTurn['payload']['input']['text']='End the conversation.';
@@ -4426,24 +5248,28 @@ $products->revise('global_settings',$oghmaGlobal['configuration_id'],$oghmaGloba
 $oghmaTurn=$turn;$oghmaTurn['message_id']=$newUuid(840);$oghmaTurn['request_id']=$newUuid(841);$oghmaTurn['turn_id']=$newUuid(842);
 $oghmaTurn['payload']['input']['text']='Tell me about House Dagoth and Vivec.';
 [$status,$oghmaAccepted]=$call($router,'POST',$base.'/turns',$headers($oghmaTurn['message_id']),[],$oghmaTurn);
+$preWorkerAttempts=$db->prepare('SELECT count(*) FROM provider_attempts WHERE turn_id=:turn');
+$preWorkerAttempts->execute(['turn'=>$oghmaTurn['turn_id']]);$preWorkerAttemptCount=(int)$preWorkerAttempts->fetchColumn();
+// Oghma grounding and prompt assembly run on the durable worker, so inspect them after it prepares this turn.
+$oghmaWorker=$runTurnWorker(new MockProvider());
 $oghmaSnapshotStatement=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
 $oghmaSnapshotStatement->execute(['turn'=>$oghmaTurn['turn_id']]);
 $oghmaSnapshot=json_decode((string)$oghmaSnapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
 $oghmaTraceStatement=$db->prepare("SELECT result_ids,algorithm,reasons FROM retrieval_traces WHERE turn_id=:turn AND domain='knowledge'");
 $oghmaTraceStatement->execute(['turn'=>$oghmaTurn['turn_id']]);$oghmaTrace=$oghmaTraceStatement->fetch();
 $oghmaReasons=$oghmaTrace?json_decode((string)$oghmaTrace['reasons'],true,64,JSON_THROW_ON_ERROR):[];
-$preWorkerAttempts=$db->prepare('SELECT count(*) FROM provider_attempts WHERE turn_id=:turn');
-$preWorkerAttempts->execute(['turn'=>$oghmaTurn['turn_id']]);$preWorkerAttemptCount=(int)$preWorkerAttempts->fetchColumn();
+$oghmaExtractorAttempts=$db->prepare("SELECT count(*) FROM provider_attempts WHERE turn_id=:turn AND operation='extract_oghma_topics'");
+$oghmaExtractorAttempts->execute(['turn'=>$oghmaTurn['turn_id']]);$oghmaExtractorAttemptCount=(int)$oghmaExtractorAttempts->fetchColumn();
 $oghmaPrompt=(string)($oghmaSnapshot['message']['_prompt']['_assembled_prompt']??'');
-$assert($status===202&&$oghmaAccepted['turn_id']===$oghmaTurn['turn_id']&&$preWorkerAttemptCount===0
+$assert($status===202&&$oghmaAccepted['turn_id']===$oghmaTurn['turn_id']&&$preWorkerAttemptCount===0&&$oghmaExtractorAttemptCount===0
     &&($oghmaTrace['algorithm']??null)==='oghma-parity-v1'
     &&($oghmaReasons['_context']['extractor_status']??null)==='grounded'
     &&($oghmaReasons['_context']['extracted_topics']??[])===['sixth_house','vivec']
     &&str_contains($oghmaPrompt,'The Sixth House is the hidden House Dagoth.')
     &&str_contains($oghmaPrompt,'Vivec is one of the living gods of the Tribunal.'),
     'grounded Oghma turn did not avoid connector extraction and inject exact ordered catalog articles: '.json_encode([
-        'status'=>$status,'attempts'=>$preWorkerAttemptCount,'trace'=>$oghmaTrace,'reasons'=>$oghmaReasons],JSON_UNESCAPED_SLASHES));
-$oghmaWorker=$runTurnWorker(new MockProvider());
+        'status'=>$status,'attempts'=>$preWorkerAttemptCount,'extractor_attempts'=>$oghmaExtractorAttemptCount,'worker'=>$oghmaWorker,
+        'trace'=>$oghmaTrace,'reasons'=>$oghmaReasons],JSON_UNESCAPED_SLASHES));
 $auditRows=(new \LorkhanServer\Infrastructure\ManagementUiRepository($db))->oghmaAudit(['search'=>'Tell me about House Dagoth and Vivec.','matched'=>'matched']);
 $auditRow=current(array_filter($auditRows['rows'],static fn(array $row):bool=>$row['turn_id']===$oghmaTurn['turn_id']));
 $assert(is_array($auditRow) && is_array($auditRow['result_ids']) && count($auditRow['result_ids'])===2
@@ -4470,10 +5296,11 @@ try{
         &&(int)$db->query('SELECT count(*) FROM source_events')->fetchColumn()===$beforeDynamicSources
         &&(int)$db->query('SELECT count(*) FROM oghma_dynamic_applications')->fetchColumn()===0,'Dynamic Oghma preview wrote state or lost blank/clearall semantics');
     [$dynamicStatus]=$call($router,'POST',$base.'/turns',$headers($dynamicTurn['message_id']),[],$dynamicTurn);
+    $dynamicWorker=$runTurnWorker(new MockProvider());
     $oghmaSnapshotStatement->execute(['turn'=>$dynamicTurn['turn_id']]);$dynamicSnapshot=json_decode((string)$oghmaSnapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
     $dynamicPrompt=(string)($dynamicSnapshot['message']['_prompt']['_assembled_prompt']??'');
     $dynamicDocument=$products->knowledge($preview[0]['document']['id']);
-    $assert($dynamicStatus===202&&str_contains($dynamicPrompt,$dynamicRule['topic_desc'])
+    $assert($dynamicStatus===202&&$dynamicWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]&&str_contains($dynamicPrompt,$dynamicRule['topic_desc'])
         &&$dynamicDocument['content']===$dynamicRule['topic_desc']&&$dynamicDocument['topic_desc_basic']===''
         &&$dynamicDocument['provenance']['source_event_id']===$dynamicTurn['message_id'], 'first Dynamic Oghma response did not use and persist the exact preview');
     $applicationSource=$db->query('SELECT a.source_event_id FROM oghma_dynamic_applications a JOIN source_events e ON e.source_event_id=a.source_event_id')->fetchColumn();
@@ -4495,8 +5322,9 @@ try{
     $dynamicTurn['message_id']=$newUuid(996008);$dynamicTurn['request_id']=$newUuid(996009);$dynamicTurn['turn_id']=$newUuid(996010);
     $dynamicTurn['payload']['input']['text']='Tell me about parity new lore.';$dynamicTurn['payload']['context']['journal']['items'][0]['stage']=30;
     [$newTopicStatus]=$call($router,'POST',$base.'/turns',$headers($dynamicTurn['message_id']),[],$dynamicTurn);
+    $newTopicWorker=$runTurnWorker(new MockProvider());
     $oghmaSnapshotStatement->execute(['turn'=>$dynamicTurn['turn_id']]);$newTopicSnapshot=json_decode((string)$oghmaSnapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
-    $assert($newTopicStatus===202&&str_contains((string)($newTopicSnapshot['message']['_prompt']['_assembled_prompt']??''),'New lore appeared after the final quest stage.'),'a new Dynamic Oghma topic was missing from its first response');
+    $assert($newTopicStatus===202&&str_contains((string)($newTopicSnapshot['message']['_prompt']['_assembled_prompt']??''),'New lore appeared after the final quest stage.'),'a new Dynamic Oghma topic was missing from its first response: '.json_encode(['status'=>$newTopicStatus,'worker'=>$newTopicWorker]));
     $otherStory=$products->createRevisioned('playthrough',['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],'name'=>'Dynamic isolation','content'=>[]],$now);
     $storyReader=$products->oghmaKnowledgeForProfile($installationId,$dynamicTurn['profile_id'],['playthrough_id'=>$dynamicTurn['playthrough_id'],'search'=>'parity_new_lore']);
     $otherReader=$products->oghmaKnowledgeForProfile($installationId,$dynamicTurn['profile_id'],['playthrough_id'=>$otherStory['playthrough_id'],'search'=>'parity_new_lore']);
@@ -4504,6 +5332,35 @@ try{
     $otherKnowledge=$products->knowledgeCandidates(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],'playthrough_id'=>$otherStory['playthrough_id']]);
     $assert(!in_array('parity_new_lore',array_column($otherKnowledge,'topic'),true)
         &&count(array_filter($otherKnowledge,static fn(array $row):bool=>$row['topic']==='vivec'&&$row['content']==='Vivec is one of the living gods of the Tribunal.'))===1,'Dynamic Oghma leaked one playthrough into another');
+    // A loaded save retires abandoned-branch patches newest first, restores the replaced story row and lets the rule apply again.
+    $dynamicScope=['installation'=>$installationId,'playthrough'=>$dynamicTurn['playthrough_id']];
+    $dynamicLoadQuery=$db->prepare("SELECT e.source_event_id FROM source_events e JOIN sessions s ON s.session_id=e.session_id WHERE e.installation_id=:installation AND s.playthrough_id=:playthrough AND e.event_kind='session.init' LIMIT 1");
+    $dynamicLoadQuery->execute($dynamicScope);
+    $dynamicLoad=['message_id'=>$dynamicLoadQuery->fetchColumn(),'installation_id'=>$installationId,'playthrough_id'=>$dynamicTurn['playthrough_id']];
+    $retireDynamicSource=$db->prepare('INSERT INTO timeline_invalidated_sources(source_event_id,loaded_save_id,cutoff_minute) VALUES(:source,:load,0)');
+    $dynamicApplications=$db->prepare('SELECT count(*) FROM oghma_dynamic_applications WHERE installation_id=:installation AND playthrough_id=:playthrough');
+    $dynamicTopics=static fn():array=>array_column($products->knowledgeCandidates(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],'playthrough_id'=>$dynamicTurn['playthrough_id']]),'content','topic');
+    $abandonedStage20=$db->query("SELECT document_id FROM knowledge_documents WHERE provenance->>'source_event_id'='{$dynamicGameData['request_id']}'")->fetchColumn();
+    $sourcesBeforeRollback=(int)$db->query('SELECT count(*) FROM source_events')->fetchColumn();
+    foreach([$dynamicGameData['request_id'],$dynamicTurn['message_id']]as$retired)$retireDynamicSource->execute(['source'=>$retired,'load'=>$dynamicLoad['message_id']]);
+    $dynamicTimeline=new \LorkhanServer\Infrastructure\LoadedSaveTimeline($db);$dynamicCounts=$dynamicTimeline->invalidate($dynamicLoad);
+    $storyQuery->execute($dynamicScope);$restoredStory=$storyQuery->fetchAll();$dynamicApplications->execute($dynamicScope);$topics=$dynamicTopics();
+    $assert($dynamicCounts['dynamic_oghma']===2&&$dynamicCounts['dynamic_oghma_skipped']===0&&count($restoredStory)===1
+        &&$restoredStory[0]['content']==='A later manual story edit.'&&($topics['vivec']??null)==='A later manual story edit.'&&!isset($topics['parity_new_lore'])
+        &&(int)$dynamicApplications->fetchColumn()===1&&(int)$db->query('SELECT count(*) FROM source_events')->fetchColumn()===$sourcesBeforeRollback,
+        'loaded save did not retire abandoned Dynamic Oghma patches and restore the earlier edited story: '.json_encode(['counts'=>$dynamicCounts,'story'=>$restoredStory]));
+    $assert($dynamicTimeline->invalidate($dynamicLoad)['dynamic_oghma']===0,'repeated load changed Dynamic Oghma state again');
+    $reloadedGameData=$dynamicGameData;$reloadedGameData['request_id']=$newUuid(996011);
+    [$reloadStatus]=$call($router,'POST',$base.'/gamedata',$headers($reloadedGameData['request_id']),[],$reloadedGameData);
+    $storyQuery->execute($dynamicScope);$reappliedStory=$storyQuery->fetch();$dynamicApplications->execute($dynamicScope);
+    $reappliedStage20=$db->query("SELECT document_id FROM knowledge_documents WHERE provenance->>'source_event_id'='{$reloadedGameData['request_id']}' AND deleted_at IS NULL")->fetchColumn();
+    $assert($reloadStatus===202&&$reappliedStory['topic_desc_basic']==='Vivec has a new public account of the quest.'&&(int)$dynamicApplications->fetchColumn()===2
+        &&is_string($reappliedStage20)&&$reappliedStage20!==$abandonedStage20,'a rolled-back Dynamic Oghma stage did not apply again on the valid branch');
+    // The manually edited stage-ten document has no unmodified patch to undo, so it stays active with its application.
+    foreach([$reloadedGameData['request_id'],$newUuid(996001)]as$retired)$retireDynamicSource->execute(['source'=>$retired,'load'=>$dynamicLoad['message_id']]);
+    $editedCounts=$dynamicTimeline->invalidate($dynamicLoad);$storyQuery->execute($dynamicScope);$editedStory=$storyQuery->fetchAll();$dynamicApplications->execute($dynamicScope);
+    $assert($editedCounts['dynamic_oghma']===1&&$editedCounts['dynamic_oghma_skipped']===1&&count($editedStory)===1
+        &&$editedStory[0]['content']==='A later manual story edit.'&&(int)$dynamicApplications->fetchColumn()===1,'loaded save discarded a manual Dynamic Oghma edit: '.json_encode(['counts'=>$editedCounts,'story'=>$editedStory]));
 }finally{$db->rollBack();}
 
 $historySourceId=$newUuid(843);$historyRequestId=$newUuid(844);$historyTurnId=$newUuid(845);
@@ -4517,19 +5374,22 @@ $historySource->execute(['source'=>$historySourceId,'installation'=>$installatio
 $fallbackOghmaTurn=$turn;$fallbackOghmaTurn['message_id']=$newUuid(846);$fallbackOghmaTurn['request_id']=$newUuid(847);
 $fallbackOghmaTurn['turn_id']=$newUuid(848);$fallbackOghmaTurn['payload']['input']['text']='Tell me about an unknown forgotten island.';
 [$status]=$call($router,'POST',$base.'/turns',$headers($fallbackOghmaTurn['message_id']),[],$fallbackOghmaTurn);
-$fallbackAttempt=$db->prepare("SELECT state,operation FROM provider_attempts WHERE turn_id=:turn ORDER BY started_at");
+$preWorkerAttempts->execute(['turn'=>$fallbackOghmaTurn['turn_id']]);$fallbackPreWorkerAttemptCount=(int)$preWorkerAttempts->fetchColumn();
+// The connector fallback runs during durable context preparation, so inspect it after the worker prepares this turn.
+$fallbackOghmaWorker=$runTurnWorker(new MockProvider());
+$fallbackAttempt=$db->prepare("SELECT state,operation FROM provider_attempts WHERE turn_id=:turn AND operation='extract_oghma_topics' ORDER BY started_at");
 $fallbackAttempt->execute(['turn'=>$fallbackOghmaTurn['turn_id']]);$fallbackAttemptRows=$fallbackAttempt->fetchAll();
 $fallbackTraceStatement=$db->prepare("SELECT algorithm,reasons FROM retrieval_traces WHERE turn_id=:turn AND domain='knowledge'");
 $fallbackTraceStatement->execute(['turn'=>$fallbackOghmaTurn['turn_id']]);$fallbackOghmaTrace=$fallbackTraceStatement->fetch();
 $fallbackOghmaReasons=$fallbackOghmaTrace?json_decode((string)$fallbackOghmaTrace['reasons'],true,64,JSON_THROW_ON_ERROR):[];
-$assert($status===202&&$fallbackAttemptRows===[['state'=>'succeeded','operation'=>'extract_oghma_topics']]
+$assert($status===202&&$fallbackPreWorkerAttemptCount===0&&$fallbackAttemptRows===[['state'=>'succeeded','operation'=>'extract_oghma_topics']]
     &&($fallbackOghmaTrace['algorithm']??null)==='oghma-parity-v1'
     &&($fallbackOghmaReasons['_context']['extractor_status']??null)==='fallback_succeeded'
     &&($fallbackOghmaReasons['_context']['suggested_topics']??[])===['Vivec']
     &&($fallbackOghmaReasons['_context']['extracted_topics']??[])===['vivec'],
     'explicit unresolved Oghma request did not make exactly one catalog-constrained connector fallback: '.json_encode([
-        'status'=>$status,'attempts'=>$fallbackAttemptRows,'trace'=>$fallbackOghmaTrace,'reasons'=>$fallbackOghmaReasons],JSON_UNESCAPED_SLASHES));
-$fallbackOghmaWorker=$runTurnWorker(new MockProvider());
+        'status'=>$status,'pre_worker_attempts'=>$fallbackPreWorkerAttemptCount,'attempts'=>$fallbackAttemptRows,
+        'worker'=>$fallbackOghmaWorker,'trace'=>$fallbackOghmaTrace,'reasons'=>$fallbackOghmaReasons],JSON_UNESCAPED_SLASHES));
 $assert($fallbackOghmaWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],
     'fallback-grounded Oghma turn did not complete through the normal response pipeline');
 
@@ -4595,11 +5455,17 @@ $capturedSpeech=new class implements \LorkhanServer\Application\SpeechProvider {
 };
 $speechRegistry=new \LorkhanServer\Application\JobHandlerRegistry([new \LorkhanServer\Application\SpeechSynthesizeJobHandler(
     new Repository($db),$capturedSpeech,$mediaStore,$attempts,null)]);
+// Profile-routed speech retries from earlier turns can become due first; order this job ahead without claiming them.
+$db->prepare("UPDATE durable_jobs SET next_run_at=clock_timestamp()-interval '1 hour' WHERE job_type='speech.synthesize' AND idempotency_key=:key AND state='queued'")
+    ->execute(['key'=>'speech:'.$translationDialogue['dialogue_message_id']]);
 $translationSpeechStats=(new Worker(new JobRepository($db),$speechRegistry,'translation-speech-worker',5,1,1,0,10,
     ['speech.synthesize'],static fn(int$microseconds):mixed=>null))->run();
 $translationTtsAttempt=$db->prepare("SELECT input_bytes FROM provider_attempts WHERE turn_id=:turn AND provider_kind='tts'");
 $translationTtsAttempt->execute(['turn'=>$translationTurn['turn_id']]);
+$translationJobState=$db->prepare("SELECT state FROM durable_jobs WHERE job_type='speech.synthesize' AND idempotency_key=:key");
+$translationJobState->execute(['key'=>'speech:'.$translationDialogue['dialogue_message_id']]);
 $assert($translationSpeechStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
+    &&$translationJobState->fetchColumn()==='succeeded'
     &&$capturedSpeech->inputs===[$expectedTranslation]
     &&(int)$translationTtsAttempt->fetchColumn()===strlen($expectedTranslation),
     'speech worker did not synthesize the TTS text frozen in the durable job payload');
@@ -4632,6 +5498,66 @@ $assert($status===202&&$translationFailureStats===['claimed'=>1,'succeeded'=>1,'
     &&$translationFailureAttempt->fetch()===['state'=>'failed','error_code'=>'provider_unavailable','error_detail'=>null],
     'translation failure did not preserve original dialogue with a redacted failed provider attempt');
 
+// Unvoiceable lines end in one terminal speech.failed notice without media, keeping non-final retries.
+$failingSpeech=new class implements \LorkhanServer\Application\SpeechProvider {
+    public int$calls=0;
+    public function synthesize(string$text,\LorkhanServer\Application\CancellationToken$cancellation,array$context=[]):array{
+        ++$this->calls;throw new RuntimeException('sensitive upstream detail');
+    }
+};
+$speechOutcomeWorker=function(?\LorkhanServer\Application\SpeechProvider$speechProvider,string$dialogueId)use($db,$mediaStore,$attempts):array{
+    $db->prepare("UPDATE durable_jobs SET next_run_at=clock_timestamp()-interval '1 day' WHERE job_type='speech.synthesize' AND idempotency_key=:key AND state='queued'")
+        ->execute(['key'=>'speech:'.$dialogueId]);
+    return(new Worker(new JobRepository($db),new \LorkhanServer\Application\JobHandlerRegistry([new \LorkhanServer\Application\SpeechSynthesizeJobHandler(
+        new Repository($db),$speechProvider,$mediaStore,$attempts,null)]),'speech-outcome-worker',5,1,1,0,10,
+        ['speech.synthesize'],static fn(int$microseconds):mixed=>null))->run();
+};
+$speechOutcome=function(string$dialogueId)use($db):array{
+    $media=$db->prepare('SELECT codec,mime_type,duration_ms,byte_count FROM media_objects WHERE dialogue_message_id=:id');$media->execute(['id'=>$dialogueId]);
+    $events=$db->prepare("SELECT event_type,payload FROM response_events WHERE event_type IN ('speech.ready','speech.failed') AND payload->>'dialogue_message_id'=:id ORDER BY sequence");$events->execute(['id'=>$dialogueId]);
+    $job=$db->prepare("SELECT state,attempt_count FROM durable_jobs WHERE job_type='speech.synthesize' AND idempotency_key=:key");$job->execute(['key'=>'speech:'.$dialogueId]);
+    return['media'=>$media->fetch()?:null,'events'=>array_map(static fn(array$row):array=>['type'=>$row['event_type'],
+        'payload'=>json_decode($row['payload'],true,8,JSON_THROW_ON_ERROR)],$events->fetchAll()),'job'=>$job->fetch()?:null];
+};
+$translationDialogueStatement->execute(['turn'=>$translationFailureTurn['turn_id']]);
+$failedSpeechDialogue=(string)$translationDialogueStatement->fetch()['dialogue_message_id'];
+$failedSpeechRetry=$speechOutcomeWorker($failingSpeech,$failedSpeechDialogue);$failedSpeechRetryOutcome=$speechOutcome($failedSpeechDialogue);
+$assert($failedSpeechRetry===['claimed'=>1,'succeeded'=>0,'retried'=>1,'dead'=>0]&&$failingSpeech->calls===1
+    &&$failedSpeechRetryOutcome['media']===null&&$failedSpeechRetryOutcome['events']===[]
+    &&$failedSpeechRetryOutcome['job']===['state'=>'queued','attempt_count'=>1],
+    'non-final speech failure did not keep the retry path: '.json_encode($failedSpeechRetryOutcome));
+$db->prepare("UPDATE durable_jobs SET max_attempts=2 WHERE job_type='speech.synthesize' AND idempotency_key=:key")->execute(['key'=>'speech:'.$failedSpeechDialogue]);
+$failedSpeechFinal=$speechOutcomeWorker($failingSpeech,$failedSpeechDialogue);$failedSpeechFinalOutcome=$speechOutcome($failedSpeechDialogue);
+$failedSpeechAttempts=$db->prepare("SELECT state,error_code,error_detail FROM provider_attempts WHERE turn_id=:turn AND provider_kind='tts' ORDER BY started_at");
+$failedSpeechAttempts->execute(['turn'=>$translationFailureTurn['turn_id']]);
+$assert($failedSpeechFinal===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]&&$failingSpeech->calls===2
+    &&$failedSpeechFinalOutcome['job']===['state'=>'succeeded','attempt_count'=>2]&&$failedSpeechFinalOutcome['media']===null
+    &&$failedSpeechFinalOutcome['events']===[['type'=>'speech.failed','payload'=>['code'=>'provider_unavailable',
+        'dialogue_message_id'=>$failedSpeechDialogue]]]
+    &&$failedSpeechAttempts->fetchAll()===array_fill(0,2,['state'=>'failed','error_code'=>'provider_unavailable','error_detail'=>null]),
+    'exhausted speech retries did not publish one terminal no-audio notice: '.json_encode($failedSpeechFinalOutcome));
+// The notice is terminal: a re-leased job neither re-synthesizes nor publishes a second outcome.
+$db->prepare("UPDATE durable_jobs SET state='queued',max_attempts=3 WHERE job_type='speech.synthesize' AND idempotency_key=:key")->execute(['key'=>'speech:'.$failedSpeechDialogue]);
+$failedSpeechReplay=$speechOutcomeWorker($failingSpeech,$failedSpeechDialogue);
+$assert($failedSpeechReplay['succeeded']===1&&$failingSpeech->calls===2&&$speechOutcome($failedSpeechDialogue)['events']===$failedSpeechFinalOutcome['events'],
+    'terminal speech.failed was not idempotent across a replayed speech job');
+$biographyService->revise('translation_policy',$translationCurrent['configuration_id'],$translationEnabled,'enable unconfigured speech probe');
+$unconfiguredSpeechTurn=$turn;$unconfiguredSpeechTurn['message_id']=$newUuid(771001);$unconfiguredSpeechTurn['request_id']=$newUuid(771002);
+$unconfiguredSpeechTurn['turn_id']=$newUuid(771003);$unconfiguredSpeechTurn['payload']['input']['text']='[oghma: Vivec] Speak without a voice.';
+[$status]=$call($router,'POST',$base.'/turns',$headers($unconfiguredSpeechTurn['message_id']),[],$unconfiguredSpeechTurn);
+$translationCurrent=$products->translationPolicyForInstallation($installationId);
+$biographyService->revise('translation_policy',$translationCurrent['configuration_id'],
+    \LorkhanServer\Application\TranslationPolicy::defaults(),'disable after unconfigured speech acceptance');
+$assert($status===202&&$runWorker(['turn.process'],new MockProvider(),null,$unavailableTranslation)['succeeded']===1,'unconfigured speech turn failed');
+$translationDialogueStatement->execute(['turn'=>$unconfiguredSpeechTurn['turn_id']]);
+$unconfiguredSpeechDialogue=(string)$translationDialogueStatement->fetch()['dialogue_message_id'];
+$unconfiguredSpeech=$speechOutcomeWorker(null,$unconfiguredSpeechDialogue);$unconfiguredSpeechOutcome=$speechOutcome($unconfiguredSpeechDialogue);
+$assert($unconfiguredSpeech===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
+    &&$unconfiguredSpeechOutcome['job']===['state'=>'succeeded','attempt_count'=>1]
+    &&$unconfiguredSpeechOutcome['media']===null&&$unconfiguredSpeechOutcome['events']===[['type'=>'speech.failed',
+        'payload'=>['code'=>'provider_unconfigured','dialogue_message_id'=>$unconfiguredSpeechDialogue]]],
+    'speech without a provider did not reach a terminal no-audio notice: '.json_encode($unconfiguredSpeechOutcome));
+
 // A result continuation replaces the client's generic text with the configured server-owned prompt.
 $configuredFollowupPrompt='Configured result prompt sentinel: react to the observed outcome only.';
 $db->prepare('UPDATE action_intents SET followup_enabled=true,followup_prompt=:prompt WHERE action_id=:action')
@@ -4649,10 +5575,21 @@ $followupTurn['payload']['recent_action_results']=[[
 $followupSnapshot=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
 $followupSnapshot->execute(['turn'=>$followupTurn['turn_id']]);
 $followupManifest=json_decode((string)$followupSnapshot->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+// Acceptance freezes the server-owned input; the durable worker assembles the prompt from it later.
 $assert($status===202
     &&($followupManifest['message']['payload']['input']['text']??null)===$configuredFollowupPrompt
-    &&str_contains((string)($followupManifest['message']['_prompt']['_assembled_prompt']??''),$configuredFollowupPrompt),
-    'configured action follow-up prompt did not replace the client placeholder in the frozen model input');
+    &&($followupManifest['message']['_deferred_context']??null)===true
+    &&!isset($followupManifest['message']['_prompt']),
+    'configured action follow-up prompt did not replace the client placeholder at acceptance');
+$followupWorker=$runWorker(['turn.process'],new MockProvider());
+$followupSnapshot->execute(['turn'=>$followupTurn['turn_id']]);
+$followupPrepared=json_decode((string)$followupSnapshot->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$assert($followupWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
+    &&($followupPrepared['message']['payload']['input']['text']??null)===$configuredFollowupPrompt
+    &&!isset($followupPrepared['message']['_deferred_context'])
+    &&str_contains((string)($followupPrepared['message']['_prompt']['_assembled_prompt']??''),$configuredFollowupPrompt)
+    &&!str_contains((string)($followupPrepared['message']['_prompt']['_assembled_prompt']??''),'Client generic follow-up text.'),
+    'worker-prepared follow-up prompt did not use the configured server-owned input: '.json_encode(['worker'=>$followupWorker]));
 
 $deleteKey = $newUuid(50);
 [$status] = $call($router, 'DELETE', $base . '/sessions/' . $sessionId, []);
@@ -4965,8 +5902,22 @@ try {
     $observedTurn=$db->query("SELECT t.turn_id,t.target,s.installation_id,s.session_id,s.playthrough_id,s.generation FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE t.target->>'kind'='npc' AND t.target->>'content_file' IS NOT NULL ORDER BY t.accepted_at LIMIT 1")->fetch();
     $assert(is_array($observedTurn),'NPC observation fixture needs an accepted NPC turn');
     $identity=json_decode($observedTurn['target'],true,32,JSON_THROW_ON_ERROR);
-    $observedProfile=$products->createRevisioned('profile',['installation_id'=>$observedTurn['installation_id'],'name'=>'Info observation regression',
-        'actor_identity'=>$identity,'content'=>[]],$now);
+    // Reference-scoped profile keys are unique, so observe the exact NPC's existing profile when earlier fixtures created it.
+    $observedProfileId=\LorkhanServer\Domain\ProfileId::forActor($observedTurn['installation_id'],$observedTurn['playthrough_id'],$identity);
+    $existingObserved=$db->prepare('SELECT actor_identity FROM profiles WHERE installation_id=:installation AND profile_id=:profile AND deleted_at IS NULL');
+    $existingObserved->execute(['installation'=>$observedTurn['installation_id'],'profile'=>$observedProfileId]);
+    $existingObservedIdentity=$existingObserved->fetchColumn();
+    if($existingObservedIdentity===false){
+        $observedProfile=$products->createRevisioned('profile',['installation_id'=>$observedTurn['installation_id'],'name'=>'Info observation regression',
+            'playthrough_id'=>$observedTurn['playthrough_id'],'actor_identity'=>$identity,'content'=>[]],$now);
+    }else{
+        $existingObservedIdentity=json_decode($existingObservedIdentity,true,32,JSON_THROW_ON_ERROR);
+        $assert(array_intersect_key($existingObservedIdentity,array_flip(['kind','record_id','content_file','refnum']))
+            ==array_intersect_key($identity,array_flip(['kind','record_id','content_file','refnum'])),
+            'NPC observation fixture profile does not own the observed exact reference');
+        $observedProfile=['profile_id'=>$observedProfileId];
+    }
+    $assert($observedProfile['profile_id']===$observedProfileId,'NPC observation fixture profile is not reference scoped');
     $context=['inventory'=>['items'=>[['record_id'=>'PRIVATE_PLAYER_ITEMS']]],'targetState'=>[
         'stats'=>['level'=>5,'magicka'=>['current'=>0,'base'=>20]],
         'skills'=>['sneak'=>['base'=>0,'modified'=>0,'private'=>'PRIVATE_SKILL']],
@@ -4990,7 +5941,7 @@ try {
         &&!str_contains(json_encode($inventoryObservation),'PRIVATE_'),'NPC inventory sorting, bounds or safe projection failed');
     $otherIdentity=$identity;$otherIdentity['refnum']=['index'=>987654321,'content_file'=>0];
     $otherReference=$products->createRevisioned('profile',['installation_id'=>$observedTurn['installation_id'],'name'=>'Other NPC reference regression',
-        'actor_identity'=>$otherIdentity,'content'=>[]],$now);
+        'playthrough_id'=>$observedTurn['playthrough_id'],'actor_identity'=>$otherIdentity,'content'=>[]],$now);
     $assert($products->npcObservedState($observedTurn['installation_id'],$otherReference['profile_id'])===[],
         'NPC observation crossed an exact reference boundary');
     $assert($products->npcObservedState('99999999-0000-4000-8000-000000000001',$observedProfile['profile_id'])===[],
@@ -5072,8 +6023,18 @@ try {
     $nextInventory=$inventoryMessage;$nextInventory['request_id']=\LorkhanServer\Infrastructure\Uuid::v4();
     $nextInventory['session_id']=$nextSession;$nextInventory['generation']=$nextGeneration;$nextInventory['playthrough_id']=$nextPlaythrough['playthrough_id'];
     $repo->acceptGameData($nextInventory);
-    $nextObserved=$products->npcObservedState($observedTurn['installation_id'],$observedProfile['profile_id']);
+    // Reference-scoped profiles never span playthroughs, so the same exact reference owns a distinct profile here.
+    $nextProfileId=\LorkhanServer\Domain\ProfileId::forActor($observedTurn['installation_id'],$nextPlaythrough['playthrough_id'],$identity);
+    $nextProfile=$products->createRevisioned('profile',['installation_id'=>$observedTurn['installation_id'],'name'=>'Info observation next playthrough',
+        'playthrough_id'=>$nextPlaythrough['playthrough_id'],'actor_identity'=>$identity,'content'=>[]],$now);
+    $assert($nextProfile['profile_id']===$nextProfileId&&$nextProfileId!==$observedProfile['profile_id'],
+        'next playthrough NPC profile is not a distinct reference-scoped profile');
+    $previousObserved=$products->npcObservedState($observedTurn['installation_id'],$observedProfile['profile_id']);
+    $assert(($previousObserved['inventory_source_event_id']??null)!==$nextInventory['request_id'],
+        'previous playthrough profile received another playthrough inventory');
+    $nextObserved=$products->npcObservedState($observedTurn['installation_id'],$nextProfile['profile_id']);
     $assert($nextObserved['playthrough_name']==='Inventory new playthrough'&&!isset($nextObserved['state']['stats'])
+        &&$nextObserved['state']['inventory']===$liveInventory['state']['inventory']
         &&$nextObserved['inventory_source_event_id']===$nextInventory['request_id']
         &&$nextObserved['observed_at']===$nextObserved['inventory_observed_at'],
         'fresh inventory was combined with another playthrough stats or mislabelled observation time');
@@ -5253,8 +6214,11 @@ try {
     $db->prepare("UPDATE sessions SET capabilities=array_remove(array_append(capabilities,'debug.commands.v1'),'speech.browser.v1') WHERE session_id=:id")
         ->execute(['id'=>$browserSession]);
     $managerSession=$db->query("SELECT * FROM sessions WHERE session_id=".$db->quote($browserSession))->fetch();
-    $managerIdentity=json_decode($db->query("SELECT target FROM turns WHERE target->>'kind'='npc' AND target->>'content_file' IS NOT NULL ORDER BY accepted_at LIMIT 1")->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
-    $managerProfile=$products->createRevisioned('profile',['installation_id'=>$managerSession['installation_id'],'name'=>'NPC manager regression','actor_identity'=>$managerIdentity,'content'=>[]],$now);
+    // Earlier fixtures already own the turn actor's profile reference; use a distinct exact actor in the active playthrough.
+    // Keys follow jsonb order so the stored binding round-trips to an identical array.
+    $managerIdentity=['cell'=>['kind'=>'interior','name'=>'Balmora, Manager Regression'],'kind'=>'npc',
+        'refnum'=>['index'=>55720,'content_file'=>0],'record_id'=>'npc_manager_regression','content_file'=>'Morrowind.esm','display_name'=>'Manager Regression'];
+    $managerProfile=$products->createRevisioned('profile',['installation_id'=>$managerSession['installation_id'],'name'=>'NPC manager regression','playthrough_id'=>$managerSession['playthrough_id'],'actor_identity'=>$managerIdentity,'content'=>[]],$now);
     $managerId=$managerProfile['profile_id'];
     $assert($products->npcManagerStatus($managerId)['reason_code']==='npc_manager_profile_not_bound','NPC manager guessed an unbound profile target');
     $products->bindActorProfile($managerSession,$managerIdentity,$managerId,$now);
@@ -5408,7 +6372,14 @@ SQL);
 $reportInstallation=\LorkhanServer\Infrastructure\Uuid::v4();
 $db->prepare('INSERT INTO installations(installation_id,token_fingerprint) VALUES(:id,:token)')->execute(['id'=>$reportInstallation,'token'=>hash('sha256',$reportInstallation)]);
 $reportProducts=new \LorkhanServer\Infrastructure\ProductRepository($db);$reportNow=gmdate('c');
-$reportNpc=$reportProducts->createRevisioned('profile',['installation_id'=>$reportInstallation,'name'=>'Report NPC','actor_identity'=>['kind'=>'actor','record_id'=>'report_npc'],'content'=>['biography'=>'Born in Balmora','personality'=>'Reserved','management'=>['locked'=>true]]],$reportNow);
+// NPC profiles belong to the playthrough of an admitted character session and its unscoped player owner.
+$reportSession=$session;$reportSession['installation_id']=$reportInstallation;$reportSession['profile_id']=Uuid::v4();
+$reportSession['playthrough_id']=Uuid::v4();$reportSession['message_id']=Uuid::v4();$reportSession['generation']=1;
+$reportSession['character_id']=Uuid::v4();$reportSession['character_binding']='new';unset($reportSession['loaded_save']);
+$repo->createSession($reportSession,Uuid::v4(),$tokenHash);$reportPlaythrough=$reportSession['playthrough_id'];
+$reportNpc=$reportProducts->createRevisioned('profile',['installation_id'=>$reportInstallation,'playthrough_id'=>$reportPlaythrough,'name'=>'Report NPC',
+    'actor_identity'=>['kind'=>'npc','record_id'=>'report_npc','content_file'=>'morrowind.esm','refnum'=>['index'=>5801,'content_file'=>0]],
+    'content'=>['biography'=>'Born in Balmora','personality'=>'Reserved','management'=>['locked'=>true]]],$reportNow);
 $reportNpcId=$reportNpc['profile_id'];$reports=new \LorkhanServer\Infrastructure\NpcEvolutionReportRepository($db);
 try{$reports->enqueue($reportInstallation,$reportNpcId,\LorkhanServer\Infrastructure\Uuid::v4());$assert(false,'disabled report connector queued');}catch(InvalidArgumentException $e){$assert($e->getMessage()==='report_connector_disabled','wrong report disabled error');}
 $reportProvider=$reportProducts->createRevisioned('provider',['installation_id'=>$reportInstallation,'name'=>'Mock report connector','content'=>['driver'=>'mock','model'=>'report-test']],$reportNow);
@@ -5431,7 +6402,8 @@ $assert($claimed['job_id']===$reportQueued['job_id']&&$claimed['max_attempts']==
 $assert($claimed['payload']['provider_configuration_id']===$backgroundProvider['configuration_id'],'report used Summaries instead of Background Tasks');
 $reportHandler=new \LorkhanServer\Application\NpcEvolutionReportJobHandler($reports,$reportProducts,new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db));
 // Availability switches retain selected routes and stop both enqueue and already queued provider work.
-$taskNpc=$reportProducts->createRevisioned('profile',['installation_id'=>$reportInstallation,'name'=>'Task availability NPC','actor_identity'=>['kind'=>'actor'],'content'=>[]],$reportNow);
+$taskNpc=$reportProducts->createRevisioned('profile',['installation_id'=>$reportInstallation,'playthrough_id'=>$reportPlaythrough,'name'=>'Task availability NPC',
+    'actor_identity'=>['kind'=>'npc','record_id'=>'task_availability_npc','content_file'=>'morrowind.esm','refnum'=>['index'=>5802,'content_file'=>0]],'content'=>[]],$reportNow);
 try{$reportProducts->enqueueProfileGeneration($taskNpc['profile_id']);$assert(false,'unassigned profile tasks queued');}catch(InvalidArgumentException $e){$assert($e->getMessage()==='profile_generation_connector_unavailable','wrong missing profile connector error');}
 $taskHandler=new \LorkhanServer\Application\ProfileGenerateJobHandler($reportProducts,null);
 try{$taskHandler->handle(['profile_id'=>$taskNpc['profile_id'],'base_revision'=>1,'_job'=>['job_id'=>\LorkhanServer\Infrastructure\Uuid::v4(),'attempt'=>1]],'test',static fn()=>true);$assert(false,'legacy profile job used runtime provider');}catch(RuntimeException $e){$assert($e->getMessage()==='profile_generation_connector_unavailable','wrong missing queued profile connector error');}
@@ -5464,8 +6436,13 @@ try{$reports->save($claimed['job_id'],1,$claimed['lease_token'],'late result');$
 try{$reports->status('00000000-0000-4000-8000-000000000001',$reportNpcId,$claimed['job_id']);$assert(false,'cross-installation report exposed');}catch(RuntimeException){$assert(true,'report scope rejection');}
 
 // Master AI Off retires output, not the session, STT or passive game observations.
-$aiQuery=$db->prepare("SELECT * FROM sessions WHERE installation_id=:installation AND state='active' ORDER BY created_at DESC LIMIT 1");
-$aiQuery->execute(['installation'=>$installationId]);$aiSession=$aiQuery->fetch();$assert((bool)$aiSession,'AI fixture needs active session');
+// The rollback restore above correctly ended every live session, so reconnect through the normal handshake.
+$aiQuery=$db->prepare('SELECT max(generation) FROM sessions WHERE installation_id=:installation');$aiQuery->execute(['installation'=>$installationId]);
+$aiHandshake=$session;$aiHandshake['message_id']=Uuid::v4();$aiHandshake['generation']=(int)$aiQuery->fetchColumn()+1;
+[$status,$aiAccepted]=$call($router,'POST',$base.'/sessions',$headers($aiHandshake['message_id']),[],$aiHandshake);
+$assert($status===201&&$aiAccepted['generation']===$aiHandshake['generation'],'AI fixture session handshake failed: '.$status);
+$aiQuery=$db->prepare("SELECT * FROM sessions WHERE session_id=:session AND state='active'");
+$aiQuery->execute(['session'=>$aiAccepted['session_id']]);$aiSession=$aiQuery->fetch();$assert((bool)$aiSession,'AI fixture needs active session');
 $aiTurn=$fixture('turn');foreach(['installation_id','profile_id','playthrough_id','content_fingerprint','session_id']as$key)$aiTurn[$key]=$aiSession[$key];
 $aiTurn['generation']=(int)$aiSession['generation'];foreach(['message_id','request_id','turn_id']as$key)$aiTurn[$key]=Uuid::v4();
 $repo->acceptTurn($aiTurn);
@@ -5517,16 +6494,39 @@ $assert($oldCharacterTurn->fetchColumn()==='cancelled','same-character session r
 $guardCounts=fn()=>array_map('intval',$db->query('SELECT (SELECT count(*) FROM installations) AS installations,(SELECT count(*) FROM profiles) AS profiles,
     (SELECT count(*) FROM playthroughs) AS playthroughs,(SELECT count(*) FROM sessions) AS sessions,(SELECT count(*) FROM source_events) AS sources,
     (SELECT count(*) FROM character_playthrough_bindings) AS bindings')->fetch());
-foreach(['legacy','character_conflict','fresh_unknown_existing'] as $bindingCase){
+foreach(['legacy','character_conflict','unknown_existing'] as $bindingCase){
     $rejected=$characterReload;$rejected['message_id']=Uuid::v4();$rejected['generation']=3;$expected='character_binding_conflict';
     if($bindingCase==='legacy'){unset($rejected['character_id'],$rejected['character_binding']);$expected='character_binding_required';}
     if($bindingCase==='character_conflict')$rejected['character_id']=Uuid::v4();
-    if($bindingCase==='fresh_unknown_existing'){$rejected['installation_id']=Uuid::v4();$rejected['character_id']=Uuid::v4();$rejected['profile_id']=Uuid::v4();$rejected['playthrough_id']=Uuid::v4();$rejected['character_binding']='existing';}
+    if($bindingCase==='unknown_existing'){$rejected['character_id']=Uuid::v4();$rejected['profile_id']=Uuid::v4();$rejected['playthrough_id']=Uuid::v4();$rejected['character_binding']='existing';}
     $before=$guardCounts();$snapshotCalled=false;
     try{$repo->createSession($rejected,Uuid::v4(),$tokenHash,null,function()use(&$snapshotCalled):void{$snapshotCalled=true;});$assert(false,'unsafe character admission accepted');}
     catch(DomainException $error){$assert($error->getMessage()===$expected,'unexpected character admission error: '.$error->getMessage());}
     $assert($guardCounts()===$before&&!$snapshotCalled&&$repo->session($characterReloadId,2)['state']==='active','rejected admission created data, captured backup or retired the outgoing session');
 }
+// A paired installation with no worlds (gameplay reset) rebuilds the first saved character only inside its own scope.
+$foreignCounts=fn(string $own)=>array_map('intval',(function()use($db,$own){$q=$db->prepare('SELECT (SELECT count(*) FROM installations WHERE installation_id<>:own) AS installations,
+    (SELECT count(*) FROM profiles WHERE installation_id<>:own) AS profiles,(SELECT count(*) FROM playthroughs WHERE installation_id<>:own) AS playthroughs,
+    (SELECT count(*) FROM sessions WHERE installation_id<>:own) AS sessions,(SELECT count(*) FROM source_events WHERE installation_id<>:own) AS sources,
+    (SELECT count(*) FROM character_playthrough_bindings WHERE installation_id<>:own) AS bindings');$q->execute(['own'=>$own]);return$q->fetch();})());
+$rebuild=$characterReload;$rebuild['message_id']=Uuid::v4();$rebuild['generation']=3;$rebuild['character_binding']='existing';
+foreach(['installation_id','character_id','profile_id','playthrough_id'] as $key)$rebuild[$key]=Uuid::v4();
+$before=$foreignCounts($rebuild['installation_id']);$rebuildSnapshot=null;$rebuildId=Uuid::v4();
+$rebuilt=$repo->createSession($rebuild,$rebuildId,$tokenHash,null,function(array $message)use(&$rebuildSnapshot):void{$rebuildSnapshot=$message;});
+$rebuildState=$products->characterPlaythroughState($rebuild['installation_id']);
+$assert($rebuilt['character_id']===$rebuild['character_id']&&$rebuilt['playthrough_id']===$rebuild['playthrough_id']
+    &&count($rebuildState['bindings'])===1&&$rebuildState['bindings'][0]['character_id']===$rebuild['character_id']
+    &&$rebuildState['bindings'][0]['playthrough_id']===$rebuild['playthrough_id']&&$rebuildState['bindings'][0]['binding_mode']==='existing','gameplay-reset rebuild did not bind the saved character');
+$assert(($rebuildSnapshot['installation_id']??null)===$rebuild['installation_id']&&$rebuildSnapshot['playthrough_id']===$rebuild['playthrough_id'],'gameplay-reset snapshot used another scope');
+$assert($foreignCounts($rebuild['installation_id'])===$before&&$repo->session($characterReloadId,2)['state']==='active','gameplay-reset rebuild touched another installation');
+$rebuildReload=$rebuild;$rebuildReload['message_id']=Uuid::v4();$rebuildReload['generation']=4;
+$rebuildReloaded=$repo->createSession($rebuildReload,Uuid::v4(),$tokenHash);
+$assert($rebuildReloaded['playthrough_id']===$rebuild['playthrough_id']&&$rebuildReloaded['profile_id']===$rebuilt['profile_id']
+    &&count($products->characterPlaythroughState($rebuild['installation_id'])['bindings'])===1,'gameplay-reset rebuild was not idempotent');
+$rebuildLate=$rebuild;foreach(['message_id','character_id','profile_id','playthrough_id'] as $key)$rebuildLate[$key]=Uuid::v4();$rebuildLate['generation']=5;
+try{$repo->createSession($rebuildLate,Uuid::v4(),$tokenHash);$assert(false,'second unknown world adopted after rebuild');}
+catch(DomainException $error){$assert($error->getMessage()==='character_binding_conflict','unexpected post-rebuild admission error: '.$error->getMessage());}
+$assert($foreignCounts($rebuild['installation_id'])===$before&&$repo->session($characterReloadId,2)['state']==='active','gameplay-reset reload touched another installation');
 // The saved owner hint may refer to the previous character; new worlds get a fresh blank owner.
 $worldNpcTarget=['kind'=>'npc','record_id'=>'parity_world_npc','refnum'=>['index'=>4242,'content_file'=>0],
     'content_file'=>'Morrowind.esm','cell'=>['kind'=>'interior','name'=>'Balmora'],'display_name'=>'World NPC'];
@@ -5761,11 +6761,13 @@ $assert($timelineProbe->eventSourcesActive([],$installationId,$session['playthro
 $assert(!$timelineProbe->eventSourcesActive([Uuid::v4()],$installationId,$session['playthrough_id']), 'unknown witnessed source accepted');
 $assert(!$timelineProbe->eventSourcesActive(['not-an-id'],$installationId,$session['playthrough_id']), 'malformed witnessed source accepted');
 $evolutionHistoryMethod=new ReflectionMethod($products,'evolutionWitnessedEvents');
-$evolutionSnapshot=$evolutionHistoryMethod->invoke($products,$installationId,$session['playthrough_id'],null,100);
-$assert(count($evolutionSnapshot)<=100&&strlen(json_encode($evolutionSnapshot,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))<=16384,
+$evolutionSnapshot=$evolutionHistoryMethod->invoke($products,$installationId,$session['playthrough_id'],null,400);
+$assert(count($evolutionSnapshot)<=400&&strlen(json_encode($evolutionSnapshot,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))<=16384,
     'witnessed evolution history exceeded bound');
 $evolutionSources=array_values(array_unique(array_column($evolutionSnapshot,'source_event_id')));
 $assert($timelineProbe->eventSourcesActive($evolutionSources,$installationId,$session['playthrough_id']), 'frozen event snapshot has invalid provenance');
+if($evolutionSources!==[])$assert(!$timelineProbe->eventSourcesActive([...$evolutionSources,$evolutionSources[0]],$installationId,$session['playthrough_id']), 'duplicate witnessed source accepted');
+$assert(!$timelineProbe->eventSourcesActive(array_map(static fn()=>Uuid::v4(),range(1,401)),$installationId,$session['playthrough_id']), 'unbounded witnessed source list accepted');
 if($evolutionSources!==[])$assert(!$timelineProbe->eventSourcesActive($evolutionSources,$installationId,Uuid::v4()), 'witnessed evolution history crossed playthrough scope');
 
 fwrite(STDOUT, "integration vertical slice passed\n");

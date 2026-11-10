@@ -23,6 +23,7 @@ function lorkhan_voice_error_message(string $code):string
         'voice_sample_not_found'=>'The selected local voice sample is no longer available. Refresh the library.',
         'voice_registration_busy'=>'This voice is already being registered. Wait for that operation to finish, then refresh the library.',
         'voice_sync_unsupported', 'voice_discovery_unsupported'=>'The selected connector does not support this voice-library operation.',
+        'pockettts_runtime_unavailable'=>'PocketTTS did not respond at the configured endpoint or a compatible same-host port. Start PocketTTS or update the connector endpoint, then try again.',
         'voice_sync_unavailable', 'voice_discovery_unavailable'=>'The voice library is unavailable. Check the selected connector and service, then refresh.',
         'voice_cache_unavailable'=>'The local voice cache is unavailable. Check the server logs and storage permissions.',
         'voice_validation_failed'=>'The provider voice failed validation. Check the voice sample and connector settings.',
@@ -445,6 +446,14 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
             &&in_array(strtolower((string)parse_url((string)($selectedProviderContent['endpoint']??''),PHP_URL_HOST)),['localhost','127.0.0.1','::1','[::1]'],true));
         $pocketModeLabel = 'Not configured';
         if (is_array($selectedProvider)) $pocketModeLabel = $localOnly ? 'audio.cpp' : 'Standard API';
+        // Only a Refresh, Sync or Batch request probes PocketTTS; a plain page load leaves this empty.
+        $pocketRuntimeNote = '';
+        if ($activeTab === 'pockettts' && is_array($pocketRuntime ?? null)) {
+            $pocketRuntimeNote = $pocketRuntime['mode'] === ''
+                ? 'No PocketTTS service responded at '.implode(', ', array_map('lorkhan_voice_display_endpoint', $pocketRuntime['checked'])).'.'
+                : ($pocketRuntime['mode'] === 'audio_cpp' ? 'audio.cpp' : 'Standard API').' at '.lorkhan_voice_display_endpoint($pocketRuntime['endpoint'])
+                    .($pocketRuntime['fallback'] ? ' (fallback; the configured endpoint '.lorkhan_voice_display_endpoint($pocketRuntime['configured']).' did not respond).' : ' (configured endpoint).');
+        }
         $primaryRefresh = !$cloudClone && $canBrowse;
         $omniLanguages=[];
         if($activeTab==='omnivoice'){
@@ -513,7 +522,8 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
         <section class="content-section">
             <h1>Voice Sample Upload</h1>
             <?php if($activeTab==='omnivoice'): ?><p>Upload WAV samples into the selected OmniVoice language library. Reference text is generated automatically by local STT.</p><?php else: ?><p>Upload voice samples to LORKHAN's persistent voice library. <?php if($cloudClone): ?>Files will be available for generating voices in <?php echo lorkhan_ui_h($providerLabel); ?>.<?php elseif ($activeTab==='higgs'&&!$localOnly): ?>For a remote Higgs service, also place matching voice names on that host.<?php elseif ($localOnly): ?><?php echo lorkhan_ui_h($providerLabel); ?> uses these local samples directly; no server synchronization is needed.<?php else: ?>Files will be available to sync with <?php echo lorkhan_ui_h($providerLabel); ?>.<?php endif; ?></p><?php endif; ?>
-            <?php if ($activeTab === 'pockettts' && is_array($selectedProvider)): ?><p class="voice-mode-note"><strong>Detected PocketTTS Mode:</strong> <?php echo lorkhan_ui_h($pocketModeLabel); ?>.</p><?php endif; ?>
+            <?php if ($activeTab === 'pockettts' && is_array($selectedProvider)): ?><p class="voice-mode-note"><strong>Configured PocketTTS Mode:</strong> <?php echo lorkhan_ui_h($pocketModeLabel); ?>.</p><?php endif; ?>
+            <?php if ($pocketRuntimeNote !== ''): ?><p class="voice-mode-note" style="overflow-wrap:anywhere"><strong>PocketTTS runtime check:</strong> <?php echo lorkhan_ui_h($pocketRuntimeNote); ?></p><?php endif; ?>
             <span class="visually-hidden">Add WAV voice samples</span>
             <form class="voice-upload-form" method="post" enctype="multipart/form-data" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>">
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="upload"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>">

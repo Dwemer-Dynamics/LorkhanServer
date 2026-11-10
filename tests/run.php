@@ -29,6 +29,7 @@ use LorkhanServer\Application\SpeechPreviewCatalog;
 use LorkhanServer\Application\PlayerMoodPolicy;
 use LorkhanServer\Application\MemoryPromptSelection;
 use LorkhanServer\Application\InlineNarrationRouter;
+use LorkhanServer\Application\NarrationTextPolicy;
 use LorkhanServer\Application\DialoguePlanner;
 use LorkhanServer\Application\DeepLTranslationProvider;
 use LorkhanServer\Application\EffectiveSettingsResolver;
@@ -108,6 +109,16 @@ $rechatOther=$rechatActor;$rechatOther['content_file']='Tribunal.esm';
 $check($rechatKey->invoke($rechatCoordinator,$rechatActor)!==$rechatKey->invoke($rechatCoordinator,$rechatOther),
     'Rechat keeps equal local reference numbers from different mods separate');
 $rechatPlayer=$rechatActor;$rechatPlayer['kind']='player';
+// Candidate priority must not be randomized after CHIM's mode ordering.
+$selectRechat=new ReflectionMethod($rechatCoordinator,'selectResponder');
+foreach(range(1,12) as $seed){
+    $check($selectRechat->invoke($rechatCoordinator,'conversational',[$rechatActor,$rechatOther],$rechatActor,$rechatOther,(string)$seed,1)===$rechatOther,'Rechat prefers explicit target');
+    $check($selectRechat->invoke($rechatCoordinator,'group',[$rechatActor,$rechatOther],$rechatActor,$rechatActor,(string)$seed,1)===$rechatOther,'Group rechat prefers another listener');
+}
+$modeRechat=new ReflectionMethod($rechatCoordinator,'resolvedMode');
+$mode=$modeRechat->invoke($rechatCoordinator,'random',[$rechatActor,$rechatOther],100,'installation:playthrough');
+$check($mode===$modeRechat->invoke($rechatCoordinator,'random',[$rechatOther,$rechatMoved,$rechatActor],100,'installation:playthrough'),'Random mode survives reordered renamed group members in the same window');
+$check(count(array_unique(array_map(fn($window)=>$modeRechat->invoke($rechatCoordinator,'random',[$rechatActor,$rechatOther],$window,'installation:playthrough'),range(100,120))))>1,'Random mode can change in later windows');
 $rechatNarrator=$rechatActor;$rechatNarrator['kind']='narrator';
 $check(count(array_unique(array_map(fn($actor)=>$rechatKey->invoke($rechatCoordinator,$actor),
     [$rechatActor,$rechatPlayer,$rechatNarrator])))===3,'Rechat keeps Player and Narrator separate from placed NPCs');
@@ -419,6 +430,12 @@ foreach(['dialogueForSlot','profileGenerationForSlot','oghmaTopicExtractorForSlo
     $player2Provider=ProviderFactory::$factory([],$player2Slot);
     $check((new \ReflectionProperty($player2Provider,'player2'))->getValue($player2Provider)===true,'Player2 identity reaches '.$factory);
 }
+$health=ProviderFactory::player2HealthRequest([],$player2Slot);
+$check($health['url']==='http://127.0.0.1:1234/v1/health'&&in_array('player2-game-key: LORKHAN',$health['headers'],true)
+    &&preg_grep('/^Authorization:/i',$health['headers'])===[]&&($health['curl'][CURLOPT_PROXY]??null)==='',
+    'Player2 health heartbeat uses the connector origin, game key and direct connection');
+try{ProviderFactory::player2HealthRequest([],$directSlot);$check(false,'non-Player2 connector produced a health heartbeat');}
+catch(RuntimeException $error){$check($error->getMessage()==='player2_connector_unavailable','non-Player2 connector produced a health heartbeat');}
 $check(LlmConnector::requestHeaders('',true)===['Content-Type: application/json','Accept: application/json','player2-game-key: LORKHAN']
     &&LlmConnector::requestHeaders('selected-game',true)[2]==='player2-game-key: selected-game'
     &&LlmConnector::requestHeaders('ordinary-key')[2]==='Authorization: Bearer ordinary-key','Player2 and ordinary credentials use separate headers');
@@ -460,6 +477,11 @@ try {
         });
     $check(false,'diagnostic observer did not run');
 }catch(RuntimeException $error){if($error->getMessage()!=='diagnostic-observed')throw$error;}
+$check(!$diagnosticProvider->transientFailure(),'a locally aborted request is not a transient provider outage');
+$refusedProvider=new OpenAiCompatibleProvider('http://127.0.0.1:9/v1/chat/completions',['127.0.0.1'],'fixture','',1000,allowLoopbackHttp:true);
+try{$refusedProvider->complete(['payload'=>['input'=>['text'=>'Hello']]],new NeverCancelledToken());$check(false,'refused provider completed');}
+catch(RuntimeException $error){$check($error->getMessage()==='provider_unavailable'&&$refusedProvider->transientFailure()
+    &&$refusedProvider->retryAfterSeconds()===0,'a refused provider connection is a transient outage for connector recovery');}
 $networkRoutes=[['dst'=>'default','dev'=>'eth0','gateway'=>'192.168.160.1']];
 $networkInterfaces=[['ifname'=>'eth0','addr_info'=>[['family'=>'inet','local'=>'192.168.169.218']]]];
 $networkClass=\LorkhanServer\Application\QuickstartLocalLlm::class;
@@ -746,6 +768,288 @@ foreach ([
     $validator->validate($document['instance'], $schema);
     $check(true, $fixture . ' validates');
 }
+// Third-party plugin contract: shared fixtures plus registry ownership, negotiation, dependency and intent bounds.
+$pluginFixture=static fn(string $name):array=>json_decode((string)file_get_contents(dirname($fixtureRoot).'/'.$name.'.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+foreach(['valid/plugin-manifest'=>true,'valid/plugin-registration'=>true,'valid/plugin-registration-accepted'=>true,
+    'valid/plugin-action-intent'=>true,'valid/plugin-event'=>true,'valid/plugin-event-accepted'=>true,'invalid/plugin-manifest-reserved-namespace'=>false,
+    'invalid/plugin-manifest-tier2-unconfirmed'=>false,'invalid/plugin-registration-unregister-actions'=>false,
+    'hostile/plugin-action-intent-url-parameter'=>false,'hostile/plugin-action-intent-command-field'=>false]as$fixture=>$valid){
+    $document=$pluginFixture($fixture);
+    try{$validator->validate($document,$document['schema']);$check($valid,$fixture.' matches its plugin contract expectation');}
+    catch(ValidationException $error){$check(!$valid&&$error->getMessage()==='invalid_schema',$fixture.' matches its plugin contract expectation');}
+}
+$pluginManifest=$pluginFixture('valid/plugin-manifest');
+$coreManifest=array_replace($pluginManifest,['plugin_id'=>'ashlander.camp_core','version'=>'1.0.0','dependencies'=>[],'actions'=>[],'events'=>[],'prompt_contributions'=>[]]);
+$installedPlugins=[];
+foreach([$pluginManifest,$coreManifest]as$manifest)$installedPlugins[$manifest['plugin_id']]=['manifest'=>$manifest,'sha256'=>hash('sha256',json_encode($manifest,JSON_THROW_ON_ERROR))];
+$pluginSession=['session_id'=>'00000000-0000-4000-8000-000000000007','generation'=>7,'client_version'=>'0.5.0','capabilities'=>['dialogue.text']];
+try{\LorkhanServer\Application\PluginRegistry::forSession($pluginSession,'0.5.0');$check(false,'plugin contract requires negotiated capability');}
+catch(\DomainException $error){$check($error->getMessage()==='plugin_contract_unsupported','plugin contract requires negotiated capability');}
+$pluginSession['capabilities'][]=\LorkhanServer\Protocol\PluginContract::CAPABILITY;
+$pluginRegistry=\LorkhanServer\Application\PluginRegistry::forSession($pluginSession,'0.5.0');
+$pluginRegistration=$pluginFixture('valid/plugin-registration');
+$pluginRegistration['plugins'][0]['manifest_sha256']=$installedPlugins['ashlander.camp_tasks']['sha256'];
+[$pluginRegistry,$pluginResults]=$pluginRegistry->apply($pluginRegistration,$installedPlugins,[]);
+$check($pluginResults[0]['state']==='rejected'&&$pluginResults[0]['reason_code']==='dependency_unsatisfied'&&$pluginRegistry->actions()===[],
+    'plugin without its active dependency exposes no actions');
+$coreRegistration=$pluginRegistration;$coreRegistration['plugins']=[['plugin_id'=>'ashlander.camp_core','version'=>'1.0.0',
+    'manifest_sha256'=>$installedPlugins['ashlander.camp_core']['sha256'],'actions'=>[],'events'=>[],'prompt_slots'=>[]]];
+[$disabledRegistry,$pluginResults]=$pluginRegistry->apply($coreRegistration,$installedPlugins,['ashlander.camp_core'=>false]);
+$check($pluginResults[0]['state']==='disabled','server policy can disable a registered plugin');
+[$pluginRegistry]=$pluginRegistry->apply($coreRegistration,$installedPlugins,[]);
+[$pluginRegistry,$pluginResults]=$pluginRegistry->apply($pluginRegistration,$installedPlugins,[]);
+$validator->validate(['schema'=>\LorkhanServer\Protocol\PluginContract::REGISTRATION_ACCEPTED,'message_id'=>$pluginRegistration['message_id'],
+    'request_id'=>$pluginRegistration['request_id'],'session_id'=>$pluginRegistration['session_id'],'generation'=>7,'plugins'=>$pluginResults],
+    \LorkhanServer\Protocol\PluginContract::REGISTRATION_ACCEPTED);
+$check($pluginResults[0]['state']==='active'&&count($pluginRegistry->actions())===2&&count($pluginRegistry->promptSlots())===1,'dependency-satisfied plugin registers its declared actions');
+$pluginIntent=$pluginFixture('valid/plugin-action-intent');
+$pluginProposal=['plugin_id'=>'ashlander.camp_tasks','action'=>'fetch_water','actor'=>$pluginIntent['actor'],'target'=>null,'parameters'=>['trips'=>2,'vessel'=>'jug']];
+$builtIntent=$pluginRegistry->intent($pluginProposal,$pluginIntent['action_id'],$pluginIntent['turn_id'],new DateTimeImmutable('2026-10-02T12:00:00Z'));
+$check($builtIntent===$pluginIntent,'registry builds the exact shared plugin intent with bounded expiry');
+// Addon model actions: observed-actor selectors, policy gate, bounded tool budget, structured schema and compact proposals.
+$addonPlayer=['kind'=>'player','record_id'=>'player','content_file'=>'Morrowind.esm','refnum'=>['index'=>1,'content_file'=>0],
+    'cell'=>$pluginIntent['actor']['cell'],'display_name'=>'Nerevar'];
+$addonGuest=array_replace($pluginIntent['actor'],['record_id'=>'arrille','display_name'=>'Arrille','refnum'=>['index'=>113,'content_file'=>0]]);
+$addonPayload=['target'=>$pluginIntent['actor'],'speaker'=>$addonPlayer,'audience'=>[$pluginIntent['actor'],$addonGuest]];
+$addonDefinitions=\LorkhanServer\Application\PluginActionPolicy::definitions($pluginRegistry->actions(),$addonPayload,static fn()=>true);
+$check(array_column($addonDefinitions,'actor_ids','name')===['fetch_water'=>['target'],'share_meal'=>['target','audience:2']]
+    &&$addonDefinitions[1]['target_ids']===['speaker']&&$addonDefinitions[0]['target_ids']===[],
+    'addon actions offer only observed executors of registered kind and exact actor scope, never the player');
+$addonPolicy=['policy'=>['content'=>['max_tier'=>1,'denied_actions'=>['ashlander.camp_tasks/fetch_water']]]];
+$check(\LorkhanServer\Application\PluginActionPolicy::definitions($pluginRegistry->actions(),$addonPayload,
+    static fn(string $plugin,string $action,int $tier)=>(new ActionPolicyValidator())->addonAllowed($addonPolicy,$plugin,$action,$tier))===[],
+    'addon actions obey the effective action policy tier ceiling and plugin_id/action deny list');
+$check(\LorkhanServer\Application\PluginActionPolicy::definitions(array_fill(0,20,$pluginRegistry->actions()[0]),$addonPayload,static fn()=>true)!==[]
+    &&count(\LorkhanServer\Application\PluginActionPolicy::definitions(array_fill(0,20,$pluginRegistry->actions()[0]),$addonPayload,static fn()=>true))
+        ===\LorkhanServer\Application\PluginActionPolicy::MAX_PROMPT_ACTIONS,'addon tool exposure is bounded per turn');
+$addonTurn=['payload'=>$addonPayload,'_plugin_action_definitions'=>$addonDefinitions,'_allowed_action_definitions'=>[]];
+$addonSchema=(new ReflectionMethod($actionProvider,'responseSchema'))->invoke($actionProvider,$addonTurn);
+$addonVariants=json_decode(json_encode($addonSchema['properties']->action),true)['anyOf']??[];
+$check(count($addonVariants)===3&&$addonVariants[2]['properties']['target_id']['enum']===['speaker']
+    &&$addonVariants[1]['properties']['parameters']['properties']['trips']===['type'=>'integer','minimum'=>1,'maximum'=>3],
+    'structured response schema adds one strict variant per addon action and target shape');
+$addonContract=(new ActionPolicyValidator())->promptContract($addonTurn);
+$check(str_contains($addonContract,'name `fetch_water(trips: integer 1..3, vessel?: bucket|jug)`')&&!str_contains($addonContract,'"refnum"')
+    &&str_contains($addonContract,'never claim it happened'),'addon prompt contract lists typed tuples and selectors, never identities');
+$addonNormalized=$normalizeAction->invoke($actionProvider,['utterances'=>[['text'=>'Fine.']],'action'=>['plugin'=>'ashlander.camp_tasks',
+    'name'=>'fetch_water','actor_id'=>'target','parameters'=>['trips'=>2,'vessel'=>'jug']]],$addonTurn)['action'];
+$check($addonNormalized===$pluginProposal&&$pluginRegistry->intent($addonNormalized,$pluginIntent['action_id'],$pluginIntent['turn_id'],
+    new DateTimeImmutable('2026-10-02T12:00:00Z'))===$pluginIntent,'compact addon proposal maps to the exact registry intent');
+foreach(['unlisted executor'=>['actor_id'=>'audience:2'],'player executor'=>['actor_id'=>'speaker'],'model identity'=>['actor'=>$addonGuest],
+    'unlisted target'=>['target_id'=>'speaker'],'unknown action'=>['name'=>'burn_camp']]as$name=>$change){
+    $proposed=$normalizeAction->invoke($actionProvider,['utterances'=>[['text'=>'Fine.']],'action'=>array_replace(['plugin'=>'ashlander.camp_tasks',
+        'name'=>'fetch_water','actor_id'=>'target','parameters'=>['trips'=>1]],$change)],$addonTurn)['action'];
+    $check($proposed===null,'compact addon proposal rejects '.$name);
+}
+$check(!\LorkhanServer\Application\PluginActionPolicy::observedProposal($addonDefinitions[1],['actor'=>$addonGuest,'target'=>$pluginIntent['actor'],
+    'parameters'=>[]],$addonPayload),'post-provider revalidation rejects an actor outside the definition selectors');
+$otherActor=$pluginIntent['actor'];$otherActor['refnum']['index']=113;
+foreach(['undeclared parameter'=>[['parameters'=>['trips'=>2,'path'=>'x']],'action_parameters_invalid'],
+    'out-of-range parameter'=>[['parameters'=>['trips'=>9]],'action_parameters_invalid'],
+    'undeclared enum'=>[['parameters'=>['trips'=>1,'vessel'=>'barrel']],'action_parameters_invalid'],
+    'unscoped actor'=>[['actor'=>$otherActor],'provider_action_not_allowed'],
+    'unexpected target'=>[['target'=>$otherActor],'provider_action_not_allowed'],
+    'unregistered action'=>[['action'=>'burn_camp'],'action_disabled'],'built-in name'=>[['plugin_id'=>'ai.follow'],'action_disabled']]as$name=>[$change,$code]){
+    try{$pluginRegistry->intent(array_replace($pluginProposal,$change),$pluginIntent['action_id'],$pluginIntent['turn_id'],new DateTimeImmutable());$check(false,'plugin intent rejects '.$name);}
+    catch(\DomainException $error){$check($error->getMessage()===$code,'plugin intent rejects '.$name);}
+}
+$pluginEvent=$pluginFixture('valid/plugin-event');
+$check($pluginRegistry->event($pluginEvent)['max_per_minute']===6,'registered plugin event validates declared fields');
+foreach(['stale generation'=>['generation'=>6],'undeclared field'=>['fields'=>['host'=>$pluginEvent['fields']['host'],'dish'=>'Pie','gold'=>5]]]as$name=>$change){
+    try{$pluginRegistry->event(array_replace($pluginEvent,$change));$check(false,'plugin event rejects '.$name);}
+    catch(\UnexpectedValueException|ValidationException $error){$check(true,'plugin event rejects '.$name);}
+}
+// A failure while writing the HTTP receipt (a crash) must roll back the immutable event and its derived job together.
+$eventDb=new class('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]) extends PDO{
+    public function prepare(string $query,array $options=[]):PDOStatement|false{return parent::prepare(preg_replace('/CAST\((:\w+) AS (?:jsonb|timestamptz)\)/','$1',$query),$options);}};
+$eventDb->sqliteCreateFunction('clock_timestamp',static fn()=>gmdate('c'),0);
+$eventDb->exec('CREATE TABLE plugin_events(installation_id,message_id,session_id,generation,plugin_id,plugin_version,event,message,observed_at,PRIMARY KEY(installation_id,message_id))');
+$eventDb->exec("CREATE TABLE durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,next_run_at,priority,state DEFAULT 'queued',attempt_count DEFAULT 0,lease_token,lease_expires_at,UNIQUE(job_type,idempotency_key))");
+$eventRuntime=new \LorkhanServer\Infrastructure\PluginRuntimeRepository($eventDb);
+$eventRows=static fn()=>(int)$eventDb->query('SELECT count(*) FROM plugin_events')->fetchColumn()+(int)$eventDb->query('SELECT count(*) FROM durable_jobs')->fetchColumn();
+try{$eventRuntime->persistEvent('i',$pluginEvent,static function():void{throw new RuntimeException('receipt crash');});$check(false,'plugin event receipt failure propagates');}
+catch(RuntimeException){$check($eventRows()===0&&$eventRuntime->storedEvent('i',$pluginEvent['message_id'])===null,'plugin event receipt failure rolls back event and job');}
+$eventRuntime->persistEvent('i',$pluginEvent,static fn()=>null);
+$check($eventRows()===2&&$eventRuntime->storedEvent('i',$pluginEvent['message_id'])==$pluginEvent,'plugin event retry after receipt failure stores one event and one job');
+$coreUnregister=$coreRegistration;$coreUnregister['operation']='unregister';$coreUnregister['plugins']=[['plugin_id'=>'ashlander.camp_core','version'=>'1.0.0']];
+[$pluginRegistry,$pluginResults]=$pluginRegistry->apply($coreUnregister,$installedPlugins,[]);
+$check(count($pluginResults)===2&&$pluginResults[1]['state']==='unregistered'&&$pluginRegistry->actions()===[],'unregistering a dependency withdraws dependent plugin actions');
+// Review regressions: narrowed executors, per-apply revalidation, total active cap and pinned Lua API revision.
+$pluginInstall=static function(array $manifest)use(&$installedPlugins):array{$installedPlugins[$manifest['plugin_id']]=['manifest'=>$manifest,
+    'sha256'=>hash('sha256',json_encode($manifest,JSON_THROW_ON_ERROR))];return['plugin_id'=>$manifest['plugin_id'],'version'=>$manifest['version'],
+    'manifest_sha256'=>$installedPlugins[$manifest['plugin_id']]['sha256'],'actions'=>[],'events'=>[],'prompt_slots'=>[]];};
+$wideManifest=array_replace($pluginManifest,['plugin_id'=>'ashlander.camp_wide','dependencies'=>[]]);$wideManifest['actions'][0]['executor_kinds']=['creature','npc'];
+$wideEntry=array_replace($pluginInstall($wideManifest),['actions'=>[array_replace($pluginRegistration['plugins'][0]['actions'][0],['executor_kinds'=>['npc']])]]);
+$wideRegistration=array_replace($pluginRegistration,['plugins'=>[$wideEntry]]);
+[$pluginRegistry,$pluginResults]=$pluginRegistry->apply($wideRegistration,$installedPlugins,[]);
+$check($pluginResults[0]['state']==='active'&&$pluginRegistry->actions()[0]['executor_kinds']===['npc'],'plugin actions expose registered narrowed executor kinds');
+[$pluginRegistry,$pluginResults]=$pluginRegistry->apply($wideRegistration,$installedPlugins,[]);
+$check(count($pluginResults)===1&&$pluginResults[0]['reason_code']==='registered','identical plugin re-registration stays idempotent');
+[$revalidated,$pluginResults]=$pluginRegistry->apply($coreRegistration,$installedPlugins,['ashlander.camp_wide'=>false]);
+$check(count($pluginResults)===2&&$pluginResults[0]['state']==='disabled'&&$revalidated->actions()===[],'policy disable revalidates already active plugins');
+$changedInstall=$installedPlugins;$changedInstall['ashlander.camp_wide']['sha256']=str_repeat('0',64);
+[$revalidated,$pluginResults]=$pluginRegistry->apply($coreRegistration,$changedInstall,[]);
+$check($pluginResults[0]['state']==='unregistered'&&$pluginResults[0]['reason_code']==='plugin_version_mismatch'&&$revalidated->actions()===[],
+    'changed installed manifest hash withdraws an active plugin');
+$capEntries=[];for($i=1;$i<=16;$i++)$capEntries[]=$pluginInstall(array_replace($coreManifest,['plugin_id'=>'ashlander.cap_'.$i]));
+[$pluginRegistry,$pluginResults]=$pluginRegistry->apply(array_replace($pluginRegistration,['plugins'=>$capEntries]),$installedPlugins,[]);
+$check(array_count_values(array_column($pluginResults,'reason_code'))===['registered'=>15,'plugin_limit_exceeded'=>1]&&$pluginResults[15]['plugin_id']==='ashlander.cap_16',
+    'plugin registry rejects registrations beyond the total active cap predictably');
+[,$pluginResults]=$pluginRegistry->apply(array_replace($pluginRegistration,['plugins'=>[$pluginInstall(array_replace($coreManifest,['plugin_id'=>'ashlander.cap_17']))]]),$installedPlugins,[]);
+$check(count($pluginResults)===1&&$pluginResults[0]['reason_code']==='plugin_limit_exceeded','repeated registrations cannot exceed the total active cap');
+$newerManifest=array_replace($coreManifest,['plugin_id'=>'ashlander.newer_api']);$newerManifest['compatibility']['lua_api_revision']=130;
+[,$pluginResults]=\LorkhanServer\Application\PluginRegistry::forSession($pluginSession,'0.5.0')->apply(array_replace($pluginRegistration,['plugins'=>[$pluginInstall($newerManifest)]]),$installedPlugins,[]);
+$check($pluginResults[0]['reason_code']==='plugin_incompatible','plugin requiring a newer Lua API revision is incompatible');
+// Stage 3A: intent event wrapper, persisted-entry restore, trusted hook loading bounds and turn profiles.
+foreach(['valid/events-plugin-action-intent'=>true,'hostile/events-plugin-action-intent-command-field'=>false]as$fixture=>$valid){
+    try{foreach($pluginFixture($fixture)['events']as$event)(new \LorkhanServer\Protocol\PluginContract($validator))->intentEvent($event);$check($valid,$fixture.' matches its intent event expectation');}
+    catch(ValidationException){$check(!$valid,$fixture.' matches its intent event expectation');}
+}
+$jsonbOrder=static function(mixed $value)use(&$jsonbOrder):mixed{if(!is_array($value))return$value;if(!array_is_list($value))krsort($value);return array_map($jsonbOrder,$value);};
+[$storedRegistry]=\LorkhanServer\Application\PluginRegistry::forSession($pluginSession,'0.5.0')->apply($coreRegistration,$installedPlugins,[]);
+[$storedRegistry]=$storedRegistry->apply($pluginRegistration,$installedPlugins,[]);
+$storedEntries=array_map($jsonbOrder,array_values($storedRegistry->entries()));
+$restored=\LorkhanServer\Application\PluginRegistry::restore($pluginSession,'0.5.0',$storedEntries,$installedPlugins,[]);
+[,$pluginResults]=$restored->apply($pluginRegistration,$installedPlugins,[]);
+$check(count($restored->actions())===2&&$pluginResults[0]['reason_code']==='registered','restored registrations stay idempotent despite stored key order');
+$check(\LorkhanServer\Application\PluginRegistry::restore($pluginSession,'0.5.0',$storedEntries,$installedPlugins,['ashlander.camp_core'=>false])->entries()===[],
+    'restoring with a disabled dependency withdraws dependent addons');
+$hookRoot=sys_get_temp_dir().'/lorkhan-hooks-'.bin2hex(random_bytes(6));
+$hookManifest=(string)file_get_contents(dirname(__DIR__).'/examples/plugins/ashlander.camp_tasks/server/lorkhan-plugin.json');
+$check(json_decode($hookManifest,true)===$pluginManifest,'example addon manifest bytes match the shared fixture');
+$hookTree=static function(string $source,?string $listed=null)use($hookRoot,$hookManifest):array{
+    $sha=hash('sha256',$source.'|'.$listed);@mkdir($hookRoot.'/'.$sha.'/server',0700,true);
+    file_put_contents($hookRoot.'/'.$sha.'/server/plugin.php',$source);file_put_contents($hookRoot.'/'.$sha.'/server/lorkhan-plugin.json',$hookManifest);
+    file_put_contents($hookRoot.'/'.$sha.'/checksums.sha256',hash('sha256',$listed??$source)."  server/plugin.php\n".hash('sha256',$hookManifest)."  server/lorkhan-plugin.json\n");
+    return['plugin_id'=>'ashlander.camp_tasks','archive_sha256'=>$sha,'manifest_sha256'=>hash('sha256',$hookManifest),'revision'=>1];};
+$hookLog=ini_set('error_log','/dev/null');
+$example=$hookTree((string)file_get_contents(dirname(__DIR__).'/examples/plugins/ashlander.camp_tasks/server/plugin.php'));
+$loaded=\LorkhanServer\Application\PluginHooks::load($hookRoot,$example);
+$check(is_array($loaded)&&array_keys($loaded)===['prompt','event']&&\LorkhanServer\Application\PluginHooks::load($hookRoot,$example)['prompt']===$loaded['prompt'],
+    'example server hooks load once per package revision');
+ob_start();$echoing=\LorkhanServer\Application\PluginHooks::load($hookRoot,$hookTree("<?php echo 'leak'; return ['response'=>static function(){echo 'x';}];"));
+$check(ob_get_clean()===''&&is_array($echoing),'hook entrypoint output is discarded');
+foreach(['checksum mismatch'=>[$hookTree('<?php return [];',"<?php return ['x'=>1];"),null],'manifest hash mismatch'=>[array_replace($example,['manifest_sha256'=>str_repeat('a',64),'revision'=>2]),null],
+    'named function'=>[$hookTree("<?php function camp(){} return ['prompt'=>static fn()=>[]];"),null],
+    'include'=>[$hookTree("<?php return require '/etc/passwd';"),null],'globals'=>[$hookTree("<?php \$GLOBALS['x']=1; return ['prompt'=>static fn()=>[]];"),null],
+    'class'=>[$hookTree("<?php return ['prompt'=>new class { }];"),null],'throwing'=>[$hookTree("<?php throw new RuntimeException('boom');"),null],
+    'unknown callback'=>[$hookTree("<?php return ['shell'=>static fn()=>1];"),null],'non closure'=>[$hookTree("<?php return ['prompt'=>'system'];"),null]]as$name=>[$plugin,$expected])
+    $check(\LorkhanServer\Application\PluginHooks::load($hookRoot,$plugin)===$expected,'hook loader rejects '.$name);
+for($i=0;$i<\LorkhanServer\Application\PluginHooks::MAX_LOADED;$i++)\LorkhanServer\Application\PluginHooks::load($hookRoot,array_replace($example,['revision'=>100+$i]));
+$check(\LorkhanServer\Application\PluginHooks::load($hookRoot,$example)['prompt']!==$loaded['prompt'],'hook cache is bounded and reloads evicted revisions');
+// Stage 6: the runnable parity.example server half carries the client manifest bytes and loads only an event hook.
+$parityRoot=dirname(__DIR__).'/examples/plugins/parity.example';
+$parityManifest=(string)file_get_contents($parityRoot.'/server/lorkhan-plugin.json');$paritySource=(string)file_get_contents($parityRoot.'/server/plugin.php');
+try{(new \LorkhanServer\Protocol\PluginContract($validator))->validate(json_decode($parityManifest,true,64,JSON_THROW_ON_ERROR),\LorkhanServer\Protocol\PluginContract::MANIFEST);$parityValid=true;}
+catch(ValidationException){$parityValid=false;}
+$check($parityValid&&hash('sha256',$parityManifest)==='4a44b0af71ffdda44c3a7f68fd70d340b4a0e8fa142b16fdfd2d107ef62e20b0'
+    &&json_decode((string)file_get_contents($parityRoot.'/manifest.json'),true)['version']==='1.0.0','parity.example keeps the client manifest bytes and package identity');
+$paritySha=hash('sha256',$paritySource.'|parity');@mkdir($hookRoot.'/'.$paritySha.'/server',0700,true);
+file_put_contents($hookRoot.'/'.$paritySha.'/server/plugin.php',$paritySource);file_put_contents($hookRoot.'/'.$paritySha.'/server/lorkhan-plugin.json',$parityManifest);
+file_put_contents($hookRoot.'/'.$paritySha.'/checksums.sha256',hash('sha256',$paritySource)."  server/plugin.php\n".hash('sha256',$parityManifest)."  server/lorkhan-plugin.json\n");
+$parityHooks=\LorkhanServer\Application\PluginHooks::load($hookRoot,['plugin_id'=>'parity.example','archive_sha256'=>$paritySha,'manifest_sha256'=>hash('sha256',$parityManifest),'revision'=>1]);
+$check(is_array($parityHooks)&&array_keys($parityHooks)===['event'],'parity.example loads one event hook and no prompt hook');
+// Stage 6: the bundled catalog is honest (valid, empty); invalid or other-game catalogs and bad downloads are refused.
+$catalogError=static function(callable $call):string{try{$call();return'ok';}catch(\LorkhanServer\Application\PluginPackageException $error){return$error->getMessage();}};
+$check((new \LorkhanServer\Application\PluginCatalog(dirname(__DIR__).'/data/plugin-catalog.json','0.5.0'))->entries()===[],'bundled plugin catalog is valid and empty');
+$catalogFile=sys_get_temp_dir().'/lorkhan-catalog-'.bin2hex(random_bytes(6)).'.json';$catalogBytes=str_repeat('p',64);
+$catalogEntry=['id'=>'parity-example-1.0.0','plugin_id'=>'parity.example','version'=>'1.0.0','display_name'=>'Parity Example','description'=>'','author'=>'Dwemer Dynamics',
+    'url'=>'https://plugins.example.org/parity.dwpkg','size'=>64,'sha256'=>hash('sha256',$catalogBytes),'compatibility'=>['product'=>'lorkhan','game'=>'tes3','api_version'=>1,'min_server_version'=>'0.5.0']];
+$writeCatalog=static function(array $change=[],array $entry=[])use($catalogFile,$catalogEntry):void{file_put_contents($catalogFile,json_encode(array_replace(['schema_version'=>1,'product'=>'lorkhan','game'=>'tes3','api_version'=>1,
+    'download_hosts'=>['plugins.example.org'],'entries'=>[array_replace($catalogEntry,$entry)]],$change),JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));};
+$catalogWith=static fn(int $status,string $body)=>new \LorkhanServer\Application\PluginCatalog($catalogFile,'0.5.0',static function(string $url,array $hosts,int $max,$sink)use($status,$body):int{fwrite($sink,substr($body,0,$max+1));return$status;});
+$writeCatalog();$fixtureCatalog=$catalogWith(200,$catalogBytes);
+$check(count($fixtureCatalog->entries())===1&&$fixtureCatalog->entries()[0]['compatible']&&!isset($fixtureCatalog->entries()[0]['url'])
+    &&stream_get_contents($fixtureCatalog->download($fixtureCatalog->entry('parity-example-1.0.0')))===$catalogBytes,'catalog entry downloads only its exact verified bytes');
+foreach(['wrong hash'=>[$catalogWith(200,str_repeat('q',64)),'package_hash_mismatch'],'short body'=>[$catalogWith(200,'p'),'catalog_download_failed'],
+    'oversized body'=>[$catalogWith(200,str_repeat('p',65)),'package_too_large'],'redirect'=>[$catalogWith(302,''),'catalog_redirect_rejected'],
+    'server error'=>[$catalogWith(500,''),'catalog_download_failed']]as$name=>[$catalog,$code]){
+    $check($catalogError(fn()=>$catalog->download($catalog->entry('parity-example-1.0.0')))===$code,'catalog download refuses '.$name);
+}
+$check($catalogError(fn()=>$fixtureCatalog->entry('missing'))==='catalog_entry_not_found','catalog refuses unknown entry IDs');
+foreach(['CHIM product'=>[['product'=>'chim'],[]],'other game'=>[[],['compatibility'=>['product'=>'lorkhan','game'=>'skyrim','api_version'=>1,'min_server_version'=>'0.5.0']]],
+    'schema mismatch'=>[['schema_version'=>2],[]],'plain HTTP'=>[[],['url'=>'http://plugins.example.org/parity.dwpkg']],
+    'unlisted host'=>[[],['url'=>'https://other.example.org/parity.dwpkg']],'extra key'=>[[],['command'=>'x']]]as$name=>[$change,$entry]){
+    $writeCatalog($change,$entry);
+    $check($catalogError(fn()=>(new \LorkhanServer\Application\PluginCatalog($catalogFile,'0.5.0'))->entries())==='catalog_unavailable','catalog refuses '.$name);
+}
+$writeCatalog([],['compatibility'=>['product'=>'lorkhan','game'=>'tes3','api_version'=>1,'min_server_version'=>'9.0.0']]);$newerCatalog=$catalogWith(200,$catalogBytes);
+$check(!$newerCatalog->entries()[0]['compatible']&&$catalogError(fn()=>$newerCatalog->download($newerCatalog->entry('parity-example-1.0.0')))==='package_incompatible','catalog refuses entries needing a newer server');
+unlink($catalogFile);
+ini_set('error_log',$hookLog===false?'':$hookLog);
+$hookProfile=static fn(array $payload):string=>\LorkhanServer\Application\PluginHooks::profile(['payload'=>$payload]);
+$check($hookProfile(['ui_source'=>'lorkhan_text'])==='dialogue'&&$hookProfile(['ui_source'=>'lorkhan_rechat'])==='rechat'
+    &&$hookProfile(['ui_source'=>'lorkhan_auto_greeting'])==='autonomous'&&$hookProfile(['ui_source'=>'lorkhan_quest_event'])==='autonomous'
+    &&$hookProfile(['execution_mode'=>'narrator'])==='narration'&&$hookProfile(['target'=>['kind'=>'narrator']])==='narration'
+    &&!\LorkhanServer\Application\PluginHooks::negotiated(['_negotiated_capabilities'=>['dialogue.text']]),'plugin hook profiles and negotiation gate');
+// Stage-2 .dwpkg validation: real ZIP archives through the extractor, including hostile layouts (requires ext-zip).
+if(class_exists(ZipArchive::class)){
+    $packageTemp=sys_get_temp_dir().'/lorkhan-dwpkg-'.bin2hex(random_bytes(6));mkdir($packageTemp,0700);
+    $contractBytes=json_encode(array_replace($pluginManifest,['dependencies'=>[]]),JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);
+    $dwpkg=static function(array $change=[],?callable $raw=null)use($packageTemp,$contractBytes):string{
+        $files=array_replace(['manifest.json'=>json_encode(['schema_version'=>4,'name'=>'ashlander.camp_tasks','version'=>'1.2.0',
+            'server'=>['mutable_paths'=>['server/data']]],JSON_THROW_ON_ERROR),'server/lorkhan-plugin.json'=>$contractBytes,'server/data/state.json'=>'{}'],$change);
+        $files=array_filter($files,static fn($v)=>$v!==null);$sums='';
+        foreach($files as$name=>$bytes)$sums.=hash('sha256',$bytes).'  '.$name."\n";
+        $path=$packageTemp.'/'.bin2hex(random_bytes(6)).'.dwpkg';$zip=new ZipArchive();$zip->open($path,ZipArchive::CREATE);
+        foreach($files+['checksums.sha256'=>$sums]as$name=>$bytes)$zip->addFromString($name,$bytes);
+        if($raw!==null)$raw($zip);$zip->close();return$path;};
+    $extractPackage=static function(string $archive)use($packageTemp):array|string{
+        try{return(new \LorkhanServer\Application\PluginPackageArchive('0.5.0'))->extract($archive,$packageTemp.'/x-'.bin2hex(random_bytes(6)));}
+        catch(\LorkhanServer\Application\PluginPackageException $error){return$error->getMessage();}};
+    $extracted=$extractPackage($dwpkg());
+    $check(is_array($extracted)&&$extracted['plugin_id']==='ashlander.camp_tasks'&&$extracted['manifest_sha256']===hash('sha256',$contractBytes)
+        &&$extracted['mutable_paths']===['server/data']&&$extracted['files']===4,'valid schema-4 package extracts with its contract manifest hash');
+    $tampered=$dwpkg([],static fn(ZipArchive $zip)=>$zip->addFromString('server/data/state.json','{"x":1}'));
+    $bomb=str_repeat("\0",2_097_152);
+    foreach(['traversal'=>[$dwpkg(['server/../evil.php'=>'x']),'package_path_unsafe'],
+        'absolute path'=>[$dwpkg(['/etc/x'=>'x']),'package_path_unsafe'],
+        'symbolic link'=>[$dwpkg([],static fn(ZipArchive $zip)=>$zip->setExternalAttributesName('server/data/state.json',ZipArchive::OPSYS_UNIX,0120777<<16)),'package_link_rejected'],
+        'checksum mismatch'=>[$tampered,'package_checksum_mismatch'],
+        'uncovered file'=>[$dwpkg([],static fn(ZipArchive $zip)=>$zip->addFromString('server/extra.php','<?php')),'package_checksums_invalid'],
+        'case collision'=>[$dwpkg(['server/A.txt'=>'a','server/a.txt'=>'b']),'package_path_collision'],
+        'file used as directory'=>[$dwpkg(['server/data'=>'x']),'package_path_collision'],
+        'client payload'=>[$dwpkg(['client/scripts/x.lua'=>'x']),'package_payload_unsupported'],
+        'native library by name'=>[$dwpkg(['server/bin/helper.DLL'=>'x']),'package_payload_unsupported'],
+        'game plugin by name'=>[$dwpkg(['server/assets/camp.omwaddon'=>'x']),'package_payload_unsupported'],
+        'ELF executable by content'=>[$dwpkg(['server/tools/helper'=>"\x7fELF\x02\x01\x01"]),'package_payload_unsupported'],
+        'TES3 plugin by content'=>[$dwpkg(['server/assets/camp.dat'=>'TES3'.str_repeat("\0",12)]),'package_payload_unsupported'],
+        'mutable hook PHP'=>[$dwpkg(['server/data/hook.php'=>'<?php']),'package_manifest_invalid'],
+        'mutable path outside data/config'=>[$dwpkg(['manifest.json'=>json_encode(['schema_version'=>4,'name'=>'ashlander.camp_tasks','version'=>'1.2.0','server'=>['mutable_paths'=>['server/hooks']]])]),'package_manifest_invalid'],
+        'outer version mismatch'=>[$dwpkg(['manifest.json'=>json_encode(['schema_version'=>4,'name'=>'ashlander.camp_tasks','version'=>'1.2.1','server'=>[]])]),'package_identity_mismatch'],
+        'old schema'=>[$dwpkg(['manifest.json'=>json_encode(['schema_version'=>3,'name'=>'ashlander.camp_tasks','version'=>'1.2.0','server'=>[]])]),'package_manifest_invalid'],
+        'reserved namespace'=>[$dwpkg(['server/lorkhan-plugin.json'=>str_replace('ashlander.camp_tasks','lorkhan.camp_tasks',$contractBytes)]),'package_contract_invalid'],
+        'missing contract'=>[$dwpkg(['server/lorkhan-plugin.json'=>null]),'package_contract_invalid'],
+        'compression bomb'=>[$dwpkg(['server/bomb.bin'=>$bomb]),'package_bomb_rejected']]as$name=>[$archive,$code]){
+        $check($extractPackage($archive)===$code,'package archive rejects '.$name);
+    }
+    foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($packageTemp,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::CHILD_FIRST)as$item)$item->isDir()?rmdir($item->getPathname()):unlink($item->getPathname());
+    rmdir($packageTemp);
+}
+foreach(['valid/gamedata-barter-trade'=>true,'invalid/gamedata-barter-trade-no-items'=>false,'valid/gamedata-item-pickup'=>true]as$fixture=>$valid){
+    $document=json_decode((string)file_get_contents(dirname($fixtureRoot).'/'.$fixture.'.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+    try{$validator->validate($document,'lorkhan.gamedata.v1');$check($valid,$fixture.' matches its strict barter expectation');}
+    catch(ValidationException $error){$check(!$valid&&$error->getMessage()==='invalid_schema',$fixture.' matches its strict barter expectation');}
+}
+// RPG/quest calendars are optional for legacy clients, but a present date must be a real Morrowind instant.
+foreach(['valid/gamedata-rpg-calendar'=>true,'valid/gamedata-quest-calendar'=>true,'valid/gamedata-rpg-responder'=>true,
+    'valid/gamedata-quest-responder'=>true,'invalid/gamedata-quest-calendar-leap-day'=>false]as$fixture=>$valid){
+    $document=json_decode((string)file_get_contents(dirname($fixtureRoot).'/'.$fixture.'.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+    try{$validator->validate($document,'lorkhan.gamedata.v1');$check($valid,$fixture.' matches its observation calendar expectation');}
+    catch(ValidationException $error){$check(!$valid&&$error->getMessage()==='invalid_schema',$fixture.' matches its observation calendar expectation');}
+}
+$calendarObservation=json_decode((string)file_get_contents($fixtureRoot.'/gamedata-rpg-calendar.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+$boredCalendar=json_decode((string)file_get_contents($fixtureRoot.'/gamedata-bored-responder.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+$boredCalendar['payload']['calendar']=$calendarObservation['payload']['calendar'];
+foreach(['extra field'=>['days_passed'=>3],'string hour'=>['hour'=>'11'],'hour 24'=>['hour'=>24],'year 0'=>['year'=>0],'month 12'=>['month'=>12]]as$name=>$change){
+    $invalid=$calendarObservation;$invalid['payload']['calendar']=array_replace($invalid['payload']['calendar'],$change);
+    try{$validator->validate($invalid,'lorkhan.gamedata.v1');$check(false,'RPG calendar rejects '.$name);}
+    catch(ValidationException $error){$check($error->getMessage()==='invalid_schema','RPG calendar rejects '.$name);}
+}
+foreach(['bored event'=>$boredCalendar,'non-object calendar'=>array_replace_recursive($calendarObservation,['payload'=>['calendar'=>null]])]as$name=>$invalid){
+    try{$validator->validate($invalid,'lorkhan.gamedata.v1');$check(false,'observation calendar rejects '.$name);}
+    catch(ValidationException $error){$check($error->getMessage()==='invalid_schema','observation calendar rejects '.$name);}
+}
 $npcReceipt=json_decode((string)file_get_contents($fixtureRoot.'/debug-command-result.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
 $characterSession=json_decode((string)file_get_contents($fixtureRoot.'/session-init.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
 foreach([['character_id'=>null],['character_binding'=>null],['character_id'=>'PlayerName'],['character_binding'=>'automatic']] as $invalidCharacter){
@@ -777,8 +1081,19 @@ foreach([['game_time'=>-1],['spell_id'=>'heal'],['actor'=>array_replace($resurre
     try{$validator->validate($invalidEvent,'lorkhan.gamedata.v1');$check(false,'resurrection rejects invented or malformed observation');}
     catch(ValidationException){$check(true,'resurrection rejects invented or malformed observation');}
 }
+$death=$resurrection;$death['type']='actor_died';$witness=$resurrection['payload']['actor'];$witness['refnum']['index']+=1;
+$death['payload']=['victim'=>$resurrection['payload']['actor'],'audience'=>[$witness],'game_time'=>1234,
+    'calendar'=>['year'=>427,'month'=>7,'day'=>16,'hour'=>9.5]];
+$validator->validate($death,'lorkhan.gamedata.v1');$check(true,'counted death names only its victim, witnesses and calendar');
+foreach([['killer'=>$witness],['weapon'=>'iron dagger'],['victim'=>array_replace($witness,['kind'=>'player'])],
+    ['victim'=>array_replace($witness,['kind'=>'narrator'])],['audience'=>[$resurrection['payload']['actor']]],
+    ['game_time'=>-1],['calendar'=>['year'=>427,'month'=>12,'day'=>1,'hour'=>1]],['actor'=>$witness]]as$invalidDeath){
+    $invalidEvent=$death;$invalidEvent['payload']=array_replace($death['payload'],$invalidDeath);
+    try{$validator->validate($invalidEvent,'lorkhan.gamedata.v1');$check(false,'death rejects invented or malformed observation');}
+    catch(ValidationException){$check(true,'death rejects invented or malformed observation');}
+}
 $modeTurn=json_decode((string)file_get_contents($fixtureRoot.'/turn.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
-foreach(['standard','narrator','director','cheat']as$mode){
+foreach(['standard','narrator','director','cheat','hypnosis']as$mode){
     $modeTurn['payload']['execution_mode']=$mode;
     $validator->validate($modeTurn,'lorkhan.turn.v1');$check(true,'typed execution mode validates '.$mode);
 }
@@ -790,6 +1105,19 @@ foreach([['execution_mode'=>'console'],['execution_mode'=>'standard','director_i
 }
 $modeTurn['payload']['execution_mode']='standard';$modeTurn['payload']['director_instruction_id']=$modeTurn['turn_id'];
 $validator->validate($modeTurn,'lorkhan.turn.v1');$check(true,'ordinary child turn carries exact Director instruction correlation');
+$hypnosis=$modeTurn['payload'];unset($hypnosis['director_instruction_id']);
+$hypnosis['execution_mode']='hypnosis';$hypnosis['ui_source']='lorkhan_text';
+$hypnosis['speaker']['kind']='player';$hypnosis['target']['kind']='npc';
+$hypnosis['input']=['kind'=>'text','text'=>'Become a patient historian.','language'=>'en'];
+$check(\LorkhanServer\Application\ExecutionModePolicy::mode($hypnosis)==='hypnosis','explicit NPC hypnosis accepted');
+foreach([
+    ['target'=>array_replace($hypnosis['target'],['kind'=>'narrator'])],
+    ['ui_source'=>'lorkhan_open_mic'],['action_request'=>[]],['input'=>['kind'=>'text','text'=>'']],
+    ['speaker'=>array_replace($hypnosis['speaker'],['kind'=>'npc'])],
+]as$change){
+    try{\LorkhanServer\Application\ExecutionModePolicy::mode(array_replace($hypnosis,$change));$check(false,'invalid hypnosis rejected');}
+    catch(DomainException){$check(true,'invalid hypnosis rejected');}
+}
 $actorProfileGameData['type']='actor_profile';
 $actorProfileGameData['payload']=['actor'=>$actorProfileGameData['payload']['speaker'],'race'=>'Wood Elf',
     'class'=>'Commoner','gender'=>'male','level'=>1,'disposition'=>50,'factions'=>['fighters guild']];
@@ -967,6 +1295,15 @@ try {
 } catch (ValidationException $exception) {
     $check($exception->getMessage() === 'invalid_schema', 'empty menu dialogue TTS request rejected');
 }
+$menuCancel=json_decode((string)file_get_contents($fixtureRoot.'/menu-dialogue-tts-cancel.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+$validator->validate($menuCancel,'lorkhan.menu-dialogue-tts.cancel.v1');
+$check(true,'menu dialogue TTS cancel fixture validates');
+foreach(['missing target'=>json_decode((string)file_get_contents(dirname($fixtureRoot).'/invalid/menu-dialogue-tts-cancel-no-target.json'),true,64,JSON_THROW_ON_ERROR)['instance'],
+    'self target'=>array_replace($menuCancel,['target_message_id'=>$menuCancel['message_id']]),
+    'extra text'=>$menuCancel+['text'=>'Not a cancel field'],'string generation'=>array_replace($menuCancel,['generation'=>'7'])]as$label=>$invalidCancel){
+    try{$validator->validate($invalidCancel,'lorkhan.menu-dialogue-tts.cancel.v1');$check(false,'menu dialogue TTS cancel rejects '.$label);}
+    catch(ValidationException $exception){$check($exception->getMessage()==='invalid_schema','menu dialogue TTS cancel rejects '.$label);}
+}
 $playerAutochatRequest=json_decode((string)file_get_contents($fixtureRoot.'/player-autochat.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
 $validator->validate($playerAutochatRequest,'lorkhan.player-autochat.v1');
 $check(true,'bounded player Auto Chat request validates');
@@ -1050,6 +1387,11 @@ $globalPromptSelection=$promptSelection;
 $tagSelection=$promptSelection;
 $tagSelection['speech_style']=['installation_id'=>$promptTurn['installation_id'],'driver'=>'chatterbox',
     'options'=>['paralinguistic_tags_enabled'=>true,'paralinguistic_tags_prompt'=>'Use [sigh] sparingly.']];
+$addonPrompt=(new PromptAssembler())->assemble($promptTurn+['_plugin_context'=>[['plugin_id'=>'ashlander.camp_tasks','slot'=>'scene_notes','text'=>'Camp <b>fed</b> guests'],
+    ['plugin_id'=>'ashlander.camp_tasks','slot'=>'system','text'=>'ADDON_UNDECLARED_SLOT']]],$promptSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($addonPrompt,'Camp')&&str_contains($addonPrompt,'guests')&&!str_contains($addonPrompt,'ADDON_UNDECLARED_SLOT')
+    &&(new PromptAssembler())->assemble($promptTurn+['_plugin_context'=>[]],$promptSelection)===(new PromptAssembler())->assemble($promptTurn,$promptSelection),
+    'addon slot text renders only for known slots and empty contributions leave prompts unchanged');
 $tagPrompt=(new PromptAssembler())->assemble($promptTurn,$tagSelection);
 $check(str_contains($tagPrompt['provider_input']['_assembled_prompt'],'Use [sigh] sparingly.'),'selected expressive speech instructions reach the bounded system prompt');
 $tagSelection['speech_style']['options']['paralinguistic_tags_enabled']=false;
@@ -1152,6 +1494,7 @@ foreach(['builtin:default'=>[75,100,50,0,2,50,true,false],
     $check($applied['settings_overrides']['rpg_comments']===['events'=>['sleep'],'chance_percent'=>$rpgChance],
         'Built-in Core presets match CHIM RPG probabilities without replacing event choices');
     $settings=$applied['settings_overrides'];
+    $check(($settings['response']['private_thoughts_enabled']??null)===false,$builtin.' resets private NPC thoughts off like CHIM built-ins');
     $autonomyExpected=['builtin:default'=>[30,30],'builtin:local_llm'=>[30,100],'builtin:follower'=>[50,20],'builtin:passive'=>[5,120]][$builtin];
     $check([$settings['bored_event']['chance_percent'],$settings['behavior']['combat_bark_period_seconds']]===$autonomyExpected,
         $builtin.' matches reference bored probability and combat cooldown');
@@ -1752,6 +2095,32 @@ $check($herikaFollow['display_name']==='Herika-shaped Follow'&&$herikaFollow['de
     &&$herikaFollow['followup_prompt']==='React to the typed result.'
     &&$herikaFollow['followup_actions_allowed']===true&&$herikaFollow['cooldown_seconds']===7,
     'complete Herika action rows normalize into the bounded LORKHAN runtime contract');
+$sparseContext=$herikaContext;
+$sparseContext['policy']['content']['actions']['ai.stop']=['enabled'=>false];
+$check(array_column($overrideAllowed,'name')===['inspect.report','ai.follow','ai.stop']
+    &&array_column($policy->allowedDefinitions($sparseContext),'name')===['inspect.report','ai.follow'],
+    'saved enabled editor rows keep unsaved actions enabled while disabled rows still deny');
+$sparseContext['policy']['content']['allowed_actions']=['ai.follow'];
+$check(array_column($policy->allowedDefinitions($sparseContext),'name')===['ai.follow'],
+    'explicit allowed_actions remains the only allowlist mode');
+$mergePolicy=new ReflectionMethod(\LorkhanServer\Infrastructure\ActionCatalogRepository::class,'mergePolicyContents');
+$mergeCatalog=(new ReflectionClass(\LorkhanServer\Infrastructure\ActionCatalogRepository::class))->newInstanceWithoutConstructor();
+$mergedOff=$mergePolicy->invoke($mergeCatalog,['enabled'=>false,'max_tier'=>1,'denied_actions'=>['ai.stop'],
+    'actions'=>['ai.follow'=>['enabled'=>false,'cooldown_seconds'=>3]]],
+    ['enabled'=>true,'max_tier'=>3,'denied_actions'=>['item.use'],'actions'=>['ai.follow'=>['enabled'=>true]]]);
+$mergedOn=$mergePolicy->invoke($mergeCatalog,['max_tier'=>1,'allowed_actions'=>['ai.follow','ai.stop']],
+    ['enabled'=>true,'max_tier'=>3,'allowed_actions'=>['ai.follow','item.use']]);
+$check($mergedOff['enabled']===false&&$mergedOff['max_tier']===1&&$mergedOff['denied_actions']===['ai.stop','item.use']
+    &&$mergedOff['actions']['ai.follow']===['enabled'=>true,'cooldown_seconds'=>3]
+    &&$mergedOn['enabled']===true&&$mergedOn['max_tier']===1&&$mergedOn['allowed_actions']===['ai.follow'],
+    'NPC policy inherits installation kill switch, tier ceiling and explicit lists while its rows override');
+$mixedPolicy=$mergePolicy->invoke($mergeCatalog,$herikaContext['policy']['content'],
+    ['actions'=>['ai.follow'=>['display_name'=>'NPC Follow','confirmation_required'=>false]]]);
+$mixedContext=$herikaContext;$mixedContext['policy']['content']=$mixedPolicy;
+$mixedFollow=array_column($policy->allowedDefinitions($mixedContext),null,'name')['ai.follow'];
+$check($mixedFollow['display_name']==='NPC Follow'&&$mixedFollow['confirmation_required']===false
+    &&$mixedFollow['cooldown_seconds']===7&&$mixedFollow['description']==='Use the complete action row.',
+    'compact NPC overrides merge with full saved installation rows without losing inherited fields');
 $inheritedConfirmation=$herikaContext;
 $inheritedConfirmation['definitions']=array_map(static function(array $definition):array{
     $definition['confirmation_default']=true;return $definition;
@@ -1948,6 +2317,130 @@ $check(array_column($roleMessages,'role')===['system','user']
     &&substr_count($rolePrompt['_assembled_prompt'],'Where is my ring?')===1
     &&!str_contains(json_encode($roleMessages,JSON_THROW_ON_ERROR),'smoke test'),
     'compact chat history is included once with explicit speakers and control noise filtered');
+// Private NPC thoughts: exact owner only, unspoken, stripped before canonical validation, and absent from traces.
+$thoughtTarget=['kind'=>'npc','record_id'=>'Fargoth','content_file'=>'Morrowind.esm','refnum'=>['index'=>112,'content_file'=>0],'display_name'=>'Fargoth'];
+$thoughtTwin=$thoughtTarget;$thoughtTwin['refnum']['index']=113;
+$thoughtTurn=$promptTurn;$thoughtTurn['payload']['target']=$thoughtTarget;
+$thoughtOwner=\LorkhanServer\Application\PrivateThoughtPolicy::owner($thoughtTurn,'ref:fixture',true);
+$check($thoughtOwner===['profile_id'=>'ref:fixture','actor'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'morrowind.esm','refnum'=>['index'=>112,'content_file'=>0]]]
+    &&\LorkhanServer\Application\PrivateThoughtPolicy::owner($thoughtTurn,'ref:fixture',false)===null
+    &&\LorkhanServer\Application\PrivateThoughtPolicy::owner($thoughtTurn,null,true)===null
+    &&\LorkhanServer\Application\PrivateThoughtPolicy::owner($promptTurn,'ref:fixture',true)===null,
+    'private thoughts are off by default and need an owning profile and exact placed RefNum');
+foreach([['execution_mode'=>'director'],['execution_mode'=>'hypnosis'],['execution_mode'=>'cheat'],['director_instruction_id'=>'x'],['target'=>['kind'=>'narrator']+$thoughtTarget],['target'=>['kind'=>'creature']+$thoughtTarget]]as$thoughtMode){
+    $ineligible=$thoughtTurn;$ineligible['payload']=array_replace($ineligible['payload'],$thoughtMode);
+    $check(\LorkhanServer\Application\PrivateThoughtPolicy::owner($ineligible,'ref:fixture',true)===null,'private thoughts stay limited to ordinary NPC dialogue: '.json_encode($thoughtMode));
+}
+$thoughtAttachment=\LorkhanServer\Application\PrivateThoughtPolicy::attachment($thoughtOwner,'He suspects me.');
+$check(\LorkhanServer\Application\PrivateThoughtPolicy::forOwner($thoughtAttachment,'ref:fixture',$thoughtTarget,$thoughtTarget)==='He suspects me.'
+    &&\LorkhanServer\Application\PrivateThoughtPolicy::forOwner($thoughtAttachment,'ref:other',$thoughtTarget)===null
+    &&\LorkhanServer\Application\PrivateThoughtPolicy::forOwner($thoughtAttachment,'ref:fixture',$thoughtTwin)===null
+    &&\LorkhanServer\Application\PrivateThoughtPolicy::forOwner($thoughtAttachment,'ref:fixture',$thoughtTarget,$thoughtTwin)===null
+    &&\LorkhanServer\Application\PrivateThoughtPolicy::forOwner(['text'=>'Unscoped.'],'ref:fixture',$thoughtTarget)===null,
+    'stored thoughts resolve only for the exact owning profile and RefNum, never a same-name actor');
+$thoughtProvider=new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions',['api.openai.com'],'gpt-test','test-key',options:['json_schema'=>true]);
+$thoughtSchema=new ReflectionMethod($thoughtProvider,'responseSchema');
+$requestedTurn=$thoughtTurn+['_private_thought'=>$thoughtOwner];
+$thoughtProperties=(array)$thoughtSchema->invoke($thoughtProvider,$requestedTurn)['properties'];
+$check(array_keys($thoughtProperties)===['utterances','action','internal_thought']&&$thoughtProperties['internal_thought']['maxLength']===600
+    &&in_array('internal_thought',$thoughtSchema->invoke($thoughtProvider,$requestedTurn)['required'],true)
+    &&!array_key_exists('internal_thought',(array)$thoughtSchema->invoke($thoughtProvider,$thoughtTurn)['properties'])
+    &&!array_key_exists('internal_thought',(array)$thoughtSchema->invoke(new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions',
+        ['api.openai.com'],'gpt-test','test-key',options:['json_schema'=>true,'json_mode'=>false]),$requestedTurn)['properties']),
+    'structured provider schema asks for internal_thought only for an enabled owner with JSON output');
+$thoughtMessages=\LorkhanServer\Application\PrivateThoughtPolicy::promptMessages([['role'=>'system','content'=>'Return one JSON object with exactly two keys: "utterances" and "action". Rest.'],['role'=>'user','content'=>'Hi']]);
+$check(str_contains($thoughtMessages[0]['content'],'exactly three keys: "utterances", "action" and "internal_thought"')
+    &&str_contains($thoughtMessages[0]['content'],'## Private Thought')&&$thoughtMessages[1]===['role'=>'user','content'=>'Hi'],
+    'private thought instructions extend only the actual provider output contract');
+$thoughtResult=['utterances'=>[['text'=>'Hello.']],'action'=>null,'internal_thought'=>'  He seems honest.  '];
+$extractedThought=\LorkhanServer\Application\PrivateThoughtPolicy::extract($thoughtResult);
+$validateProviderResult->invoke($actionProvider,$thoughtResult);
+$check($extractedThought==='He seems honest.'&&!array_key_exists('internal_thought',$thoughtResult),'internal_thought is stripped before the canonical envelope check');
+foreach([str_repeat('é',601),['nested'],"bad\0thought",'   ',42]as$badThought){
+    $badResult=['utterances'=>[['text'=>'Hello.']],'action'=>null,'internal_thought'=>$badThought];
+    $check(\LorkhanServer\Application\PrivateThoughtPolicy::extract($badResult)===null&&array_keys($badResult)===['utterances','action'],
+        'invalid private thoughts are dropped without failing dialogue');
+}
+$check(\LorkhanServer\Application\PrivateThoughtPolicy::text(str_repeat('é',600))===str_repeat('é',600),'private thoughts allow exactly 600 UTF-8 characters');
+$unrequestedThought=['utterances'=>[],'action'=>null,'_private_thought'=>'Leaked.'];
+$check(\LorkhanServer\Application\PrivateThoughtPolicy::take($unrequestedThought,$thoughtTurn)===null&&!isset($unrequestedThought['_private_thought']),
+    'an unrequested provider thought is discarded before routing');
+try{$validateProviderResult->invoke($actionProvider,['utterances'=>[['text'=>'Hello.']],'action'=>null,'internal_thought'=>'x']);$check(false,'unrequested internal_thought kept the strict envelope');}
+catch(RuntimeException){$check(true,'unrequested internal_thought keeps the strict envelope invalid');}
+$thoughtFixtureDir=sys_get_temp_dir().'/lorkhan-thought-'.bin2hex(random_bytes(6));mkdir($thoughtFixtureDir,0700);
+file_put_contents($thoughtFixtureDir.'/router.php','<?php file_put_contents(__DIR__."/request.json",file_get_contents("php://input"));'
+    .'$c=json_encode(["utterances"=>[["text"=>"Welcome, outlander. Mind the guards."]],"action"=>null,"internal_thought"=>"Secret \\"text\\": \\"never spoken\\"."]);'
+    .'header("Content-Type: text/event-stream");foreach(str_split($c,7) as $p)echo "data: ".json_encode(["choices"=>[["delta"=>["content"=>$p]]]])."\n\n";'
+    .'echo "data: ".json_encode(["choices"=>[["delta"=>[],"finish_reason"=>"stop"]]])."\n\ndata: [DONE]\n\n";');
+$thoughtSocket=stream_socket_server('tcp://127.0.0.1:0');$thoughtPort=(int)substr(strrchr(stream_socket_get_name($thoughtSocket,false),':'),1);fclose($thoughtSocket);
+$thoughtServer=proc_open([PHP_BINARY,'-S','127.0.0.1:'.$thoughtPort,$thoughtFixtureDir.'/router.php'],[1=>['file','/dev/null','w'],2=>['file','/dev/null','w']],$thoughtPipes);
+try{
+    for($i=0;$i<100&&@fsockopen('127.0.0.1',$thoughtPort)===false;++$i)usleep(20_000);
+    $streamProvider=new OpenAiCompatibleProvider('http://127.0.0.1:'.$thoughtPort.'/v1/chat/completions',['127.0.0.1'],'fixture','',5000,
+        options:['json_schema'=>true],allowLoopbackHttp:true,directConnection:true);
+    $streamedThoughtText=[];$thoughtDiagnostics=[];
+    $streamedThoughtTurn=$requestedTurn;$streamedThoughtTurn['_allowed_action_definitions']=[];
+    $streamedThoughtTurn['_prompt']['_messages']=[['role'=>'system','content'=>'Return one JSON object with exactly two keys: "utterances" and "action".'],
+        ['role'=>'assistant','content'=>"I have not seen it.\n".\LorkhanServer\Application\PrivateThoughtPolicy::historyNote("I hid\nthe ring.")],
+        ['role'=>'user','content'=>'Player: Where is my ring?']];
+    $thoughtLogBefore=['context'=>filesize($logRoot.'/context_sent_to_llm.log'),'output'=>filesize($logRoot.'/output_from_llm.log')];
+    $streamedThoughtResult=$streamProvider->completeStreaming($streamedThoughtTurn,new NeverCancelledToken(),
+        static function(string $delta)use(&$streamedThoughtText):void{$streamedThoughtText[]=$delta;},
+        static function(string $stage,array $value)use(&$thoughtDiagnostics):void{$thoughtDiagnostics[$stage]=$value;});
+    $thoughtRequest=json_decode((string)file_get_contents($thoughtFixtureDir.'/request.json'),true);
+    $check(($streamedThoughtResult['_private_thought']??null)==='Secret "text": "never spoken".'
+        &&$streamedThoughtResult['utterances']===[['text'=>'Welcome, outlander. Mind the guards.']]
+        &&!str_contains(implode("\n",$streamedThoughtText),'Secret')&&!str_contains(json_encode($thoughtDiagnostics['response']??[]),'Secret')
+        &&isset($thoughtRequest['response_format']['json_schema']['schema']['properties']['internal_thought'])
+        &&str_contains((string)$thoughtRequest['messages'][0]['content'],'## Private Thought'),
+        'streamed structured dialogue never speaks or diagnoses the private thought: '.json_encode([$streamedThoughtText,$streamedThoughtResult]));
+    clearstatcache();
+    $thoughtContextLog=substr((string)file_get_contents($logRoot.'/context_sent_to_llm.log'),$thoughtLogBefore['context']);
+    $thoughtOutputLog=substr((string)file_get_contents($logRoot.'/output_from_llm.log'),$thoughtLogBefore['output']);
+    $check(str_contains((string)$thoughtRequest['messages'][1]['content'],'unknown to others: I hid the ring.]')
+        &&str_contains($thoughtContextLog,'I have not seen it.')&&str_contains($thoughtContextLog,'[private thought withheld]')
+        &&!str_contains($thoughtContextLog,'I hid')&&!str_contains(json_encode($thoughtDiagnostics['request']??[]),'I hid')
+        &&str_contains($thoughtOutputLog,'Welcome, outlander. Mind the guards.')&&str_contains($thoughtOutputLog,'[private thought withheld]')
+        &&!str_contains($thoughtOutputLog,'Secret'),
+        'owner prompt replays its thought while context, output and diagnostics withhold new and replayed thoughts');
+    $streamProvider->completeStreaming(array_replace($streamedThoughtTurn,['_private_thought'=>null]),new NeverCancelledToken(),static function():void{});
+    $check(false,'unrequested streamed internal_thought accepted');
+}catch(RuntimeException $error){$check(isset($thoughtRequest)&&$error->getMessage()==='provider_invalid_output','unrequested streamed internal_thought stays invalid output');}
+finally{proc_terminate($thoughtServer);proc_close($thoughtServer);@unlink($thoughtFixtureDir.'/router.php');@unlink($thoughtFixtureDir.'/request.json');@rmdir($thoughtFixtureDir);}
+clearstatcache();
+$check(!str_contains((string)file_get_contents($logRoot.'/output_from_llm.log'),'Secret'),'rejected streamed output never logs its internal_thought');
+foreach(['{"utterances":[{"text":"Hi."}],"action":null,"internal_thought":"Partial sec',
+    '{"utterances":[{"text":"Hi."}],"action":null,"internal\u005fthought":"Escaped sec"}',
+    '{"utterances":[{"text":"Hi."}],"action":null, "Internal_Thought" :"Cased sec"}',
+    '{"utterances":[{"text":"Hi."}],"action":null,"internal_thought":{"text":"Object sec."}}']as$thoughtRaw){
+    $thoughtRedacted=\LorkhanServer\Application\PrivateThoughtPolicy::redactOutput($thoughtRaw);
+    $thoughtSpeech=new \LorkhanServer\Application\StreamingDialogueText();
+    $thoughtSpoken=array_merge(...array_map(static fn(string$part):array=>$thoughtSpeech->push($part),str_split($thoughtRaw,5)),...[$thoughtSpeech->push('',true)]);
+    $check(str_starts_with($thoughtRedacted,'{"utterances":[{"text":"Hi."}],"action":null,')&&!str_contains($thoughtRedacted,'sec')
+        &&$thoughtSpoken===['Hi.'],'partial, escaped and malformed thoughts are withheld from logs and speech: '.$thoughtRaw);
+}
+$check(\LorkhanServer\Application\PrivateThoughtPolicy::redactOutput('{"utterances":[{"text":"Say \\"internal_thought\\": aloud."}],"action":null}')
+    ==='{"utterances":[{"text":"Say \\"internal_thought\\": aloud."}],"action":null}','ordinary dialogue output is logged unchanged');
+$thoughtHistory=$roleHistory;$thoughtHistory['history']=[
+    ['history_id'=>'own-line','content'=>['kind'=>'speech','text'=>'I have not seen it.','speaker'=>'Fargoth','speaker_identity'=>$thoughtTarget,'private_thought'=>'I hid the ring.']],
+    ['history_id'=>'twin-line','content'=>['kind'=>'speech','text'=>'Neither have I.','speaker'=>'Fargoth','speaker_identity'=>$thoughtTwin,'private_thought'=>'Twin secret.']],
+];
+$thoughtAssembled=(new PromptAssembler(8192,1024))->assemble($thoughtTurn,$thoughtHistory);
+$thoughtSystem=$thoughtAssembled['provider_input']['_messages'][0]['content'];
+$check(str_contains($thoughtSystem,'unknown to others: I hid the ring.')&&!str_contains($thoughtSystem,'Twin secret')
+    &&!str_contains(json_encode($thoughtAssembled['trace'],JSON_THROW_ON_ERROR),'I hid the ring'),
+    'owner context includes its own thought, excludes a same-name actor, and keeps the prompt trace metadata-only');
+$thoughtSettings=(new EffectiveSettingsResolver())->resolve([],[],[]);
+$thoughtNpcSettings=(new EffectiveSettingsResolver())->resolve([],[],['settings_overrides'=>['response'=>['private_thoughts_enabled'=>true]]]);
+$check($thoughtSettings['settings']['response']['private_thoughts_enabled']===false
+    &&$thoughtNpcSettings['settings']['response']['private_thoughts_enabled']===true&&$thoughtNpcSettings['sources']['settings.response.private_thoughts_enabled']==='npc'
+    &&!str_contains(json_encode(EffectiveSettingsResolver::controlsProjection($thoughtNpcSettings)),'private_thoughts'),
+    'private thoughts default off, accept NPC overrides and stay out of the client controls contract');
+try{EffectiveSettingsResolver::validateSettingsOverrides(['response'=>['private_thoughts_enabled'=>'true']]);$check(false,'non-boolean private thought setting rejected');}
+catch(InvalidArgumentException){$check(true,'non-boolean private thought setting rejected');}
+$check(\LorkhanServer\Application\ProfileAssignmentRule::METADATA_FIELDS['PRIVATE_NPC_THOUGHTS_ENABLED']===['response','private_thoughts_enabled','boolean']
+    &&\LorkhanServer\Application\CoreProfilePreset::capture(['settings_overrides'=>['response'=>['private_thoughts_enabled'=>true]]])['settings_overrides']['response']===['private_thoughts_enabled'=>true],
+    'private thought setting maps CHIM metadata and survives named Core presets');
 $semanticHistory=$promptSelection;$semanticHistory['memory']=[];$semanticHistory['recent_action_results']=[];
 $timedHistory = $roleHistory;
 $timedHistory['effective_settings']['context'] = \LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
@@ -2123,9 +2616,34 @@ $check($planned[0]['speech_enabled']===false&&$planned[1]['speech_enabled']===tr
 $narrationTurn['_narrator_profile']['content']['inline_narration_mode']='Disabled';
 $planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,
     ['utterances'=>[['text'=>'*Fargoth waves.* Welcome. *He smiles.*'],['text'=>'**He nods.**']],'action'=>null]));
-$check($planned[0]['text']==='*Fargoth waves.* Welcome. *He smiles.*'&&$planned[0]['speech_enabled']===true
-    &&$planned[1]['text']==='**He nods.**'&&$planned[1]['speech_enabled']===true,
-    'disabled narration preserves asterisks as ordinary Markdown dialogue');
+$check($planned[0]['text']==='*Fargoth waves.* Welcome. *He smiles.*'&&$planned[0]['_subtitle']===$planned[0]['text']
+    &&$planned[0]['_history_text']===$planned[0]['text']&&$planned[0]['_tts_text']==='Welcome.'&&$planned[0]['speech_enabled']===true
+    &&$planned[1]['_subtitle']==='**He nods.**'&&$planned[1]['speech_enabled']===false,
+    'disabled narration keeps directions in subtitles and history but out of NPC speech');
+$planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,
+    ['text'=>'Plain speech.','action'=>null]));
+$check($planned[0]['_tts_text']==='Plain speech.'&&$planned[0]['speech_enabled']===true,'disabled narration leaves plain dialogue speech unchanged');
+$open=false;
+$check([NarrationTextPolicy::streamedSpeech('*She sighs.',$open),$open,NarrationTextPolicy::streamedSpeech('Then looks up.* Hi.',$open),$open]
+    ===['',true,'Hi.',false]&&NarrationTextPolicy::speech('Hello *there* friend * ok')==='Hello friend ok',
+    'streamed speech carries an unclosed direction into the next sentence and never speaks stray asterisks');
+$filteredTurn=$narrationTurn;$filteredTurn['_narrator_profile']['content']['narration_filters']=['remove_npc_output_asterisks'=>true];
+$planned=(new DialoguePlanner())->plan($filteredTurn,(new InlineNarrationRouter())->route($filteredTurn,
+    ['utterances'=>[['text'=>'*Fargoth waves.* Welcome.'],['text'=>'*He nods.*']],'action'=>null]));
+$check(count($planned)===1&&$planned[0]['_subtitle']==='Welcome.'&&$planned[0]['_tts_text']==='Welcome.'
+    &&$planned[0]['_history_text']==='*Fargoth waves.* Welcome.',
+    'explicit NPC output asterisk filter still removes directions from subtitles and drops narration-only lines');
+$translationHandler=new \LorkhanServer\Application\TurnProcessJobHandler((new ReflectionClass(\LorkhanServer\Infrastructure\Repository::class))
+    ->newInstanceWithoutConstructor(),new \LorkhanServer\Application\MockProvider(),null,null,translationProvider:new class implements \LorkhanServer\Application\TranslationProvider {
+        public function translate(array$texts,string$sourceLanguage,string$targetLanguage,\LorkhanServer\Application\CancellationToken$token):array
+        {return array_map(static fn(string$text):string=>'DE '.$text,$texts);}
+    });
+$translationContent=array_replace(\LorkhanServer\Application\TranslationPolicy::defaults(),['translate_text'=>true,'translate_audio'=>true]);
+$translated=(new ReflectionMethod($translationHandler,'translateResult'))->invoke($translationHandler,$narrationTurn+['request_id'=>'r','turn_id'=>'t'],
+    (new InlineNarrationRouter())->route($narrationTurn,['text'=>'*Fargoth waves.* Welcome.','action'=>null]),
+    ['configuration_id'=>null,'revision'=>0,'content'=>$translationContent],['job_id'=>'j','attempt'=>1],new NeverCancelledToken());
+$check($translated['utterances'][0]['_subtitle']==='DE *Fargoth waves.* Welcome.'&&$translated['utterances'][0]['_tts_text']==='DE Welcome.',
+    'translated audio keeps disabled-narration directions out of speech while subtitles translate them');
 $narrationTurn['_narrator_profile']['content']['enabled']=false;
 $narrationTurn['_narrator_profile']['content']['inline_narration_mode']='Narrator';
 $planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,
@@ -2350,6 +2868,23 @@ $customPortDetections=0;$pocketCustomPort=new PocketTtsSpeechProvider('http://12
 try{$pocketCustomPort->synthesize('custom port',new NeverCancelledToken());$check(false,'custom PocketTTS ports remain authoritative');}
 catch(RuntimeException$error){$check($error->getMessage()==='provider_unavailable'&&$customPortDetections===0,
     'custom PocketTTS ports never trigger known-port discovery');}
+// TTS Studio asks the same resolver where synthesis would run before syncing samples.
+$pocketResolver=static fn(array$modes):PocketTtsSpeechProvider=>new PocketTtsSpeechProvider('http://127.0.0.1:8024','pocket-tts','default','en',[], '',30000,null,
+    static fn(string$endpoint,string$mode):\LorkhanServer\Application\SpeechProvider=>$unavailableProvider,
+    static fn(string$endpoint,\LorkhanServer\Application\CancellationToken$cancellation):string=>$modes[(int)parse_url($endpoint,PHP_URL_PORT)]??'');
+$check($pocketResolver([8020=>'standard',8086=>''])->unavailableRuntime(new NeverCancelledToken())
+    ===['state'=>'fallback','endpoint'=>'http://127.0.0.1:8020','mode'=>'standard','checked'=>['http://127.0.0.1:8024','http://127.0.0.1:8086','http://127.0.0.1:8020']],
+    'Studio resolves a Standard API PocketTTS fallback when the configured port is down');
+$check($pocketResolver([8086=>'audio_cpp',8020=>'standard'])->unavailableRuntime(new NeverCancelledToken())
+    ===['state'=>'fallback','endpoint'=>'http://127.0.0.1:8086','mode'=>'audio_cpp','checked'=>['http://127.0.0.1:8024','http://127.0.0.1:8086']],
+    'Studio resolves the same first audio.cpp fallback synthesis uses');
+$check($pocketResolver([])->unavailableRuntime(new NeverCancelledToken())['state']==='none'
+    &&$pocketResolver([])->unavailableRuntime(new NeverCancelledToken())['checked']===['http://127.0.0.1:8024','http://127.0.0.1:8086','http://127.0.0.1:8020'],
+    'Studio reports every PocketTTS endpoint checked when none respond');
+$check($pocketResolver([8024=>'standard',8086=>'audio_cpp'])->unavailableRuntime(new NeverCancelledToken())['state']==='configured',
+    'Studio keeps a still-responding configured PocketTTS service instead of rerouting');
+$check($pocketCustomPort->unavailableRuntime(new NeverCancelledToken())===['state'=>'none','endpoint'=>'','mode'=>'','checked'=>[]]&&$customPortDetections===0,
+    'Studio never probes known ports for a custom PocketTTS port');
 $localPreset=static fn(string $driver):array=>['kind'=>'tts_provider','content'=>['driver'=>$driver,
     'endpoint'=>'http://127.0.0.1:8999','model'=>'default','voice'=>'default','language'=>'en','timeout_ms'=>30000,'options'=>[]]];
 foreach(['melotts','mimic3','piper-tts','stylettsv2'] as $driver){
@@ -2582,14 +3117,39 @@ foreach(['pockettts','omnivoice','chatterbox','xtts-fastapi']as$driver){
         &&$localCalls[1]['fields']['force']==='false','OmniVoice includes catalog transcription and never forces replacement');
     $localResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
     $check(count($localCalls)===3,$driver.' discovers and preserves an existing remote voice without reuploading');
-    $registered=false;$localResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
-    $check(count($localCalls)===5,$driver.' re-registers automatically after the remote voice library is reset');
+    $localEntry=$inworldRoot.'/.local-voice-cache/'.hash_hmac('sha256',$driver.'|http://127.0.0.1:8999/prefix|mw_dark_elf_male|en','').'.json';
+    $check($localResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken())===['speaker_wav'=>'mw_dark_elf_male']
+        &&count($localCalls)===3&&(fileperms($localEntry)&0777)===0660,$driver.' reuses a listed registration without another list request');
+    $localResolver->resolve('mw_dark_elf_male','de',new NeverCancelledToken());
+    $check(count($localCalls)===4,$driver.' scopes cached registrations by language');
+    $saved=json_decode(file_get_contents($localEntry),true);file_put_contents($localEntry,json_encode(['confirmed_at'=>time()-120]+$saved));
+    $localResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
+    $check(count($localCalls)===5,$driver.' expires a cached registration and asks the live service again');
+    file_put_contents($inworldRoot.'/mw_dark_elf_male.wav',$wav."\0\0");
+    $localResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());file_put_contents($inworldRoot.'/mw_dark_elf_male.wav',$wav);
+    $check(count($localCalls)===6,$driver.' ignores a cached registration after its sample changes');
+    $check($localResolver->recover('mw_dark_elf_male','en',new NeverCancelledToken())===null&&count($localCalls)===7,
+        $driver.' rejected synthesis of a still-listed voice is not retried');
+    $registered=false;
+    $check($localResolver->recover('mw_dark_elf_male','en',new NeverCancelledToken())===['speaker_wav'=>'mw_dark_elf_male']
+        &&count($localCalls)===9&&!is_file($localEntry),$driver.' re-registers automatically after the remote voice library is reset');
+    // Another worker holds registration; this one waits, then reuses the entry that worker confirmed.
+    $held=fopen(substr($localEntry,0,-5).'.lock','c');flock($held,LOCK_EX);$polls=0;
+    $waiting=new \LorkhanServer\Application\CallbackCancellationToken(static function()use(&$polls,$held,$localEntry):bool{
+        if(++$polls===2){file_put_contents($localEntry,json_encode(['speaker_wav'=>'mw_dark_elf_male','sample_hash'=>hash('sha256',file_get_contents(dirname($localEntry,2).'/mw_dark_elf_male.wav')),'confirmed_at'=>time()]));flock($held,LOCK_UN);}
+        return false;});
+    $check($localResolver->resolve('mw_dark_elf_male','en',$waiting)===['speaker_wav'=>'mw_dark_elf_male']&&$polls>=2&&count($localCalls)===9,
+        $driver.' waits for a concurrent registration instead of failing busy');
+    unlink($localEntry);flock($held,LOCK_EX);$polls=0;
+    try{$localResolver->resolve('mw_dark_elf_male','en',new \LorkhanServer\Application\CallbackCancellationToken(static function()use(&$polls):bool{return ++$polls>3;}));$check(false,'cancelled registration wait');}
+    catch(\LorkhanServer\Application\OperationCancelled){$check(count($localCalls)===9,$driver.' cancellation stops a registration wait without provider calls');}
+    finally{flock($held,LOCK_UN);fclose($held);}
     $check($localResolver->resolve('provider_stock_voice','en',new NeverCancelledToken())===['speaker_wav'=>'provider_stock_voice']
-        &&count($localCalls)===5,$driver.' passes provider-owned voices through without sample uploads');
+        &&count($localCalls)===9,$driver.' passes provider-owned voices through without sample uploads');
     try{$localResolver->resolve('../escape','en',new NeverCancelledToken());$check(false,'local sample traversal rejected');}
     catch(RuntimeException $e){$check($e->getMessage()==='invalid_voice_name','local sample traversal rejected');}
     try{$localResolver->resolve('mw_dark_elf_male','en',new \LorkhanServer\Application\CallbackCancellationToken(static fn()=>true));$check(false,'local cancellation before upload');}
-    catch(\LorkhanServer\Application\OperationCancelled){$check(count($localCalls)===5,'local cancellation prevents discovery and upload');}
+    catch(\LorkhanServer\Application\OperationCancelled){$check(count($localCalls)===9,'local cancellation prevents discovery and upload');}
 }
 // Another PHP worker can delete a sample while this process retains its realpath cache.
 $removedSample=$inworldRoot.'/worker_removed.wav';
@@ -2598,7 +3158,7 @@ realpath($removedSample);
 $removeProcess=proc_open([PHP_BINARY,'-r','exit(unlink($argv[1]) ? 0 : 1);',$removedSample],[], $removePipes);
 if(!is_resource($removeProcess)||proc_close($removeProcess)!==0)throw new RuntimeException('sample removal fixture failed');
 $check($localResolver->resolve('worker_removed','en',new NeverCancelledToken())===['speaker_wav'=>'worker_removed']
-    &&count($localCalls)===5,'deleted local sample uses the provider voice despite a stale worker realpath cache');
+    &&count($localCalls)===9,'deleted local sample uses the provider voice despite a stale worker realpath cache');
 $legacyCalls=[];$legacyLatents=['speaker_embedding'=>[0.1,0.2],'gpt_cond_latent'=>[[0.3,0.4]]];
 $legacyResolver=new \LorkhanServer\Application\LocalVoiceResolver('http://127.0.0.1:8999/tts_stream','xtts',$inworldRoot,'',30000,
     static function(string $url,?array $fields)use(&$legacyCalls,$legacyLatents):array{
@@ -3325,7 +3885,7 @@ $check(!isset($projection['settings']['memory']['oghma_knowledge_tags'])
     &&!in_array('excluded',$projection['source_map'],true)
     &&$effective['routing']['oghma_configuration_id']==='00000000-0000-4000-8000-000000000222'
     &&$projection['settings']['behavior']['auto_greeting']===true
-    &&$projection['settings']['behavior']['rechat_allow_actions']===false,
+    &&$projection['settings']['behavior']['rechat_allow_actions']===true,
     'controls omit server-only settings and provenance while retaining automatic dialogue settings');
 try{
     EffectiveSettingsResolver::validateSettingsOverrides(['behavior'=>['unknown_setting'=>true]]);
@@ -3359,7 +3919,13 @@ try {
 } catch (RuntimeException) {
     $check(true, 'media MIME signature rejected');
 }
+$cacheKey=hash('sha256','voice-r1|text');
+$media->rememberSpeech($cacheKey,['media_id'=>$mediaId,'bytes'=>204,'sha256'=>$mediaHash,'codec'=>'wav','mime_type'=>'audio/wav','duration_ms'=>20]);
+$check($media->cachedSpeech($cacheKey)===$speech,'speech cache reuses verified audio');
+$check($media->cachedSpeech(hash('sha256','voice-r2|text'))===null,'speech cache isolates voice revisions');
 $media->delete($mediaId);
+$check($media->cachedSpeech($cacheKey)===null,'speech cache tolerates expired media');
+foreach(glob($mediaRoot.'/speech-cache-*.json')?:[] as $entry)unlink($entry);
 rmdir($mediaRoot);
 
 foreach (['deploy-local-wsl.sh', 'deploy-wsl.sh'] as $scriptName) {
@@ -3367,6 +3933,27 @@ foreach (['deploy-local-wsl.sh', 'deploy-wsl.sh'] as $scriptName) {
     $check($deployScript !== false && str_contains($deployScript,
         'install -d -o lorkhan -g www-data -m 2770 /var/lib/lorkhanserver/media'),
         $scriptName . ' preserves shared media write access');
+    $preflight = strpos((string) $deployScript, 'bash "${source_root}/scripts/check-php-runtime-security.sh"');
+    $firstChange = min(array_filter([
+        strpos((string) $deployScript, "\ninstall "),
+        strpos((string) $deployScript, "\ngetent group lorkhan"),
+        strpos((string) $deployScript, 'runuser -u postgres'),
+    ], 'is_int'));
+    $check($preflight !== false && $preflight < $firstChange,
+        $scriptName . ' checks the PHP runtime before any system change');
+}
+$phpSecurityChecker = dirname(__DIR__) . '/scripts/check-php-runtime-security.sh';
+if (is_executable('/bin/bash')) {
+    $phpSecurityAccepts = static function (string $version) use ($phpSecurityChecker): bool {
+        $process = proc_open(['/bin/bash', '-c', 'source "$1" && php_security_version_patched "$2"', '_',
+            $phpSecurityChecker, $version], [], $pipes);
+        return is_resource($process) && proc_close($process) === 0;
+    };
+    $check(array_filter(['8.2.35', '8.3.36', '8.4.27', '8.5.12', '8.2.35-1~deb12u1', '1:8.4.30-1'], $phpSecurityAccepts)
+        === ['8.2.35', '8.3.36', '8.4.27', '8.5.12', '8.2.35-1~deb12u1', '1:8.4.30-1'],
+        'PHP security preflight accepts patched branch floors');
+    $check(array_filter(['8.2.34', '8.3.1', '8.3.35', '8.4.26', '8.5.11', '8.1.40', '8.6.0', '9.0.0', '8.5.12RC1', '8.4.27-dev'],
+        $phpSecurityAccepts) === [], 'PHP security preflight refuses unpatched and unsupported branches');
 }
 
 $presetCurrent = \LorkhanServer\Application\SettingsCatalog::globalDefaults();
@@ -3458,15 +4045,20 @@ try {
     $check(false, 'named preset rejects connector fields');
 } catch (InvalidArgumentException) { $check(true, 'named preset rejects connector fields'); }
 
-// Dashboard worker status must not mistake stale PIDs or an idle systemd timer for a running worker.
+// Dashboard worker status must not mistake stale PIDs, an idle systemd timer or one live lane for a running worker.
 $workerFixture = sys_get_temp_dir().'/lorkhan-worker-status-'.bin2hex(random_bytes(4));
-mkdir($workerFixture); mkdir($workerFixture.'/1'); mkdir($workerFixture.'/123');
+mkdir($workerFixture); mkdir($workerFixture.'/1'); mkdir($workerFixture.'/123'); mkdir($workerFixture.'/124');
 file_put_contents($workerFixture.'/1/comm', "init\n");
 $workerStatus = static fn(?callable $query = null): string => \LorkhanServer\Infrastructure\BackgroundWorkerStatus::read($workerFixture, $workerFixture, $query);
 $check($workerStatus()==='Stopped', 'missing worker PID is stopped');
 file_put_contents($workerFixture.'/lorkhanserver-worker.pid', "123\n");
-file_put_contents($workerFixture.'/123/cmdline', "bash\0/usr/local/libexec/lorkhanserver-worker-loop\0");
-$check($workerStatus()==='Running', 'worker status verifies the exact supervisor process');
+file_put_contents($workerFixture.'/123/cmdline', "bash\0/usr/local/libexec/lorkhanserver-worker-loop\0background\0");
+$check($workerStatus()==='Stopped', 'background lane alone does not report a running worker');
+file_put_contents($workerFixture.'/lorkhanserver-worker-interactive.pid', "124\n");
+file_put_contents($workerFixture.'/124/cmdline', "bash\0/usr/local/libexec/lorkhanserver-worker-loop\0background\0");
+$check($workerStatus()==='Stopped', 'interactive PID must belong to the interactive lane supervisor');
+file_put_contents($workerFixture.'/124/cmdline', "bash\0/usr/local/libexec/lorkhanserver-worker-loop\0interactive\0");
+$check($workerStatus()==='Running', 'worker status verifies the exact supervisor process for both lanes');
 file_put_contents($workerFixture.'/123/cmdline', "bash\0/unrelated-worker\0");
 $check($workerStatus()==='Stopped', 'reused PID cannot report running');
 file_put_contents($workerFixture.'/lorkhanserver-worker.pid', '../123');
@@ -3474,12 +4066,30 @@ $check($workerStatus()==='Unavailable', 'invalid PID is rejected');
 file_put_contents($workerFixture.'/1/comm', "systemd\n");
 foreach ([['activating','active','Running'],['inactive','active','Waiting (timer active)'],['failed','active','Failed'],['inactive','inactive','Stopped']] as [$serviceState,$timerState,$expected]) {
     $query=static fn():array=>['lorkhanserver-worker.service'=>['LoadState'=>'loaded','ActiveState'=>$serviceState],
-        'lorkhanserver-worker.timer'=>['LoadState'=>'loaded','ActiveState'=>$timerState]];
+        'lorkhanserver-worker.timer'=>['LoadState'=>'loaded','ActiveState'=>$timerState],
+        'lorkhanserver-worker-interactive.service'=>['LoadState'=>'loaded','ActiveState'=>$serviceState],
+        'lorkhanserver-worker-interactive.timer'=>['LoadState'=>'loaded','ActiveState'=>$timerState]];
     $check($workerStatus($query)===$expected, 'systemd worker status '.$expected);
 }
+$check($workerStatus(static fn():array=>['lorkhanserver-worker.service'=>['LoadState'=>'loaded','ActiveState'=>'active'],
+    'lorkhanserver-worker.timer'=>['LoadState'=>'loaded','ActiveState'=>'active']])==='Unavailable',
+    'systemd status does not report running without the interactive lane');
 $check($workerStatus(static fn()=>null)==='Unavailable', 'failed systemd observation stays unknown');
-unlink($workerFixture.'/123/cmdline'); unlink($workerFixture.'/1/comm'); unlink($workerFixture.'/lorkhanserver-worker.pid');
-rmdir($workerFixture.'/123'); rmdir($workerFixture.'/1'); rmdir($workerFixture);
+foreach (['/123/cmdline','/124/cmdline','/1/comm','/lorkhanserver-worker.pid','/lorkhanserver-worker-interactive.pid'] as $workerFile) unlink($workerFixture.$workerFile);
+rmdir($workerFixture.'/123'); rmdir($workerFixture.'/124'); rmdir($workerFixture.'/1'); rmdir($workerFixture);
+// Supervised lanes split the job types without overlap; manual runs keep the configured all-types filter.
+$laneFilter = [\LorkhanServer\Application\Worker::class, 'laneFilter'];
+$check($laneFilter('all', null)===['types'=>null,'excluded_types'=>null]
+    &&$laneFilter('all', ['profile.generate'])===['types'=>['profile.generate'],'excluded_types'=>null], 'all lane preserves configured worker types');
+$check($laneFilter('interactive', null)===['types'=>['turn.process','stt.process','speech.synthesize','dialogue.expire'],'excluded_types'=>null]
+    &&$laneFilter('interactive', ['turn.process','profile.generate'])['types']===['turn.process'], 'interactive lane owns only dialogue jobs');
+$check($laneFilter('background', null)===['types'=>null,'excluded_types'=>\LorkhanServer\Application\Worker::INTERACTIVE_TYPES]
+    &&$laneFilter('background', ['turn.process','profile.generate'])['types']===['profile.generate'], 'background lane excludes every dialogue job');
+// A worker.types filter that empties one lane idles that lane instead of failing its supervisor.
+$check($laneFilter('interactive', ['profile.generate'])===['types'=>[],'excluded_types'=>null]
+    &&$laneFilter('background', ['turn.process'])===['types'=>[],'excluded_types'=>null], 'empty worker lane claims nothing without failing');
+try { $laneFilter('priority', null); $check(false, 'invalid worker lane accepted'); }
+catch (InvalidArgumentException) { $check(true, 'invalid worker lane rejected'); }
 
 $omniRoot=sys_get_temp_dir().'/lorkhan-omni-languages-'.bin2hex(random_bytes(4));
 $check(\LorkhanServer\Application\OmniVoiceLanguages::available($omniRoot)===[], 'missing OmniVoice catalogue stays empty');

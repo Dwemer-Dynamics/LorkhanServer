@@ -42,7 +42,7 @@ foreach (ConnectorCatalog::all('tts_provider') as $definition) {
     $credentialDefaults[$driver] = $definition['credential_environment'] ?: 'none';
     if (!$definition['local']) $cloudDrivers[] = $driver;
 }
-$drivers = array_replace($drivers, ['mimic3'=>'Mimic3','azure'=>'Azure','koboldcpp'=>'KoboldCPP','zonos_gradio'=>'Zonos']);
+$drivers = array_replace($drivers, ['azure'=>'Azure','koboldcpp'=>'KoboldCPP','zonos_gradio'=>'Zonos']);
 
 // Only labels, references and configured/missing status reach the editor, never key values.
 $badgeLabels = \LorkhanServer\Application\CredentialStore::badgeLabels();
@@ -71,12 +71,13 @@ $queryFor = static function (array $values) use ($pageUrl, $installationId, $emb
 
 // Test only the selected saved connector; catalog construction never calls a provider.
 $ttsPreview = null;
-if ($selected !== null && $mode === 'edit') {
+if ($selected !== null && $mode === 'edit' && !in_array($selected['content']['driver'] ?? '', ['mimic3', 'melotts'], true)) {
     $narrator = $productRepository->narratorProfileForInstallation($installationId);
     $ttsPreview = SpeechPreviewCatalog::options([$selected], $productRepository->connectorVoiceCatalog(),
         (string) ($config['voice_storage_path'] ?? ''), (string) $selected['configuration_id'],
         SpeechPreviewCatalog::narratorVoice($narrator));
 }
+unset($drivers['mimic3'], $drivers['melotts']);
 $recommendedDrivers = array_intersect(['pockettts', 'chatterbox', 'xtts-fastapi', 'inworld', 'cartesia', 'omnivoice'], array_keys($drivers));
 // Match Herika's shared service order, retaining additional supported drivers at the end.
 $otherDrivers = array_intersect(['piper-tts', 'xvasynth', 'melotts', 'mimic3', 'azure', '11labs',
@@ -127,11 +128,16 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     <div class="list-wrap" id="tts_connector_list" aria-label="TTS Connectors">
                         <?php foreach ($rows as $row):
                             $content = is_array($row['content'] ?? null) ? $row['content'] : [];
+                            $rowDriver = (string) ($content['driver'] ?? '');
+                            $driverLabel = $drivers[$rowDriver] ?? $rowDriver;
+                            if (in_array($rowDriver, ['mimic3', 'melotts'], true)) {
+                                $driverLabel = ($rowDriver === 'mimic3' ? 'Mimic3' : 'MeloTTS') . ' (deprecated)';
+                            }
                             $active = $selected !== null && $selected['configuration_id'] === $row['configuration_id'];
                             $assignmentCount = (int) ($row['profile_usage'] ?? 0) + (int) ($row['active_session_usage'] ?? 0);
                         ?>
                             <a class="conn-card<?php echo $active ? ' active' : ''; ?>" href="<?php echo lorkhan_ui_h($queryFor(['edit' => $row['configuration_id']])); ?>">
-                                <span class="conn-head"><span class="title"><?php echo lorkhan_ui_h($row['name']); ?></span><span class="conn-badge"><?php echo lorkhan_ui_h($drivers[(string) ($content['driver'] ?? '')] ?? ($content['driver'] ?? 'Configured')); ?></span></span>
+                                <span class="conn-head"><span class="title"><?php echo lorkhan_ui_h($row['name']); ?></span><span class="conn-badge"><?php echo lorkhan_ui_h($driverLabel); ?></span></span>
                                 <?php if (!in_array((string) ($content['driver'] ?? ''), $cloudDrivers, true)): ?><span class="conn-sub"><?php echo lorkhan_ui_h($content['endpoint'] ?? ''); ?></span><?php endif; ?>
                                 <span class="conn-usage"><?php echo $assignmentCount; ?> assignment<?php echo $assignmentCount === 1 ? '' : 's'; ?></span>
                             </a>
@@ -155,6 +161,8 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 <button class="btn-save" type="submit">Import</button>
                             </div>
                         </form>
+                    <?php elseif ($mode === 'edit' && in_array($selected['content']['driver'] ?? '', ['mimic3', 'melotts'], true)): ?>
+                        <div class="placeholder"><strong><?php echo ($selected['content']['driver'] === 'mimic3' ? 'Mimic3' : 'MeloTTS'); ?> (deprecated)</strong><p>Existing settings and assignments are preserved. Create a connector with a supported provider to replace it.</p></div>
                     <?php else:
                         $creating = $mode === 'create';
                         $content = $creating ? [] : (is_array($selected['content'] ?? null) ? $selected['content'] : []);

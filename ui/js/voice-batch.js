@@ -28,7 +28,7 @@ document.querySelectorAll('[data-voice-batch]').forEach((form) => {
         current.textContent = '0'; total.textContent = '0'; eta.textContent = '';
         bar.style.width = '0%'; bar.parentElement.setAttribute('aria-valuenow', '0');
         status.textContent = data.get('sync_all') === '1' ? 'Preparing the full voice cache for sync…' : 'Checking the provider for missing voices…';
-        let uploaded = 0, failed = 0, skipped = 0, completed = 0, rateLimited = false;
+        let uploaded = 0, failed = 0, skipped = 0, completed = 0, rateLimited = false, runtime = '';
         // Never retry an uncertain upload automatically; a provider may already have created the voice.
         const send = async () => {
             // The hidden action field shadows HTMLFormElement.action. Read the URL attribute instead.
@@ -41,6 +41,8 @@ document.querySelectorAll('[data-voice-batch]').forEach((form) => {
         try {
             const plan = await send();
             if (!Array.isArray(plan.voices) || plan.voices.length > 512 || plan.voices.some(voice => typeof voice !== 'string') || new Set(plan.voices).size !== plan.voices.length) throw new Error('Invalid voice queue. Refresh the page before retrying.');
+            // A PocketTTS fallback note is plain server text; textContent keeps it inert.
+            if (typeof plan.runtime === 'string') runtime = plan.runtime;
             total.textContent = String(plan.voices.length);
             data.set('_batch_phase', 'voice');
             const began = performance.now();
@@ -54,6 +56,7 @@ document.querySelectorAll('[data-voice-batch]').forEach((form) => {
                     result = await send();
                     if (!result || result.voice !== voice || ![result.uploaded, result.failed, result.skipped].every(value => value === 0 || value === 1) || result.uploaded + result.failed + result.skipped !== 1) throw new Error('Unconfirmed voice result. Refresh the page before retrying.');
                 } catch (error) { row.className = 'voice-batch-failed'; row.textContent = `? ${voice}: outcome unconfirmed`; throw error; }
+                if (typeof result.runtime === 'string') runtime = result.runtime;
                 uploaded += result.uploaded; failed += result.failed; skipped += result.skipped; completed++;
                 row.className = result.failed ? 'voice-batch-failed' : 'voice-batch-succeeded';
                 row.textContent = result.failed ? `✗ ${voice}: upload failed` : result.skipped ? `✓ ${voice}: already available` : `✓ ${voice}`;
@@ -71,9 +74,9 @@ document.querySelectorAll('[data-voice-batch]').forEach((form) => {
                     await new Promise(resolve => setTimeout(resolve, delay));
                 }
             }
-            status.textContent = `${rateLimited ? 'Rate limit reached. Wait before continuing.' : stopped ? 'Batch stopped.' : 'Batch complete.'} ${uploaded} uploaded, ${skipped} already available, ${failed} failed. ${completed} / ${plan.voices.length} processed.${stopped ? ' No further voices were started.' : ''}`;
+            status.textContent = `${rateLimited ? 'Rate limit reached. Wait before continuing.' : stopped ? 'Batch stopped.' : 'Batch complete.'} ${uploaded} uploaded, ${skipped} already available, ${failed} failed. ${completed} / ${plan.voices.length} processed.${stopped ? ' No further voices were started.' : ''}${runtime ? ` ${runtime}` : ''}`;
         } catch (error) {
-            status.textContent = `${error.message} ${uploaded} uploaded, ${skipped} already available, ${failed} failed. Successful voices remain saved.`;
+            status.textContent = `${error.message} ${uploaded} uploaded, ${skipped} already available, ${failed} failed. Successful voices remain saved.${runtime ? ` ${runtime}` : ''}`;
         } finally {
             start.disabled = false; stop.hidden = true; eta.textContent = ''; refresh.hidden = false;
         }

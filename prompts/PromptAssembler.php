@@ -413,6 +413,13 @@ Return a tones object before mood and text in every utterance. Include all eight
         $oghma = $contextPolicy['sections']['oghma'] ? $this->oghmaKnowledgeFragment($knowledge, $knowledgeStatus) : '';
         $narrativeXml = $this->sourceItemsXml($narrative, 'narrative');
         if ($narrativeXml !== '') $morrowind .= '<narrative_context>' . $narrativeXml . '</narrative_context>';
+        // Worker-bounded addon slot text (PluginHooks); rendered as escaped text only.
+        $addons = '';
+        foreach ((array) ($turn['_plugin_context'] ?? []) as $note) {
+            if (is_array($note) && in_array($note['slot'] ?? null, \LorkhanServer\Protocol\PluginContract::PROMPT_SLOTS, true)
+                && is_string($note['text'] ?? null) && $note['text'] !== '') $addons .= $this->xmlTag($note['slot'], $note['text']);
+        }
+        if ($addons !== '') $morrowind .= '<addon_context>' . $addons . '</addon_context>';
 
         $historyText = [];
         foreach ($historyMessages as $message) {
@@ -1083,6 +1090,10 @@ Return a tones object before mood and text in every utterance. Include all eight
             $target = $turn['payload']['target'] ?? [];
             $isActor = $this->sameActor($content['speaker_identity'] ?? null, $target)
                 || mb_strtolower($speaker, 'UTF-8') === mb_strtolower($actorName, 'UTF-8');
+            // The repository already verified ownership; never attach by name-only actor matches.
+            $thought = PrivateThoughtPolicy::text($content['private_thought'] ?? null);
+            if ($isActor && $thought !== null && PrivateThoughtPolicy::sameActor($content['speaker_identity'] ?? null, $target))
+                $text .= "\n" . PrivateThoughtPolicy::historyNote($thought);
             return $isActor
                 ? ['role' => 'assistant', 'content' => $text]
                 : ['role' => 'user', 'content' => $speaker . ': ' . $text];

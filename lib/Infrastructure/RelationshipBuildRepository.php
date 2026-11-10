@@ -5,6 +5,7 @@ namespace LorkhanServer\Infrastructure;
 use LorkhanServer\Application\OperationCancelled;
 use LorkhanServer\Application\RelationshipBuildPolicy;
 use LorkhanServer\Application\RelationshipType;
+use LorkhanServer\Domain\ProfileId;
 use PDO;
 
 /** Explicit history builds preserve source, scope, lifecycle and manual-edit ownership. */
@@ -20,7 +21,7 @@ final class RelationshipBuildRepository
     public function enqueue(array $scope,string $requestId,int $limit=100,string $direction='',bool $preview=false):array
     {
         foreach(['installation_id','profile_id','playthrough_id'] as $field)
-            if(!is_string($scope[$field]??null)||!Uuid::isValid($scope[$field]))
+            if(!is_string($scope[$field]??null)||!($field==='profile_id'?ProfileId::isValid($scope[$field]):Uuid::isValid($scope[$field])))
                 throw new \InvalidArgumentException('invalid_relationship_scope');
         if(!Uuid::isValid($requestId)||$limit<1||$limit>100)throw new \InvalidArgumentException('invalid_relationship_build_request');
         $direction=RelationshipBuildPolicy::direction($direction);
@@ -168,7 +169,7 @@ final class RelationshipBuildRepository
     public function draft(array $scope,string $jobId):?array
     {
         foreach(['installation_id','profile_id','playthrough_id'] as $field)
-            if(!is_string($scope[$field]??null)||!Uuid::isValid($scope[$field]))return null;
+            if(!is_string($scope[$field]??null)||!($field==='profile_id'?ProfileId::isValid($scope[$field]):Uuid::isValid($scope[$field])))return null;
         if(!Uuid::isValid($jobId))return null;
         $query=$this->db->prepare("SELECT r.draft,j.payload,j.payload->>'profile_revision' AS profile_revision
             FROM relationship_build_results r JOIN durable_jobs j ON j.job_id=r.job_id
@@ -202,7 +203,7 @@ final class RelationshipBuildRepository
     public function previewStatus(array $scope,string $jobId):array
     {
         foreach(['installation_id','profile_id','playthrough_id'] as $field)
-            if(!is_string($scope[$field]??null)||!Uuid::isValid($scope[$field]))throw new \RuntimeException('not_found');
+            if(!is_string($scope[$field]??null)||!($field==='profile_id'?ProfileId::isValid($scope[$field]):Uuid::isValid($scope[$field])))throw new \RuntimeException('not_found');
         if(!Uuid::isValid($jobId))throw new \RuntimeException('not_found');
         $query=$this->db->prepare("SELECT j.state,r.draft IS NOT NULL AS has_draft
             FROM durable_jobs j LEFT JOIN relationship_build_results r ON r.job_id=j.job_id

@@ -54,7 +54,7 @@ final class JobRepository
     }
 
     /** @return list<array<string,mixed>> */
-    public function claim(string $workerId, int $limit, int $leaseSeconds, ?array $types = null): array
+    public function claim(string $workerId, int $limit, int $leaseSeconds, ?array $types = null, ?array $excludedTypes = null): array
     {
         if ($workerId === '' || strlen($workerId) > 255 || $limit < 1 || $limit > 100 || $leaseSeconds < 5 || $leaseSeconds > 3600) {
             throw new RuntimeException('Invalid claim bounds.');
@@ -62,8 +62,11 @@ final class JobRepository
         if ($types !== null && ($types === [] || count($types) > 100)) {
             throw new RuntimeException('Job type filter is invalid.');
         }
+        if ($excludedTypes !== null && ($excludedTypes === [] || count($excludedTypes) > 100)) {
+            throw new RuntimeException('Job type filter is invalid.');
+        }
 
-        return $this->transaction(function () use ($workerId, $limit, $leaseSeconds, $types): array {
+        return $this->transaction(function () use ($workerId, $limit, $leaseSeconds, $types, $excludedTypes): array {
             $parameters = ['limit' => $limit];
             $typeSql = '';
             if ($types !== null) {
@@ -77,6 +80,19 @@ final class JobRepository
                     $parameters[$name] = $type;
                 }
                 $typeSql = ' AND job_type IN (' . implode(', ', $placeholders) . ')';
+            }
+            if ($excludedTypes !== null) {
+                // Lanes exclude each other's types so a background lane can never claim interactive work.
+                $placeholders = [];
+                foreach (array_values($excludedTypes) as $index => $type) {
+                    if (!is_string($type) || $type === '') {
+                        throw new RuntimeException('Job type filter is invalid.');
+                    }
+                    $name = 'excluded_' . $index;
+                    $placeholders[] = ':' . $name;
+                    $parameters[$name] = $type;
+                }
+                $typeSql .= ' AND job_type NOT IN (' . implode(', ', $placeholders) . ')';
             }
             $select = $this->db->prepare("SELECT job_id FROM durable_jobs WHERE ("
                 . "(state = 'queued' AND attempt_count < max_attempts AND next_run_at <= clock_timestamp()) OR "

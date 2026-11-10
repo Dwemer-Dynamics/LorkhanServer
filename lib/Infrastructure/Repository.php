@@ -13,9 +13,16 @@ final class Repository
     private const SERVER_CAPABILITIES = ['relationship.disposition', 'diary.books.v1', 'dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'debug.npc_manager.v1', 'speech.browser.v1', 'action.inspect.report', 'action.ai.follow',
         'action.ai.stop', 'action.conversation.end', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
-        'action.inventory.inspect','action.confirmation','action.result-followup'];
+        'action.inventory.inspect','action.confirmation','action.result-followup','action.service.barter','action.weapon.sheathe',
+        'action.item.give','action.item.take','action.item.pickup','action.gold.give','action.gold.take','action.spell.cast','action.service.training',
+        'action.service.spells','action.service.travel','action.service.spellmaking','action.service.enchanting','action.service.repair',
+        // Addon registrations, events, trusted server hooks and registered plugin.action.intent emission.
+        'plugin.contract.v1'];
+    // NPC actions only; AdvancedActionPolicy::NAMES world actions remain unnegotiated.
     private const ENABLED_ACTIONS = ['inspect.report','inventory.inspect','ai.follow','ai.stop','conversation.end','ai.approach','ai.wait','ai.travel','ai.escort',
-        'ai.face','ai.wander','combat.start','combat.stop','animation.play','item.equip','item.unequip','item.use'];
+        'ai.face','ai.wander','combat.start','combat.stop','animation.play','item.equip','item.unequip','item.use','service.barter',
+        'weapon.sheathe','item.give','item.take','item.pickup','gold.give','gold.take','spell.cast','service.training','service.spells',
+        'service.travel','service.spellmaking','service.enchanting','service.repair'];
     public function __construct(
         private readonly PDO $db,
         private readonly int $eventReplayLimit = 256,
@@ -320,8 +327,9 @@ final class Repository
             }
             $director=new DirectorPlanningRepository($this->db);
             $mode=\LorkhanServer\Application\ExecutionModePolicy::mode($p);
+            $isHypnosis=$mode==='hypnosis';
             $isInjectionLog=$mode==='injection_log';
-            if($isInjectionLog&&($providerInput!==null||$directAction!==null))throw new \DomainException('execution_mode_not_allowed');
+            if(($isInjectionLog||$isHypnosis)&&($providerInput!==null||$directAction!==null))throw new \DomainException('execution_mode_not_allowed');
             $isDirector=$mode==='director';
             if($isDirector && ($providerInput!==null || $directAction!==null)) throw new \DomainException('director_route_invalid');
             if(!isset($p['director_instruction_id']) && ($p['speaker']['kind']??null)==='player'
@@ -345,8 +353,10 @@ final class Repository
                 }
                 $proposal = ['name' => $directAction['name'], 'tier' => $directAction['tier'],
                     'parameters' => $directAction['parameters'], 'actor' => in_array($directAction['name'],\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true)?($p['context']['player']??[]):$p['target'], 'target' => $actionTarget];
-                $validatedDirectAction = $this->actionPolicy->validate($proposal,
-                    $this->actionCatalog->loadForSession($m['session_id'], $m['generation']) + ['turn_payload'=>$p]);
+                $directLoaded=$this->actionCatalog->loadForSession($m['session_id'], $m['generation']);
+                // World actions keep the installation/session policy used for their prompt exposure.
+                if(!in_array($directAction['name'],\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true))$directLoaded=$this->withActorPolicy($directLoaded,$p['target']??null);
+                $validatedDirectAction = $this->actionPolicy->validate($proposal,$directLoaded + ['turn_payload'=>$p]);
             }
             $stmt = $this->db->prepare('INSERT INTO turns (turn_id, request_id, message_id, session_id, generation, runtime_generation, input_kind, '
                 . 'input_language, input_text, speaker, target, audience, context, state, accepted_at) VALUES '
@@ -404,7 +414,8 @@ final class Repository
             $dynamicOghma->apply((string)$m['installation_id'],(string)$m['playthrough_id'],(string)$m['message_id'],$dynamicPlan??$dynamicOghma->plan($m));
             $event = $this->event($m['session_id'], $m['generation'], $m['request_id'], $m['turn_id'], 'turn.accepted', ['status' => 'accepted']);
             if($isDirector)$director->enqueuePlan($m,$directorScene);
-            if($isInjectionLog){
+            if($isHypnosis)(new ProductRepository($this->db))->enqueueHypnosis($m);
+            if($isInjectionLog||$isHypnosis){
                 $this->db->prepare("UPDATE turns SET state='complete',completed_at=clock_timestamp() WHERE turn_id=:turn")->execute(['turn'=>$m['turn_id']]);
                 $event=$this->event($m['session_id'],$m['generation'],$m['request_id'],$m['turn_id'],'turn.complete',['status'=>'complete']);
             }
@@ -562,12 +573,7 @@ final class Repository
         // Preserve ingress stale/closed-session errors before the catalog's active-session read.
         $this->session($sessionId, $generation);
         if ($this->actionCatalog === null || $this->actionPolicy === null) return [];
-        $loaded=$this->actionCatalog->loadForSession($sessionId,$generation);
-        if(in_array($turnPayload['target']['kind']??null,['npc','creature'],true)){
-            $effective=(new ProductRepository($this->db))->effectiveSettingsForActor($loaded['session']['installation_id'],
-                $loaded['session']['playthrough_id'],$turnPayload['target']);
-            $loaded['policy']=$this->actionCatalog->currentPolicy($loaded['session']['installation_id'],$effective['npc_profile']['profile_id']??null);
-        }
+        $loaded=$this->withActorPolicy($this->actionCatalog->loadForSession($sessionId,$generation),$turnPayload['target']??null);
         $allowed=$this->actionPolicy->allowedDefinitions($loaded+['turn_payload'=>$turnPayload]);
         if(($turnPayload['target']['kind']??null)==='narrator')$allowed=array_values(array_filter($allowed,fn($d)=>in_array($d['name'],\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true)));
         if(\LorkhanServer\Application\AdvancedActionPolicy::eligible($turnPayload)){
@@ -607,6 +613,57 @@ final class Repository
         return $executors;
     }
 
+    /** Addon actions for one eligible negotiated turn: live registry, effective NPC action policy and observed actors. */
+    public function pluginPromptActions(array $m): array
+    {
+        return $this->pluginState($m)['definitions'] ?? [];
+    }
+
+    /** @return array{registry:\LorkhanServer\Application\PluginRegistry,definitions:list<array<string,mixed>>}|null */
+    private function pluginState(array $m): ?array
+    {
+        if($this->actionCatalog===null||$this->actionPolicy===null||($m['_plugin_actions_allowed']??false)!==true
+            ||!in_array(\LorkhanServer\Protocol\PluginContract::CAPABILITY,(array)($m['_negotiated_capabilities']??[]),true))return null;
+        $registry=(new PluginRuntimeRepository($this->db))->registry((string)$m['installation_id'],(string)$m['session_id'],(int)$m['generation']);
+        if($registry===null)return null;
+        $loaded=$this->actionCatalog->loadForSession($m['session_id'],$m['generation']);
+        return ['registry'=>$registry,'definitions'=>\LorkhanServer\Application\PluginActionPolicy::definitions($registry->actions(),
+            (array)$m['payload'],fn(string $plugin,string $action,int $tier,array $actor):bool=>
+                $this->actionPolicy->addonAllowed($this->withActorPolicy($loaded,$actor),$plugin,$action,$tier))];
+    }
+
+    /**
+     * Revalidate one addon proposal after the provider returned, in the terminal turn transaction: current registration,
+     * installed manifest/hash, enabled state, dependencies, generation, policy and observed actors. A rejected proposal is
+     * dropped and logged; the turn's dialogue still completes.
+     */
+    private function pluginIntent(array $m, array $proposal): ?array
+    {
+        $state=$this->pluginState($m);$code=$state===null?'plugin_actions_unavailable':'action_disabled';
+        foreach($state['definitions']??[] as $definition){
+            if($definition['plugin_id']!==($proposal['plugin_id']??null)||$definition['name']!==($proposal['action']??null))continue;
+            $code='provider_action_not_allowed';
+            if(!\LorkhanServer\Application\PluginActionPolicy::observedProposal($definition,$proposal,(array)$m['payload']))break;
+            try{
+                $intent=$state['registry']->intent($proposal,Uuid::v4(),(string)$m['turn_id'],new \DateTimeImmutable('now',new \DateTimeZone('UTC')));
+                return $intent+['_display_name'=>$definition['display_name']];
+            }catch(\DomainException $error){$code=$error->getMessage();}
+            break;
+        }
+        Logger::warn('Addon action not emitted: turn_id='.$m['turn_id'].' code='.$code);
+        return null;
+    }
+
+    /** Apply the effective NPC override policy to an NPC or creature actor; other actors keep the session policy. */
+    private function withActorPolicy(array $loaded,mixed $actor):array
+    {
+        if(!is_array($actor)||!in_array($actor['kind']??null,['npc','creature'],true))return $loaded;
+        $effective=(new ProductRepository($this->db))->effectiveSettingsForActor($loaded['session']['installation_id'],
+            $loaded['session']['playthrough_id'],$actor);
+        $loaded['policy']=$this->actionCatalog->currentPolicy($loaded['session']['installation_id'],$effective['npc_profile']['profile_id']??null);
+        return $loaded;
+    }
+
     /** @return array<string,mixed> */
     public function turnMessage(string $turnId): array
     {
@@ -617,6 +674,21 @@ final class Repository
         if(!is_array($message)||array_is_list($message))throw new \RuntimeException('turn_snapshot_invalid');
         $message['_negotiated_capabilities']=$manifest['capabilities']??[];
         return $message;
+    }
+
+    /** Persist prepared context once under the current lease so retries reuse its exact prompt. */
+    public function storePreparedTurn(array $message,array $trace,array $fence): void
+    {
+        $this->transaction(function() use ($message,$trace,$fence): void {
+            $this->session($message['session_id'],$message['generation'],true);
+            $this->lockPendingTurn($message['turn_id'],$message['session_id'],$fence);
+            $snapshot=$message;
+            $this->db->prepare("UPDATE turn_provider_snapshots SET source_manifest=jsonb_set(jsonb_set(source_manifest,'{message}',CAST(:message AS jsonb)),'{trace}',CAST(:trace AS jsonb)),input_sha256=:sha WHERE turn_id=:turn")
+                ->execute(['message'=>$this->encode($snapshot),'trace'=>$this->encode($trace),'sha'=>hash('sha256',$this->encodeCanonical($snapshot)),'turn'=>$message['turn_id']]);
+            $this->recordPromptTrace($message,$trace);
+            // History replays the cue this prompt actually used, even if mood templates are revised later.
+            $this->eventLog()->freezeTurnMoodCue((string)$message['turn_id'],$trace['player_mood_cue']??null);
+        });
     }
 
     public function appendDialogueDelta(array $m, string $text, array $fence): array
@@ -697,7 +769,7 @@ final class Repository
         $this->transaction(function () use ($m, $dialogue, $fence): void {
             $this->lockPendingTurn($m['turn_id'],$m['session_id'],$fence);
             $id=(string)($dialogue['dialogue_message_id']??'');
-            $text=(string)($dialogue['text']??'');
+            $text=(string)($dialogue['_tts_text']??$dialogue['text']??'');
             $this->db->prepare("INSERT INTO durable_jobs (job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) "
                 . "VALUES (:job,'speech.synthesize',1,:key,CAST(:payload AS jsonb),3,90) ON CONFLICT (job_type,idempotency_key) DO NOTHING")
                 ->execute(['job'=>Uuid::v4(),'key'=>'speech:'.$id,
@@ -728,9 +800,9 @@ final class Repository
     }
 
     public function completeTurn(array $m, array $providerResult, ?array $speech = null, ?array $fence = null,
-        bool $queueSpeech = false, array $streamedDialogues = []): array
+        bool $queueSpeech = false, array $streamedDialogues = [], ?string $privateThought = null): array
     {
-        return $this->transaction(function () use ($m, $providerResult, $speech, $fence, $queueSpeech, $streamedDialogues): array {
+        return $this->transaction(function () use ($m, $providerResult, $speech, $fence, $queueSpeech, $streamedDialogues, $privateThought): array {
             $session = $this->session($m['session_id'], $m['generation'], true);
             $turn = $this->lockPendingTurn($m['turn_id'], $m['session_id'], $fence);
             $m['runtime_generation'] ??= (int) $turn['runtime_generation'];
@@ -738,7 +810,12 @@ final class Repository
                 && ($m['payload']['context']['rechat']['allow_actions'] ?? false) !== true) {
                 $providerResult['action'] = null;
             }
+            // Addon proposals never become canonical rolecommand lines; they are revalidated against the live registry here.
+            $pluginProposal=is_array($providerResult['action']??null)&&array_key_exists('plugin_id',$providerResult['action'])
+                ?$providerResult['action']:null;
+            if($pluginProposal!==null)$providerResult['action']=null;
             $providerResult=$this->validateProviderResult($providerResult, $session, $m);
+            $pluginIntent=$pluginProposal===null?null:$this->pluginIntent($m,$pluginProposal);
             $canonical = $this->validatedCanonicalResponse(
                 (new \LorkhanServer\Application\CanonicalResponseNormalizer())->normalize($m, $providerResult, $streamedDialogues));
             $responseEvent=$this->event($m['session_id'],$m['generation'],$turn['request_id'],$m['turn_id'],
@@ -821,6 +898,16 @@ final class Repository
                     $speechEvents[] = $this->event($m['session_id'], $m['generation'], $turn['request_id'], $m['turn_id'], 'speech.ready', $descriptor);
                 }
             }
+            // The thought joins the owner's final line in this transaction; other speakers' lines never carry it.
+            $privateThought = \LorkhanServer\Application\PrivateThoughtPolicy::text($privateThought);
+            if ($privateThought !== null && \LorkhanServer\Application\PrivateThoughtPolicy::requested($m)) {
+                for ($index = count($dialogueLines) - 1; $index >= 0; --$index) {
+                    if (!\LorkhanServer\Application\PrivateThoughtPolicy::sameActor($dialogueLines[$index]['speaker_identity'], $m['_private_thought']['actor'])) continue;
+                    $this->eventLog()->attachPrivateThought((string) $dialogues[$index]['message_id'],
+                        \LorkhanServer\Application\PrivateThoughtPolicy::attachment($m['_private_thought'], $privateThought));
+                    break;
+                }
+            }
             $action = null;
             if (($providerResult['action'] ?? null) !== null) {
                 $actionLine = $actionLines[0] ?? throw new \DomainException('provider_invalid_output');
@@ -830,6 +917,7 @@ final class Repository
                     ->execute(['actor'=>$actionLine['display_name'],'identity'=>$this->encode($actionLine['speaker_identity']),
                         'payload'=>$this->encode($actionLine),'message'=>$actionLine['line_id']]);
             }
+            if($pluginIntent!==null)$this->pluginAction($m,$turn['request_id'],$pluginIntent);
             $complete = $this->event($m['session_id'], $m['generation'], $turn['request_id'], $m['turn_id'], 'turn.complete', ['status' => 'complete']);
             $updated = $this->db->prepare("UPDATE turns SET state='complete',completed_at=clock_timestamp(),response_id=:response,"
                 . 'response_payload=CAST(:payload AS jsonb),response_created_at=:created WHERE turn_id=:id AND state IN (\'accepted\',\'processing\')');
@@ -860,8 +948,10 @@ final class Repository
                 . 'WHERE u.dialogue_message_id=:id FOR UPDATE OF u');
             $statement->execute(['id'=>$dialogueId]);$row=$statement->fetch();
             if(!$row) throw new \OutOfBoundsException('dialogue_not_found');
-            $existing=$this->db->prepare('SELECT 1 FROM media_objects WHERE dialogue_message_id=:id');
-            $existing->execute(['id'=>$dialogueId]);
+            // Media or a terminal speech.failed notice each end the line's speech exactly once.
+            $existing=$this->db->prepare('SELECT 1 FROM media_objects WHERE dialogue_message_id=:id UNION ALL '
+                . "SELECT 1 FROM response_events WHERE session_id=:session AND event_type='speech.failed' AND payload->>'dialogue_message_id'=:line");
+            $existing->execute(['id'=>$dialogueId,'session'=>$row['session_id'],'line'=>$dialogueId]);
             if($existing->fetchColumn()||$row['session_state']!=='active'||(int)$row['session_generation']!==(int)$row['generation']||$row['delivery_state']!=='pending') return null;
             try{$this->assertAiEnabled($row['installation_id']);}catch(\DomainException){return null;}
             foreach(['speaker','addressee','audience'] as$field)$row[$field]=$this->json($row[$field]);
@@ -896,6 +986,19 @@ final class Repository
         });
     }
 
+    /** End a pending line's speech without media; the client keeps the subtitle and reports delivery itself. */
+    public function failDialogueSpeech(array $dialogue, string $code, array $fence): array
+    {
+        if(!in_array($code,['provider_unconfigured','provider_timeout','provider_unavailable'],true))
+            throw new \InvalidArgumentException('invalid_speech_failure_code');
+        return $this->transaction(function () use ($dialogue, $code, $fence): array {
+            $current=$this->claimDialogueForSpeech((string)$dialogue['dialogue_message_id'],$fence);
+            if($current===null) return [];
+            return $this->event($current['session_id'],$current['generation'],$current['request_id'],$current['turn_id'],
+                'speech.failed',['dialogue_message_id'=>$current['dialogue_message_id'],'code'=>$code]);
+        });
+    }
+
     public function failTurn(array $m, string $reason, ?array $fence = null): void
     {
         $this->transaction(function () use ($m, $reason, $fence): void {
@@ -917,6 +1020,15 @@ final class Repository
         });
     }
 
+    /** A bounded opaque revision lets the existing event poll signal package policy changes without another request loop. */
+    public function pluginPolicyRevision(string $installation): string
+    {
+        $rows=$this->db->prepare('SELECT plugin_id,version,manifest_sha256,enabled,state,revision FROM plugin_packages '
+            .'WHERE installation_id=:installation ORDER BY plugin_id');
+        $rows->execute(['installation'=>$installation]);
+        return hash('sha256',json_encode($rows->fetchAll(PDO::FETCH_ASSOC),JSON_THROW_ON_ERROR));
+    }
+
     public function events(string $sessionId, int $generation, int $after, int $limit): array
     {
         $session = $this->session($sessionId, $generation, false, true);
@@ -935,7 +1047,7 @@ final class Repository
         $events = [];
         foreach ($stmt->fetchAll() as $row) {
             $payload = $this->json($row['payload']);
-            if ($row['event_type'] === 'action.intent' && ($payload['parameters'] ?? null) === []) {
+            if (in_array($row['event_type'], ['action.intent', 'plugin.action.intent'], true) && ($payload['parameters'] ?? null) === []) {
                 $payload['parameters'] = (object) [];
             }
             $events[] = ['message_id' => $row['message_id'], 'request_id' => $row['request_id'], 'turn_id' => $row['turn_id'],
@@ -1079,6 +1191,10 @@ final class Repository
             if((string)$current['installation_id']!==(string)$session['installation_id']
                 ||(string)$current['playthrough_id']!==(string)$session['playthrough_id'])
                 throw new \UnexpectedValueException('stale_generation');
+            // The session row lock orders this check against cancelMenuDialogueTts.
+            if($this->menuDialogueTtsCancelled((string)$session['installation_id'],(string)$message['message_id'],
+                (string)$message['session_id'],(int)$message['generation']))
+                throw new \LorkhanServer\Application\OperationCancelled();
             $this->db->prepare('INSERT INTO menu_dialogue_tts_requests '
                 .'(message_id,request_id,installation_id,playthrough_id,session_id,generation,actor,text_sha256,created_at) '
                 .'VALUES (:message,:request,:installation,:playthrough,:session,:generation,CAST(:actor AS jsonb),:text_sha,:created)')
@@ -1094,6 +1210,33 @@ final class Repository
                     'codec'=>$speech['codec'],'mime'=>$speech['mime_type'],'duration'=>$speech['duration_ms'],
                     'expires'=>$speech['expires_at'],'message'=>$message['message_id']]);
         });
+    }
+
+    /** Mark one menu/book speech message abandoned unless its media was already recorded. */
+    public function cancelMenuDialogueTts(array $message,array $session): string
+    {
+        return $this->transaction(function()use($message,$session):string{
+            $this->session((string)$message['session_id'],(int)$message['generation'],true);
+            $completed=$this->db->prepare('SELECT 1 FROM menu_dialogue_tts_requests WHERE message_id=:message AND installation_id=:installation');
+            $completed->execute(['message'=>$message['target_message_id'],'installation'=>$session['installation_id']]);
+            if($completed->fetchColumn()!==false)return 'completed';
+            $this->db->prepare('INSERT INTO menu_dialogue_tts_cancellations '
+                .'(installation_id,message_id,session_id,generation,cancel_message_id) '
+                .'VALUES (:installation,:message,:session,:generation,:cancel) ON CONFLICT (installation_id,message_id) DO NOTHING')
+                ->execute(['installation'=>$session['installation_id'],'message'=>$message['target_message_id'],
+                    'session'=>$message['session_id'],'generation'=>$message['generation'],'cancel'=>$message['message_id']]);
+            return 'cancelled';
+        });
+    }
+
+    /** True after an explicit cancel or once the request's session generation stops being current. */
+    public function menuDialogueTtsCancelled(string $installationId,string $messageId,string $sessionId,int $generation): bool
+    {
+        $stmt=$this->db->prepare('SELECT EXISTS(SELECT 1 FROM menu_dialogue_tts_cancellations WHERE installation_id=:installation AND message_id=:message '
+            .'AND session_id=:session AND generation=:generation) '
+            ."OR NOT EXISTS(SELECT 1 FROM sessions WHERE session_id=:session AND installation_id=:installation AND state='active' AND generation=:generation)");
+        $stmt->execute(['installation'=>$installationId,'message'=>$messageId,'session'=>$sessionId,'generation'=>$generation]);
+        return (bool)$stmt->fetchColumn();
     }
 
     public function pruneExpiredEvents(): int
@@ -1170,6 +1313,8 @@ final class Repository
                 if ($action[$field] !== $m[$field]) throw new \DomainException('action_result_mismatch');
             }
             if ((int) $action['generation'] !== $m['generation']) throw new \UnexpectedValueException('stale_generation');
+            // Addon results are built from the intent envelope, so they must also carry its request ID.
+            if (($action['plugin_id'] ?? null) !== null && $action['request_id'] !== $m['request_id']) throw new \DomainException('action_result_mismatch');
             // A byte-for-byte terminal replay remains valid after action/session expiry.
             $existing = $this->db->prepare('SELECT message_id, request_id, status, reason_code, observed, completed_at FROM action_results WHERE action_id = :id');
             $existing->execute(['id' => $m['action_id']]);
@@ -1185,7 +1330,8 @@ final class Repository
             $expires=new \DateTimeImmutable($action['expires_at']);
             $lateBound=$expires->modify('+5 minutes');
             if ($completed < $emitted || $completed > $lateBound) throw new \DomainException('action_result_expired');
-            if($completed>$expires&&$m['status']!=='timed_out')throw new \DomainException('action_result_expired');
+            // After expiry only outcomes that report no game effect remain acceptable within the late bound.
+            if($completed>$expires&&!in_array($m['status'],['timed_out','cancelled','rejected'],true))throw new \DomainException('action_result_expired');
             $this->source($m['message_id'], $action['installation_id'], $action['session_id'], (int) $action['generation'], 'action.result',
                 $m['completed_at'], $m['schema'], $m['request_id'], $action['turn_id'], $m['action_id'], $m);
             $this->db->prepare('INSERT INTO action_results (action_id, source_event_id, message_id, request_id, status, reason_code, observed, completed_at) '
@@ -1274,6 +1420,27 @@ final class Repository
         return $this->event($m['session_id'], $m['generation'], $requestId, $m['turn_id'], 'action.intent', $payload, $messageId);
     }
 
+    /** Persist one revalidated addon intent in the shared action tables and emit its exact events.v1 plugin.action.intent. */
+    private function pluginAction(array $m, string $requestId, array $intent): array
+    {
+        $displayName=$intent['_display_name'];unset($intent['_display_name']);
+        $this->db->prepare('INSERT INTO action_intents (action_id,session_id,turn_id,request_id,generation,action_name,tier,actor,target,'
+            . 'parameters,expires_at,display_name,confirmation_required,plugin_id,plugin_version,cancellable,emitted_at) VALUES (:id,:session,'
+            . ':turn,:request,:generation,:name,:tier,CAST(:actor AS jsonb),CAST(:target AS jsonb),CAST(:parameters AS jsonb),:expires,:display_name,'
+            . ':confirmation,:plugin,:version,:cancellable,clock_timestamp())')
+            ->execute(['id'=>$intent['action_id'],'session'=>$m['session_id'],'turn'=>$m['turn_id'],'request'=>$requestId,
+                'generation'=>$m['generation'],'name'=>$intent['action'],'tier'=>$intent['tier'],'actor'=>$this->encode($intent['actor']),
+                'target'=>$intent['target']===null?'null':$this->encode($intent['target']),'parameters'=>$this->encodeObject($intent['parameters']),'expires'=>$intent['expires_at'],
+                'display_name'=>$displayName,'confirmation'=>$intent['confirmation_required']?'true':'false','plugin'=>$intent['plugin_id'],
+                'version'=>$intent['plugin_version'],'cancellable'=>$intent['cancellable']?'true':'false']);
+        $this->db->prepare("INSERT INTO action_delivery (action_id, emitted_at, continuation_state) VALUES (:id, clock_timestamp(), 'none')")
+            ->execute(['id'=>$intent['action_id']]);
+        $event=$this->event($m['session_id'],$m['generation'],$requestId,$m['turn_id'],\LorkhanServer\Protocol\PluginContract::INTENT_EVENT_TYPE,
+            $intent['parameters']===[]?array_replace($intent,['parameters'=>(object)[]]):$intent);
+        (new \LorkhanServer\Protocol\PluginContract(new \LorkhanServer\Protocol\Validator()))->intentEvent(array_replace($event,['payload'=>$intent]));
+        return $event;
+    }
+
     private function event(string $sessionId, int $generation, ?string $requestId, ?string $turnId, string $type,
         array $payload, ?string $messageId = null): array
     {
@@ -1343,6 +1510,9 @@ final class Repository
             }
             if(in_array($frozen['payload']['execution_mode']??'standard',['injection_log','injection_chat'],true))throw new \DomainException('provider_action_not_allowed');
             $worldAction=in_array($action['name']??null,\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true);
+            // Ordinary NPC turns validate against the same effective NPC policy their prompt exposed.
+            if(!isset($frozen['payload']['director_instruction_id'])&&!$worldAction&&!$narratorMode)
+                $loaded=$this->withActorPolicy($loaded,$m['payload']['target']??null);
             if($worldAction){
                 $loaded['turn_payload']=$frozen['payload'];
             }elseif($narratorMode){

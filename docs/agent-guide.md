@@ -52,7 +52,9 @@ Do not treat display names as stable TES3 actor keys or collapse playthrough dat
 1. Record client/server revisions, failure time, selected playthrough and symptom.
 2. Match request/turn/session/generation IDs between redacted client and server evidence.
 3. Inspect /var/log/lorkhanserver, Apache lorkhanserver-error.log and the supervised
-   lorkhanserver-worker service/timer. A working health endpoint does not prove worker,
+   lorkhanserver-worker (background jobs) and lorkhanserver-worker-interactive (dialogue,
+   STT, speech, expiry) services/timers, or both SysV lane supervisors. Worker status reports
+   the worse of the two lane states. A working health endpoint does not prove worker,
    provider or game delivery success.
 4. Check the configured route: direct WSL Apache normally uses port 8090; the Windows
    DwemerDistro launcher proxy uses 7514. Retain local access restrictions and pairing.
@@ -80,8 +82,14 @@ those commands modify a running system and are not build checks.
 
 ## Custom providers, actions and plugins
 
+Read the [integration runtime reference](plugin-runtime.md) for execution timing, required and optional state, atomic writes, installation/update boundaries and background work.
+
 This server does not provide the HerikaServer ext drop-in plugin contract. Do not copy
-an ext directory or assume another product's plugin hooks exist here.
+an ext directory or assume another product's plugin hooks exist here. The versioned
+`lorkhan.plugin.*.v1` addon contract in [PROTOCOL.md](PROTOCOL.md) validates manifests,
+registrations, intents and events. The authenticated server `.dwpkg` lifecycle (see plugin-runtime.md)
+installs validated packages; negotiated sessions register addons and submit events, and an enabled package may
+ship one trusted, unsandboxed `server/plugin.php` hook entrypoint (prompt slots, events, response notifications).
 
 For a custom provider, inspect the maintained
 [connector implementations](https://github.com/Dwemer-Dynamics/LorkhanServer/tree/lorkhan/connector),

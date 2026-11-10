@@ -17,6 +17,8 @@ fi
 for command in apache2ctl curl php psql rsync runuser sed ss; do
     command -v "${command}" >/dev/null || { echo "Missing required command: ${command}" >&2; exit 1; }
 done
+# Refuse an unpatched PHP CLI or Apache PHP runtime before any account, file or database change.
+bash "${source_root}/scripts/check-php-runtime-security.sh"
 
 if [[ ! ${http_port} =~ ^[0-9]+$ ]] || (( http_port < 1024 || http_port > 65535 )); then
     echo "LORKHAN_HTTP_PORT must be an integer from 1024 through 65535." >&2
@@ -69,6 +71,7 @@ find /var/lib/lorkhanserver/profile-portraits -xdev -type f \( -name '*.png' -o 
 install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/backups
 install -d -o lorkhan -g www-data -m 2770 /var/lib/lorkhanserver/backups/sql
 install -d -o lorkhan -g www-data -m 2770 /var/lib/lorkhanserver/backups/imports
+install -d -o lorkhan -g www-data -m 2770 /var/lib/lorkhanserver/plugin-packages
 find /var/lib/lorkhanserver/backups/sql -xdev -type f -name 'sql-*.sql*' -exec chown lorkhan:www-data -- {} + -exec chmod 0640 -- {} +
 find /var/lib/lorkhanserver/backups -xdev -type f -name '*.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
 install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/credentials
@@ -100,7 +103,8 @@ if [[ -f /etc/apache2/sites-available/lorkhanserver.conf ]]; then
     cp -p /etc/apache2/sites-available/lorkhanserver.conf "${rollback_root}/apache.conf"
 fi
 if [[ $(ps -p 1 -o comm=) == systemd ]]; then
-    for worker_unit in lorkhanserver-worker.timer lorkhanserver-worker.service; do
+    for worker_unit in lorkhanserver-worker.timer lorkhanserver-worker.service \
+        lorkhanserver-worker-interactive.timer lorkhanserver-worker-interactive.service; do
         if systemctl cat "${worker_unit}" >/dev/null 2>&1; then
             systemctl stop "${worker_unit}"
         fi
@@ -153,16 +157,21 @@ service apache2 restart
 
 if [[ $(ps -p 1 -o comm=) == systemd ]]; then
     command -v systemctl >/dev/null || { echo "Missing required command: systemctl" >&2; exit 1; }
-    install -m 0644 "${target_root}/deploy/systemd/lorkhanserver-worker.service" \
-        /etc/systemd/system/lorkhanserver-worker.service
-    install -m 0644 "${target_root}/deploy/systemd/lorkhanserver-worker.timer" \
-        /etc/systemd/system/lorkhanserver-worker.timer
+    # Background and interactive lanes share hardening but never claim each other's job types.
+    for worker_lane in lorkhanserver-worker lorkhanserver-worker-interactive; do
+        install -m 0644 "${target_root}/deploy/systemd/${worker_lane}.service" \
+            "/etc/systemd/system/${worker_lane}.service"
+        install -m 0644 "${target_root}/deploy/systemd/${worker_lane}.timer" \
+            "/etc/systemd/system/${worker_lane}.timer"
+    done
     systemctl daemon-reload
-    systemctl enable --now lorkhanserver-worker.timer >/dev/null
-    systemctl reset-failed lorkhanserver-worker.service >/dev/null 2>&1 || true
-    systemctl start --no-block lorkhanserver-worker.service
-    [[ $(systemctl is-enabled lorkhanserver-worker.timer) == enabled ]]
-    [[ $(systemctl is-active lorkhanserver-worker.timer) == active ]]
+    for worker_lane in lorkhanserver-worker lorkhanserver-worker-interactive; do
+        systemctl enable --now "${worker_lane}.timer" >/dev/null
+        systemctl reset-failed "${worker_lane}.service" >/dev/null 2>&1 || true
+        systemctl start --no-block "${worker_lane}.service"
+        [[ $(systemctl is-enabled "${worker_lane}.timer") == enabled ]]
+        [[ $(systemctl is-active "${worker_lane}.timer") == active ]]
+    done
 else
     for command in service start-stop-daemon update-rc.d; do
         command -v "${command}" >/dev/null || { echo "Missing required command: ${command}" >&2; exit 1; }

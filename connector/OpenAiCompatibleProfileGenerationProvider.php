@@ -38,6 +38,7 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
         $dynamicFields=$evolution&&is_array($profile['dynamic_fields']??null)?array_values($profile['dynamic_fields']):[];
         $fields=in_array($mode,['memory_summary','memory_digest'],true)?['summary']:($mode==='diary_generation'?['title','content']:
             ($playerAutochat?['text']:($playerStyle?['speech_style']:($evolution?$dynamicFields:self::FIELDS))));
+        if($mode==='hypnosis')$fields=['personality','goals','speech_style','occupation'];
         if($mode==='npc_evolution_report')$fields=['report'];
         if($mode==='scene_classification')$fields=['genre'];
         if($mode==='director_plan')$fields=['instructions'];
@@ -45,6 +46,7 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
             ||array_diff($fields,EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS)!==[]))throw new RuntimeException('profile_input_invalid');
         $evolutionKeys=implode(', ',$fields);
         $system=match($mode){
+            'hypnosis'=>'Rewrite the four supplied Morrowind NPC profile fields to follow the mandatory player instruction. Keep the actor identity and Morrowind lore. Return exactly four nonempty JSON string fields: personality, goals, speech_style, occupation. Do not return actions, other fields or Markdown. This changes the written profile only, not factions, quests or game state. Each field must be concise and at most 2000 characters.',
             'director_plan'=>DirectorPolicy::PROMPT,
             'scene_classification'=>SceneClassificationPolicy::PROMPT,
             'memory_digest'=>MemoryDigestPolicy::PROMPT,

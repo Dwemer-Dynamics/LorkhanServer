@@ -116,6 +116,10 @@ unset LORKHAN_IMPORTED_LLM_API_KEY api_key
 php -l "${config_path}" >/dev/null
 service apache2 restart >/dev/null
 service lorkhanserver-worker restart >/dev/null
+# systemd supervises the interactive lane as a separate unit; SysV restarts both lanes above.
+if [[ $(ps -p 1 -o comm=) == systemd ]]; then
+    systemctl restart lorkhanserver-worker-interactive.service >/dev/null
+fi
 
 driver=$(LORKHAN_CONFIG="${config_path}" php -r '$c=require getenv("LORKHAN_CONFIG");echo $c["provider"]["driver"]??"";')
 [[ ${driver} == openai-compatible ]] || { echo 'LORKHAN did not load the live LLM provider.' >&2; exit 1; }

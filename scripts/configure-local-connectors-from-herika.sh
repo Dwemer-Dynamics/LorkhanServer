@@ -69,4 +69,8 @@ echo json_encode([
 PHP
 
 service lorkhanserver-worker restart >/dev/null
+# systemd supervises the interactive lane as a separate unit; SysV restarts both lanes above.
+if [[ $(ps -p 1 -o comm=) == systemd ]]; then
+    systemctl restart lorkhanserver-worker-interactive.service >/dev/null
+fi
 echo 'Configured LORKHAN with the active CHIM LLM and PocketTTS defaults.'

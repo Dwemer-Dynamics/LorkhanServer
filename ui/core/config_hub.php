@@ -17,6 +17,7 @@ $configSections = [
             'npc' => ['LORKHAN NPCs', '&#x1F31F;', 'config.npc'],
             'player' => ['Player', '&#x1F464;', 'config.player'],
             'narrator' => ['Narration', '&#x1F5E3;&#xFE0F;', 'config.narrator'],
+            'plugins' => ['Server Plugins', '&#x1F9E9;', 'config.plugins'],
         ],
     ],
     'ai-voice' => [
@@ -62,13 +63,14 @@ $tabFrames = [
     'items' => ['panel' => 'items', 'src' => $webRoot . '/ui/description_manager.php?embed=1'],
     'actions' => ['panel' => 'actions', 'src' => $webRoot . '/ui/function_editor.php?embed=1'],
     'prompts' => ['panel' => 'prompts', 'src' => $webRoot . '/ui/prompts_manager.php?embed=1'],
+    'plugins' => ['panel' => 'plugins', 'src' => $webRoot . '/ui/core/server_plugins.php?embed=1'],
 ];
 
 $aliases = [
     'npc-page' => 'npc', 'profiles-page' => 'profiles', 'player-page' => 'player', 'narration-page' => 'narrator', 'npcbio-page' => 'npcbio',
     'llm-page' => 'llm', 'tts-page' => 'ttscfg', 'studio-page' => 'xtts', 'stt-page' => 'sttcfg', 'keys-page' => 'keys',
     'globals-page' => 'globals', 'knowledge-page' => 'oghma', 'items-page' => 'items', 'actions-page' => 'actions', 'prompts-page' => 'prompts',
-    'narration' => 'narrator',
+    'narration' => 'narrator', 'plugins-page' => 'plugins',
 ];
 $requested = (string) ($_GET['tab'] ?? 'npc');
 // Herika addresses the shared shell as ?tab=player_narration&section=..., LORKHAN

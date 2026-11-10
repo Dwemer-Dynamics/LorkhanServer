@@ -45,7 +45,8 @@ final class DynamicOghmaRepository
                     $patch[$field]=$rule[$field];
                     if($rule[$field]!=='')$document[$target]=$rule[$field]==='clearall'?'':$rule[$field];
                 }
-                $document['id']=Uuid::deterministicV4('dynamic-oghma|'.$installation.'|'.$playthrough.'|'.$rule['id'].'|'.$rule['revision']);
+                // The source is part of the identity so a rule retired with an abandoned save branch can apply again.
+                $document['id']=Uuid::deterministicV4('dynamic-oghma|'.$installation.'|'.$playthrough.'|'.$rule['id'].'|'.$rule['revision'].'|'.$source);
                 $document['topic']=$topic;$document['content_sha256']=hash('sha256',$document['content']);
                 $document['lexical_terms']=DeterministicRetrieval::terms(implode(' ',[$topic,$document['title'],$document['aliases'],$document['content'],$document['topic_desc_basic'],$document['tags']]));
                 $document['provenance']=['source'=>'dynamic-oghma','rule_id'=>$rule['id'],'revision'=>(int)$rule['revision'],'quest_id'=>$rule['id_quest'],'stage'=>(int)$rule['stage'],'source_event_id'=>$source];
@@ -84,7 +85,11 @@ final class DynamicOghmaRepository
                 $ruleOwner=$this->db->prepare('SELECT 1 FROM oghma_dynamic WHERE installation_id=:installation AND id=:rule');$ruleOwner->execute(['installation'=>$installation,'rule'=>$entry['rule_id']]);
                 if(!$ruleOwner->fetchColumn())throw new InvalidArgumentException('invalid_dynamic_oghma_rule');
                 $d=$entry['document'];
-                $this->db->prepare('UPDATE knowledge_documents SET deleted_at=clock_timestamp() WHERE installation_id=:installation AND playthrough_id=:playthrough AND profile_id IS NULL AND lower(topic)=:topic AND deleted_at IS NULL')->execute(['installation'=>$installation,'playthrough'=>$playthrough,'topic'=>$d['topic']]);
+                $superseded=$this->db->prepare('UPDATE knowledge_documents SET deleted_at=clock_timestamp() WHERE installation_id=:installation AND playthrough_id=:playthrough AND profile_id IS NULL AND lower(topic)=:topic AND deleted_at IS NULL RETURNING document_id');
+                $superseded->execute(['installation'=>$installation,'playthrough'=>$playthrough,'topic'=>$d['topic']]);$supersededIds=$superseded->fetchAll(PDO::FETCH_COLUMN);
+                if(count($supersededIds)>1)throw new InvalidArgumentException('ambiguous_dynamic_oghma_topic');
+                // Rollback provenance: the exact document this patch replaced and the content it wrote.
+                $d['provenance']+=['supersedes_document_id'=>$supersededIds[0]??null,'document_sha256'=>self::fingerprint($d)];
                 $terms='{'.implode(',',array_map(static fn(string $term):string=>'"'.str_replace(['\\','"'],['\\\\','\\"'],$term).'"',$d['lexical_terms'])).'}';
                 $this->db->prepare('INSERT INTO knowledge_documents(document_id,installation_id,playthrough_id,profile_id,title,content,content_sha256,lexical_terms,provenance,created_at,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category) VALUES(:id,:installation,:playthrough,NULL,:title,:content,:sha,CAST(:terms AS text[]),CAST(:provenance AS jsonb),clock_timestamp(),:topic,:aliases,:basic,:advanced_class,:basic_class,:tags,:category)')->execute([
                     'id'=>$d['id'],'installation'=>$installation,'playthrough'=>$playthrough,'title'=>$d['title'],'content'=>$d['content'],'sha'=>$d['content_sha256'],'terms'=>$terms,
@@ -94,6 +99,54 @@ final class DynamicOghmaRepository
                     'source'=>$source,'document'=>$d['id'],'patch'=>json_encode($entry['patch'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)]);
             }
         });
+    }
+
+    /**
+     * Undo patches whose source left the live save branch, newest first. Only an unmodified active patch document is
+     * retired; the document it replaced is restored and the rule may apply again. Edited, deleted, later-superseded and
+     * pre-provenance patches are left untouched and counted as skipped. The caller holds the loaded-save transaction.
+     */
+    public function rollback(string $installation,string $playthrough):array
+    {
+        $counts=['dynamic_oghma'=>0,'dynamic_oghma_skipped'=>0];
+        $this->lockInstallation($installation);$scope=['installation'=>$installation,'playthrough'=>$playthrough];
+        $applications=$this->db->prepare('SELECT a.rule_id,a.revision,a.source_event_id,a.document_id FROM oghma_dynamic_applications a
+            JOIN source_events e ON e.source_event_id=a.source_event_id
+            WHERE a.installation_id=:installation AND a.playthrough_id=:playthrough
+            AND (EXISTS(SELECT 1 FROM timeline_invalidated_sources i WHERE i.source_event_id=e.source_event_id)
+                OR EXISTS(SELECT 1 FROM timeline_invalidated_turns i WHERE i.turn_id=e.turn_id))
+            ORDER BY a.applied_at DESC,a.rule_id DESC,a.revision DESC FOR UPDATE OF a');
+        $applications->execute($scope);
+        $document=$this->db->prepare('SELECT * FROM knowledge_documents WHERE document_id=:id AND installation_id=:installation AND playthrough_id=:playthrough AND profile_id IS NULL FOR UPDATE');
+        $retire=$this->db->prepare('UPDATE knowledge_documents SET deleted_at=clock_timestamp() WHERE document_id=:id AND deleted_at IS NULL');
+        $restore=$this->db->prepare('UPDATE knowledge_documents SET deleted_at=NULL WHERE document_id=:id AND deleted_at IS NOT NULL');
+        $forget=$this->db->prepare('DELETE FROM oghma_dynamic_applications WHERE installation_id=:installation AND playthrough_id=:playthrough AND rule_id=:rule AND revision=:revision');
+        foreach($applications->fetchAll()as$application){
+            $document->execute($scope+['id'=>$application['document_id']]);$current=$document->fetch();
+            $provenance=$current?json_decode((string)$current['provenance'],true,32,JSON_THROW_ON_ERROR):[];
+            $previous=$provenance['supersedes_document_id']??null;
+            if(!$current||$current['deleted_at']!==null||($provenance['source']??null)!=='dynamic-oghma'
+                ||($provenance['rule_id']??null)!==$application['rule_id']||($provenance['revision']??null)!==(int)$application['revision']
+                ||strtolower((string)($provenance['source_event_id']??''))!==strtolower((string)$application['source_event_id'])||!array_key_exists('supersedes_document_id',$provenance)
+                ||!is_string($provenance['document_sha256']??null)||!hash_equals($provenance['document_sha256'],self::fingerprint($current))
+                ||($previous!==null&&(!is_string($previous)||!Uuid::isValid($previous)))){$counts['dynamic_oghma_skipped']++;continue;}
+            if($previous!==null){
+                $document->execute($scope+['id'=>$previous]);$replaced=$document->fetch();
+                if(!$replaced||$replaced['deleted_at']===null||mb_strtolower($replaced['topic'],'UTF-8')!==mb_strtolower($current['topic'],'UTF-8')){$counts['dynamic_oghma_skipped']++;continue;}
+            }
+            $retire->execute(['id'=>$current['document_id']]);
+            if($previous!==null)$restore->execute(['id'=>$previous]);
+            $forget->execute($scope+['rule'=>$application['rule_id'],'revision'=>$application['revision']]);
+            $counts['dynamic_oghma']++;
+        }
+        return$counts;
+    }
+
+    /** Hash every prompt-visible field so rollback can prove a patch document has not been edited since it was written. */
+    private static function fingerprint(array $document):string
+    {
+        $fields=[];foreach(['topic','title','content','aliases','topic_desc_basic','knowledge_class','knowledge_class_basic','tags','category']as$field)$fields[]=(string)$document[$field];
+        return hash('sha256',json_encode($fields,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));
     }
 
     public function catalog(string $installation,array $filters=[]):array

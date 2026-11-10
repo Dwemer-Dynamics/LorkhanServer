@@ -77,7 +77,7 @@ final class ManagementRouter
         private readonly ProductService $service,private readonly string $basePath='/LorkhanServer/manage',
         private readonly int $maxJsonBytes=2_097_152,private readonly int $sessionTtl=3600,
         private readonly array $providerConfig=[],private readonly ?EventLogRepository $eventLogRepository=null,
-        private readonly ?OghmaCatalogImporter $oghmaCatalogImporter=null){ }
+        private readonly ?OghmaCatalogImporter $oghmaCatalogImporter=null,private readonly ?PluginPackageRoutes $pluginPackages=null){ }
 
     public function dispatch(Request $r):Response
     {
@@ -182,6 +182,14 @@ final class ManagementRouter
 
     private function api(Request $r,string $path,string $browserSession):Response
     {
+        if($this->pluginPackages!==null&&(PluginPackageRoutes::matches(substr($path,7))||PluginPackageRoutes::managementMatches(substr($path,7)))){
+            // Browser management names the owning installation explicitly; session and CSRF were checked by dispatch().
+            if(array_diff(array_keys($r->query),['installation_id'])!==[])throw new InvalidArgumentException('package_invalid_request');
+            $installation=$this->queryUuid($r,'installation_id');
+            try{[$status,$body]=$this->pluginPackages->management($r,substr($path,7),$installation);}
+            catch(\LorkhanServer\Application\PluginPackageException $error){return Response::json($error->status(),['error'=>$error->getMessage()]);}
+            return Response::json($status,$body);
+        }
         if($r->method==='GET'&&$path==='/api/v1/playthrough-characters'){
             if(array_keys($r->query)!==['installation_id']||!is_string($r->query['installation_id']))throw new InvalidArgumentException('invalid_installation_id');
             return Response::json(200,$this->repository->characterPlaythroughState($r->query['installation_id']));
@@ -214,6 +222,10 @@ final class ManagementRouter
             if ($r->query !== []) throw new InvalidArgumentException($providers ? 'invalid_provider_catalogue_query' : 'invalid_model_catalogue_query');
             return $this->openRouterCatalogue($providers);
         }
+        if ($r->method === 'GET' && $path === '/api/v1/dwemerdistro-llm') {
+            require_once dirname(__DIR__) . '/dwemerdistro_llm.php';
+            return Response::json(200, \DwemerDistroLlm::status());
+        }
         if ($r->method === 'GET' && $path === '/api/v1/quickstart-local-llm') {
             if(array_keys($r->query)!==['installation_id'])throw new InvalidArgumentException('invalid_local_llm_setup_query');
             $installation=$this->queryUuid($r,'installation_id');
@@ -242,6 +254,7 @@ final class ManagementRouter
             $this->uuid($body['installation_id'],'installation_id');
             $this->repository->quickstartLocalRoutingPlan($body['installation_id']);
             $setup=\LorkhanServer\Application\QuickstartLocalLlm::normalize($body['setup']);
+            if ($setup['server_type'] === 'dwemerdistro') { \DwemerDistroLlm::requireModel($setup['content']['model']); $draftKey = ''; }
             if(!$this->management->allowTtsPreview($browserSession))return Response::json(429,['error'=>'local_llm_test_rate_limited']);
             try {
                 // A transient slot exercises unsaved fields without creating a connector or changing any routes.
@@ -357,13 +370,11 @@ final class ManagementRouter
             }
         }
         if($path==='/api/v1/eventlog'){
-            $m[1]=rawurldecode($m[1]);$this->profileId($m[1]);
             $events=$this->eventLogRepository??throw new RuntimeException('not_found');
             if($r->method==='GET')return Response::json(200,$events->page($r->query));
             if($r->method==='DELETE')return Response::json(200,$events->suppress($this->json($r)));
         }
         if($r->method==='POST'&&$path==='/api/v1/eventlog/hidden-types'){
-            $m[1]=rawurldecode($m[1]);$this->profileId($m[1]);
             $events=$this->eventLogRepository??throw new RuntimeException('not_found');$body=$this->json($r);
             $scope=$events->scope(is_string($body['installation_id']??null)?$body['installation_id']:null,
                 is_string($body['playthrough_id']??null)?$body['playthrough_id']:null);
@@ -1626,7 +1637,8 @@ final class ManagementRouter
             + (isset($overrides['prompt']) ? ['prompt'=>$overrides['prompt']] : [])
             + (isset($overrides['relationship']) ? ['relationship'=>array_intersect_key($overrides['relationship'],array_flip(['enabled','update_chance_percent']))] : [])
             + (isset($overrides['profile_management']) ? ['profile_management'=>$overrides['profile_management']] : [])
-            + (isset($overrides['profile_evolution']) ? ['profile_evolution'=>$overrides['profile_evolution']] : []) + ['response'=>['max_words'=>(int)($overrides['response']['max_words']??0),'core_lang'=>(string)($overrides['response']['core_lang']??''),'lang_llm_xtts'=>($overrides['response']['lang_llm_xtts']??false)===true],
+            + (isset($overrides['profile_evolution']) ? ['profile_evolution'=>$overrides['profile_evolution']] : []) + ['response'=>['max_words'=>(int)($overrides['response']['max_words']??0),'core_lang'=>(string)($overrides['response']['core_lang']??''),'lang_llm_xtts'=>($overrides['response']['lang_llm_xtts']??false)===true]
+                + (($overrides['response']['private_thoughts_enabled']??false)===true ? ['private_thoughts_enabled'=>true] : []),
             'behavior'=>['rechat'=>($overrides['behavior']['rechat']??false)===true,
             'rechat_max_depth'=>(int)($overrides['behavior']['rechat_max_depth']??2),
             'rechat_probability_percent'=>(int)($overrides['behavior']['rechat_probability_percent']??50),
@@ -2662,6 +2674,13 @@ final class ManagementRouter
         foreach(['memory'=>['long_term_enabled'],'diary'=>['enabled','include_in_context']] as $section=>$fields)
             foreach($fields as $field)if(array_key_exists($field,$previousContent['settings_overrides'][$section]??[]))
                 $overrides[$section][$field]=$previousContent['settings_overrides'][$section][$field];
+
+        // Private thoughts change only with their explicit control; other form saves keep the stored choice.
+        if (isset($values['private_thoughts_present'])) {
+            $overrides['response']['private_thoughts_enabled']=isset($values['setting_response_private_thoughts_enabled']);
+        } elseif (array_key_exists('private_thoughts_enabled',$previousContent['settings_overrides']['response']??[])) {
+            $overrides['response']['private_thoughts_enabled']=$previousContent['settings_overrides']['response']['private_thoughts_enabled'];
+        }
 
         if (isset($values['diary_materialize_present'])) {
             $overrides['diary']['materialize_enabled']=isset($values['setting_diary_materialize_enabled']);

@@ -18,6 +18,8 @@ The UI delegation attempt stalled; Codex completed the implementation fallback.
   event count, and independent Core short/mid/long memory switches wired to context.
 - [x] Profiles: working independent Core Clone; Narrator Core routing and resolved
   connector labels; four narration filters with existing asterisk defaults preserved.
+  As in CHIM, Disabled inline narration keeps asterisked directions in subtitles and
+  history but never sends them to NPC TTS; narration-only lines are subtitle-only.
 - [x] TTS Studio: explicit cloud voice discovery/cloning, consent, resumable batch
   synchronization, race/gender fallbacks, catalog voice IDs, and actual test audio.
 - [x] Connectors: working endpoint/credential presets, custom credential references,
@@ -193,7 +195,10 @@ own PocketTTS sample preparation. Neither sibling needs this Lorkhan routing fix
 | StyleTTS2 | Keep the existing configured-session flow, matching Herika's active code; its sample/session upload block is commented out upstream. |
 
 `LocalVoiceResolver` prepares the effective endpoint, including PocketTTS fallback
-endpoints. Live speaker discovery avoids stale registration after provider resets.
+endpoints. A speaker list confirmation is reused for two minutes per endpoint, driver,
+credential, language and sample hash; a rejected synthesis rechecks the live list and
+re-registers once, so provider resets do not leave a stale registration. Concurrent
+workers wait, cancellably and within the request timeout, for a registration in progress.
 Legacy conditioning caches include endpoint, credential, language and sample hash.
 Cache permissions work for both the HTTP and worker users. Requests are bounded,
 cancellable, pinned to the configured host, and never follow redirects.

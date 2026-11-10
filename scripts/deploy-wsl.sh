@@ -16,6 +16,8 @@ fi
 for command in apache2ctl openssl php psql rsync runuser sha256sum ss; do
     command -v "${command}" >/dev/null || { echo "Missing required command: ${command}" >&2; exit 1; }
 done
+# Refuse an unpatched PHP CLI or Apache PHP runtime before any account, file or database change.
+bash "${source_root}/scripts/check-php-runtime-security.sh"
 
 if [[ ! ${http_port} =~ ^[0-9]+$ ]] || (( http_port < 1024 || http_port > 65535 )); then
     echo "LORKHAN_HTTP_PORT must be an integer from 1024 through 65535." >&2
@@ -50,6 +52,7 @@ install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/profile-portra
 find /var/lib/lorkhanserver/profile-portraits -xdev -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.webp' \) -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
 install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/backups
 install -d -o lorkhan -g www-data -m 2770 /var/lib/lorkhanserver/backups/sql
+install -d -o lorkhan -g www-data -m 2770 /var/lib/lorkhanserver/plugin-packages
 find /var/lib/lorkhanserver/backups/sql -xdev -type f -name 'sql-*.sql*' -exec chown lorkhan:www-data -- {} + -exec chmod 0640 -- {} +
 find /var/lib/lorkhanserver/backups -xdev -type f -name '*.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
 install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/credentials
@@ -135,6 +138,7 @@ return [
     'voice_storage_path' => '/var/lib/lorkhanserver/voices',
     'portrait_storage_path' => '/var/lib/lorkhanserver/profile-portraits',
     'backup_storage_path' => '/var/lib/lorkhanserver/backups',
+    'plugin_package_storage_path' => '/var/lib/lorkhanserver/plugin-packages',
     'credential_storage_path' => '/var/lib/lorkhanserver/credentials/provider-keys.json',
     'media_max_bytes' => 32 * 1024 * 1024,
     'media_quota_bytes' => 256 * 1024 * 1024,

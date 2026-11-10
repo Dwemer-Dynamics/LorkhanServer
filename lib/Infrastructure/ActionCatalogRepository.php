@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LorkhanServer\Infrastructure;
 
 use PDO;
+use LorkhanServer\Application\ActionPolicyValidator;
 use RuntimeException;
 
 /**
@@ -140,7 +141,7 @@ final class ActionCatalogRepository
             'description' => (string) $row['description'],
             'return_message' => '',
             'available_to_npc' => !in_array($name,\LorkhanServer\Application\AdvancedActionPolicy::NAMES,true),
-            'available_to_followers' => false,
+            'available_to_followers' => $name === 'ai.follow',
             'available_to_narrator' => $this->boolean($row['available_to_narrator'] ?? false),
             'is_activated' => true,
             'parameters_json' => $parameterSchema,
@@ -188,27 +189,54 @@ final class ActionCatalogRepository
         if(!$row)return null;$row['revision']=(int)$row['revision'];$row['content']=$this->json($row['content']);return$row;
     }
 
-    /** Merge sparse NPC overrides over the installation policy without broadening catalog contracts. */
+    /**
+     * Merge sparse NPC overrides over the installation policy without broadening catalog contracts.
+     * The installation switch, tier and explicit lists are ceilings; NPC action rows replace inherited rows.
+     */
     private function mergePolicyContents(array $installation,array $profile):array
     {
         $result=$installation;
         foreach($profile as$key=>$value){
+            $inherited=$result[$key]??null;
+            if($key==='enabled'&&is_bool($value)&&is_bool($inherited)){$result[$key]=$inherited&&$value;continue;}
+            if($key==='max_tier'&&is_int($value)&&is_int($inherited)){$result[$key]=min($inherited,$value);continue;}
+            if($key==='denied_actions'&&$this->isNameList($value)&&$this->isNameList($inherited)){
+                $result[$key]=array_values(array_unique(array_merge($inherited,$value)));continue;
+            }
+            if($key==='allowed_actions'&&$this->isNameList($value)&&$this->isNameList($inherited)){
+                $result[$key]=array_values(array_intersect($value,$inherited));continue;
+            }
             if($key!=='actions'){$result[$key]=$value;continue;}
             $base=is_array($result['actions']??null)&&!array_is_list($result['actions'])?$result['actions']:[];
             if(is_array($value)&&!array_is_list($value))foreach($value as$name=>$override){
                 $prior=is_array($base[$name]??null)&&!array_is_list($base[$name])?$base[$name]:[];
-                $base[$name]=is_array($override)&&!array_is_list($override)?array_replace($prior,$override):$override;
+                if(is_array($override)&&!array_is_list($override)){
+                    // Mixed saved/editor row formats must be normalized before merging their fields.
+                    if(isset($prior['code_name'])!==isset($override['code_name'])){
+                        $validator=new ActionPolicyValidator();
+                        if(isset($prior['code_name']))$prior=$validator->normalizeSavedAction($name,$prior);
+                        if(isset($override['code_name']))$override=$validator->normalizeSavedAction($name,$override);
+                    }
+                    $base[$name]=array_replace($prior,$override);
+                }else $base[$name]=$override;
             }
             $result['actions']=$base;
         }
         return$result;
     }
 
+    private function isNameList(mixed $value):bool
+    {
+        if(!is_array($value)||!array_is_list($value))return false;
+        foreach($value as$name)if(!is_string($name))return false;
+        return true;
+    }
+
     /** @return array<string,string> */
     private function lastActionTimes(string $sessionId,int $generation):array
     {
         $statement=$this->db->prepare('SELECT action_name,max(emitted_at) AS emitted_at FROM action_intents '
-            .'WHERE session_id=:session AND generation=:generation GROUP BY action_name');
+            .'WHERE session_id=:session AND generation=:generation AND plugin_id IS NULL GROUP BY action_name');
         $statement->execute(['session'=>$sessionId,'generation'=>$generation]);$result=[];
         foreach($statement->fetchAll()as$row)$result[(string)$row['action_name']]=(string)$row['emitted_at'];
         return$result;
