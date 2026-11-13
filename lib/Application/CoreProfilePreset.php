@@ -37,6 +37,8 @@ final class CoreProfilePreset
         };
         [$history,$diaryHistory,$evolutionHistory,$words,$depth,$probability,$actions,$automatic,$rpgChance,$boredChance,$combatCooldown]=$values;
         $evolution=EffectiveSettingsResolver::profileEvolutionDefaults($content['settings_overrides']['profile_evolution']??null);
+        // Schedule leaves are not preset fields; apply() keeps the profile's existing values.
+        $evolution=array_intersect_key($evolution,array_flip(self::FIELDS['profile_evolution']));
         $evolution['enabled']=$automatic;$evolution['history_limit']=$evolutionHistory;
         $preset=['schema'=>'lorkhan.named-core-preset.v1','routing'=>['llm_randomizer_enabled'=>false],
             'settings_overrides'=>[
