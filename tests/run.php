@@ -1528,6 +1528,15 @@ foreach(['builtin:default','builtin:local_llm','builtin:passive'] as $builtin){
 }
 try{\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn('builtin:unknown',$corePresetSource);$check(false,'unknown builtin rejected');}
 catch(InvalidArgumentException){$check(true,'unknown builtin rejected');}
+$scheduledPresetSource=$corePresetSource;
+$scheduledPresetSource['settings_overrides']['profile_evolution']+=['interval_days'=>0.5,'min_events'=>12,'cooldown_minutes'=>45];
+foreach(['builtin:default','builtin:local_llm'] as $builtin){
+    $evolution=\LorkhanServer\Application\CoreProfilePreset::applyBuiltIn($builtin,$scheduledPresetSource)['settings_overrides']['profile_evolution'];
+    $check([$evolution['interval_days'],$evolution['min_events'],$evolution['cooldown_minutes'],$evolution['fields']]
+        ===[0.5,12,45,$corePresetSource['settings_overrides']['profile_evolution']['fields']]
+        &&$evolution['enabled']===false&&$evolution['history_limit']===($builtin==='builtin:default'?50:20),
+        $builtin.' preserves evolution schedule and fields while applying preset evolution values');
+}
 $backfillCore=['settings_overrides'=>['profile_management'=>['autofill_custom_profiles'=>false,'autofill_custom_profiles_trigger'=>100]]];
 $backfillResolved=(new EffectiveSettingsResolver())->resolve([],$backfillCore,[]);
 $check($backfillResolved['settings']['profile_management']===$backfillCore['settings_overrides']['profile_management']
