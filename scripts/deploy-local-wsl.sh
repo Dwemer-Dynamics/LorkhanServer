@@ -6,6 +6,12 @@ if [[ ${EUID} -ne 0 ]]; then
     exit 2
 fi
 
+# Pin every PostgreSQL administration call, including bootstrap and factory preflight children, to
+# the established local cluster: socket /var/run/postgresql port 5432, which the bootstrap DSN names
+# as 127.0.0.1:5432. Inherited PG* connection/service variables never select the target.
+unset PGSERVICE PGSERVICEFILE PGSYSCONFDIR PGHOSTADDR PGDATABASE PGUSER PGOPTIONS PGTARGETSESSIONATTRS PGLOADBALANCEHOSTS
+export PGHOST=/var/run/postgresql PGPORT=5432
+
 source_root=${1:-}
 target_root=/var/www/html/LorkhanServer
 http_port=${LORKHAN_HTTP_PORT:-8090}
@@ -51,6 +57,50 @@ done
 if ! runuser -u postgres -- psql -Atqc "SELECT 1 FROM pg_database WHERE datname='lorkhan'" | grep -qx 1; then
     needs_bootstrap=true
 fi
+# Read-only PostgreSQL preflight: accept only an existing 15 or 17 server and matching factory tools.
+# Never install packages, upgrade, downgrade or migrate a cluster here.
+# An existing configuration must already name this same target; it is never silently redirected.
+if [[ -f /etc/lorkhanserver/server.php ]] && ! php /dev/stdin <<'PHP'
+<?php
+$dsn=(string)((require '/etc/lorkhanserver/server.php')['database_dsn']??'');
+if(!str_starts_with($dsn,'pgsql:'))exit(1);
+$parts=[];
+foreach(explode(';',substr($dsn,6)) as $pair){[$key,$value]=array_pad(explode('=',$pair,2),2,'');$parts[trim($key)]=trim($value);}
+exit(in_array($parts['host']??'',['127.0.0.1','localhost'],true)&&($parts['port']??'')==='5432'&&($parts['dbname']??'')==='lorkhan'?0:1);
+PHP
+then
+    echo "The existing LorkhanServer database configuration does not target the local PostgreSQL cluster at 127.0.0.1:5432/lorkhan; this deployment does not support it. Nothing was changed." >&2
+    exit 1
+fi
+pg_target=$(runuser -u postgres -- psql -XAtqd postgres \
+    -c "SELECT current_setting('server_version_num')||'|'||current_setting('port')||'|'||current_setting('listen_addresses')") \
+    || { echo "Could not read the local PostgreSQL server version; nothing was changed." >&2; exit 1; }
+IFS='|' read -r pg_version_num pg_port pg_listen <<< "${pg_target}"
+if [[ ! ${pg_version_num} =~ ^[1-9][0-9]{5}$ ]]; then
+    echo "Unrecognized PostgreSQL server version; nothing was changed." >&2
+    exit 1
+fi
+# The socket probed here must be the same cluster that the 127.0.0.1:5432 runtime DSN reaches.
+pg_loopback=false
+IFS=',' read -r -a pg_listen_items <<< "${pg_listen}"
+for pg_listen_item in "${pg_listen_items[@]}"; do
+    case "${pg_listen_item//[[:space:]]/}" in '*'|0.0.0.0|127.0.0.1|localhost) pg_loopback=true ;; esac
+done
+if [[ ${pg_port} != 5432 || ${pg_loopback} != true ]]; then
+    echo "The local PostgreSQL cluster does not listen on 127.0.0.1:5432, the target LorkhanServer configures. Nothing was changed." >&2
+    exit 1
+fi
+pg_major=$((pg_version_num / 10000))
+if [[ ${pg_major} != 15 && ${pg_major} != 17 ]]; then
+    echo "PostgreSQL ${pg_major} is not supported; LorkhanServer requires an existing PostgreSQL 15 or 17 server. Nothing was changed." >&2
+    exit 1
+fi
+factory_preflight=1
+if [[ ${needs_bootstrap} == true ]]; then
+    factory_preflight=bootstrap
+fi
+LORKHAN_FACTORY_PREFLIGHT_ONLY=${factory_preflight} \
+    bash "${source_root}/scripts/deploy-factory-database.sh" "${source_root}" "${pg_major}"
 if [[ ${needs_bootstrap} == true ]]; then
     LORKHAN_BOOTSTRAP_ONLY=1 LORKHAN_HTTP_PORT=${http_port} bash "${source_root}/scripts/deploy-wsl.sh" "${source_root}"
 fi
@@ -199,7 +249,7 @@ if [[ ${health} != '{"schema":"lorkhan.health.v1"}' ]]; then
 fi
 
 # Refresh the private source-only reset artifact only after the deployed schema is current.
-bash "${source_root}/scripts/deploy-factory-database.sh" "${source_root}"
+bash "${source_root}/scripts/deploy-factory-database.sh" "${source_root}" "${pg_major}"
 
 echo "Deployed ${target_root}"
 echo "Rollback code and Apache route: ${rollback_root}"

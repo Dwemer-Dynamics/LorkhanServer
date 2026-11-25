@@ -6,6 +6,11 @@ if [[ ${EUID} -ne 0 ]]; then
     exit 2
 fi
 
+# Role/database bootstrap uses the same explicit local cluster as deploy-local-wsl.sh and the
+# written 127.0.0.1:5432 DSN; inherited PG* connection/service variables never select it.
+unset PGSERVICE PGSERVICEFILE PGSYSCONFDIR PGHOSTADDR PGDATABASE PGUSER PGOPTIONS PGTARGETSESSIONATTRS PGLOADBALANCEHOSTS
+export PGHOST=/var/run/postgresql PGPORT=5432
+
 source_root=${1:-}
 http_port=${LORKHAN_HTTP_PORT:-8090}
 if [[ -z ${source_root} || ! -f ${source_root}/index.php || ! -f ${source_root}/composer.json ]]; then
