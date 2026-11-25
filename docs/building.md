@@ -8,10 +8,29 @@ runtime lacks the full test/development tree. Read root AGENTS.md and the
 
 composer.json requires PHP 8.2+ with json, curl, ctype, mbstring, PDO and pdo_pgsql.
 The application uses PostgreSQL/pgvector. The isolated integration suite specifically
-requires PostgreSQL 15 tools/extensions, Python 3, Bubblewrap and enabled unprivileged
-user namespaces. Read scripts/test/integration.sh before choosing an isolated test host.
+requires PostgreSQL 15 or 17 tools with pg_trgm and pgvector, Python 3, Bubblewrap and enabled
+unprivileged user namespaces. Read scripts/test/integration.sh before choosing an isolated test host.
 Use Bash/Linux or WSL for shell suites. Composer is optional; lib/Autoload.php loads runtime
 classes. Production dependency and service setup is separate from source validation.
+
+Put exactly one major on PATH, for example `PATH=/usr/lib/postgresql/17/bin:$PATH`, before running
+database suites or scripts/build-factory-database.sh. Never mix binaries from different majors.
+
+- The SQL-import sandbox uses a complete PostgreSQL 17 toolset (server binaries, pg_trgm and
+  pgvector) and falls back to a complete 15 toolset only when 17 is incomplete. It refuses
+  custom-format archives, unrecognized `-- Dumped ... version` headers and dumps from a newer
+  major than the selected tools, so a PostgreSQL 17 dump is never replayed with 15 tools.
+- scripts/deploy-factory-database.sh reads `SHOW server_version_num` through the deployed
+  configuration and builds with the matching /usr/lib/postgresql/15 or 17 tools. Other
+  majors, missing tools or a mismatch with the caller's expected major stop before building.
+- scripts/deploy-local-wsl.sh performs the PostgreSQL version and factory-tool preflight
+  before bootstrap or any file, account, service or database change. It never installs
+  packages or upgrades, downgrades or migrates a cluster.
+- Both deploy scripts pin PostgreSQL administration to the local cluster at socket
+  /var/run/postgresql port 5432 and ignore inherited PG* service/host variables. Preflight
+  requires that cluster to listen on 127.0.0.1:5432, the bootstrap DSN target. It also
+  requires an existing /etc/lorkhanserver/server.php to name 127.0.0.1 (or localhost), port 5432,
+  dbname lorkhan. Any other target is refused unchanged, never redirected.
 
 ## Run from the source root
 

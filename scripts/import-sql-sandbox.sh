@@ -10,6 +10,38 @@ source_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 input=$(realpath -- "$1")
 [[ $(stat -c %s "$input") -le 1073741824 ]] || { echo 'Import exceeds 1 GiB.' >&2; exit 2; }
 for command in bwrap timeout python3; do command -v "$command" >/dev/null; done
+# Use one complete major-version toolset: prefer PostgreSQL 17, fall back to 15, never mix them.
+pg_toolset_complete(){
+    local root=/usr/lib/postgresql/$1 name
+    for name in initdb pg_ctl createdb psql postgres; do [[ -x $root/bin/$name ]] || return 1; done
+    for name in pg_trgm vector; do
+        [[ -f /usr/share/postgresql/$1/extension/$name.control && -f $root/lib/$name.so ]] || return 1
+    done
+}
+pg_major=
+for candidate in 17 15; do
+    if pg_toolset_complete "$candidate"; then pg_major=$candidate; break; fi
+done
+if [[ -z $pg_major ]]; then
+    echo 'SQL import requires a complete PostgreSQL 17 or 15 toolset with pg_trgm and pgvector.' >&2; exit 2
+fi
+pg_bin=/usr/lib/postgresql/$pg_major/bin
+if [[ $(head -c 5 -- "$input") == PGDMP ]]; then
+    echo 'SQL import requires a plain SQL dump, not a pg_dump custom archive.' >&2; exit 2
+fi
+# pg_dump records its server/client versions in leading comments. Never replay a newer dump with older tools.
+dump_versions=$(head -c 65536 -- "$input" | LC_ALL=C grep -aE '^-- Dumped (from database|by pg_dump) version ' | head -n 2 || true)
+while IFS= read -r line; do
+    [[ -n $line ]] || continue
+    version=${line%$'\r'}; version=${version#*version }
+    if [[ ! $version =~ ^([1-9][0-9]*)(\.[0-9]+){1,2}([[:space:]].*)?$ ]]; then
+        echo 'SQL import refused: unrecognized PostgreSQL dump version header.' >&2; exit 2
+    fi
+    if (( BASH_REMATCH[1] > pg_major )); then
+        echo "SQL import refused: PostgreSQL ${BASH_REMATCH[1]} dump needs PostgreSQL ${BASH_REMATCH[1]} tools; only PostgreSQL ${pg_major} is available." >&2
+        exit 2
+    fi
+done <<<"$dump_versions"
 php_binary=$(readlink -f /usr/bin/php)
 [[ -x "$php_binary" ]] || { echo 'PHP runtime unavailable.' >&2; exit 2; }
 uid=$(id -u); gid=$(id -g)
@@ -33,6 +65,6 @@ exec timeout --kill-after=5s 600s bwrap \
     --ro-bind "$source_root/lib/Infrastructure/PlaythroughTablePolicy.php" /PlaythroughTablePolicy.php \
     --ro-bind "$source_root/data/playthrough-table-policy.json" /data/playthrough-table-policy.json \
     --ro-bind "$source_root/data/migrations" /migrations \
-    --setenv PATH /usr/lib/postgresql/15/bin:/usr/bin:/bin --setenv HOME /scratch \
+    --setenv PATH "$pg_bin:/usr/bin:/bin" --setenv HOME /scratch \
     --setenv LANG C --setenv USER importer --setenv LOGNAME importer \
     --chdir /scratch --remount-ro / -- python3 /reader.py

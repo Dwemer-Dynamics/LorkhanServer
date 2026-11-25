@@ -3950,6 +3950,22 @@ foreach (['deploy-local-wsl.sh', 'deploy-wsl.sh'] as $scriptName) {
     ], 'is_int'));
     $check($preflight !== false && $preflight < $firstChange,
         $scriptName . ' checks the PHP runtime before any system change');
+    $pgPin = strpos((string) $deployScript, 'export PGHOST=/var/run/postgresql PGPORT=5432');
+    $check($pgPin !== false && $pgPin < strpos((string) $deployScript, 'runuser -u postgres'),
+        $scriptName . ' pins the local PostgreSQL target before any PostgreSQL call');
+    if ($scriptName === 'deploy-local-wsl.sh') {
+        $pgPreflight = strpos((string) $deployScript, 'LORKHAN_FACTORY_PREFLIGHT_ONLY=');
+        $firstMutation = min(array_filter([
+            strpos((string) $deployScript, "\ninstall "),
+            strpos((string) $deployScript, "\ngetent group lorkhan"),
+            strpos((string) $deployScript, 'LORKHAN_BOOTSTRAP_ONLY=1'),
+            strpos((string) $deployScript, 'CREATE EXTENSION'),
+        ], 'is_int'));
+        $pgDsnCheck = strpos((string) $deployScript, "['database_dsn']");
+        $check($pgDsnCheck !== false && $pgPreflight !== false && $pgDsnCheck < $pgPreflight
+            && $pgPreflight < $firstMutation,
+            $scriptName . ' checks the PostgreSQL target, version and tools before any change');
+    }
 }
 $phpSecurityChecker = dirname(__DIR__) . '/scripts/check-php-runtime-security.sh';
 if (is_executable('/bin/bash')) {
