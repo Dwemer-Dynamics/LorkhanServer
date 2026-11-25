@@ -6,6 +6,9 @@ if [[ ${EUID} -ne 0 || $# != 1 || $1 != /* || ! -f $1/scripts/build-factory-data
     echo 'Usage: run as root: deploy-factory-database.sh <absolute-source-root>' >&2; exit 2
 fi
 source_root=$(realpath -- "$1")
+for command in initdb pg_ctl createdb pg_dump pg_restore psql; do
+    [[ -x "/usr/lib/postgresql/17/bin/$command" ]] || { echo 'PostgreSQL 17 tools are required to build the factory database.' >&2; exit 2; }
+done
 factory_root=/var/lib/lorkhanserver/factory
 exec 9>/run/lock/lorkhan-factory-deploy.lock
 flock -n 9 || { echo 'Factory deployment is already running.' >&2; exit 1; }
@@ -22,7 +25,7 @@ cleanup(){
 }
 trap cleanup EXIT HUP INT TERM
 chown postgres:postgres "$scratch"
-runuser -u postgres -- env PATH=/usr/lib/postgresql/15/bin:/usr/bin:/bin:/usr/local/bin \
+runuser -u postgres -- env PATH=/usr/lib/postgresql/17/bin:/usr/bin:/bin:/usr/local/bin \
     bash "$source_root/scripts/build-factory-database.sh" "$scratch" > "$scratch/build.log"
 release=$(mktemp -d "$factory_root/release.XXXXXX")
 chown root:www-data "$release"

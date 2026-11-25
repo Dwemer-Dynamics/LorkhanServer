@@ -10,6 +10,10 @@ source_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 input=$(realpath -- "$1")
 [[ $(stat -c %s "$input") -le 1073741824 ]] || { echo 'Import exceeds 1 GiB.' >&2; exit 2; }
 for command in bwrap timeout python3; do command -v "$command" >/dev/null; done
+pg_bin=/usr/lib/postgresql/17/bin
+for command in initdb pg_ctl createdb psql; do
+    [[ -x "$pg_bin/$command" ]] || { echo 'PostgreSQL 17 server tools are required for SQL import.' >&2; exit 2; }
+done
 php_binary=$(readlink -f /usr/bin/php)
 [[ -x "$php_binary" ]] || { echo 'PHP runtime unavailable.' >&2; exit 2; }
 uid=$(id -u); gid=$(id -g)
@@ -33,6 +37,6 @@ exec timeout --kill-after=5s 600s bwrap \
     --ro-bind "$source_root/lib/Infrastructure/PlaythroughTablePolicy.php" /PlaythroughTablePolicy.php \
     --ro-bind "$source_root/data/playthrough-table-policy.json" /data/playthrough-table-policy.json \
     --ro-bind "$source_root/data/migrations" /migrations \
-    --setenv PATH /usr/lib/postgresql/15/bin:/usr/bin:/bin --setenv HOME /scratch \
+    --setenv PATH "$pg_bin:/usr/bin:/bin" --setenv HOME /scratch \
     --setenv LANG C --setenv USER importer --setenv LOGNAME importer \
     --chdir /scratch --remount-ro / -- python3 /reader.py

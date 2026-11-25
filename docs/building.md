@@ -8,10 +8,14 @@ runtime lacks the full test/development tree. Read root AGENTS.md and the
 
 composer.json requires PHP 8.2+ with json, curl, ctype, mbstring, PDO and pdo_pgsql.
 The application uses PostgreSQL/pgvector. The isolated integration suite specifically
-requires PostgreSQL 15 tools/extensions, Python 3, Bubblewrap and enabled unprivileged
+requires PostgreSQL 17 tools/extensions, Python 3, Bubblewrap and enabled unprivileged
 user namespaces. Read scripts/test/integration.sh before choosing an isolated test host.
 Use Bash/Linux or WSL for shell suites. Composer is optional; lib/Autoload.php loads runtime
 classes. Production dependency and service setup is separate from source validation.
+
+Set `PATH=/usr/lib/postgresql/17/bin:$PATH` before running database suites or building a
+factory database. The SQL-import sandbox uses PostgreSQL 17 explicitly and refuses missing
+tools instead of falling back to a retained PostgreSQL 15 installation.
 
 ## Run from the source root
 
